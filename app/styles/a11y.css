@@ -1,0 +1,129 @@
+/* ===== Accessibility Font Faces ===== */
+/* Declared here so browsers download on demand when font-family is referenced */
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/atkinson-hyperlegible/atkinson-hyperlegible-next-latin-400-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('/fonts/atkinson-hyperlegible/atkinson-hyperlegible-next-latin-500-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fonts/atkinson-hyperlegible/atkinson-hyperlegible-next-latin-700-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/opendyslexic/opendyslexic-latin-400-normal.woff2')
+    format('woff2');
+}
+
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('/fonts/opendyslexic/opendyslexic-latin-700-normal.woff2')
+    format('woff2');
+}
+
+/* ===== Accessibility Mode Overrides ===== */
+/* Layer 3: always wins over base tokens and future theme tokens */
+
+/* --- Dyslexia-friendly mode --- */
+[data-a11y-mode='dyslexia'] {
+  --a11y-letter-spacing: 0.05em;
+  --a11y-word-spacing: 0.16em;
+  --a11y-line-height: 1.8;
+  --a11y-font-weight: 500;
+  --a11y-paragraph-spacing: 1.5em;
+  --a11y-max-width: 70ch;
+}
+
+/* Default dyslexia font: Atkinson Hyperlegible */
+[data-a11y-mode='dyslexia'] {
+  --font-sans:
+    'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* OpenDyslexic font override */
+[data-a11y-font='opendyslexic'] {
+  --font-sans: 'OpenDyslexic', ui-sans-serif, system-ui, sans-serif;
+  font-size-adjust: 0.5;
+}
+
+/* Warm background only when no creative theme is active */
+:root[data-a11y-mode='dyslexia']:not([data-theme]) {
+  --background: oklch(0.97 0.01 80);
+  --card: oklch(0.98 0.008 80);
+}
+
+.dark[data-a11y-mode='dyslexia']:not([data-theme]) {
+  --background: oklch(0.2 0.015 60);
+  --card: oklch(0.23 0.012 60);
+}
+
+/* --- High contrast mode --- */
+:root[data-a11y-mode='high-contrast'] {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0 0 0);
+  --border: oklch(0 0 0);
+  --input: oklch(0 0 0);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.25 0 0);
+  --theme-border-width: 2px;
+  --theme-heading-glow: none;
+  --theme-shadow: none;
+}
+
+.dark[data-a11y-mode='high-contrast'] {
+  --background: oklch(0 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.08 0 0);
+  --card-foreground: oklch(1 0 0);
+  --border: oklch(1 0 0);
+  --input: oklch(1 0 0);
+  --muted: oklch(0.15 0 0);
+  --muted-foreground: oklch(0.75 0 0);
+  --theme-border-width: 2px;
+}
+
+/* --- Large text mode --- */
+[data-a11y-mode='large-text'] {
+  --a11y-font-size-scale: 1.25;
+}
+
+/* --- System-level high contrast support --- */
+@media (forced-colors: active) {
+  :root {
+    --theme-heading-glow: none;
+    --theme-shadow: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root:not([data-a11y-mode]) {
+    --theme-border-width: 2px;
+  }
+}

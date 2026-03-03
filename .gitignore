@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.next/
+
+# Environment
+.env
+.env.local
+.env*.local
+!.env.example
+.mcp.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Claude Code workspace
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent browser state
+.agent-browser/
+
+# Playwright MCP
+.playwright-mcp/
+
+# Supabase local
+supabase/.temp/
+
+# Build output
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+package-lock.json
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Turbopack
+.turbo/
+
+# Vercel
+.vercel
+
+# Logs
+logs/
+*.log
+
+# CSV data files
+*.csv
+!supabase/**/*.csv

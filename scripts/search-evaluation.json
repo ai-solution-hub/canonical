@@ -1,0 +1,329 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "created": "25/02/2026",
+    "item_count": 2234,
+    "items_with_embeddings": 2186,
+    "description": "Search evaluation test suite for IMS hybrid search (pgvector + keyword + recency via hybrid_search RPC)",
+    "search_endpoint": "POST /api/search",
+    "search_defaults": {
+      "threshold": 0.35,
+      "limit": 20
+    },
+    "app_url": "http://localhost:6100/search",
+    "notes": "All must_include_titles are verified against the live database as of 25/02/2026. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%)."
+  },
+  "test_cases": [
+    {
+      "id": "SE-01",
+      "category": "exact-topic",
+      "query": "Claude Code best practices and workflows",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["AI & EMERGING TECH", "LEARNING & DEVELOPMENT"],
+        "expected_subtopics": ["ai-tools-frameworks", "how-to-guides", "best-practices-frameworks"],
+        "expected_content_types": ["post", "article", "newsletter"],
+        "must_include_titles": [
+          "Claude Code Best Practices: Orchestration Workflows from Anthropic's Team",
+          "Claude Code Skills: Six-Part Series on Coding Standards Automation"
+        ],
+        "notes": "Core topic with strong keyword and semantic signal. Both ai-tools-frameworks (tool descriptions) and how-to-guides (tutorials) should appear. High confidence test -- many items match."
+      }
+    },
+    {
+      "id": "SE-02",
+      "category": "conceptual",
+      "query": "AI replacing software engineers and developers",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-workforce-impact", "industry-trends-opinions"],
+        "expected_content_types": ["post", "article", "transcript"],
+        "must_include_titles": [
+          "Ryan Dahl (Node.js Creator) Declares Human-Written Code Is Over",
+          "Software Dev Director on Team Identity Crisis as AI Reshapes Engineering Craft"
+        ],
+        "notes": "Conceptual search -- should find workforce impact items even though they may not use the exact phrase 'replacing engineers'. Tests semantic understanding beyond keyword matching."
+      }
+    },
+    {
+      "id": "SE-03",
+      "category": "author-specific",
+      "query": "Ethan Mollick AI research and insights",
+      "expectations": {
+        "min_results": 3,
+        "expected_domains": ["INSIGHTS & ANALYSIS", "LEARNING & DEVELOPMENT", "AI & EMERGING TECH"],
+        "expected_subtopics": ["industry-trends-opinions", "ai-workforce-impact", "how-to-guides", "ai-society-critique"],
+        "expected_content_types": ["post", "article"],
+        "must_include_titles": [
+          "Ethan Mollick: Management Skills as the Key Superpower in the Agentic AI Era"
+        ],
+        "notes": "Tests whether the embedding captures author name alongside topic. Ethan Mollick has 73 items in the database -- the search should surface his most topically relevant items, not just any item by him."
+      }
+    },
+    {
+      "id": "SE-04",
+      "category": "cross-domain",
+      "query": "AI governance and responsible scaling policy",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["AI & EMERGING TECH"],
+        "expected_subtopics": ["ai-safety-governance"],
+        "expected_content_types": ["post", "article", "newsletter"],
+        "must_include_titles": [
+          "Anthropic's Responsible Scaling Policy v3.0 \u2014 Frontier AI Risk Governance"
+        ],
+        "notes": "Cross-domain test: governance touches ai-safety-governance (technical) but also organisational-strategy and ai-society-critique. Should strongly favour ai-safety-governance but may pull from others. The 'AI Governance vs Data Governance' item focuses on data governance which is semantically distant from responsible scaling."
+      }
+    },
+    {
+      "id": "SE-05",
+      "category": "technical",
+      "query": "MCP server tools and protocol integration",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-tools-frameworks", "ai-agents-automation-trends"],
+        "expected_content_types": ["post"],
+        "must_include_titles": [
+          "Charlotte: Open Source Browser MCP Server with 136x Token Efficiency",
+          "MCP Official Extension Repository: Docs, Samples, and Quickstarts for Developers"
+        ],
+        "notes": "MCP (Model Context Protocol) is a specific technical protocol with dedicated items. Tests precision on a well-defined technical term."
+      }
+    },
+    {
+      "id": "SE-06",
+      "category": "broad-theme",
+      "query": "startup strategy and business models in the AI era",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["STRATEGY & BUSINESS", "INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["business-model-monetization", "market-analysis", "organizational-strategy", "market-signals-moves"],
+        "expected_content_types": ["post", "newsletter", "transcript"],
+        "must_include_titles": [
+          "How AI Startups Build Defensibility Against Platform Commoditisation",
+          "AI-Native vs Traditional SaaS: Business Models, Lean Teams, and New Pricing"
+        ],
+        "notes": "Broad theme spanning two domains. Should rank STRATEGY & BUSINESS items highly but also pull relevant INSIGHTS items. The 'AI era' framing tests whether semantic search connects strategy with AI context."
+      }
+    },
+    {
+      "id": "SE-07",
+      "category": "negative",
+      "query": "quantum computing and superconductor breakthroughs",
+      "expectations": {
+        "min_results": 0,
+        "max_results": 20,
+        "expected_domains": [],
+        "expected_content_types": [],
+        "must_include_titles": [],
+        "notes": "Negative test (relaxed) -- the collection has some tangential quantum computing content (IBM, Brian Greene interviews). With hybrid search, keyword matches on 'computing' and 'breakthroughs' pull in more results than pure semantic. Top results should still have moderate similarity (< 0.45)."
+      }
+    },
+    {
+      "id": "SE-08",
+      "category": "keyword-overlap",
+      "query": "prompt engineering techniques for LLMs",
+      "expectations": {
+        "min_results": 3,
+        "expected_domains": ["LEARNING & DEVELOPMENT", "AI & EMERGING TECH"],
+        "expected_subtopics": ["how-to-guides", "best-practices-frameworks", "ai-research"],
+        "expected_content_types": ["post", "article"],
+        "must_include_titles": [
+          "Universal Prompt Framework Template for Claude and Other LLMs",
+          "Prompt Engineering Playbook for AI Coding Assistants"
+        ],
+        "notes": "Keyword-semantic overlap test. 'Prompt engineering' is both a keyword and a semantic concept. Items with 'prompt' in title AND semantically related items should both appear."
+      }
+    },
+    {
+      "id": "SE-09",
+      "category": "exact-topic",
+      "query": "Klarna AI workforce reduction and headcount cuts",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-workforce-impact", "industry-trends-opinions"],
+        "expected_content_types": ["transcript", "post"],
+        "must_include_titles": [
+          "Klarna CEO on Cutting Headcount 50% Through AI Acceleration",
+          "Klarna CEO on Why SaaS Is Dead and AI-Driven Workforce Reduction"
+        ],
+        "notes": "Specific company + topic test. Both Klarna transcript items should appear near the top. Tests whether the search connects a specific company name with the broader topic."
+      }
+    },
+    {
+      "id": "SE-10",
+      "category": "content-type-specific",
+      "query": "venture capital AI investment and fundraising",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["INSIGHTS & ANALYSIS", "STRATEGY & BUSINESS"],
+        "expected_subtopics": ["market-signals-moves", "industry-trends-opinions", "market-analysis"],
+        "expected_content_types": ["transcript", "post", "newsletter"],
+        "must_include_titles": [
+          "Anthropic's $30B Raise and Wall Street's All-In Bet on AI",
+          "VC Perspective on SaaS Terminal Value Erosion from AI Disruption"
+        ],
+        "notes": "Should surface transcript items prominently -- the 20VC/SaaStr podcast transcripts are rich in VC and investment content. Tests whether long-form transcript embeddings match investment queries."
+      }
+    },
+    {
+      "id": "SE-11",
+      "category": "conceptual",
+      "query": "future of SaaS software being disrupted by AI",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["INSIGHTS & ANALYSIS", "STRATEGY & BUSINESS"],
+        "expected_subtopics": ["industry-trends-opinions", "market-signals-moves", "business-model-monetization", "market-analysis"],
+        "expected_content_types": ["post", "transcript", "newsletter"],
+        "must_include_titles": [
+          "Klarna CEO on Why SaaS Is Dead and AI-Driven Workforce Reduction",
+          "Andreessen Horowitz GP on Why AI Won't Replace Enterprise SaaS"
+        ],
+        "notes": "Tests opposing viewpoints -- both 'SaaS is dead' and 'SaaS won't be replaced' items should appear, showing the search finds semantically related content regardless of stance."
+      }
+    },
+    {
+      "id": "SE-12",
+      "category": "author-specific",
+      "query": "Addy Osmani on AI coding tools and developer workflows",
+      "expectations": {
+        "min_results": 3,
+        "expected_domains": ["AI & EMERGING TECH", "LEARNING & DEVELOPMENT", "INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-tools-frameworks", "how-to-guides", "ai-agents-automation-trends", "ai-workforce-impact"],
+        "expected_content_types": ["post", "article"],
+        "must_include_titles": [
+          "Chrome DevTools MCP Server for AI Coding Agent Integration",
+          "Responsible AI-Assisted Development: Avoiding the Vibe Coding Trap"
+        ],
+        "notes": "Addy Osmani has 9 items. Tests author-topic intersection -- should surface his specific posts about AI dev tools rather than generic AI tool posts by others."
+      }
+    },
+    {
+      "id": "SE-13",
+      "category": "cross-domain",
+      "query": "AI agents replacing human workers in enterprise",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-agents-automation-trends", "ai-workforce-impact"],
+        "expected_content_types": ["post", "newsletter", "transcript"],
+        "must_include_titles": [
+          "Deloitte's Human-Agentic Workforce: Humans and AI Agents as Coworkers",
+          "AI Agent Adoption Dominated by Software Engineering \u2014 Verification Is Key"
+        ],
+        "notes": "Cross-subtopic test within INSIGHTS. Should bridge ai-agents-automation-trends (agent capabilities) with ai-workforce-impact (displacement). Tests whether semantic search connects the agent technology with its workforce implications."
+      }
+    },
+    {
+      "id": "SE-14",
+      "category": "technical",
+      "query": "Anthropic Claude model safety and alignment research",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["AI & EMERGING TECH"],
+        "expected_subtopics": ["ai-safety-governance", "ai-research", "ai-models-llms"],
+        "expected_content_types": ["post", "article"],
+        "must_include_titles": [
+          "Anthropic's Safety Concerns with Claude Opus 4.6 Agentic Behaviour",
+          "Anthropic Research: Reward Hacking Generalises to Broader LLM Misalignment"
+        ],
+        "notes": "Tests specificity to Anthropic's safety research vs general AI safety. Should rank Anthropic-specific items higher than generic governance posts."
+      }
+    },
+    {
+      "id": "SE-15",
+      "category": "broad-theme",
+      "query": "learning resources and courses for AI skills",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["LEARNING & DEVELOPMENT"],
+        "expected_subtopics": ["courses-curricula", "resources-tools", "how-to-guides"],
+        "expected_content_types": ["post", "newsletter"],
+        "must_include_titles": [
+          "Google AI Professional Certificate: Hands-On AI Skills in Under 10 Hours",
+          "Wharton's Human-Centred AI Course Framework as a Benchmark"
+        ],
+        "notes": "Should strongly favour LEARNING & DEVELOPMENT domain. Tests whether the search correctly routes educational/learning queries to the right domain rather than scattering across AI & EMERGING TECH."
+      }
+    },
+    {
+      "id": "SE-16",
+      "category": "negative",
+      "query": "blockchain cryptocurrency DeFi web3 tokens",
+      "expectations": {
+        "min_results": 0,
+        "max_results": 3,
+        "expected_domains": [],
+        "expected_content_types": [],
+        "must_include_titles": [],
+        "notes": "Second negative test -- crypto/web3 content is absent from the collection. Should return very few or no results. Any results should have low similarity scores."
+      }
+    },
+    {
+      "id": "SE-17",
+      "category": "keyword-overlap",
+      "query": "AI product ideas and new startup launches",
+      "expectations": {
+        "min_results": 5,
+        "expected_domains": ["PRODUCTS & INNOVATION", "INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["product-ideas", "market-signals-moves"],
+        "expected_content_types": ["post", "article"],
+        "must_include_titles": [
+          "VoiceOS: Universal Voice Interface for 10X Productivity"
+        ],
+        "notes": "Tests the boundary between PRODUCTS & INNOVATION (product-ideas subtopic, 40 items) and INSIGHTS market-signals-moves (224 items). Should return a mix of both -- actual product descriptions and market analysis of launches."
+      }
+    },
+    {
+      "id": "SE-18",
+      "category": "exact-topic",
+      "query": "OpenAI Codex and AI coding assistants",
+      "expectations": {
+        "min_results": 3,
+        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS", "LEARNING & DEVELOPMENT"],
+        "expected_subtopics": ["ai-tools-frameworks", "industry-trends-opinions", "ai-agents-automation-trends"],
+        "expected_content_types": ["post", "transcript", "article"],
+        "must_include_titles": [
+          "OpenAI Codex Lead on the Future of Coding, Agents, and Software Engineering",
+          "Practical Tips for Getting the Most Out of OpenAI Codex App"
+        ],
+        "notes": "Specific product + category test. Should surface OpenAI Codex items alongside broader AI coding assistant content (Cursor, Claude Code, Copilot discussions)."
+      }
+    },
+    {
+      "id": "SE-19",
+      "category": "conceptual",
+      "query": "constitutional AI and machine ethics philosophy",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS"],
+        "expected_subtopics": ["ai-safety-governance", "ai-society-critique"],
+        "expected_content_types": ["post"],
+        "must_include_titles": [
+          "Anthropic Publishes Claude's Constitutional AI Guidelines",
+          "Anthropic's Claude Constitution: A Philosophical AI Governance Milestone"
+        ],
+        "notes": "Philosophical/abstract concept test. 'Constitutional AI' is a specific Anthropic term but 'machine ethics' is broader. Tests whether embeddings capture the philosophical dimension of AI safety."
+      }
+    },
+    {
+      "id": "SE-20",
+      "category": "cross-domain",
+      "query": "cybersecurity threats from AI and autonomous attacks",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["AI & EMERGING TECH"],
+        "expected_subtopics": ["ai-safety-governance"],
+        "expected_content_types": ["post", "newsletter"],
+        "must_include_titles": [
+          "First Evidence of AI-Driven Autonomous Cyberattacks at Scale",
+          "Anthropic Disrupts First AI-Orchestrated Cyber Espionage Campaign"
+        ],
+        "notes": "Niche topic that sits at the intersection of AI safety and cybersecurity. Should find the specific cyber-related items within the ai-safety-governance subtopic rather than returning generic safety content."
+      }
+    }
+  ]
+}

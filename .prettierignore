@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Coverage
+coverage/
+
+# Vercel
+.vercel/
+
+# Cache
+.cache/
+.turbo/
+
+# Package manager
+bun.lock
+package-lock.json
+
+# Generated files
+*.generated.*
+*.min.js
+*.min.css
+
+# Supabase
+supabase/.temp/
+supabase/types/database.ts
+types/supabase.ts
+
+# IDE
+.idea/
+.vscode/
+
+# Planning (large docs, don't reformat)
+.planning/
+
+# Misc
+*.log
+.DS_Store
