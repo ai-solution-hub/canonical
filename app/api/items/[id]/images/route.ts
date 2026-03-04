@@ -8,18 +8,23 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { toJson } from '@/lib/validation/jsonb';
-import path from 'path';
-import os from 'os';
-import fs from 'fs/promises';
-import { promisify } from 'util';
-import { execFile as execFileCb } from 'child_process';
-
-const execFile = promisify(execFileCb);
+import { getDocumentProxy, extractImages } from 'unpdf';
+import sharp from 'sharp';
+import { createHash } from 'crypto';
 
 export const maxDuration = 60;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Minimum pixel dimension — skip images smaller than 50x50 (decorative/icons) */
+const MIN_DIMENSION = 50;
+
+/** Maximum images to extract per PDF */
+const MAX_IMAGES = 20;
+
+/** Maximum raw pixel data size per image (5 MB) */
+const MAX_IMAGE_BYTES = 5_000_000;
 
 interface ExtractedImageMeta {
   page: number;
@@ -43,8 +48,8 @@ interface ExtractedImageOutput {
  * POST /api/items/:id/images — Extract and store images from a PDF item.
  *
  * Downloads the PDF from Supabase Storage (file_path) or source_url,
- * runs the Python extraction script, uploads each image to Storage,
- * and persists metadata via merge_item_metadata.
+ * extracts embedded images using unpdf + sharp (no Python dependency),
+ * uploads each image to Storage, and persists metadata via merge_item_metadata.
  */
 export async function POST(
   _request: NextRequest,
@@ -137,119 +142,165 @@ export async function POST(
       );
     }
 
-    // Write PDF to temp file and run extraction script
-    const tmpPath = path.join(
-      os.tmpdir(),
-      `kb-pdf-images-${Date.now()}.pdf`,
-    );
+    // Extract images using unpdf + sharp (no Python subprocess)
+    const pdfData = new Uint8Array(pdfBuffer);
+    const pdf = await getDocumentProxy(pdfData);
+    const extractedImages: ExtractedImageOutput[] = [];
+    const seenHashes = new Set<string>();
 
     try {
-      await fs.writeFile(tmpPath, pdfBuffer);
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        if (extractedImages.length >= MAX_IMAGES) break;
 
-      const scriptPath = path.resolve(
-        process.cwd(),
-        'scripts',
-        'extract_pdf_images.py',
-      );
-
-      const { stdout } = await execFile('python3', [scriptPath, tmpPath], {
-        timeout: 60_000,
-        maxBuffer: 100 * 1024 * 1024, // 100 MB — images can be large
-      });
-
-      const result = JSON.parse(stdout);
-      if (result.error) {
-        return NextResponse.json(
-          { error: `Image extraction failed: ${result.error}` },
-          { status: 500 },
-        );
-      }
-
-      const extractedImages: ExtractedImageOutput[] = result.images || [];
-
-      if (extractedImages.length === 0) {
-        // Store empty array to indicate extraction was attempted
-        await supabase.rpc('merge_item_metadata', {
-          p_item_id: id,
-          p_new_data: toJson({
-            extracted_images: [],
-            images_extracted_at: new Date().toISOString(),
-          }),
-        });
-
-        return NextResponse.json({
-          images: [],
-          message: 'No extractable images found in this PDF.',
-        });
-      }
-
-      // Upload each image to Supabase Storage and collect metadata
-      const imageMetas: ExtractedImageMeta[] = [];
-      const uploadErrors: string[] = [];
-
-      for (const img of extractedImages) {
-        const ext = img.format === 'png' ? 'png' : 'jpg';
-        const storagePath = `${id}/images/page${img.page}_img${img.index}.${ext}`;
-        const mimeType =
-          img.format === 'png' ? 'image/png' : 'image/jpeg';
-
-        const imgBuffer = Buffer.from(img.data_base64, 'base64');
-
-        const { error: uploadError } = await supabase.storage
-          .from('documents')
-          .upload(storagePath, imgBuffer, {
-            contentType: mimeType,
-            upsert: true,
-          });
-
-        if (uploadError) {
-          uploadErrors.push(
-            `page${img.page}_img${img.index}: ${uploadError.message}`,
-          );
+        let pageImages;
+        try {
+          pageImages = await extractImages(pdf, pageNum);
+        } catch {
+          // Skip pages where image extraction fails
           continue;
         }
 
-        imageMetas.push({
-          page: img.page,
-          index: img.index,
-          path: storagePath,
-          width: img.width,
-          height: img.height,
-          format: img.format,
-        });
-      }
+        let imgIndex = 0;
+        for (const img of pageImages) {
+          if (extractedImages.length >= MAX_IMAGES) break;
 
-      // Store metadata via merge_item_metadata RPC
-      const { error: mergeError } = await supabase.rpc(
-        'merge_item_metadata',
-        {
-          p_item_id: id,
-          p_new_data: toJson({
-            extracted_images: imageMetas,
-            images_extracted_at: new Date().toISOString(),
-          }),
-        },
-      );
+          // Filter by minimum dimensions
+          if (img.width < MIN_DIMENSION || img.height < MIN_DIMENSION) continue;
+
+          // Filter by maximum raw data size
+          if (img.data.byteLength > MAX_IMAGE_BYTES) continue;
+
+          // Deduplicate by hashing first 4KB of pixel data
+          const hashSlice = img.data.slice(0, 4096);
+          const dataHash = createHash('md5')
+            .update(Buffer.from(hashSlice))
+            .digest('hex');
+
+          if (seenHashes.has(dataHash)) continue;
+          seenHashes.add(dataHash);
+
+          // Encode raw pixel data to JPEG or PNG using sharp
+          const hasAlpha = img.channels === 4;
+          let encodedBuffer: Buffer;
+          let format: string;
+
+          try {
+            const sharpInstance = sharp(Buffer.from(img.data), {
+              raw: {
+                width: img.width,
+                height: img.height,
+                channels: img.channels,
+              },
+            });
+
+            if (hasAlpha) {
+              encodedBuffer = await sharpInstance.png().toBuffer();
+              format = 'png';
+            } else {
+              encodedBuffer = await sharpInstance
+                .jpeg({ quality: 85 })
+                .toBuffer();
+              format = 'jpeg';
+            }
+          } catch {
+            // Skip images that sharp cannot process
+            continue;
+          }
+
+          extractedImages.push({
+            page: pageNum,
+            index: imgIndex,
+            width: img.width,
+            height: img.height,
+            format,
+            data_base64: encodedBuffer.toString('base64'),
+          });
+
+          imgIndex++;
+        }
+      }
+    } finally {
+      pdf.cleanup();
+    }
+
+    if (extractedImages.length === 0) {
+      // Store empty array to indicate extraction was attempted
+      await supabase.rpc('merge_item_metadata', {
+        p_item_id: id,
+        p_new_data: toJson({
+          extracted_images: [],
+          images_extracted_at: new Date().toISOString(),
+        }),
+      });
 
       return NextResponse.json({
-        images: imageMetas,
-        total_found: extractedImages.length,
-        total_uploaded: imageMetas.length,
-        ...(uploadErrors.length > 0
-          ? { upload_warnings: uploadErrors }
-          : {}),
-        ...(mergeError
-          ? {
-              warning:
-                'Images uploaded but failed to persist metadata',
-            }
-          : {}),
-      });
-    } finally {
-      await fs.unlink(tmpPath).catch(() => {
-        /* ignore cleanup errors */
+        images: [],
+        message: 'No extractable images found in this PDF.',
       });
     }
+
+    // Upload each image to Supabase Storage and collect metadata
+    const imageMetas: ExtractedImageMeta[] = [];
+    const uploadErrors: string[] = [];
+
+    for (const img of extractedImages) {
+      const ext = img.format === 'png' ? 'png' : 'jpg';
+      const storagePath = `${id}/images/page${img.page}_img${img.index}.${ext}`;
+      const mimeType =
+        img.format === 'png' ? 'image/png' : 'image/jpeg';
+
+      const imgBuffer = Buffer.from(img.data_base64, 'base64');
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(storagePath, imgBuffer, {
+          contentType: mimeType,
+          upsert: true,
+        });
+
+      if (uploadError) {
+        uploadErrors.push(
+          `page${img.page}_img${img.index}: ${uploadError.message}`,
+        );
+        continue;
+      }
+
+      imageMetas.push({
+        page: img.page,
+        index: img.index,
+        path: storagePath,
+        width: img.width,
+        height: img.height,
+        format: img.format,
+      });
+    }
+
+    // Store metadata via merge_item_metadata RPC
+    const { error: mergeError } = await supabase.rpc(
+      'merge_item_metadata',
+      {
+        p_item_id: id,
+        p_new_data: toJson({
+          extracted_images: imageMetas,
+          images_extracted_at: new Date().toISOString(),
+        }),
+      },
+    );
+
+    return NextResponse.json({
+      images: imageMetas,
+      total_found: extractedImages.length,
+      total_uploaded: imageMetas.length,
+      ...(uploadErrors.length > 0
+        ? { upload_warnings: uploadErrors }
+        : {}),
+      ...(mergeError
+        ? {
+            warning:
+              'Images uploaded but failed to persist metadata',
+          }
+        : {}),
+    });
   } catch (err) {
     return NextResponse.json(
       {
