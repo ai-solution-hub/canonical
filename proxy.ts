@@ -5,14 +5,24 @@ import { NextResponse, type NextRequest } from 'next/server';
 const publicRoutes = ['/login', '/auth/callback'];
 
 export async function proxy(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.json(
+      { error: 'Server misconfiguration — missing Supabase environment variables' },
+      { status: 500 },
+    );
+  }
+
   // Pass pathname to layout so it can render minimal chrome for share routes
   request.headers.set('x-pathname', request.nextUrl.pathname);
 
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
