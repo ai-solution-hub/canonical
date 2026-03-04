@@ -86,6 +86,7 @@ export type Database = {
           drafted_by: string | null
           id: string
           last_edited_by: string | null
+          metadata: Json | null
           question_id: string
           response_text: string | null
           response_text_advanced: string | null
@@ -99,6 +100,7 @@ export type Database = {
           drafted_by?: string | null
           id?: string
           last_edited_by?: string | null
+          metadata?: Json | null
           question_id: string
           response_text?: string | null
           response_text_advanced?: string | null
@@ -112,6 +114,7 @@ export type Database = {
           drafted_by?: string | null
           id?: string
           last_edited_by?: string | null
+          metadata?: Json | null
           question_id?: string
           response_text?: string | null
           response_text_advanced?: string | null
@@ -922,6 +925,30 @@ export type Database = {
       }
     }
     Functions: {
+      claim_next_job: {
+        Args: never
+        Returns: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          payload: Json
+          priority: number
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "processing_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       filter_by_keywords: {
         Args: { search_terms: string[] }
         Returns: string[]
@@ -944,6 +971,19 @@ export type Database = {
         }[]
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
+      get_bid_question_stats: {
+        Args: { p_project_id: string }
+        Returns: {
+          complete_count: number
+          drafted_count: number
+          needs_sme_count: number
+          no_content_count: number
+          partial_match_count: number
+          strong_match_count: number
+          total_questions: number
+          unmatched_count: number
+        }[]
+      }
       get_bid_summary: { Args: { p_project_id: string }; Returns: Json }
       get_capture_activity: {
         Args: never
@@ -985,6 +1025,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_items_with_quality_flags: { Args: never; Returns: string[] }
       get_popular_keywords: {
         Args: { p_limit?: number }
         Returns: {
@@ -1001,7 +1042,22 @@ export type Database = {
           project_id: string
         }[]
       }
+      get_quality_issue_counts: {
+        Args: never
+        Returns: {
+          flag_type: string
+          open_count: number
+          severity: string
+        }[]
+      }
       get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
+      get_source_documents: {
+        Args: never
+        Returns: {
+          count: number
+          source_document: string
+        }[]
+      }
       get_top_authors: {
         Args: { p_limit?: number }
         Returns: {
@@ -1029,6 +1085,7 @@ export type Database = {
       }
       get_user_role: { Args: never; Returns: string }
       get_user_tag_counts: { Args: never; Returns: Json }
+      get_verification_stats: { Args: never; Returns: Json }
       hybrid_search: {
         Args: {
           limit_count?: number
@@ -1061,6 +1118,14 @@ export type Database = {
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
+      }
+      run_quality_scan: {
+        Args: { p_batch_name?: string }
+        Returns: {
+          flags_created: number
+          issue_type: string
+          items_found: number
+        }[]
       }
       search_content: {
         Args: {

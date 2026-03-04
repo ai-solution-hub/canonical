@@ -13,6 +13,7 @@ import {
   Moon,
   Keyboard,
   BookOpen,
+  Briefcase,
   FolderOpen,
   ShieldCheck,
   Settings,
@@ -189,6 +190,14 @@ export function CommandPalette() {
                   >
                     <FolderOpen className="size-4 text-muted-foreground" />
                     Projects
+                  </Command.Item>
+                  <Command.Item
+                    value="Bids tender management"
+                    onSelect={() => runCommand(() => router.push('/bid'))}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                  >
+                    <Briefcase className="size-4 text-muted-foreground" />
+                    Bids
                   </Command.Item>
                   <Command.Item
                     value="Content digest summary"

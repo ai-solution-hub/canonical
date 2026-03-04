@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, BookOpen, FolderOpen, Menu, Settings, ShieldCheck } from 'lucide-react';
+import { Search, BookOpen, FolderOpen, Briefcase, Menu, Settings, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,6 +22,7 @@ const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: null },
   { href: '/search', label: 'Search', icon: Search },
   { href: '/projects', label: 'Projects', icon: FolderOpen },
+  { href: '/bid', label: 'Bids', icon: Briefcase },
   { href: '/digest', label: 'Digest', icon: BookOpen },
 ] as const;
 
