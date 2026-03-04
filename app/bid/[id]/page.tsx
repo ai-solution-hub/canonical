@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
+import { BidExportMenu } from '@/components/bid-export-menu';
 import { ConfidenceDot } from '@/components/confidence-badge';
 import { QuestionList } from '@/components/question-list';
 import { QuestionReview } from '@/components/question-review';
@@ -278,6 +279,11 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                 ))}
               </div>
             )}
+            <BidExportMenu
+              bidId={id}
+              bidName={bid.name}
+              hasQuestions={totalQuestions > 0}
+            />
             <a href={`/bid/${id}/session`}>
               <Button variant="default" size="sm">
                 <FileText className="mr-1.5 size-4" aria-hidden="true" />
