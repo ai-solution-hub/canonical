@@ -55,35 +55,46 @@ knowledge-hub/
     api/search/suggestions/   #   GET /api/search/suggestions
     api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, projects)
     api/projects/             #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
+    api/bids/                 #   GET/POST + [id]/ (CRUD, questions, responses, tender, outcome, export)
+    api/copilotkit/           #   POST (CopilotKit AG-UI runtime endpoint)
     api/embed/                #   POST /api/embed (standalone embedding)
     api/summaries/            #   POST /api/summaries/generate (Claude AI summaries)
     api/digest/               #   generate + latest + list (AI digest)
     api/read-marks/           #   POST /api/read-marks (read tracking)
     api/insights/             #   GET /api/insights (analytical RPCs wrapper)
     api/review/               #   queue + action + stats (content review workflow)
+    api/governance/           #   review + route (freshness/ownership governance)
+    api/notifications/        #   read + route (user notifications)
+    api/freshness/            #   calculate + recalculate-all
+    api/activity/             #   GET /api/activity (activity feed)
+    api/health/               #   GET /api/health (health check)
     api/admin/users/          #   list + invite + [userId] (user management)
     api/users/display-names/  #   GET (UUID→display name resolution)
     api/upload/               #   POST (file upload)
     api/extract/              #   POST (content extraction)
+    bid/                      #   /bid (bid workspace + [id] detail/session pages)
     browse/                   #   /browse (grid/list, filters, pagination)
     item/[id]/                #   /item/:id (detail + inline editing)
     search/                   #   /search (semantic search results)
     digest/                   #   /digest (AI digest generation + history)
     projects/                 #   /projects (project management)
     review/                   #   /review (content review workflow)
-    settings/                 #   /settings (user settings)
+    settings/                 #   /settings (user settings, 4 tabs)
     login/                    #   /login (Supabase Auth)
     auth/                     #   /auth/callback (OAuth callback)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~70 custom components + ui/ (22 shadcn)
-  contexts/                   # React contexts (read-marks-context)
-  hooks/                      # 11 hooks (accessibility, browse-filters, display-names,
-                              #   keyboard-shortcuts, progress, reader-preferences,
+  components/                 # ~95 custom components + reader-cards/ (5) + ui/ (23 shadcn)
+  contexts/                   # React contexts (read-marks-context, taxonomy-context)
+  hooks/                      # 12 hooks (accessibility, browse-filters, display-names,
+                              #   keyboard-shortcuts, notifications, progress, reader-preferences,
                               #   review-shortcuts, search, theme-mode, transcript, user-role)
   lib/                        # Supabase clients, taxonomy, formatting, utils, anthropic,
                               #   ai-parse, auth, roles, error, rate-limit, digest-export,
-                              #   browse-helpers, extraction-schemas, validation
-  types/                      # TypeScript types (content, digest, review, css.d)
+                              #   browse-helpers, extraction-schemas, validation/,
+                              #   bid-drafting, bid-matching, bid-state-machine, bid-export-*,
+                              #   citations, copilotkit/, editor-utils, embeddings, freshness,
+                              #   quality-check, structured-outputs, pdf-worker
+  types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
                               #     embed, store, dedup, summarise, pipeline, pipeline_log)
@@ -99,12 +110,13 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 6 DDL migration files
+    migrations/               # 7 DDL migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
-  __tests__/                  # Vitest test files (7 files)
+    continuation-prompts/     # Session handoff documents for cross-session context
+  __tests__/                  # Vitest test files (17 files)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -135,7 +147,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-### Tables (14)
+### Tables (16)
 
 | # | Table | Purpose |
 |---|-------|---------|
@@ -151,8 +163,10 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 | 10 | `content_history` | Immutable version snapshots (auto-versioned) |
 | 11 | `bid_questions` | Extracted tender questions |
 | 12 | `bid_responses` | AI-drafted and human-edited responses |
-| 13 | `taxonomy_domains` | Configurable taxonomy (post-MVP) |
-| 14 | `taxonomy_subtopics` | Configurable subtopics (post-MVP) |
+| 13 | `taxonomy_domains` | Configurable taxonomy (DB-driven via taxonomy-context) |
+| 14 | `taxonomy_subtopics` | Configurable subtopics (DB-driven via taxonomy-context) |
+| 15 | `governance_config` | Governance settings (freshness thresholds, review rules) |
+| 16 | `notifications` | User notifications (governance, freshness, quality) |
 
 ### RLS Model
 
@@ -185,8 +199,10 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest (`bun test`)
 - **Coverage:** `bun test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 7 files (schemas, utils, jsonb, format, ai-parse,
-  validation, digest-export)
+- **Location:** `__tests__/` — 17 files (schemas, utils, jsonb, format, ai-parse,
+  validation, digest-export, bid-schemas, bid-matching, bid-state-machine,
+  bid-export-docx, bid-export-xlsx, change-summary, citations, editor-utils,
+  freshness, quality-check)
 
 ## Deployment
 
@@ -223,6 +239,11 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 | Feasibility study | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
 | ADS v1.0 | `.planning/ads-v1.md` | Canonical requirements |
 | Client documentation | `.planning/client-documentation/` | Bid library .docx and .pdf files for import |
+| Phase 6 specs (3 docs) | `.planning/specs/phase6[abc]-*-spec.md` | Bid infrastructure, AI drafting, CopilotKit workspace |
+| Phase 7 specs (2 docs) | `.planning/specs/phase7[ab]-*-spec.md` | Export generation, template completion |
+| Tool evaluations | `.planning/research/tool-evaluations/` | 13 tool evaluations + SUMMARY.md (Phase 9) |
+| Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
+| Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
@@ -246,7 +267,11 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   `user_roles` row. First admin must be seeded via service_role key
 - **Playwright browser install:** After `pip install playwright`, must also run
   `python3 -m playwright install chromium` — version mismatches cause failures
-- **taxonomy.ts is IMS legacy:** `lib/taxonomy.ts` contains the hardcoded IMS
-  6x30 taxonomy. Will be replaced with database-driven taxonomy from
-  `taxonomy_domains`/`taxonomy_subtopics` tables. Until then, it works for
-  the existing classification pipeline.
+- **taxonomy.ts dual-source:** `lib/taxonomy.ts` contains a hardcoded fallback
+  taxonomy. The app now uses DB-driven taxonomy via `contexts/taxonomy-context.tsx`
+  (`TaxonomyProvider` + `useTaxonomy()`), but `taxonomy.ts` remains for the
+  Python pipeline and as a static fallback. Canonical constants live in
+  `lib/validation/schemas.ts`.
+- **Content review vs governance review:** `/review` is content quality review
+  (speed review cards). `/api/governance/review` is freshness/ownership
+  governance. They are separate workflows — do not conflate them.
