@@ -5,13 +5,12 @@ Bid Worker -- Asynchronous document processing service.
 Polls processing_queue for pending jobs and processes:
 - tender_extract_docx: Extract questions from Word documents
 - tender_extract_pdf_text: Extract text from PDFs via pdfplumber
-- batch_match: Run KB matching for multiple questions
 
 Usage:
   PYTHONUNBUFFERED=1 python3 scripts/bid_worker.py
 
 Environment:
-  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_ANON_KEY)
+  SUPABASE_URL, SUPABASE_SECRET_KEY (or SUPABASE_ANON_KEY)
 """
 
 import json
@@ -31,12 +30,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_supabase() -> Client:
     """Create and return a Supabase client using environment variables."""
     url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or os.environ.get(
+    key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get(
         "SUPABASE_ANON_KEY"
     )
     if not url or not key:
         print(
-            "Error: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set",
+            "Error: SUPABASE_URL and SUPABASE_SECRET_KEY must be set",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -169,38 +168,6 @@ def extract_pdf_text(supabase: Client, payload: dict) -> dict:
         os.unlink(tmp_path)
 
 
-def batch_match_questions(supabase: Client, payload: dict) -> dict:
-    """Batch KB matching via the API route.
-
-    Delegates to /api/bids/[id]/questions/match which handles embedding
-    generation, semantic search, and confidence assessment. This worker
-    entry point is reserved for future background processing when the
-    API route is insufficient for large batches.
-
-    Args:
-        supabase: Supabase client
-        payload: Job payload with bid_id and optional question_ids
-
-    Returns:
-        Dict with a warning that this should be called via the API
-    """
-    bid_id = payload.get("bid_id", "unknown")
-    print(
-        f"Warning: batch_match job received for bid {bid_id}. "
-        "Use POST /api/bids/[id]/questions/match instead. "
-        "Worker-based matching is not yet implemented.",
-        file=sys.stderr,
-    )
-    return {
-        "status": "skipped",
-        "message": (
-            f"Batch matching for bid {bid_id} should be triggered via "
-            "POST /api/bids/[id]/questions/match. "
-            "Worker-based matching is not yet implemented."
-        ),
-    }
-
-
 def process_job(supabase: Client, job: dict) -> dict:
     """Route a job to the appropriate handler based on job_type.
 
@@ -221,8 +188,6 @@ def process_job(supabase: Client, job: dict) -> dict:
         return extract_docx_questions(supabase, payload)
     elif job_type == "tender_extract_pdf_text":
         return extract_pdf_text(supabase, payload)
-    elif job_type == "batch_match":
-        return batch_match_questions(supabase, payload)
     else:
         raise ValueError(f"Unknown job type: {job_type}")
 
