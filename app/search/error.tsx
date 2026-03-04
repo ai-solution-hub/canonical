@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 export default function SearchError({
   error,
@@ -14,17 +16,21 @@ export default function SearchError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-      <h2 className="text-lg font-semibold">Failed to load search</h2>
-      <p className="text-sm text-muted-foreground">
-        Something went wrong. Please try again.
+    <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-24 text-center">
+      <h2 className="mb-2 text-lg font-semibold text-foreground">
+        Search encountered an error
+      </h2>
+      <p className="mb-6 text-sm text-muted-foreground">
+        Something went wrong with your search. Please try again.
       </p>
-      <button
-        onClick={reset}
-        className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90"
-      >
-        Try again
-      </button>
+      <div className="flex gap-3">
+        <Button onClick={reset} variant="outline">
+          Try again
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href="/">Go back</Link>
+        </Button>
+      </div>
     </div>
   );
 }
