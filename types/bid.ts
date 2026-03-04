@@ -157,3 +157,13 @@ export interface ExtractionResult {
   format: 'docx' | 'pdf';
   extraction_method: 'programmatic' | 'ai';
 }
+
+// ---- KB Integration Candidates ----
+
+export interface KBCandidate {
+  question_id: string;
+  question_text: string;
+  response_text: string | null;
+  source_content_ids: string[] | null;
+  recommendation: 'new_entry' | 'update_existing' | 'skip';
+}
