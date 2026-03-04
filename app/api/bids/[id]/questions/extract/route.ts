@@ -8,17 +8,9 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
-import { extractPDFQuestions } from '@/lib/structured-outputs';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { writeFile, unlink } from 'fs/promises';
-import { tmpdir } from 'os';
-import { join } from 'path';
-import crypto from 'crypto';
+import { extractPDFQuestions, extractDOCXQuestions } from '@/lib/structured-outputs';
 
 export const maxDuration = 120;
-
-const execFileAsync = promisify(execFile);
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -91,51 +83,22 @@ export async function POST(
     let sectionsFound = 0;
 
     if (format === 'docx') {
-      // Write to temp file and run Python extraction
-      const tmpPath = join(
-        tmpdir(),
-        `tender-extract-${crypto.randomUUID()}.docx`,
-      );
+      // Convert DOCX to HTML via mammoth, then extract with Claude
+      const arrayBuffer = await fileData.arrayBuffer();
+      const result = await extractDOCXQuestions(Buffer.from(arrayBuffer));
 
-      try {
-        const arrayBuffer = await fileData.arrayBuffer();
-        await writeFile(tmpPath, Buffer.from(arrayBuffer));
-
-        const scriptPath = join(
-          process.cwd(),
-          'scripts',
-          'extract_tender_questions.py',
-        );
-
-        const { stdout } = await execFileAsync('python3', [scriptPath, tmpPath], {
-          timeout: 120_000,
-          maxBuffer: 50 * 1024 * 1024,
-        });
-
-        const result = JSON.parse(stdout);
-
-        if (result.error) {
-          throw new Error(result.error);
+      for (const section of result.sections ?? []) {
+        sectionsFound++;
+        for (const question of section.questions ?? []) {
+          extractedQuestions.push({
+            section_name: section.section_name,
+            section_sequence: section.section_sequence,
+            question_text: question.question_text,
+            question_sequence: question.question_sequence,
+            word_limit: question.word_limit ?? null,
+            evaluation_weight: question.evaluation_weight ?? null,
+          });
         }
-
-        // Flatten sections into questions with sequence numbers
-        for (const section of result.sections ?? []) {
-          sectionsFound++;
-          for (const question of section.questions ?? []) {
-            extractedQuestions.push({
-              section_name: section.section_name,
-              section_sequence: section.section_sequence,
-              question_text: question.question_text,
-              question_sequence: question.question_sequence,
-              word_limit: question.word_limit ?? null,
-              evaluation_weight: question.evaluation_weight ?? null,
-            });
-          }
-        }
-      } finally {
-        await unlink(tmpPath).catch(() => {
-          /* ignore cleanup errors */
-        });
       }
     } else if (format === 'pdf') {
       // Convert to base64 and use Claude extraction

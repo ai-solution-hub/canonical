@@ -1,4 +1,5 @@
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
+import mammoth from 'mammoth';
 
 /**
  * JSON Schema for tender question extraction from PDF documents.
@@ -69,6 +70,46 @@ export const SEARCH_QUERIES_SCHEMA = {
   },
 };
 
+/**
+ * Shared tool definition for tender question extraction.
+ * Used by both PDF and DOCX extraction functions to guarantee identical schemas.
+ */
+const EXTRACT_QUESTIONS_TOOL = {
+  name: 'extract_questions' as const,
+  description: 'Store the extracted questions from the tender document',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      sections: {
+        type: 'array' as const,
+        items: {
+          type: 'object' as const,
+          properties: {
+            section_name: { type: 'string' as const },
+            section_sequence: { type: 'integer' as const },
+            questions: {
+              type: 'array' as const,
+              items: {
+                type: 'object' as const,
+                properties: {
+                  question_text: { type: 'string' as const },
+                  question_sequence: { type: 'integer' as const },
+                  word_limit: { type: 'integer' as const },
+                  evaluation_weight: { type: 'number' as const },
+                  category: { type: 'string' as const, enum: ['mandatory', 'desirable', 'informational'] },
+                },
+                required: ['question_text', 'question_sequence'] as const,
+              },
+            },
+          },
+          required: ['section_name', 'section_sequence', 'questions'] as const,
+        },
+      },
+    },
+    required: ['sections'] as const,
+  },
+};
+
 export interface ExtractedPDFQuestions {
   sections: Array<{
     section_name: string;
@@ -90,6 +131,18 @@ export interface GeneratedSearchQueries {
 }
 
 /**
+ * Extract the tool_use result from a Claude response.
+ * Shared helper for PDF and DOCX extraction.
+ */
+function extractToolResult(response: Awaited<ReturnType<ReturnType<typeof getAnthropicClient>['messages']['create']>>): ExtractedPDFQuestions {
+  const toolBlock = response.content.find(block => block.type === 'tool_use');
+  if (!toolBlock || toolBlock.type !== 'tool_use') {
+    throw new Error('No tool_use content in response');
+  }
+  return toolBlock.input as ExtractedPDFQuestions;
+}
+
+/**
  * Extract questions from a PDF tender document using Claude tool_use pattern.
  *
  * Uses forced tool_use (tool_choice) to guarantee structured JSON output.
@@ -102,7 +155,7 @@ export async function extractPDFQuestions(pdfBase64: string): Promise<ExtractedP
 }
 
 /**
- * Fallback: Extract questions using the tool_use pattern (proven in existing codebase).
+ * Extract questions from a PDF using the tool_use pattern (proven in existing codebase).
  */
 async function extractPDFQuestionsWithToolUse(pdfBase64: string): Promise<ExtractedPDFQuestions> {
   const anthropic = getAnthropicClient();
@@ -135,51 +188,65 @@ You MUST call the extract_questions tool with your results.`,
         ],
       },
     ],
-    tools: [
-      {
-        name: 'extract_questions',
-        description: 'Store the extracted questions from the tender document',
-        input_schema: {
-          type: 'object' as const,
-          properties: {
-            sections: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  section_name: { type: 'string' },
-                  section_sequence: { type: 'integer' },
-                  questions: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        question_text: { type: 'string' },
-                        question_sequence: { type: 'integer' },
-                        word_limit: { type: 'integer' },
-                        evaluation_weight: { type: 'number' },
-                        category: { type: 'string', enum: ['mandatory', 'desirable', 'informational'] },
-                      },
-                      required: ['question_text', 'question_sequence'],
-                    },
-                  },
-                },
-                required: ['section_name', 'section_sequence', 'questions'],
-              },
-            },
-          },
-          required: ['sections'],
-        },
-      },
-    ],
+    tools: [EXTRACT_QUESTIONS_TOOL],
     tool_choice: { type: 'tool', name: 'extract_questions' },
   });
 
-  const toolBlock = response.content.find(block => block.type === 'tool_use');
-  if (!toolBlock || toolBlock.type !== 'tool_use') {
-    throw new Error('No tool_use content in response');
+  return extractToolResult(response);
+}
+
+/**
+ * Extract questions from a DOCX tender document using mammoth + Claude tool_use.
+ *
+ * Converts the DOCX buffer to HTML (preserving table structure), then sends the
+ * HTML to Claude for structured extraction using the same tool_use schema as
+ * the PDF path.
+ */
+export async function extractDOCXQuestions(buffer: Buffer): Promise<ExtractedPDFQuestions> {
+  const { value: html } = await mammoth.convertToHtml({ buffer });
+
+  if (!html || html.trim().length === 0) {
+    throw new Error('DOCX conversion produced no content');
   }
-  return toolBlock.input as ExtractedPDFQuestions;
+
+  const anthropic = getAnthropicClient();
+
+  const response = await anthropic.messages.create({
+    model: getAIModel(),
+    max_tokens: 8192,
+    system: `You are extracting questions from a UK tender document that has been converted from DOCX to HTML.
+
+Extract ALL questions that require a written response from the bidder. These are typically found in:
+- HTML tables with columns like "Question", "Requirement", "Response Required", "Description"
+- Numbered lists of questions in the document body
+- Requirement matrices with evaluation criteria
+
+For each question, detect:
+- **Word limits:** Look for patterns like "Max 500 words", "500 words", "(maximum 300 words)" in the question text, adjacent table cells, or dedicated "Word Limit" columns.
+- **Evaluation weights:** Look for patterns like "10%", "10 marks", "10 points" in dedicated "Weighting" or "Max Marks" columns.
+- **Category:** Classify as "informational" if the question asks for administrative details (company name, registered address, VAT number, contact details, trading name, registration number, DUNS number, website URL, turnover, number of employees, parent company, SME status, postcode, email, telephone, signature). Otherwise classify as "mandatory".
+
+Exclude:
+- Instructions and preamble sections
+- Administrative header fields (company name, address, VAT, etc.) — these should be classified as "informational" if included
+- Response/answer columns (only extract the question text)
+
+Group questions by section based on document headings (h1, h2, h3 tags) or section columns within tables.
+Assign sequential section_sequence (starting from 0) and question_sequence (starting from 0 within each section).
+Use UK English throughout.
+
+You MUST call the extract_questions tool with your results.`,
+    messages: [
+      {
+        role: 'user',
+        content: `Extract all bid questions from this tender document HTML:\n\n${html}`,
+      },
+    ],
+    tools: [EXTRACT_QUESTIONS_TOOL],
+    tool_choice: { type: 'tool', name: 'extract_questions' },
+  });
+
+  return extractToolResult(response);
 }
 
 /**
