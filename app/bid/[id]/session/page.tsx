@@ -20,6 +20,7 @@ import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
+import { getOrphanedSourceIds } from '@/lib/citations';
 import { toast } from 'sonner';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData, BidResponseMetadata } from '@/types/bid-metadata';
@@ -505,6 +506,10 @@ export default function BidSessionPage({
                 <CitationPanel
                   citations={response.citations ?? []}
                   sourceContent={response.source_content ?? []}
+                  orphanedSourceIds={getOrphanedSourceIds(
+                    response.citations ?? [],
+                    response.source_content ?? [],
+                  )}
                   onCitationClick={handleCitationClick}
                 />
               )}

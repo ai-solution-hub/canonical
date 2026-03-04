@@ -3,6 +3,7 @@ import {
   extractCitedResponse,
   deduplicateCitations,
   countUniqueSources,
+  getOrphanedSourceIds,
 } from '@/lib/citations';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
@@ -425,5 +426,89 @@ describe('countUniqueSources', () => {
     ];
 
     expect(countUniqueSources(citations)).toBe(3);
+  });
+});
+
+describe('getOrphanedSourceIds', () => {
+  it('returns empty set when no orphans', () => {
+    const citations = [
+      { source_id: 'uuid-1' },
+      { source_id: 'uuid-2' },
+    ];
+    const sourceContent = [
+      { id: 'uuid-1' },
+      { id: 'uuid-2' },
+    ];
+
+    const result = getOrphanedSourceIds(citations, sourceContent);
+    expect(result.size).toBe(0);
+  });
+
+  it('detects orphaned source IDs correctly', () => {
+    const citations = [
+      { source_id: 'uuid-1' },
+      { source_id: 'uuid-2' },
+      { source_id: 'uuid-3' },
+    ];
+    const sourceContent = [
+      { id: 'uuid-1' },
+      // uuid-2 and uuid-3 have been deleted
+    ];
+
+    const result = getOrphanedSourceIds(citations, sourceContent);
+    expect(result.size).toBe(2);
+    expect(result.has('uuid-2')).toBe(true);
+    expect(result.has('uuid-3')).toBe(true);
+    expect(result.has('uuid-1')).toBe(false);
+  });
+
+  it('handles empty citations array', () => {
+    const sourceContent = [
+      { id: 'uuid-1' },
+      { id: 'uuid-2' },
+    ];
+
+    const result = getOrphanedSourceIds([], sourceContent);
+    expect(result.size).toBe(0);
+  });
+
+  it('handles empty sourceContent array', () => {
+    const citations = [
+      { source_id: 'uuid-1' },
+      { source_id: 'uuid-2' },
+    ];
+
+    const result = getOrphanedSourceIds(citations, []);
+    expect(result.size).toBe(2);
+    expect(result.has('uuid-1')).toBe(true);
+    expect(result.has('uuid-2')).toBe(true);
+  });
+
+  it('ignores citations with empty source_id', () => {
+    const citations = [
+      { source_id: '' },
+      { source_id: 'uuid-1' },
+    ];
+    const sourceContent = [
+      { id: 'uuid-1' },
+    ];
+
+    const result = getOrphanedSourceIds(citations, sourceContent);
+    expect(result.size).toBe(0);
+  });
+
+  it('deduplicates orphaned IDs in the result set', () => {
+    const citations = [
+      { source_id: 'uuid-deleted' },
+      { source_id: 'uuid-deleted' },
+      { source_id: 'uuid-deleted' },
+    ];
+    const sourceContent = [
+      { id: 'uuid-existing' },
+    ];
+
+    const result = getOrphanedSourceIds(citations, sourceContent);
+    expect(result.size).toBe(1);
+    expect(result.has('uuid-deleted')).toBe(true);
   });
 });

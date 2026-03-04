@@ -97,3 +97,22 @@ export function deduplicateCitations(citations: CitationEntry[]): CitationEntry[
 export function countUniqueSources(citations: CitationEntry[]): number {
   return new Set(citations.map((c) => c.source_id)).size;
 }
+
+/**
+ * Detect orphaned citations — citations whose source content item has been
+ * deleted. The citation data (source_title, cited_text) is snapshotted at
+ * draft time, but the "View source" link would be a 404.
+ *
+ * Returns a Set of source_id values that no longer exist in sourceContent.
+ */
+export function getOrphanedSourceIds(
+  citations: Array<{ source_id: string }>,
+  sourceContent: Array<{ id: string }>,
+): Set<string> {
+  const existingIds = new Set(sourceContent.map((s) => s.id));
+  return new Set(
+    citations
+      .map((c) => c.source_id)
+      .filter((id) => id && !existingIds.has(id)),
+  );
+}

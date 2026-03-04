@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, ExternalLink, FileText } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, ExternalLink, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ interface SourceContent {
 interface CitationPanelProps {
   citations: CitationEntry[];
   sourceContent: SourceContent[];
+  orphanedSourceIds?: Set<string>;
   onCitationClick?: (contentId: string) => void;
   className?: string;
 }
@@ -27,6 +28,7 @@ interface CitationPanelProps {
 export function CitationPanel({
   citations,
   sourceContent,
+  orphanedSourceIds,
   onCitationClick,
   className,
 }: CitationPanelProps) {
@@ -80,6 +82,7 @@ export function CitationPanel({
           {citations.map((citation, index) => {
             const source = sourceContent.find((s) => s.id === citation.source_id);
             const isExpandedCitation = expandedCitationIndex === index;
+            const isOrphaned = orphanedSourceIds?.has(citation.source_id) ?? false;
 
             return (
               <div key={`${citation.source_id}-${index}`} className="px-4 py-2.5">
@@ -92,13 +95,28 @@ export function CitationPanel({
                       &ldquo;{citation.cited_text}&rdquo;
                     </p>
                     <div className="mt-1 flex items-center gap-2 flex-wrap">
-                      <button
-                        onClick={() => onCitationClick?.(citation.source_id)}
-                        className="text-xs font-medium text-primary hover:underline truncate max-w-[200px]"
-                        type="button"
-                      >
-                        {citation.source_title || 'Untitled source'}
-                      </button>
+                      {isOrphaned ? (
+                        <span className="text-xs font-medium text-muted-foreground truncate max-w-[200px]">
+                          {citation.source_title || 'Untitled source'}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => onCitationClick?.(citation.source_id)}
+                          className="text-xs font-medium text-primary hover:underline truncate max-w-[200px]"
+                          type="button"
+                        >
+                          {citation.source_title || 'Untitled source'}
+                        </button>
+                      )}
+                      {isOrphaned && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 border-amber-500/50 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                        >
+                          <AlertTriangle className="size-2.5 mr-0.5" aria-hidden="true" />
+                          Source removed
+                        </Badge>
+                      )}
                       {source?.content_type && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                           {source.content_type.replace(/_/g, ' ')}
@@ -136,7 +154,7 @@ export function CitationPanel({
                       <ChevronDown className="size-3" />
                     )}
                   </Button>
-                  {onCitationClick && (
+                  {onCitationClick && !isOrphaned && (
                     <Button
                       variant="ghost"
                       size="icon-xs"
