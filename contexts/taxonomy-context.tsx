@@ -10,6 +10,11 @@ import {
   useMemo,
 } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import {
+  formatSubtopic as formatSubtopicUtil,
+  formatDomainName as formatDomainNameUtil,
+  FALLBACK_COLOUR_MAP,
+} from '@/lib/taxonomy-format';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,29 +56,6 @@ interface TaxonomyContextValue {
   /** Format a domain name for display (kebab-case to Title Case) */
   formatDomainName: (domain: string) => string;
 }
-
-// ---------------------------------------------------------------------------
-// Abbreviations for formatSubtopic
-// ---------------------------------------------------------------------------
-
-const ABBREVIATIONS = new Set([
-  'ai', 'ux', 'gtd', 'llms', 'roi', 'api', 'css', 'html', 'url', 'crm',
-  'sla', 'iso',
-]);
-
-// ---------------------------------------------------------------------------
-// Fallback domain colour map (used when taxonomy has no colour field)
-// ---------------------------------------------------------------------------
-
-const FALLBACK_COLOUR_MAP: Record<string, string> = {
-  security: 'security',
-  compliance: 'compliance',
-  implementation: 'implementation',
-  support: 'support',
-  corporate: 'corporate',
-  'product-feature': 'product',
-  methodology: 'methodology',
-};
 
 // ---------------------------------------------------------------------------
 // Context + Provider
@@ -187,25 +169,15 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     [domainByName],
   );
 
-  const formatSubtopic = useCallback((subtopic: string): string => {
-    return subtopic
-      .split('-')
-      .map((word) => {
-        if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      })
-      .join(' ');
-  }, []);
+  const formatSubtopic = useCallback(
+    (subtopic: string): string => formatSubtopicUtil(subtopic),
+    [],
+  );
 
-  const formatDomainName = useCallback((domain: string): string => {
-    return domain
-      .split('-')
-      .map((word) => {
-        if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-        return word.charAt(0).toUpperCase() + word.slice(1);
-      })
-      .join(' ');
-  }, []);
+  const formatDomainName = useCallback(
+    (domain: string): string => formatDomainNameUtil(domain),
+    [],
+  );
 
   const contextValue: TaxonomyContextValue = useMemo(
     () => ({

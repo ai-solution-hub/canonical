@@ -5,8 +5,21 @@
  * Client components should prefer useTaxonomy() from contexts/taxonomy-context.tsx
  * for database-driven taxonomy data.
  *
- * These static values match the seeded taxonomy_domains/taxonomy_subtopics tables.
+ * Formatting utilities (formatSubtopic, formatDomainName, ABBREVIATIONS) live
+ * in lib/taxonomy-format.ts and are re-exported here for convenience.
+ *
+ * NOTE: The static DOMAINS object below duplicates data that is also stored in
+ * the taxonomy_domains/taxonomy_subtopics database tables. It exists as a
+ * fallback for server components (e.g. domain-badge, domain-card) that cannot
+ * use React hooks and need synchronous access to domain metadata such as colour
+ * keys and subtopic lists. If you add or remove domains in the database, update
+ * this object to match.
  */
+
+import { FALLBACK_COLOUR_MAP } from '@/lib/taxonomy-format';
+
+// Re-export formatting utilities from the shared module
+export { formatSubtopic, formatDomainName } from '@/lib/taxonomy-format';
 
 export const DOMAINS = {
   security: {
@@ -62,49 +75,13 @@ export function getSubtopics(domain: Domain): readonly string[] {
 /** Get the colour key for a domain (maps to CSS var --domain-{key}-*) */
 export function getDomainColourKey(domain: string): string {
   const entry = Object.entries(DOMAINS).find(([key]) => key === domain);
-  return entry ? entry[1].colour : 'corporate';
+  if (entry) return entry[1].colour;
+  return FALLBACK_COLOUR_MAP[domain] ?? 'corporate';
 }
 
 /** Get all domain names */
 export function getDomainNames(): Domain[] {
   return Object.keys(DOMAINS) as Domain[];
-}
-
-/** Format subtopic for display (kebab-case to Title Case, abbreviations uppercased) */
-const ABBREVIATIONS = new Set([
-  'ai',
-  'ux',
-  'gtd',
-  'llms',
-  'roi',
-  'api',
-  'css',
-  'html',
-  'url',
-  'crm',
-  'sla',
-  'iso',
-]);
-
-export function formatSubtopic(subtopic: string): string {
-  return subtopic
-    .split('-')
-    .map((word) => {
-      if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
-}
-
-/** Format domain name for display (kebab-case to Title Case) */
-export function formatDomainName(domain: string): string {
-  return domain
-    .split('-')
-    .map((word) => {
-      if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
 }
 
 /** All valid content types (matches DB CHECK constraint) */

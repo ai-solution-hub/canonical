@@ -1,4 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
+import { FALLBACK_COLOUR_MAP } from '@/lib/taxonomy-format';
+
+// Re-export formatting utilities so existing consumers don't break
+export { formatSubtopic, formatDomainName } from '@/lib/taxonomy-format';
 
 // ---------------------------------------------------------------------------
 // Types (mirror context types for server use)
@@ -19,29 +23,6 @@ export interface TaxonomySubtopic {
   display_order: number;
   is_active: boolean;
 }
-
-// ---------------------------------------------------------------------------
-// Abbreviations for formatSubtopic
-// ---------------------------------------------------------------------------
-
-const ABBREVIATIONS = new Set([
-  'ai', 'ux', 'gtd', 'llms', 'roi', 'api', 'css', 'html', 'url', 'crm',
-  'sla', 'iso',
-]);
-
-// ---------------------------------------------------------------------------
-// Fallback domain colour map
-// ---------------------------------------------------------------------------
-
-const FALLBACK_COLOUR_MAP: Record<string, string> = {
-  security: 'security',
-  compliance: 'compliance',
-  implementation: 'implementation',
-  support: 'support',
-  corporate: 'corporate',
-  'product-feature': 'product',
-  methodology: 'methodology',
-};
 
 // ---------------------------------------------------------------------------
 // Server-side taxonomy loading
@@ -108,24 +89,3 @@ export function getDomainColourKey(
   return FALLBACK_COLOUR_MAP[domainName] ?? 'corporate';
 }
 
-/** Format a subtopic slug for display */
-export function formatSubtopic(subtopic: string): string {
-  return subtopic
-    .split('-')
-    .map((word) => {
-      if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
-}
-
-/** Format a domain name for display */
-export function formatDomainName(domain: string): string {
-  return domain
-    .split('-')
-    .map((word) => {
-      if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    })
-    .join(' ');
-}
