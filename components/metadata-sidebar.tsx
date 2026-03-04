@@ -21,12 +21,7 @@ import {
   formatContentType,
   formatPlatform,
 } from '@/lib/format';
-import {
-  DOMAINS,
-  getDomainNames,
-  getSubtopics,
-  formatSubtopic,
-} from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
@@ -51,6 +46,7 @@ export function MetadataSidebar({
   saveEdit,
   readOnly = false,
 }: MetadataSidebarProps) {
+  const { getDomainNames, getSubtopics, formatSubtopic } = useTaxonomy();
   const displayNames = useDisplayNames([
     item.created_by as string | null,
     item.updated_by as string | null,
@@ -82,7 +78,7 @@ export function MetadataSidebar({
                     // Clear subtopic when domain changes
                     saveEdit(
                       'primary_subtopic',
-                      getSubtopics(val as keyof typeof DOMAINS)?.[0] ?? '',
+                      getSubtopics(val)?.[0] ?? '',
                     );
                   }}
                 >
@@ -131,7 +127,7 @@ export function MetadataSidebar({
                 </SelectTrigger>
                 <SelectContent>
                   {getSubtopics(
-                    item.primary_domain as keyof typeof DOMAINS,
+                    item.primary_domain as string,
                   ).map((s) => (
                     <SelectItem key={s} value={s}>
                       {formatSubtopic(s)}
