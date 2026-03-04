@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/auth/callback', '/saved', '/share'];
+const publicRoutes = ['/login', '/auth/callback'];
 
 export async function proxy(request: NextRequest) {
   // Pass pathname to layout so it can render minimal chrome for share routes

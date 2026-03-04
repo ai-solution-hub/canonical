@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const includeArchived =
       request.nextUrl.searchParams.get('include_archived') === 'true';
 
-    let query = supabase.from('projects').select('*').order('name');
+    let query = supabase.from('projects').select('id, name, description, color, icon, type, is_archived, created_at, created_by, updated_at, updated_by').order('name');
     if (!includeArchived) {
       query = query.eq('is_archived', false);
     }

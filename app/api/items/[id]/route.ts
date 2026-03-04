@@ -107,6 +107,9 @@ export async function PATCH(
       );
     }
 
+    // Collect non-fatal warnings to surface in the response
+    const warnings: string[] = [];
+
     // Check if domain has review-on-change governance posture
     // If the edited field is a significant content field, trigger governance review
     try {
@@ -163,8 +166,9 @@ export async function PATCH(
         }
       }
     } catch (govErr) {
-      // Governance check is best-effort
+      // Governance check is best-effort — surface as warning
       console.error('Governance check failed:', govErr);
+      warnings.push('Governance check failed — item updated but governance review was not triggered');
     }
 
     // Create version history entry (best-effort — don't fail the update if this fails)
@@ -195,11 +199,16 @@ export async function PATCH(
         created_by: user.id,
       });
     } catch (historyErr) {
-      // Log but don't fail the update
+      // Log but don't fail the update — surface as warning
       console.error('Failed to create version history entry:', historyErr);
+      warnings.push('Version history entry could not be created');
     }
 
-    return NextResponse.json({ success: true });
+    const response: Record<string, unknown> = { success: true };
+    if (warnings.length > 0) {
+      response.warnings = warnings;
+    }
+    return NextResponse.json(response);
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process item request') },
