@@ -48,6 +48,7 @@ import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
 import { ProjectSelector } from '@/components/project-selector';
 import { UserTagInput } from '@/components/user-tag-input';
+import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle, extractYouTubeVideoId } from '@/lib/format';
 import { validateEditableField } from '@/lib/validation';
@@ -99,6 +100,7 @@ export function ItemDetailClient({
   relatedItems,
 }: ItemDetailClientProps) {
   const router = useRouter();
+  const { canEdit } = useUserRole();
   const [item, setItem] = useState<ItemData>(initialItem);
   const {
     segments,
@@ -717,6 +719,7 @@ export function ItemDetailClient({
           saveSuccess={saveSuccess}
           startEdit={startEdit}
           saveEdit={saveEdit}
+          readOnly={!canEdit}
         />
       </div>
 

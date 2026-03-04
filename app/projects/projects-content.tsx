@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ProjectCard, type ProjectWithCounts } from '@/components/project-card';
 import { ProjectCreateDialog } from '@/components/project-create-dialog';
 import { ProjectDetailSheet } from '@/components/project-detail-sheet';
+import { useUserRole } from '@/hooks/use-user-role';
 import type { Project } from '@/types/content';
 
 interface ProjectsContentProps {
@@ -32,6 +33,7 @@ export function ProjectsContent({
   initialProjects,
   initialCounts,
 }: ProjectsContentProps) {
+  const { canEdit, canAdmin } = useUserRole();
   const [projects, setProjects] = useState<ProjectWithCounts[]>(() =>
     enrichProjects(initialProjects, initialCounts),
   );
@@ -134,13 +136,15 @@ export function ProjectsContent({
             Manage your project collections.
           </p>
         </div>
-        <Button
-          onClick={() => setShowCreateDialog(true)}
-          className="gap-1.5"
-        >
-          <Plus className="size-4" />
-          New Project
-        </Button>
+        {canEdit && (
+          <Button
+            onClick={() => setShowCreateDialog(true)}
+            className="gap-1.5"
+          >
+            <Plus className="size-4" />
+            New Project
+          </Button>
+        )}
       </div>
 
       {/* Active projects */}
@@ -156,14 +160,16 @@ export function ProjectsContent({
               No projects yet. Create your first project to start organising
               content.
             </p>
-            <Button
-              variant="outline"
-              className="mt-4 gap-1.5"
-              onClick={() => setShowCreateDialog(true)}
-            >
-              <Plus className="size-4" />
-              Create Project
-            </Button>
+            {canEdit && (
+              <Button
+                variant="outline"
+                className="mt-4 gap-1.5"
+                onClick={() => setShowCreateDialog(true)}
+              >
+                <Plus className="size-4" />
+                Create Project
+              </Button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -173,6 +179,7 @@ export function ProjectsContent({
                 project={project}
                 onEdit={setEditProject}
                 onArchiveToggle={handleArchiveToggle}
+                readOnly={!canEdit}
               />
             ))}
           </div>
@@ -205,6 +212,7 @@ export function ProjectsContent({
                   project={project}
                   onEdit={setEditProject}
                   onArchiveToggle={handleArchiveToggle}
+                  readOnly={!canEdit}
                 />
               ))}
             </div>
@@ -229,6 +237,8 @@ export function ProjectsContent({
         onUpdated={handleUpdated}
         onArchiveToggle={handleArchiveToggle}
         onDeleted={handleDeleted}
+        readOnly={!canEdit}
+        isAdmin={canAdmin}
       />
     </>
   );
