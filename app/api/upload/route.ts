@@ -2,13 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import path from 'path';
-import os from 'os';
-import fs from 'fs/promises';
-import { promisify } from 'util';
-import { execFile as execFileCb } from 'child_process';
 import mammoth from 'mammoth';
-
-const execFile = promisify(execFileCb);
+import { extractText, getDocumentProxy } from 'unpdf';
 
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
@@ -76,42 +71,21 @@ interface PdfExtractionResult {
 }
 
 /**
- * Extract text and tables from a PDF using pdfplumber (Python subprocess).
+ * Extract text from a PDF using unpdf (JavaScript, no Python dependency).
  * Returns { text, page_count, tables, table_count }.
  */
 async function extractPdfText(
   buffer: Buffer,
 ): Promise<PdfExtractionResult> {
-  const tmpPath = path.join(os.tmpdir(), `kb-upload-${Date.now()}.pdf`);
-  try {
-    await fs.writeFile(tmpPath, buffer);
-
-    const scriptPath = path.resolve(
-      process.cwd(),
-      'scripts',
-      'extract_pdf_text.py',
-    );
-
-    const { stdout } = await execFile('python3', [scriptPath, tmpPath], {
-      timeout: 60_000,
-      maxBuffer: 50 * 1024 * 1024,
-    });
-
-    const result = JSON.parse(stdout);
-    if (result.error) {
-      throw new Error(result.error);
-    }
-    return {
-      text: result.text,
-      page_count: result.page_count,
-      tables: result.tables || [],
-      table_count: result.table_count || 0,
-    };
-  } finally {
-    await fs.unlink(tmpPath).catch(() => {
-      /* ignore cleanup errors */
-    });
-  }
+  const data = new Uint8Array(buffer);
+  const pdf = await getDocumentProxy(data);
+  const { totalPages, text } = await extractText(pdf, { mergePages: false });
+  return {
+    text: (text as string[]).join('\n\n'),
+    page_count: totalPages,
+    tables: [],
+    table_count: 0,
+  };
 }
 
 /**
