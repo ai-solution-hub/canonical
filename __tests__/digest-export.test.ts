@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { randomBytes } from 'crypto';
 import { digestToMarkdown } from '@/lib/digest-export';
-import { DigestShareBodySchema } from '@/lib/validation/schemas';
-import type { Digest, SharedDigest } from '@/types/digest';
+import type { Digest } from '@/types/digest';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -73,43 +71,6 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
   };
 }
 
-function makeSharedDigest(overrides: Partial<SharedDigest> = {}): SharedDigest {
-  return {
-    digest_type: 'weekly',
-    period_start: '2026-01-25T00:00:00Z',
-    period_end: '2026-02-24T00:00:00Z',
-    item_count: 42,
-    generated_at: '2026-02-24T12:00:00Z',
-    narrative_summary:
-      'A busy week across AI tooling, product launches, and strategic insights.',
-    domain_summaries: [
-      {
-        domain: 'AI & EMERGING TECH',
-        item_count: 15,
-        summary: 'Significant developments in agent frameworks and LLM tooling.',
-        top_items: [
-          {
-            id: 'item-1',
-            title: 'Claude Code goes GA',
-            content_type: 'article',
-            why_notable: 'Major product launch from Anthropic',
-          },
-        ],
-        key_themes: ['AI agents'],
-      },
-    ],
-    theme_clusters: [
-      {
-        theme: 'AI-powered development',
-        item_count: 12,
-        description: 'Tools and practices for AI-assisted software development',
-      },
-    ],
-    share_branding: null,
-    share_item_urls: null,
-    ...overrides,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -155,48 +116,6 @@ describe('digestToMarkdown', () => {
     expect(md).toContain(
       '**Enterprise readiness** (7 items) -- Maturation of AI tools'
     );
-  });
-
-  it('should use custom title from branding when present', () => {
-    const digest = makeSharedDigest({
-      share_branding: {
-        custom_title: 'Acme Corp Weekly AI Brief',
-        company_name: 'Acme Corp',
-      },
-    });
-    const md = digestToMarkdown(digest);
-
-    expect(md).toContain('# Acme Corp Weekly AI Brief');
-    // Should NOT contain the auto-generated title
-    expect(md).not.toContain('Weekly Digest:');
-  });
-
-  it('should include attribution footer when company_name is set', () => {
-    const digest = makeSharedDigest({
-      share_branding: {
-        company_name: 'Acme Corp',
-      },
-    });
-    const md = digestToMarkdown(digest);
-
-    expect(md).toContain('---');
-    expect(md).toContain('*Prepared by Acme Corp*');
-  });
-
-  it('should not include attribution when branding is null', () => {
-    const digest = makeSharedDigest({ share_branding: null });
-    const md = digestToMarkdown(digest);
-
-    expect(md).not.toContain('Prepared by');
-  });
-
-  it('should not include attribution for Digest without share_branding', () => {
-    const digest = makeDigest();
-    // Digest type has optional share_branding, defaults to undefined
-    delete (digest as Partial<Digest>).share_branding;
-    const md = digestToMarkdown(digest);
-
-    expect(md).not.toContain('Prepared by');
   });
 
   it('should render item links when includeItemLinks and itemUrls are provided', () => {
@@ -313,26 +232,6 @@ describe('digestToMarkdown', () => {
     }
   });
 
-  it('should use share_item_urls from SharedDigest when itemUrls option is provided', () => {
-    const digest = makeSharedDigest({
-      share_item_urls: {
-        'item-1': 'https://share.example.com/items/item-1',
-      },
-    });
-    // Even though SharedDigest has share_item_urls, the function uses options.itemUrls
-    // This test verifies that the caller must pass them explicitly
-    const mdWithoutOption = digestToMarkdown(digest);
-    expect(mdWithoutOption).toContain('**Claude Code goes GA**');
-
-    const mdWithOption = digestToMarkdown(digest, {
-      includeItemLinks: true,
-      itemUrls: digest.share_item_urls ?? undefined,
-    });
-    expect(mdWithOption).toContain(
-      '[Claude Code goes GA](https://share.example.com/items/item-1)'
-    );
-  });
-
   it('should handle null theme_clusters', () => {
     const digest = makeDigest({
       theme_clusters: null as unknown as undefined,
@@ -361,142 +260,5 @@ describe('digestToMarkdown', () => {
     expect(md).toContain('Updates in AI.');
   });
 
-  it('should handle branding with logo_url', () => {
-    const digest = makeSharedDigest({
-      share_branding: {
-        logo_url: 'https://example.com/logo.png',
-        company_name: 'Test Corp',
-        custom_title: 'Test Report',
-      },
-    });
-    const md = digestToMarkdown(digest);
-
-    expect(md).toContain('# Test Report');
-    expect(md).toContain('*Prepared by Test Corp*');
-  });
 });
 
-// ---------------------------------------------------------------------------
-// DigestShareBodySchema validation tests
-// ---------------------------------------------------------------------------
-
-describe('DigestShareBodySchema', () => {
-  it('should accept valid input with all fields', () => {
-    const result = DigestShareBodySchema.safeParse({
-      expires_in_days: 30,
-      branding: {
-        logo_url: 'https://example.com/logo.png',
-        company_name: 'Acme Corp',
-        custom_title: 'Weekly AI Brief',
-      },
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.expires_in_days).toBe(30);
-      expect(result.data.branding?.company_name).toBe('Acme Corp');
-    }
-  });
-
-  it('should accept empty object and apply defaults', () => {
-    const result = DigestShareBodySchema.safeParse({});
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.expires_in_days).toBe(30);
-      expect(result.data.branding).toBeUndefined();
-    }
-  });
-
-  it('should accept expires_in_days of 0 (no expiry)', () => {
-    const result = DigestShareBodySchema.safeParse({ expires_in_days: 0 });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.expires_in_days).toBe(0);
-    }
-  });
-
-  it('should accept expires_in_days of 365 (max)', () => {
-    const result = DigestShareBodySchema.safeParse({ expires_in_days: 365 });
-    expect(result.success).toBe(true);
-  });
-
-  it('should reject negative expires_in_days', () => {
-    const result = DigestShareBodySchema.safeParse({ expires_in_days: -1 });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject expires_in_days over 365', () => {
-    const result = DigestShareBodySchema.safeParse({ expires_in_days: 366 });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject non-integer expires_in_days', () => {
-    const result = DigestShareBodySchema.safeParse({ expires_in_days: 7.5 });
-    expect(result.success).toBe(false);
-  });
-
-  it('should accept branding with only company_name', () => {
-    const result = DigestShareBodySchema.safeParse({
-      branding: { company_name: 'Acme' },
-    });
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.branding?.company_name).toBe('Acme');
-      expect(result.data.branding?.logo_url).toBeUndefined();
-      expect(result.data.branding?.custom_title).toBeUndefined();
-    }
-  });
-
-  it('should accept branding with only custom_title', () => {
-    const result = DigestShareBodySchema.safeParse({
-      branding: { custom_title: 'My Report' },
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('should reject branding with invalid logo_url', () => {
-    const result = DigestShareBodySchema.safeParse({
-      branding: { logo_url: 'not-a-url' },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject branding with company_name over 200 chars', () => {
-    const result = DigestShareBodySchema.safeParse({
-      branding: { company_name: 'x'.repeat(201) },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject branding with custom_title over 300 chars', () => {
-    const result = DigestShareBodySchema.safeParse({
-      branding: { custom_title: 'x'.repeat(301) },
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should accept branding as empty object', () => {
-    const result = DigestShareBodySchema.safeParse({ branding: {} });
-    expect(result.success).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Share token format validation
-// ---------------------------------------------------------------------------
-
-describe('share token format', () => {
-  it('should generate 64-char hex tokens', () => {
-    // Simulate token generation as done in the API route
-    const token = randomBytes(32).toString('hex');
-
-    expect(token).toHaveLength(64);
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it('should generate unique tokens on each call', () => {
-    const token1 = randomBytes(32).toString('hex');
-    const token2 = randomBytes(32).toString('hex');
-
-    expect(token1).not.toBe(token2);
-  });
-});

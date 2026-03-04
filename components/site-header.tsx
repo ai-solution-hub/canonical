@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, BookOpen, FolderOpen, Menu } from 'lucide-react';
+import { Search, BookOpen, FolderOpen, Menu, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +13,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ThemeSettings } from '@/components/theme-settings';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -21,6 +22,8 @@ const NAV_LINKS = [
   { href: '/projects', label: 'Projects', icon: FolderOpen },
   { href: '/digest', label: 'Digest', icon: BookOpen },
 ] as const;
+
+const SETTINGS_LINK = { href: '/settings', label: 'Settings', icon: Settings };
 
 export function SiteHeader() {
   const router = useRouter();
@@ -106,6 +109,19 @@ export function SiteHeader() {
           >
             <Search className="size-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push('/settings')}
+            aria-label="Settings"
+            className={cn(
+              pathname === '/settings' || pathname?.startsWith('/settings/')
+                ? 'text-foreground'
+                : 'text-muted-foreground',
+            )}
+          >
+            <Settings className="size-4" />
+          </Button>
           <ThemeSettings />
         </div>
       </nav>
@@ -148,6 +164,21 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+            <Separator className="my-1" />
+            <Link
+              href={SETTINGS_LINK.href}
+              onClick={() => setMobileMenuOpen(false)}
+              aria-current={pathname === SETTINGS_LINK.href ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                pathname === SETTINGS_LINK.href
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground',
+              )}
+            >
+              <SETTINGS_LINK.icon className="size-4" />
+              {SETTINGS_LINK.label}
+            </Link>
           </nav>
         </SheetContent>
       </Sheet>

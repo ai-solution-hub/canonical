@@ -36,6 +36,7 @@ interface MetadataSidebarProps {
   saveSuccess: string | null;
   startEdit: (field: string) => void;
   saveEdit: (field: string, value: unknown) => void;
+  readOnly?: boolean;
 }
 
 export function MetadataSidebar({
@@ -45,6 +46,7 @@ export function MetadataSidebar({
   saveSuccess,
   startEdit,
   saveEdit,
+  readOnly = false,
 }: MetadataSidebarProps) {
   return (
     <aside className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
@@ -89,8 +91,8 @@ export function MetadataSidebar({
                     <Check className="size-3 text-[var(--success)]" />
                   ) : (
                     <button
-                      onClick={() => startEdit('primary_domain')}
-                      className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                      onClick={() => !readOnly && startEdit('primary_domain')}
+                      className={`opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${readOnly ? 'hidden' : ''}`}
                       aria-label="Edit domain"
                     >
                       <Pencil className="size-3 text-muted-foreground" />
@@ -129,8 +131,8 @@ export function MetadataSidebar({
                   <Check className="size-3 text-[var(--success)]" />
                 ) : (
                   <button
-                    onClick={() => startEdit('primary_subtopic')}
-                    className="opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+                    onClick={() => !readOnly && startEdit('primary_subtopic')}
+                    className={`opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm ${readOnly ? 'hidden' : ''}`}
                     aria-label="Edit subtopic"
                   >
                     <Pencil className="size-3 text-muted-foreground" />

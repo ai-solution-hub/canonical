@@ -1,7 +1,6 @@
 """Shared configuration for Knowledge Hub pipeline."""
 
 import os
-import re
 
 # Derive PROJECT_ROOT from file location: config.py is at scripts/kb_pipeline/config.py
 # So PROJECT_ROOT = dirname(dirname(dirname(abspath(__file__))))
@@ -9,7 +8,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 PROMPT_PATH = os.path.join(PROJECT_ROOT, "docs", "reference", "classification-prompt.md")
-SUPABASE_URL = "https://ngsxwlaeybexlgsurnhy.supabase.co"
+SUPABASE_URL = None  # loaded from .env via get_env()
 
 # Models
 CLASSIFICATION_MODEL = "claude-opus-4-6"
@@ -29,15 +28,6 @@ DEDUP_SIMILARITY_THRESHOLD = 0.90
 # Quality thresholds
 SHORT_CONTENT_THRESHOLD = 100  # chars
 LOW_CONFIDENCE_THRESHOLD = 0.60
-
-# Reddit link/image posts have content like "[Linked: https://...]" — these are
-# expected to be short, so skip the short_content quality flag for them.
-_REDDIT_LINK_PATTERN = re.compile(r"^\[Linked: https?://")
-
-
-def is_reddit_link_post(platform: str, content: str) -> bool:
-    """Return True if this is a Reddit link/image post with expected short content."""
-    return platform == "reddit" and bool(_REDDIT_LINK_PATTERN.match(content))
 
 
 def load_env():
@@ -77,3 +67,21 @@ def get_system_prompt():
     if _system_prompt is None:
         _system_prompt = load_system_prompt()
     return _system_prompt
+
+
+def get_supabase_url():
+    """Get Supabase URL from .env."""
+    env = get_env()
+    return env.get('SUPABASE_URL', '')
+
+
+def get_supabase_secret_key():
+    """Get Supabase service_role key from .env (bypasses RLS)."""
+    env = get_env()
+    return env.get('SUPABASE_SECRET_KEY', '')
+
+
+def get_supabase_publishable_key():
+    """Get Supabase anon/publishable key from .env."""
+    env = get_env()
+    return env.get('SUPABASE_PUBLISHABLE_KEY', '')

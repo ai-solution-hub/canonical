@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from .classify import classify, estimate_cost as classify_cost
-from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD, is_reddit_link_post
+from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
 from .dedup import is_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
 from .extract import ExtractedContent, extract_url, extract_pdf
@@ -264,14 +264,11 @@ def _log_quality_flags(
                          {"url": url}, url, batch_name)
         result.quality_flags.append("missing_thumbnail")
 
-    # Short content — skip for Reddit link/image posts (expected to be short)
+    # Short content
     if len(extracted.content) < SHORT_CONTENT_THRESHOLD:
-        if is_reddit_link_post(extracted.platform, extracted.content):
-            pass  # Reddit link posts are expected to be short
-        else:
-            log_quality_issue(item_id, "short_content", "warning",
-                             {"length": len(extracted.content)}, url, batch_name)
-            result.quality_flags.append("short_content")
+        log_quality_issue(item_id, "short_content", "warning",
+                         {"length": len(extracted.content)}, url, batch_name)
+        result.quality_flags.append("short_content")
 
     # Low classification confidence
     if cls and cls.confidence < LOW_CONFIDENCE_THRESHOLD:
@@ -313,7 +310,7 @@ def process_urls(
     total_summary_cost = 0.0
 
     print(f"\n{'='*60}")
-    print(f"IMS Pipeline — Processing {total} URLs")
+    print(f"Knowledge Hub Pipeline — Processing {total} URLs")
     print(f"Batch: {batch_name}")
     print(f"Dry run: {dry_run}")
     print(f"{'='*60}")

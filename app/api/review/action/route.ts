@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     // Auth check
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const raw = await request.json();
     const parsed = parseBody(ReviewActionBodySchema, raw);
@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
       const { error } = await supabase
         .from('read_marks')
         .upsert(
-          { content_item_id: item_id, source: 'review' },
-          { onConflict: 'content_item_id' },
+          { content_item_id: item_id, source: 'review', user_id: user.id },
+          { onConflict: 'user_id,content_item_id' },
         );
 
       if (error) {
@@ -49,14 +49,15 @@ export async function POST(request: NextRequest) {
       await supabase
         .from('read_marks')
         .upsert(
-          { content_item_id: item_id, source: 'review' },
-          { onConflict: 'content_item_id' },
+          { content_item_id: item_id, source: 'review', user_id: user.id },
+          { onConflict: 'user_id,content_item_id' },
         );
     } else if (action === 'undo_read') {
       const { error } = await supabase
         .from('read_marks')
         .delete()
-        .eq('content_item_id', item_id);
+        .eq('content_item_id', item_id)
+        .eq('user_id', user.id);
 
       if (error) {
         console.error('Failed to undo read mark:', error);
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Also remove the read mark that was created with the star
-      await supabase.from('read_marks').delete().eq('content_item_id', item_id);
+      await supabase.from('read_marks').delete().eq('content_item_id', item_id).eq('user_id', user.id);
     }
     // action === 'skip': no database operation needed
 

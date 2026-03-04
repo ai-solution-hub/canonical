@@ -15,7 +15,7 @@ export async function PATCH(
   try {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const { id } = await params;
     if (!UUID_RE.test(id)) {
@@ -29,7 +29,7 @@ export async function PATCH(
     const parsed = parseBody(ProjectUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const updates: Record<string, unknown> = { ...parsed.data, updated_at: new Date().toISOString() };
+    const updates: Record<string, unknown> = { ...parsed.data, updated_at: new Date().toISOString(), updated_by: user.id };
 
     const { data, error } = await supabase
       .from('projects')

@@ -23,14 +23,13 @@ import {
   downloadDigestDocx,
   digestTypeLabel,
 } from '@/lib/digest-export';
-import type { Digest, SharedDigest } from '@/types/digest';
+import type { Digest } from '@/types/digest';
 
 interface DigestExportMenuProps {
-  digest: Digest | SharedDigest;
-  shareUrl?: string | null;
+  digest: Digest;
 }
 
-export function DigestExportMenu({ digest, shareUrl }: DigestExportMenuProps) {
+export function DigestExportMenu({ digest }: DigestExportMenuProps) {
   const [downloadingDocx, setDownloadingDocx] = useState(false);
 
   async function handleCopyMarkdown() {
@@ -61,9 +60,7 @@ export function DigestExportMenu({ digest, shareUrl }: DigestExportMenuProps) {
 
   function handleEmail() {
     const subject = encodeURIComponent(digestTypeLabel(digest.digest_type));
-    const body = shareUrl
-      ? encodeURIComponent(`View digest at: ${shareUrl}`)
-      : encodeURIComponent(digestTypeLabel(digest.digest_type));
+    const body = encodeURIComponent(digestTypeLabel(digest.digest_type));
     window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
   }
 
@@ -104,15 +101,11 @@ export function DigestExportMenu({ digest, shareUrl }: DigestExportMenuProps) {
           Print / Save as PDF
         </DropdownMenuItem>
 
-        {shareUrl && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleEmail}>
-              <Mail className="size-4" />
-              Email
-            </DropdownMenuItem>
-          </>
-        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleEmail}>
+          <Mail className="size-4" />
+          Email
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

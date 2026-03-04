@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await supabase
       .from('digests')
       .select(
-        'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at, share_token, share_expires_at',
+        'id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at',
         { count: 'exact' },
       )
       .order('created_at', { ascending: false })
@@ -56,8 +56,6 @@ export async function GET(request: NextRequest) {
       generated_by: row.generated_by,
       tokens_used: row.tokens_used,
       created_at: row.created_at,
-      share_token: row.share_token ?? null,
-      share_expires_at: row.share_expires_at ?? null,
     }));
 
     return NextResponse.json({ digests, total: count ?? 0 });

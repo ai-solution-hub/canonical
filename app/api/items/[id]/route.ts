@@ -19,7 +19,7 @@ export async function PATCH(
     // Auth check
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const { id } = await params;
 
@@ -72,7 +72,7 @@ export async function PATCH(
 
     const { error } = await supabase
       .from('content_items')
-      .update({ [field]: value })
+      .update({ [field]: value, updated_by: user.id })
       .eq('id', id);
 
     if (error) {

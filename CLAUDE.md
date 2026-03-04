@@ -86,7 +86,7 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 38 local DDL migration files (IMS baseline)
+    migrations/               # 5 consolidated DDL migration files (Phase 2)
     types/                    # Auto-generated types (database.types.ts) — never edit manually
   docs/
     reference/                # Schema reference, classification framework, search evaluation guide
@@ -109,7 +109,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Supabase
 
-- **Project ID:** TODO — will be configured per client deployment
+- **Project ID:** `rovrymhhffssilaftdwd` (knowledge-base, eu-west-2 London)
 - **pgvector:** 0.8.0
 - **CLI:** `/opt/homebrew/bin/supabase`
 - **Prefer Supabase CLI** for DDL migrations — creates local files and applies
@@ -117,48 +117,70 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 - Use Supabase MCP tools (`execute_sql`, `list_tables`, etc.) for queries and
   quick DML
 - One Supabase project per client — simple isolation, not multi-tenant RLS
+- **IMS reference project:** `ngsxwlaeybexlgsurnhy` (read-only, do not modify)
 
 ## Schema
 
-The schema is evolving. The current baseline is the IMS schema carried forward
-via 38 migration files in `supabase/migrations/`.
+Phase 2 (Schema Evolution) is complete. The schema consolidates 38 IMS
+migrations into 5 clean product migrations in `supabase/migrations/`.
 
-**Current baseline tables (from IMS):** `content_items` (main — includes
-`summary_data` JSONB, `user_tags TEXT[]`), `projects` (with colour/icon),
-`content_item_projects` (many-to-many junction), `pipeline_runs`,
-`ingestion_quality_log`, `read_marks`, `digests`
+### Tables (14)
 
-**Tables coming in Phase 2:**
-- `user_roles` — admin/editor/viewer per user
-- `content_history` — immutable version snapshots
-- `bid_questions` — extracted tender questions
-- `bid_responses` — AI-drafted and human-edited responses
-- `taxonomy_domains` and `taxonomy_subtopics` — configurable classification
+| # | Table | Purpose |
+|---|-------|---------|
+| 1 | `content_items` | Core KB content with progressive depth, user tracking, freshness |
+| 2 | `projects` | Generic containers (project, bid, kb_section) via `type` column |
+| 3 | `content_item_projects` | Item-to-container junction |
+| 4 | `ingestion_quality_log` | Data quality flags |
+| 5 | `read_marks` | Per-user read tracking (scoped by `user_id`) |
+| 6 | `digests` | AI-generated change digests |
+| 7 | `pipeline_runs` | Pipeline execution tracking |
+| 8 | `processing_queue` | Python worker job queue |
+| 9 | `user_roles` | Application-level role assignments (admin/editor/viewer) |
+| 10 | `content_history` | Immutable version snapshots (auto-versioned) |
+| 11 | `bid_questions` | Extracted tender questions |
+| 12 | `bid_responses` | AI-drafted and human-edited responses |
+| 13 | `taxonomy_domains` | Configurable taxonomy (post-MVP) |
+| 14 | `taxonomy_subtopics` | Configurable subtopics (post-MVP) |
 
 **Tables removed from IMS:** `ideas`, `idea_relationships`, `idea_keywords`,
-`idea_themes`, `idea_theme_assignments`, `tana_sync_log`
+`idea_themes`, `idea_theme_assignments`, `tana_sync_log`, `classification_audit`
 
-See the project plan for the full migration sequence:
-`/Users/liamj/Documents/development/bid-manager/.planning/project-plan.md`
-(Phase 2: Schema Evolution).
+### RLS Model
 
-Quick reference for current column details:
-`docs/reference/SCHEMA-QUICK-REFERENCE.md`
+Role-based via `get_user_role()` SECURITY DEFINER helper:
+- **All authenticated:** SELECT on all tables
+- **Editor + Admin:** INSERT/UPDATE on content, projects, bids, quality log
+- **Admin only:** DELETE on most tables, manage `user_roles`, configure taxonomy
+- **User-scoped:** `read_marks` filtered by `user_id = auth.uid()`
+- **Immutable:** `content_history` — INSERT only, no UPDATE/DELETE
+- **Service role:** Python pipeline bypasses RLS entirely
 
 ### Key Constraints
 
 - `content_type` IN: post, article, blog, pdf, product-page, podcast, video,
-  comment, newsletter, bookmark, transcript, note, course, research, other.
-  Phase 2 adds: q_a_pair, case_study, policy, certification, compliance,
-  methodology, capability, product_description
-- `platform` IN: linkedin, reddit, youtube, web, email, manual, other.
-  Phase 2 replaces with: web, email, manual, upload, extraction, other
+  comment, newsletter, bookmark, transcript, note, course, research, other,
+  q_a_pair, case_study, policy, certification, compliance, methodology,
+  capability, product_description
+- `platform` IN: web, email, manual, upload, extraction, other
+- `projects.type` IN: project, bid, kb_section
 - `priority` IN: high, medium, low (nullable — null means unset)
+- `freshness` IN: fresh, aging, stale, expired
+- `lifecycle_type` IN: evergreen, date_bound, regulation, bid_discovered
 - `classification_confidence` between 0 and 1
+- `user_roles.role` IN: admin, editor, viewer
 - Embeddings: `vector(1024)` — OpenAI text-embedding-3-large shortened from
   3072 via Matryoshka
-- HNSW indexes (m=16, ef_construction=64, cosine similarity) — chosen over
-  IVFFLAT because HNSW works on empty tables
+- HNSW indexes (m=16, ef_construction=64, cosine similarity)
+
+### Key Columns Added in Phase 2
+
+- `content_items.created_by`/`updated_by` — UUID FK to auth.users
+- `content_items.brief`/`detail`/`reference` — progressive depth sections
+- `content_items.source_document`/`source_bid` — provenance tracking
+- `content_items.freshness`/`lifecycle_type`/`expiry_date` — freshness (post-MVP)
+- `projects.type`/`domain_metadata` — generic container support
+- `read_marks.user_id` — multi-user scoping
 
 ## Testing
 
@@ -217,10 +239,15 @@ Quick reference for current column details:
 - **Python background output:** Use `PYTHONUNBUFFERED=1` when running Python
   scripts in background — otherwise output is invisible to monitoring
 - **Supabase CLI not linked:** `config.toml` exists but `supabase link` hasn't
-  been run (needs DB password). TODO: link to new project in Phase 2
+  been run (needs DB password). Link to project `rovrymhhffssilaftdwd`
+- **RLS requires user_roles entry:** New users cannot write until they have a
+  `user_roles` row. First admin must be seeded via service_role key
+- **Dropped columns from IMS:** `engagement_metrics`, `author_url`, `segments`,
+  `highlights` removed from `content_items`; `share_token`, `share_expires_at`,
+  `share_branding` removed from `digests`; `tana_node_id` removed from `projects`
 - **Playwright browser install:** After `pip install playwright`, must also run
   `python3 -m playwright install chromium` — version mismatches cause failures
 - **taxonomy.ts is IMS legacy:** `lib/taxonomy.ts` contains the hardcoded IMS
-  6x30 taxonomy. This will be replaced with a configurable taxonomy system
-  loaded from the database in Phase 2. Until then, it still works for the
-  existing classification pipeline.
+  6x30 taxonomy. Will be replaced with database-driven taxonomy from
+  `taxonomy_domains`/`taxonomy_subtopics` tables. Until then, it works for
+  the existing classification pipeline.

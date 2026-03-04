@@ -9,7 +9,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { formatDate } from '@/lib/format';
-import type { Digest, SharedDigest } from '@/types/digest';
+import type { Digest } from '@/types/digest';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,20 +51,18 @@ export interface DigestExportOptions {
 }
 
 /**
- * Convert a Digest or SharedDigest into well-structured Markdown.
+ * Convert a Digest into well-structured Markdown.
  *
  * Used by "Copy as Markdown" and as input to the DOCX generator.
  */
 export function digestToMarkdown(
-  digest: Digest | SharedDigest,
+  digest: Digest,
   options?: DigestExportOptions
 ): string {
   const lines: string[] = [];
 
   // Title
-  const branding = 'share_branding' in digest ? digest.share_branding : null;
   const title =
-    branding?.custom_title ||
     `${digestTypeLabel(digest.digest_type)}: ${formatDate(digest.period_start)} -- ${formatDate(digest.period_end)}`;
 
   lines.push(`# ${title}`);
@@ -121,12 +119,6 @@ export function digestToMarkdown(
       );
     }
     lines.push('');
-  }
-
-  // Attribution
-  if (branding?.company_name) {
-    lines.push('---');
-    lines.push(`*Prepared by ${branding.company_name}*`);
   }
 
   return lines.join('\n');
@@ -242,13 +234,13 @@ function inlineRuns(text: string): TextRun[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Generate a DOCX document from a Digest or SharedDigest.
+ * Generate a DOCX document from a Digest.
  *
  * Uses `digestToMarkdown` internally then converts the Markdown blocks
  * into Word paragraphs via the `docx` package.
  */
 export async function generateDigestDocx(
-  digest: Digest | SharedDigest,
+  digest: Digest,
   options?: DigestExportOptions
 ): Promise<Blob> {
   const md = digestToMarkdown(digest, options);
@@ -371,7 +363,7 @@ export async function generateDigestDocx(
  * Filename follows the pattern: `digest-25-jan-24-feb-2026.docx`
  */
 export async function downloadDigestDocx(
-  digest: Digest | SharedDigest,
+  digest: Digest,
   options?: DigestExportOptions
 ): Promise<void> {
   const blob = await generateDigestDocx(digest, options);

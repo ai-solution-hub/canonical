@@ -30,11 +30,11 @@ export async function createClient() {
   );
 }
 
-/** Service-role client for operations that bypass RLS (e.g. Python pipeline compatibility) */
+/** Service client for operations that bypass RLS (admin API, pipeline compatibility) */
 export function createServiceClient() {
   return createSupabaseClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    process.env.SUPABASE_SECRET_KEY!,
     {
       auth: {
         persistSession: false,

@@ -3,7 +3,6 @@
 import { Layers, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DigestDomainSection } from '@/components/digest-domain-section';
-import { ShareDigestButton } from '@/components/share-digest-button';
 import { DigestExportMenu } from '@/components/digest-export-menu';
 import { formatDate } from '@/lib/format';
 import { digestTypeLabel } from '@/lib/digest-export';
@@ -15,14 +14,7 @@ interface DigestViewProps {
   className?: string;
 }
 
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || 'https://ims-xi-ten.vercel.app';
-
 export function DigestView({ digest, className }: DigestViewProps) {
-  const shareUrl = digest.share_token
-    ? `${BASE_URL}/share/digest/${digest.share_token}`
-    : null;
-
   return (
     <div className={cn('space-y-8', className)}>
       {/* Header */}
@@ -35,12 +27,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
             {digest.item_count} {digest.item_count === 1 ? 'item' : 'items'}
           </Badge>
           <div className="ml-auto flex items-center gap-2" data-no-print>
-            <ShareDigestButton
-              digestId={digest.id}
-              existingShareToken={digest.share_token}
-              existingShareExpiresAt={digest.share_expires_at}
-            />
-            <DigestExportMenu digest={digest} shareUrl={shareUrl} />
+            <DigestExportMenu digest={digest} />
           </div>
         </div>
         <p className="text-sm text-muted-foreground">

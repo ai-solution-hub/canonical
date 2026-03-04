@@ -53,6 +53,8 @@ interface ProjectDetailSheetProps {
   onUpdated: (project: ProjectWithCounts) => void;
   onArchiveToggle: (project: ProjectWithCounts) => void;
   onDeleted: (projectId: string) => void;
+  readOnly?: boolean;
+  isAdmin?: boolean;
 }
 
 export function ProjectDetailSheet({
@@ -62,6 +64,8 @@ export function ProjectDetailSheet({
   onUpdated,
   onArchiveToggle,
   onDeleted,
+  readOnly = false,
+  isAdmin = false,
 }: ProjectDetailSheetProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -223,6 +227,8 @@ export function ProjectDetailSheet({
                 onChange={(e) => setName(e.target.value)}
                 onBlur={handleNameBlur}
                 maxLength={200}
+                readOnly={readOnly}
+                className={readOnly ? 'cursor-default opacity-70' : ''}
               />
             </div>
 
@@ -237,23 +243,29 @@ export function ProjectDetailSheet({
                 rows={3}
                 maxLength={2000}
                 placeholder="Optional description"
+                readOnly={readOnly}
+                className={readOnly ? 'cursor-default opacity-70' : ''}
               />
             </div>
 
-            {/* Colour */}
-            <div className="space-y-1.5">
-              <Label>Colour</Label>
-              <ProjectColourPicker
-                value={color}
-                onChange={handleColourChange}
-              />
-            </div>
+            {/* Colour — hide for read-only */}
+            {!readOnly && (
+              <div className="space-y-1.5">
+                <Label>Colour</Label>
+                <ProjectColourPicker
+                  value={color}
+                  onChange={handleColourChange}
+                />
+              </div>
+            )}
 
-            {/* Icon */}
-            <div className="space-y-1.5">
-              <Label>Icon</Label>
-              <ProjectIconPicker value={icon} onChange={handleIconChange} />
-            </div>
+            {/* Icon — hide for read-only */}
+            {!readOnly && (
+              <div className="space-y-1.5">
+                <Label>Icon</Label>
+                <ProjectIconPicker value={icon} onChange={handleIconChange} />
+              </div>
+            )}
 
             <Separator />
 
@@ -320,40 +332,44 @@ export function ProjectDetailSheet({
               Created: {formatDate(project.created_at)}
             </p>
 
-            {/* Actions */}
-            <div className="flex items-center justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleArchive}
-              >
-                {project.is_archived
-                  ? 'Unarchive Project'
-                  : 'Archive Project'}
-              </Button>
+            {/* Actions — hidden for read-only users */}
+            {!readOnly && (
+              <div className="flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleArchive}
+                >
+                  {project.is_archived
+                    ? 'Unarchive Project'
+                    : 'Archive Project'}
+                </Button>
 
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        disabled={project.item_count > 0}
-                        onClick={() => setShowDeleteConfirm(true)}
-                      >
-                        Delete Project
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  {project.item_count > 0 && (
-                    <TooltipContent>
-                      Remove all items from this project before deleting.
-                    </TooltipContent>
-                  )}
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+                {isAdmin && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={project.item_count > 0}
+                            onClick={() => setShowDeleteConfirm(true)}
+                          >
+                            Delete Project
+                          </Button>
+                        </span>
+                      </TooltipTrigger>
+                      {project.item_count > 0 && (
+                        <TooltipContent>
+                          Remove all items from this project before deleting.
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>

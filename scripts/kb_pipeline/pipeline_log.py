@@ -22,12 +22,11 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 
-from .config import SUPABASE_URL, get_env
+from .config import get_supabase_url, get_supabase_secret_key
 
 
 def _get_headers():
-    env = get_env()
-    key = env.get("SUPABASE_ANON_KEY", os.environ.get("SUPABASE_ANON_KEY", ""))
+    key = get_supabase_secret_key()
     return {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -38,7 +37,7 @@ def _get_headers():
 
 def _supabase_post(path: str, body: dict) -> dict | None:
     """POST to Supabase REST API. Returns first row or None."""
-    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    url = f"{get_supabase_url()}/rest/v1/{path}"
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=_get_headers(), method="POST")
     try:
@@ -52,7 +51,7 @@ def _supabase_post(path: str, body: dict) -> dict | None:
 
 def _supabase_patch(path: str, body: dict) -> dict | None:
     """PATCH to Supabase REST API. Returns first row or None."""
-    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    url = f"{get_supabase_url()}/rest/v1/{path}"
     data = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=_get_headers(), method="PATCH")
     try:

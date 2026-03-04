@@ -39,8 +39,6 @@ export interface ContentItemDetail extends ContentListItem {
   classification_reasoning: string | null;
   metadata: Record<string, unknown>;
   summary_data: SummaryData | null;
-  segments: TranscriptSegment[] | null;
-  highlights: TranscriptHighlight[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -134,7 +132,6 @@ export interface Project {
   description: string | null;
   color: string;
   icon: string;
-  tana_node_id: string | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;
@@ -170,6 +167,6 @@ export const CONTENT_LIST_COLUMNS = `
 export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
   content, source_url, file_path, secondary_domain, secondary_subtopic,
-  classification_reasoning, summary_data, segments, highlights,
+  classification_reasoning, summary_data,
   created_at, updated_at
 ` as const;

@@ -186,6 +186,7 @@ ${content}`;
       .update({
         summary_data: toJson(summaryData),
         ai_summary: summaryData.executive,
+        updated_by: user.id,
       })
       .eq('id', item_id);
 

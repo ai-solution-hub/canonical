@@ -7,7 +7,7 @@ import urllib.request
 from typing import Optional, List
 
 from .store import check_url_exists
-from .config import DEDUP_SIMILARITY_THRESHOLD, get_env, SUPABASE_URL
+from .config import DEDUP_SIMILARITY_THRESHOLD, get_supabase_url, get_supabase_secret_key
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,10 @@ def check_duplicate_embedding(
 
     Returns list of matches above threshold: [{id, title, similarity}]
     """
-    env = get_env()
-    key = env["SUPABASE_ANON_KEY"]
+    key = get_supabase_secret_key()
 
     # Use the find_similar_content function via RPC
-    rpc_url = f"{SUPABASE_URL}/rest/v1/rpc/find_similar_content"
+    rpc_url = f"{get_supabase_url()}/rest/v1/rpc/find_similar_content"
     body = json.dumps({
         "query_embedding": embedding,
         "similarity_threshold": threshold,

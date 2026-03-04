@@ -54,7 +54,7 @@ export async function POST(
   try {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const { id } = await params;
     if (!UUID_RE.test(id)) {
@@ -79,6 +79,7 @@ export async function POST(
           description: parsed.data.description ?? null,
           color: parsed.data.color ?? '#6366f1',
           icon: parsed.data.icon ?? 'folder',
+          created_by: user.id,
         })
         .select()
         .single();

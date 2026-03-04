@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const raw = await request.json();
     const parsed = parseBody(ReadMarkBodySchema, raw);
@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
       const { error } = await supabase
         .from('read_marks')
         .upsert(
-          { content_item_id: item_id, source },
-          { onConflict: 'content_item_id' },
+          { content_item_id: item_id, source, user_id: user.id },
+          { onConflict: 'user_id,content_item_id' },
         );
       if (error) {
         console.error('Failed to mark as read:', error);
@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
       const { error } = await supabase
         .from('read_marks')
         .delete()
-        .eq('content_item_id', item_id);
+        .eq('content_item_id', item_id)
+        .eq('user_id', user.id);
       if (error) {
         console.error('Failed to mark as unread:', error);
         return NextResponse.json(
@@ -45,10 +46,10 @@ export async function POST(request: NextRequest) {
       }
     } else if (action === 'mark_bulk_read') {
       const { item_ids, source } = parsed.data;
-      const rows = item_ids.map((id) => ({ content_item_id: id, source }));
+      const rows = item_ids.map((id) => ({ content_item_id: id, source, user_id: user.id }));
       const { error } = await supabase
         .from('read_marks')
-        .upsert(rows, { onConflict: 'content_item_id' });
+        .upsert(rows, { onConflict: 'user_id,content_item_id' });
       if (error) {
         console.error('Failed to bulk mark as read:', error);
         return NextResponse.json(

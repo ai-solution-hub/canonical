@@ -289,20 +289,6 @@ export function validateEditableField(field: string): field is EditableField {
 }
 
 // ──────────────────────────────────────────
-// Digest Sharing
-// ──────────────────────────────────────────
-
-/** POST /api/digest/[id]/share */
-export const DigestShareBodySchema = z.object({
-  expires_in_days: z.number().int().min(0).max(365).default(30),
-  branding: z.object({
-    logo_url: z.string().url().optional(),
-    company_name: z.string().max(200).optional(),
-    custom_title: z.string().max(300).optional(),
-  }).optional(),
-});
-
-// ──────────────────────────────────────────
 // Structured Extraction
 // ──────────────────────────────────────────
 

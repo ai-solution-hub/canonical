@@ -14,6 +14,184 @@ export type Database = {
   }
   public: {
     Tables: {
+      bid_questions: {
+        Row: {
+          assigned_to: string | null
+          confidence_posture: string | null
+          created_at: string
+          created_by: string | null
+          evaluation_weight: number | null
+          has_variants: boolean | null
+          id: string
+          matched_content_ids: string[] | null
+          project_id: string
+          question_sequence: number
+          question_text: string
+          section_name: string | null
+          section_sequence: number
+          status: string
+          updated_at: string | null
+          word_limit: number | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          confidence_posture?: string | null
+          created_at?: string
+          created_by?: string | null
+          evaluation_weight?: number | null
+          has_variants?: boolean | null
+          id?: string
+          matched_content_ids?: string[] | null
+          project_id: string
+          question_sequence?: number
+          question_text: string
+          section_name?: string | null
+          section_sequence?: number
+          status?: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Update: {
+          assigned_to?: string | null
+          confidence_posture?: string | null
+          created_at?: string
+          created_by?: string | null
+          evaluation_weight?: number | null
+          has_variants?: boolean | null
+          id?: string
+          matched_content_ids?: string[] | null
+          project_id?: string
+          question_sequence?: number
+          question_text?: string
+          section_name?: string | null
+          section_sequence?: number
+          status?: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_questions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_responses: {
+        Row: {
+          approved_by: string | null
+          created_at: string
+          drafted_by: string | null
+          id: string
+          last_edited_by: string | null
+          question_id: string
+          response_text: string | null
+          response_text_advanced: string | null
+          review_status: string
+          source_content_ids: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          approved_by?: string | null
+          created_at?: string
+          drafted_by?: string | null
+          id?: string
+          last_edited_by?: string | null
+          question_id: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          approved_by?: string | null
+          created_at?: string
+          drafted_by?: string | null
+          id?: string
+          last_edited_by?: string | null
+          question_id?: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "bid_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_history: {
+        Row: {
+          brief: string | null
+          change_summary: string | null
+          change_type: string
+          content: string
+          content_item_id: string
+          created_at: string
+          created_by: string | null
+          detail: string | null
+          id: string
+          metadata: Json | null
+          reference: string | null
+          title: string
+          version: number
+        }
+        Insert: {
+          brief?: string | null
+          change_summary?: string | null
+          change_type?: string
+          content: string
+          content_item_id: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          title: string
+          version: number
+        }
+        Update: {
+          brief?: string | null
+          change_summary?: string | null
+          change_type?: string
+          content?: string
+          content_item_id?: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
+          id?: string
+          metadata?: Json | null
+          reference?: string | null
+          title?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_history_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_history_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items_overview"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_item_projects: {
         Row: {
           assigned_at: string | null
@@ -62,28 +240,34 @@ export type Database = {
           ai_keywords: string[] | null
           ai_summary: string | null
           author_name: string | null
-          author_url: string | null
+          brief: string | null
           captured_date: string | null
           classification_confidence: number | null
           classification_reasoning: string | null
           classified_at: string | null
           content: string
           content_type: string
-          created_at: string | null
+          created_at: string
+          created_by: string | null
+          detail: string | null
           embedding: string | null
-          engagement_metrics: Json | null
+          expiry_date: string | null
           file_path: string | null
-          highlights: Json | null
+          freshness: string | null
+          freshness_checked_at: string | null
           id: string
+          lifecycle_type: string | null
           metadata: Json | null
           parent_id: string | null
           platform: string | null
           primary_domain: string | null
           primary_subtopic: string | null
           priority: string | null
+          reference: string | null
           secondary_domain: string | null
           secondary_subtopic: string | null
-          segments: Json | null
+          source_bid: string | null
+          source_document: string | null
           source_domain: string | null
           source_url: string | null
           suggested_title: string | null
@@ -91,34 +275,41 @@ export type Database = {
           thumbnail_url: string | null
           title: string
           updated_at: string | null
+          updated_by: string | null
           user_tags: string[] | null
         }
         Insert: {
           ai_keywords?: string[] | null
           ai_summary?: string | null
           author_name?: string | null
-          author_url?: string | null
+          brief?: string | null
           captured_date?: string | null
           classification_confidence?: number | null
           classification_reasoning?: string | null
           classified_at?: string | null
           content: string
-          content_type?: string
-          created_at?: string | null
+          content_type: string
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
           embedding?: string | null
-          engagement_metrics?: Json | null
+          expiry_date?: string | null
           file_path?: string | null
-          highlights?: Json | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
           id?: string
+          lifecycle_type?: string | null
           metadata?: Json | null
           parent_id?: string | null
           platform?: string | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          reference?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
-          segments?: Json | null
+          source_bid?: string | null
+          source_document?: string | null
           source_domain?: string | null
           source_url?: string | null
           suggested_title?: string | null
@@ -126,34 +317,41 @@ export type Database = {
           thumbnail_url?: string | null
           title: string
           updated_at?: string | null
+          updated_by?: string | null
           user_tags?: string[] | null
         }
         Update: {
           ai_keywords?: string[] | null
           ai_summary?: string | null
           author_name?: string | null
-          author_url?: string | null
+          brief?: string | null
           captured_date?: string | null
           classification_confidence?: number | null
           classification_reasoning?: string | null
           classified_at?: string | null
           content?: string
           content_type?: string
-          created_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          detail?: string | null
           embedding?: string | null
-          engagement_metrics?: Json | null
+          expiry_date?: string | null
           file_path?: string | null
-          highlights?: Json | null
+          freshness?: string | null
+          freshness_checked_at?: string | null
           id?: string
+          lifecycle_type?: string | null
           metadata?: Json | null
           parent_id?: string | null
           platform?: string | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          reference?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
-          segments?: Json | null
+          source_bid?: string | null
+          source_document?: string | null
           source_domain?: string | null
           source_url?: string | null
           suggested_title?: string | null
@@ -161,6 +359,7 @@ export type Database = {
           thumbnail_url?: string | null
           title?: string
           updated_at?: string | null
+          updated_by?: string | null
           user_tags?: string[] | null
         }
         Relationships: [
@@ -183,6 +382,7 @@ export type Database = {
       digests: {
         Row: {
           created_at: string
+          created_by: string | null
           digest_type: string
           domain_summaries: Json
           generated_at: string
@@ -194,15 +394,12 @@ export type Database = {
           narrative_summary: string | null
           period_end: string
           period_start: string
-          share_branding: Json | null
-          share_expires_at: string | null
-          share_item_urls: Json | null
-          share_token: string | null
           theme_clusters: Json
           tokens_used: number | null
         }
         Insert: {
           created_at?: string
+          created_by?: string | null
           digest_type?: string
           domain_summaries?: Json
           generated_at?: string
@@ -214,15 +411,12 @@ export type Database = {
           narrative_summary?: string | null
           period_end: string
           period_start: string
-          share_branding?: Json | null
-          share_expires_at?: string | null
-          share_item_urls?: Json | null
-          share_token?: string | null
           theme_clusters?: Json
           tokens_used?: number | null
         }
         Update: {
           created_at?: string
+          created_by?: string | null
           digest_type?: string
           domain_summaries?: Json
           generated_at?: string
@@ -234,336 +428,16 @@ export type Database = {
           narrative_summary?: string | null
           period_end?: string
           period_start?: string
-          share_branding?: Json | null
-          share_expires_at?: string | null
-          share_item_urls?: Json | null
-          share_token?: string | null
           theme_clusters?: Json
           tokens_used?: number | null
         }
         Relationships: []
       }
-      idea_keywords: {
-        Row: {
-          created_at: string | null
-          id: string
-          idea_id: string
-          is_user_added: boolean | null
-          keyword: string
-          keyword_lower: string | null
-          relevance_score: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          idea_id: string
-          is_user_added?: boolean | null
-          keyword: string
-          keyword_lower?: string | null
-          relevance_score?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          idea_id?: string
-          is_user_added?: boolean | null
-          keyword?: string
-          keyword_lower?: string | null
-          relevance_score?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "idea_keywords_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_keywords_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      idea_relationships: {
-        Row: {
-          created_at: string | null
-          id: string
-          idea_id: string
-          notes: string | null
-          related_idea_id: string
-          relationship_type: string
-          strength: number | null
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id?: string
-          idea_id: string
-          notes?: string | null
-          related_idea_id: string
-          relationship_type: string
-          strength?: number | null
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          idea_id?: string
-          notes?: string | null
-          related_idea_id?: string
-          relationship_type?: string
-          strength?: number | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "idea_relationships_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_relationships_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_relationships_related_idea_id_fkey"
-            columns: ["related_idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_relationships_related_idea_id_fkey"
-            columns: ["related_idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      idea_theme_assignments: {
-        Row: {
-          assigned_at: string | null
-          id: string
-          idea_id: string
-          theme_id: string
-        }
-        Insert: {
-          assigned_at?: string | null
-          id?: string
-          idea_id: string
-          theme_id: string
-        }
-        Update: {
-          assigned_at?: string | null
-          id?: string
-          idea_id?: string
-          theme_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "idea_theme_assignments_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_theme_assignments_idea_id_fkey"
-            columns: ["idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "idea_theme_assignments_theme_id_fkey"
-            columns: ["theme_id"]
-            isOneToOne: false
-            referencedRelation: "idea_themes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      idea_themes: {
-        Row: {
-          color: string | null
-          created_at: string | null
-          description: string | null
-          icon: string | null
-          id: string
-          is_archived: boolean | null
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          icon?: string | null
-          id?: string
-          is_archived?: boolean | null
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string | null
-          description?: string | null
-          icon?: string | null
-          id?: string
-          is_archived?: boolean | null
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: []
-      }
-      ideas: {
-        Row: {
-          ai_keywords: string[] | null
-          ai_summary: string | null
-          ai_themes: string[] | null
-          captured_date: string | null
-          classification_confidence: number | null
-          classified_at: string | null
-          content: string
-          created_at: string | null
-          embedding: string | null
-          estimated_effort_hours: number | null
-          id: string
-          implementation_complexity: string | null
-          metadata: Json | null
-          parent_id: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          priority: string | null
-          relevance_score: number | null
-          secondary_domain: string | null
-          secondary_subtopic: string | null
-          source_author: string | null
-          source_content_item_id: string | null
-          source_title: string | null
-          source_type: string
-          source_url: string | null
-          status: string | null
-          tana_node_id: string | null
-          tana_sync_hash: string | null
-          tana_synced_at: string | null
-          target_timeline: string | null
-          title: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          ai_keywords?: string[] | null
-          ai_summary?: string | null
-          ai_themes?: string[] | null
-          captured_date?: string | null
-          classification_confidence?: number | null
-          classified_at?: string | null
-          content: string
-          created_at?: string | null
-          embedding?: string | null
-          estimated_effort_hours?: number | null
-          id?: string
-          implementation_complexity?: string | null
-          metadata?: Json | null
-          parent_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          priority?: string | null
-          relevance_score?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_author?: string | null
-          source_content_item_id?: string | null
-          source_title?: string | null
-          source_type: string
-          source_url?: string | null
-          status?: string | null
-          tana_node_id?: string | null
-          tana_sync_hash?: string | null
-          tana_synced_at?: string | null
-          target_timeline?: string | null
-          title?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          ai_keywords?: string[] | null
-          ai_summary?: string | null
-          ai_themes?: string[] | null
-          captured_date?: string | null
-          classification_confidence?: number | null
-          classified_at?: string | null
-          content?: string
-          created_at?: string | null
-          embedding?: string | null
-          estimated_effort_hours?: number | null
-          id?: string
-          implementation_complexity?: string | null
-          metadata?: Json | null
-          parent_id?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          priority?: string | null
-          relevance_score?: number | null
-          secondary_domain?: string | null
-          secondary_subtopic?: string | null
-          source_author?: string | null
-          source_content_item_id?: string | null
-          source_title?: string | null
-          source_type?: string
-          source_url?: string | null
-          status?: string | null
-          tana_node_id?: string | null
-          tana_sync_hash?: string | null
-          tana_synced_at?: string | null
-          target_timeline?: string | null
-          title?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ideas_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ideas_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ideas_source_content_item_id_fkey"
-            columns: ["source_content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ideas_source_content_item_id_fkey"
-            columns: ["source_content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items_overview"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ingestion_quality_log: {
         Row: {
           content_item_id: string | null
           created_at: string | null
+          created_by: string | null
           details: Json | null
           flag_type: string
           id: string
@@ -578,6 +452,7 @@ export type Database = {
         Insert: {
           content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           details?: Json | null
           flag_type: string
           id?: string
@@ -592,6 +467,7 @@ export type Database = {
         Update: {
           content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           details?: Json | null
           flag_type?: string
           id?: string
@@ -625,6 +501,7 @@ export type Database = {
           completed_at: string | null
           cost: number | null
           created_at: string
+          created_by: string | null
           error_message: string | null
           id: string
           items_processed: number | null
@@ -636,6 +513,7 @@ export type Database = {
           completed_at?: string | null
           cost?: number | null
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
           id?: string
           items_processed?: number | null
@@ -647,6 +525,7 @@ export type Database = {
           completed_at?: string | null
           cost?: number | null
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
           id?: string
           items_processed?: number | null
@@ -656,39 +535,96 @@ export type Database = {
         }
         Relationships: []
       }
+      processing_queue: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          job_type: string
+          max_attempts: number
+          payload: Json
+          priority: number
+          started_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type: string
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          job_type?: string
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          started_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           color: string | null
           created_at: string | null
+          created_by: string | null
           description: string | null
+          domain_metadata: Json | null
           icon: string | null
           id: string
           is_archived: boolean | null
           name: string
-          tana_node_id: string | null
+          type: string
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           color?: string | null
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
+          domain_metadata?: Json | null
           icon?: string | null
           id?: string
           is_archived?: boolean | null
           name: string
-          tana_node_id?: string | null
+          type?: string
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           color?: string | null
           created_at?: string | null
+          created_by?: string | null
           description?: string | null
+          domain_metadata?: Json | null
           icon?: string | null
           id?: string
           is_archived?: boolean | null
           name?: string
-          tana_node_id?: string | null
+          type?: string
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -698,86 +634,124 @@ export type Database = {
           id: string
           read_at: string
           source: string
+          user_id: string | null
         }
         Insert: {
           content_item_id: string
           id?: string
           read_at?: string
           source?: string
+          user_id?: string | null
         }
         Update: {
           content_item_id?: string
           id?: string
           read_at?: string
           source?: string
+          user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "read_marks_content_item_id_fkey"
             columns: ["content_item_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "read_marks_content_item_id_fkey"
             columns: ["content_item_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "content_items_overview"
             referencedColumns: ["id"]
           },
         ]
       }
-      tana_sync_log: {
+      taxonomy_domains: {
         Row: {
-          error_message: string | null
+          colour: string | null
+          created_at: string
+          display_order: number
           id: string
-          nodes_synced: number | null
-          sync_direction: string | null
-          sync_duration_ms: number | null
-          sync_status: string | null
-          synced_at: string | null
-          synced_idea_id: string | null
-          tana_node_id: string | null
+          is_active: boolean | null
+          name: string
         }
         Insert: {
-          error_message?: string | null
+          colour?: string | null
+          created_at?: string
+          display_order?: number
           id?: string
-          nodes_synced?: number | null
-          sync_direction?: string | null
-          sync_duration_ms?: number | null
-          sync_status?: string | null
-          synced_at?: string | null
-          synced_idea_id?: string | null
-          tana_node_id?: string | null
+          is_active?: boolean | null
+          name: string
         }
         Update: {
-          error_message?: string | null
+          colour?: string | null
+          created_at?: string
+          display_order?: number
           id?: string
-          nodes_synced?: number | null
-          sync_direction?: string | null
-          sync_duration_ms?: number | null
-          sync_status?: string | null
-          synced_at?: string | null
-          synced_idea_id?: string | null
-          tana_node_id?: string | null
+          is_active?: boolean | null
+          name?: string
+        }
+        Relationships: []
+      }
+      taxonomy_subtopics: {
+        Row: {
+          created_at: string
+          display_order: number
+          domain_id: string
+          id: string
+          is_active: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          domain_id: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          domain_id?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
         }
         Relationships: [
           {
-            foreignKeyName: "tana_sync_log_synced_idea_id_fkey"
-            columns: ["synced_idea_id"]
+            foreignKeyName: "taxonomy_subtopics_domain_id_fkey"
+            columns: ["domain_id"]
             isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "tana_sync_log_synced_idea_id_fkey"
-            columns: ["synced_idea_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
+            referencedRelation: "taxonomy_domains"
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
@@ -787,83 +761,20 @@ export type Database = {
           captured_date: string | null
           content_type: string | null
           created_at: string | null
+          created_by: string | null
+          freshness: string | null
           has_embedding: boolean | null
           has_thumbnail: boolean | null
           id: string | null
           is_classified: boolean | null
+          lifecycle_type: string | null
           platform: string | null
           primary_domain: string | null
           primary_subtopic: string | null
           source_domain: string | null
           title: string | null
         }
-        Insert: {
-          author_name?: string | null
-          captured_date?: string | null
-          content_type?: string | null
-          created_at?: string | null
-          has_embedding?: never
-          has_thumbnail?: never
-          id?: string | null
-          is_classified?: never
-          platform?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          source_domain?: string | null
-          title?: string | null
-        }
-        Update: {
-          author_name?: string | null
-          captured_date?: string | null
-          content_type?: string | null
-          created_at?: string | null
-          has_embedding?: never
-          has_thumbnail?: never
-          id?: string | null
-          is_classified?: never
-          platform?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          source_domain?: string | null
-          title?: string | null
-        }
         Relationships: []
-      }
-      ideas_with_stats: {
-        Row: {
-          captured_date: string | null
-          child_ideas_count: number | null
-          content: string | null
-          created_at: string | null
-          id: string | null
-          keywords_count: number | null
-          parent_id: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          priority: string | null
-          related_ideas_count: number | null
-          source_type: string | null
-          status: string | null
-          themes_count: number | null
-          title: string | null
-          updated_at: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ideas_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "ideas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "ideas_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "ideas_with_stats"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       quality_issues_pending: {
         Row: {
@@ -886,32 +797,6 @@ export type Database = {
         Args: { search_terms: string[] }
         Returns: string[]
       }
-      find_idea_dependencies: {
-        Args: { max_depth?: number; start_idea_id: string }
-        Returns: {
-          content: string
-          dependency_depth: number
-          idea_id: string
-          relationship_type: string
-          title: string
-        }[]
-      }
-      find_similar_all: {
-        Args: {
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          content: string
-          id: string
-          item_type: string
-          primary_domain: string
-          similarity: number
-          source_table: string
-          title: string
-        }[]
-      }
       find_similar_content: {
         Args: {
           limit_count?: number
@@ -929,99 +814,42 @@ export type Database = {
           title: string
         }[]
       }
-      find_similar_ideas: {
-        Args: {
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          content: string
-          id: string
-          primary_domain: string
-          similarity: number
-          source_type: string
-          status: string
-          title: string
-        }[]
-      }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
+      get_bid_summary: { Args: { p_project_id: string }; Returns: Json }
       get_capture_activity: {
-        Args: Record<string, never>
+        Args: Record<PropertyKey, never>
         Returns: {
-          day: string
           count: number
+          day: string
         }[]
       }
-      get_content_gaps: { Args: never; Returns: Json }
+      get_content_gaps: { Args: Record<PropertyKey, never>; Returns: Json }
       get_domain_subtopic_counts: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           item_count: number
           primary_domain: string
           primary_subtopic: string
         }[]
       }
-      get_domain_unread_counts: {
-        Args: never
-        Returns: {
-          domain: string
-          unread_count: number
-        }[]
-      }
-      get_filter_counts: { Args: never; Returns: Json }
-      get_idea_subtree: {
-        Args: { root_idea_id: string }
-        Returns: {
-          content: string
-          depth: number
-          id: string
-          parent_id: string
-          primary_domain: string
-          status: string
-          title: string
-        }[]
-      }
-      get_ingestion_timeline: {
-        Args: { p_days?: number; p_granularity?: string }
-        Returns: {
-          item_count: number
-          period: string
-          platform: string
-        }[]
-      }
+      get_filter_counts: { Args: Record<PropertyKey, never>; Returns: Json }
       get_item_projects: {
         Args: { p_item_id: string }
         Returns: {
           color: string | null
           created_at: string | null
+          created_by: string | null
           description: string | null
+          domain_metadata: Json | null
           icon: string | null
           id: string
           is_archived: boolean | null
           name: string
-          tana_node_id: string | null
+          type: string
           updated_at: string | null
-        }[]
-        SetofOptions: {
-          from: "*"
-          to: "projects"
-          isOneToOne: false
-          isSetofReturn: true
-        }
-      }
-      get_pipeline_last_runs: {
-        Args: never
-        Returns: {
-          last_duration_seconds: number
-          last_error_message: string
-          last_items_processed: number
-          last_started_at: string
-          last_status: string
-          pipeline_name: string
+          updated_by: string | null
         }[]
       }
-      get_pipeline_stats: { Args: never; Returns: Json }
       get_popular_keywords: {
         Args: { p_limit?: number }
         Returns: {
@@ -1029,51 +857,16 @@ export type Database = {
           keyword: string
         }[]
       }
-      get_project_counts: { Args: never; Returns: Json }
+      get_project_counts: { Args: Record<PropertyKey, never>; Returns: Json }
       get_project_item_counts: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           item_count: number
           last_activity: string
           project_id: string
         }[]
       }
-      get_quality_issues: {
-        Args: {
-          p_flag_type?: string
-          p_limit?: number
-          p_offset?: number
-          p_resolved?: boolean
-          p_severity?: string
-          p_sort_by?: string
-          p_sort_dir?: string
-        }
-        Returns: Json
-      }
       get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
-      get_review_queue: {
-        Args: {
-          p_content_types?: string[]
-          p_cursor?: string
-          p_domains?: string[]
-          p_limit?: number
-          p_platforms?: string[]
-        }
-        Returns: {
-          items: Json
-          total_count: number
-        }[]
-      }
-      get_source_freshness: {
-        Args: never
-        Returns: {
-          last_30d: number
-          last_7d: number
-          last_ingested: string
-          platform: string
-          total_items: number
-        }[]
-      }
       get_top_authors: {
         Args: { p_limit?: number }
         Returns: {
@@ -1093,13 +886,14 @@ export type Database = {
         }[]
       }
       get_unique_authors: {
-        Args: never
+        Args: Record<PropertyKey, never>
         Returns: {
           author_name: string
           count: number
         }[]
       }
-      get_user_tag_counts: { Args: never; Returns: Json }
+      get_user_role: { Args: Record<PropertyKey, never>; Returns: string }
+      get_user_tag_counts: { Args: Record<PropertyKey, never>; Returns: Json }
       hybrid_search: {
         Args: {
           limit_count?: number
@@ -1114,6 +908,7 @@ export type Database = {
           captured_date: string
           classification_confidence: number
           content_type: string
+          created_by: string
           id: string
           metadata: Json
           platform: string
@@ -1153,6 +948,25 @@ export type Database = {
           source_domain: string
           suggested_title: string
           thumbnail_url: string
+          title: string
+        }[]
+      }
+      search_for_bid_response: {
+        Args: {
+          limit_count?: number
+          query_embedding: string
+          query_text?: string
+        }
+        Returns: {
+          ai_keywords: string[]
+          brief: string
+          content: string
+          content_type: string
+          detail: string
+          id: string
+          primary_domain: string
+          primary_subtopic: string
+          similarity: number
           title: string
         }[]
       }

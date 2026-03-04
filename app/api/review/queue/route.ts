@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
     const platformParam = searchParams.get('platform');
 
     // Single RPC call replaces 3 sequential queries (read marks + items + count)
-    const { data, error } = await supabase.rpc('get_review_queue', {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.rpc as any)('get_review_queue', {
       p_domains: domainParam
         ? domainParam.split(',').filter(Boolean)
         : undefined,

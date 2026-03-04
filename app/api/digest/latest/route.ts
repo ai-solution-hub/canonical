@@ -17,7 +17,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('digests')
-      .select('id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at, share_token, share_expires_at')
+      .select('id, digest_type, period_start, period_end, item_count, domain_summaries, theme_clusters, narrative_summary, generated_at, generated_by, tokens_used, created_at')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -50,8 +50,6 @@ export async function GET() {
       generated_by: data.generated_by,
       tokens_used: data.tokens_used,
       created_at: data.created_at,
-      share_token: data.share_token ?? null,
-      share_expires_at: data.share_expires_at ?? null,
     };
 
     return NextResponse.json({ digest });

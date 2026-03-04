@@ -17,12 +17,14 @@ interface ProjectCardProps {
   project: ProjectWithCounts;
   onEdit: (project: ProjectWithCounts) => void;
   onArchiveToggle: (project: ProjectWithCounts) => void;
+  readOnly?: boolean;
 }
 
 export function ProjectCard({
   project,
   onEdit,
   onArchiveToggle,
+  readOnly = false,
 }: ProjectCardProps) {
   const Icon = ICON_MAP[project.icon as ProjectIconName] ?? Folder;
 
@@ -80,42 +82,44 @@ export function ProjectCard({
         </p>
       </div>
 
-      {/* Quick actions */}
-      <div className="flex items-center justify-end gap-1 border-t px-3 py-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit(project);
-          }}
-          className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Pencil className="size-3" />
-          Edit
-        </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchiveToggle(project);
-          }}
-          className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {project.is_archived ? (
-            <>
-              <ArchiveRestore className="size-3" />
-              Unarchive
-            </>
-          ) : (
-            <>
-              <Archive className="size-3" />
-              Archive
-            </>
-          )}
-        </Button>
-      </div>
+      {/* Quick actions — hidden for read-only users */}
+      {!readOnly && (
+        <div className="flex items-center justify-end gap-1 border-t px-3 py-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(project);
+            }}
+            className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Pencil className="size-3" />
+            Edit
+          </Button>
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchiveToggle(project);
+            }}
+            className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {project.is_archived ? (
+              <>
+                <ArchiveRestore className="size-3" />
+                Unarchive
+              </>
+            ) : (
+              <>
+                <Archive className="size-3" />
+                Archive
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

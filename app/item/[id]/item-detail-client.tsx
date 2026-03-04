@@ -83,8 +83,6 @@ export interface ItemData {
   classification_confidence: number | null;
   classification_reasoning: string | null;
   summary_data: SummaryData | null;
-  segments: TranscriptSegment[] | null;
-  highlights: TranscriptHighlight[] | null;
   priority: string | null;
   user_tags: string[] | null;
   metadata: Record<string, unknown> | null;
@@ -111,8 +109,8 @@ export function ItemDetailClient({
     setSegments,
   } = useTranscript({
     itemId: item.id as string,
-    initialSegments: initialItem.segments ?? null,
-    initialHighlights: initialItem.highlights ?? null,
+    initialSegments: null,
+    initialHighlights: null,
   });
   const [copied, setCopied] = useState(false);
   const {

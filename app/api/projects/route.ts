@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const raw = await request.json();
     const parsed = parseBody(ProjectCreateBodySchema, raw);
@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
         description: description ?? null,
         color: color ?? '#6366f1',
         icon: icon ?? 'folder',
+        created_by: user.id,
       })
       .select()
       .single();

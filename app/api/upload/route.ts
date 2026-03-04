@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     // Auth check
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     // Parse multipart form data
     const formData = await request.formData();
@@ -200,6 +200,7 @@ export async function POST(request: NextRequest) {
           ingestion_source: 'upload',
         },
         ...(authorOverride ? { author_name: authorOverride } : {}),
+        created_by: user.id,
       })
       .select('id')
       .single();
@@ -286,6 +287,8 @@ export async function POST(request: NextRequest) {
       metadataUpdate.extraction_failed = true;
     }
     updateData.metadata = metadataUpdate;
+
+    updateData.updated_by = user.id;
 
     const { error: updateError } = await supabase
       .from('content_items')

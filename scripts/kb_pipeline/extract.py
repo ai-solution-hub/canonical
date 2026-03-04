@@ -449,7 +449,7 @@ def extract_reddit_json(url: str) -> Optional[ExtractedContent]:
         resp = requests.get(
             json_url,
             timeout=15,
-            headers={"User-Agent": "IMS-Pipeline/1.0 (personal knowledge management)"},
+            headers={"User-Agent": "KnowledgeHub-Pipeline/1.0 (knowledge management)"},
         )
         resp.raise_for_status()
         data = resp.json()

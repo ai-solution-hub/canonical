@@ -7,13 +7,12 @@ import urllib.error
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from .config import get_env, SUPABASE_URL
+from .config import get_supabase_url, get_supabase_secret_key
 
 
 def _headers(prefer: str = "return=representation"):
-    """Build Supabase auth headers."""
-    env = get_env()
-    key = env["SUPABASE_ANON_KEY"]
+    """Build Supabase auth headers using service_role key (bypasses RLS)."""
+    key = get_supabase_secret_key()
     return {
         "apikey": key,
         "Authorization": f"Bearer {key}",
@@ -25,7 +24,7 @@ def _headers(prefer: str = "return=representation"):
 def _request(method: str, path: str, data: dict = None,
              prefer: str = "return=representation") -> tuple[int, any]:
     """Make a Supabase REST API request."""
-    url = f"{SUPABASE_URL}/rest/v1/{path}"
+    url = f"{get_supabase_url()}/rest/v1/{path}"
     body = json.dumps(data).encode("utf-8") if data else None
     headers = _headers(prefer)
 
@@ -72,7 +71,7 @@ def merge_item_metadata(item_id: str, new_data: dict) -> bool:
 
     Does not overwrite existing keys — only adds/updates the provided ones.
     """
-    url = f"{SUPABASE_URL}/rest/v1/rpc/merge_item_metadata"
+    url = f"{get_supabase_url()}/rest/v1/rpc/merge_item_metadata"
     body = json.dumps({"p_item_id": item_id, "p_new_data": new_data}).encode("utf-8")
     headers = _headers(prefer="return=minimal")
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
@@ -88,10 +87,9 @@ def check_url_exists(source_url: str) -> Optional[str]:
     if not source_url:
         return None
 
-    env = get_env()
-    key = env["SUPABASE_ANON_KEY"]
+    key = get_supabase_secret_key()
 
-    url = f"{SUPABASE_URL}/rest/v1/content_items?source_url=eq.{urllib.parse.quote(source_url, safe='')}&select=id"
+    url = f"{get_supabase_url()}/rest/v1/content_items?source_url=eq.{urllib.parse.quote(source_url, safe='')}&select=id"
     req = urllib.request.Request(url)
     req.add_header("apikey", key)
     req.add_header("Authorization", f"Bearer {key}")
@@ -155,14 +153,13 @@ def fetch_records(
     limit: int = 1000,
 ) -> List[dict]:
     """Fetch content_items with optional filters. Uses pagination."""
-    env = get_env()
-    key = env["SUPABASE_ANON_KEY"]
+    key = get_supabase_secret_key()
     all_records = []
     page_size = 50
     offset = 0
 
     while True:
-        url = f"{SUPABASE_URL}/rest/v1/content_items?select={select}&order={order}"
+        url = f"{get_supabase_url()}/rest/v1/content_items?select={select}&order={order}"
         if filters:
             url += f"&{filters}"
 

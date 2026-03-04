@@ -43,9 +43,6 @@ export interface Digest {
   item_ids?: string[];
   filters?: DigestFilters | null;
   created_at: string;
-  share_token?: string | null;
-  share_expires_at?: string | null;
-  share_branding?: DigestShareBranding | null;
 }
 
 export interface ThemeCluster {
@@ -67,42 +64,3 @@ export interface DigestGenerateResponse {
   digest: Digest;
 }
 
-/** Branding configuration for shared digests */
-export interface DigestShareBranding {
-  logo_url?: string;
-  company_name?: string;
-  custom_title?: string;
-}
-
-/** Share metadata attached to a digest */
-export interface DigestShareInfo {
-  share_token: string;
-  share_url: string;
-  share_expires_at: string | null;
-  share_branding: DigestShareBranding | null;
-}
-
-/** Request body for POST /api/digest/[id]/share */
-export interface DigestShareRequest {
-  expires_in_days?: number;
-  branding?: DigestShareBranding;
-}
-
-/** Response from POST /api/digest/[id]/share */
-export interface DigestShareResponse {
-  share: DigestShareInfo;
-}
-
-/** Public digest data returned by GET /api/share/digest/[token] */
-export interface SharedDigest {
-  digest_type: string;
-  period_start: string;
-  period_end: string;
-  item_count: number;
-  narrative_summary: string | null;
-  domain_summaries: DigestDomainSummary[];
-  theme_clusters: ThemeCluster[];
-  generated_at: string;
-  share_branding: DigestShareBranding | null;
-  share_item_urls: Record<string, string> | null;
-}

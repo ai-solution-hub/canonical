@@ -10,7 +10,6 @@ import {
   Filter,
   SlidersHorizontal,
   X,
-  Link as LinkIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -66,8 +65,6 @@ interface PastDigestEntry {
   period_end: string;
   item_count: number;
   created_at: string;
-  share_token?: string | null;
-  share_expires_at?: string | null;
 }
 
 /**
@@ -681,11 +678,6 @@ export default function DigestPage() {
                       <span className="ml-2 text-xs text-muted-foreground">
                         {digest.digest_type}
                       </span>
-                      {digest.share_token && (
-                        <span role="img" aria-label="Shared" className="ml-1 inline-flex">
-                          <LinkIcon className="size-3 text-muted-foreground" aria-hidden="true" />
-                        </span>
-                      )}
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {digest.item_count} items

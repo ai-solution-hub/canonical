@@ -4,10 +4,7 @@ import { ItemDetailClient } from './item-detail-client';
 import { CONTENT_DETAIL_COLUMNS } from '@/types/content';
 import {
   parseJsonb,
-  parseJsonbArray,
   SummaryDataSchema,
-  TranscriptSegmentSchema,
-  TranscriptHighlightSchema,
 } from '@/lib/validation/jsonb';
 import type { ContentListItem } from '@/types/content';
 import type { ItemData } from './item-detail-client';
@@ -77,14 +74,6 @@ export default async function ItemDetailPage({
     summary_data: parseJsonb(
       SummaryDataSchema,
       itemWithoutEmbedding.summary_data,
-    ),
-    segments: parseJsonbArray(
-      TranscriptSegmentSchema,
-      itemWithoutEmbedding.segments,
-    ),
-    highlights: parseJsonbArray(
-      TranscriptHighlightSchema,
-      itemWithoutEmbedding.highlights,
     ),
   };
 

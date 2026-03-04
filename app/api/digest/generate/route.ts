@@ -447,6 +447,7 @@ export async function POST(request: NextRequest) {
       generated_by: model,
       tokens_used: tokensUsed,
       metadata: filters ? toJson(filters) : null,
+      created_by: user.id,
     };
 
     const { data: insertedDigest, error: insertError } = await supabase

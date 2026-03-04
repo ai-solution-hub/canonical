@@ -14,7 +14,7 @@ export async function PATCH(
   try {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
-    const { supabase } = auth;
+    const { user, supabase } = auth;
 
     const { id } = await params;
 
@@ -40,7 +40,7 @@ export async function PATCH(
 
     const { error } = await supabase
       .from('content_items')
-      .update({ priority })
+      .update({ priority, updated_by: user.id })
       .eq('id', id);
 
     if (error) {

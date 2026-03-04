@@ -48,10 +48,10 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold tracking-tight">
-            IMS
+            Knowledge Hub
           </CardTitle>
           <CardDescription>
-            Sign in to your knowledge management system
+            Sign in to your knowledge base
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -70,7 +70,32 @@ export default function LoginPage() {
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={async () => {
+                    if (!email) {
+                      setError('Enter your email first, then click Forgot password');
+                      return;
+                    }
+                    setError(null);
+                    const supabase = createClient();
+                    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/auth/callback`,
+                    });
+                    if (resetError) {
+                      setError(resetError.message);
+                    } else {
+                      setError(null);
+                      alert('Password reset email sent. Check your inbox.');
+                    }
+                  }}
+                >
+                  Forgot password?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
