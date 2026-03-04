@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import {
@@ -16,9 +16,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    // Auth + role check
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user, supabase } = auth;
 
     const { id } = await params;

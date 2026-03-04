@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
+  getAuthorisedClient,
+  forbiddenResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -17,8 +17,8 @@ const MAX_CONTENT_LENGTH = 100_000;
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { supabase, user } = auth;
 
     // Rate limit: 5 extractions per minute

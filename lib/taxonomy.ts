@@ -127,12 +127,11 @@ export type ContentType = (typeof CONTENT_TYPES)[number];
 
 /** All valid platforms (matches DB CHECK constraint) */
 export const PLATFORMS = [
-  'linkedin',
-  'reddit',
-  'youtube',
   'web',
   'email',
   'manual',
+  'upload',
+  'extraction',
   'other',
 ] as const;
 

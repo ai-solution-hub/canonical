@@ -155,7 +155,7 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
           </DialogTitle>
           <DialogDescription>
             Upload PDF, DOCX, Markdown, or text files. They will be processed
-            through the IMS pipeline for classification and embedding.
+            through the pipeline for classification and embedding.
           </DialogDescription>
         </DialogHeader>
 

@@ -39,7 +39,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   other: Globe,
 };
 
-const SUPABASE_STORAGE_HOST = 'ngsxwlaeybexlgsurnhy.supabase.co/storage';
+const SUPABASE_STORAGE_HOST = `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('https://', '')}/storage`;
 
 /**
  * For small fixed-size thumbnails (list rows), use Supabase render transforms

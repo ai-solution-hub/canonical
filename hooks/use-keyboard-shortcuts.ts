@@ -12,7 +12,7 @@ interface UseKeyboardShortcutsOptions {
 }
 
 /**
- * Full keyboard shortcut handler for IMS.
+ * Keyboard shortcut handler.
  *
  * Shortcuts:
  *  /         Focus search

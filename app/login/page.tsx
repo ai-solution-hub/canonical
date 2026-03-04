@@ -18,6 +18,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState('');
+  const [magicLinkSending, setMagicLinkSending] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,6 +45,29 @@ export default function LoginPage() {
     // Using router.push() would trigger a client-side navigation where the
     // proxy may not yet see the freshly-set session cookies.
     window.location.href = '/';
+  }
+
+  async function handleMagicLink(e: FormEvent) {
+    e.preventDefault();
+    setMagicLinkError(null);
+    setMagicLinkSent(false);
+    setMagicLinkSending(true);
+
+    const supabase = createClient();
+
+    const { error: otpError } = await supabase.auth.signInWithOtp({
+      email: magicLinkEmail,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+
+    if (otpError) {
+      setMagicLinkError(otpError.message);
+      setMagicLinkSending(false);
+      return;
+    }
+
+    setMagicLinkSent(true);
+    setMagicLinkSending(false);
   }
 
   return (
@@ -116,6 +143,55 @@ export default function LoginPage() {
             <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? 'Signing in...' : 'Sign in'}
             </Button>
+          </form>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">or</span>
+            </div>
+          </div>
+
+          {/* Magic link */}
+          <form onSubmit={handleMagicLink} className="flex flex-col gap-3">
+            <Label htmlFor="magic-link-email" className="text-sm font-medium">
+              Sign in with magic link
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="magic-link-email"
+                type="email"
+                placeholder="you@example.com"
+                value={magicLinkEmail}
+                onChange={(e) => setMagicLinkEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={magicLinkSending}
+                className="shrink-0"
+              >
+                {magicLinkSending ? 'Sending...' : 'Send magic link'}
+              </Button>
+            </div>
+
+            {magicLinkSent && (
+              <p className="text-sm text-[var(--success,hsl(142_71%_45%))]" role="status">
+                Check your email for a sign-in link
+              </p>
+            )}
+
+            {magicLinkError && (
+              <p className="text-sm text-destructive" role="alert">
+                {magicLinkError}
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ProjectCreateBodySchema } from '@/lib/validation/schemas';
@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
 /** POST /api/projects — create a project */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user, supabase } = auth;
 
     const raw = await request.json();

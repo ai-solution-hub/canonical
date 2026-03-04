@@ -134,7 +134,6 @@ export const PipelineStatsSchema = z
     items_7d: z.number(),
     items_30d: z.number(),
     unread_count: z.number(),
-    bookmarklet_queue: z.number(),
     missing_summaries: z.number(),
     missing_embeddings: z.number(),
     has_embedding: z.number(),

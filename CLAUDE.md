@@ -218,15 +218,16 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| Master project plan | `/Users/liamj/Documents/development/bid-manager/.planning/project-plan.md` | Phases, work items, done criteria |
-| Feasibility study (20 docs) | `/Users/liamj/Documents/development/bid-manager/.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
-| ADS v1.0 | `/Users/liamj/Documents/development/bid-manager/.planning/ads-v1.md` | Canonical requirements (947 lines) |
+| Master project plan | `.planning/project-plan.md` | Phases, work items, done criteria |
+| Feasibility study (12 docs) | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
+| ADS v1.0 | `.planning/ads-v1.md` | Canonical requirements |
+| Client documentation | `.planning/client-documentation/` | 8 .docx + 1 .pdf bid library files for import |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
 | Search evaluation guide | `docs/reference/search-evaluation-guide.md` | How to run search tests |
 | Search test cases | `scripts/search-evaluation.json` | 20 test cases — re-run after search logic changes |
-| IMS CLAUDE.md (reference) | `/Users/liamj/Documents/development/IMS/CLAUDE.md` | Original IMS instructions (for reference only) |
+| IMS CLAUDE.md (external) | `/Users/liamj/Documents/development/IMS/CLAUDE.md` | Original IMS instructions (external reference only — do not modify) |
 
 ## Gotchas
 

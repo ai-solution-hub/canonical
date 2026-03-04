@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useReadMarks } from '@/contexts/read-marks-context';
+import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
 import {
   getSortOptionFromFilters,
@@ -43,6 +44,7 @@ export function BrowseContent() {
   const supabase = createClient();
   const { filters, activeFilterCount, setFilters } = useBrowseFilters();
   const router = useRouter();
+  const { canEdit } = useUserRole();
   const {
     isRead,
     readItemIds,
@@ -484,15 +486,17 @@ export function BrowseContent() {
 
         {/* Controls */}
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowUpload(true)}
-            className="gap-1.5"
-          >
-            <Upload className="size-3.5" />
-            Upload
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowUpload(true)}
+              className="gap-1.5"
+            >
+              <Upload className="size-3.5" />
+              Upload
+            </Button>
+          )}
           <FilterBar
             showUnreadOnly={showUnreadOnly}
             onToggleUnreadOnly={handleToggleUnreadOnly}

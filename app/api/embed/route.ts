@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
+  getAuthorisedClient,
+  forbiddenResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -12,9 +12,9 @@ import { EmbedBodySchema } from '@/lib/validation/schemas';
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    // Auth + role check
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user } = auth;
 
     // Rate limit: 30 requests per minute

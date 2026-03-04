@@ -188,6 +188,32 @@ export function MetadataSidebar({
               </dd>
             </div>
           )}
+
+          {/* Attribution */}
+          {item.created_at && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Created</dt>
+              <dd className="text-foreground">
+                {formatDateUK(item.created_at as string)}
+              </dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs text-muted-foreground">Created by</dt>
+            <dd className="text-foreground text-xs">
+              {item.created_by
+                ? (item.created_by as string).slice(0, 8) + '...'
+                : 'System'}
+            </dd>
+          </div>
+          {item.updated_by && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Last edited by</dt>
+              <dd className="text-foreground text-xs">
+                {(item.updated_by as string).slice(0, 8) + '...'}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 

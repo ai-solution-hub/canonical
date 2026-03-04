@@ -1,8 +1,7 @@
 """Shared AI summary generation using Claude tool-use mode.
 
 Generates multi-level summaries (executive, detailed, takeaways) for content
-items. Used by all pipeline scripts: bookmarklet queue, ingest, gmail, reddit,
-and markdown ingestion.
+items. Used by all pipeline scripts: ingest and markdown ingestion.
 
 The summary result dict can be stored directly into content_items.summary_data
 (JSONB), with summary['executive'] denormalised to content_items.ai_summary.

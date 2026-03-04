@@ -89,8 +89,7 @@ export function KeyboardShortcutsOverlay({
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>
-            Shortcuts available throughout IMS. Navigation shortcuts (j/k) work
-            in list view.
+            Keyboard shortcuts. Navigation shortcuts (j/k) work in list view.
           </DialogDescription>
         </DialogHeader>
 

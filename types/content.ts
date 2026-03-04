@@ -41,6 +41,8 @@ export interface ContentItemDetail extends ContentListItem {
   summary_data: SummaryData | null;
   created_at: string;
   updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
 }
 
 /** Multi-level summary data stored as JSONB on content_items */
@@ -168,5 +170,5 @@ export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
   content, source_url, file_path, secondary_domain, secondary_subtopic,
   classification_reasoning, summary_data,
-  created_at, updated_at
+  created_at, updated_at, created_by, updated_by
 ` as const;

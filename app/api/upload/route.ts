@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import path from 'path';
 import os from 'os';
@@ -126,9 +126,9 @@ async function extractDocxText(
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    // Auth + role check
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user, supabase } = auth;
 
     // Parse multipart form data

@@ -87,6 +87,10 @@ export interface ItemData {
   priority: string | null;
   user_tags: string[] | null;
   metadata: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
+  updated_by?: string | null;
   [key: string]: unknown;
 }
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IMS Ingestion CLI — process URLs through the shared pipeline.
+Knowledge Hub Ingestion CLI — process URLs through the shared pipeline.
 
 Usage:
     # Single URL
@@ -33,7 +33,7 @@ from kb_pipeline.pipeline import process_url, process_urls
 
 
 def main():
-    parser = argparse.ArgumentParser(description="IMS content ingestion pipeline")
+    parser = argparse.ArgumentParser(description="Knowledge Hub content ingestion pipeline")
     parser.add_argument("urls", nargs="*", help="URLs to process")
     parser.add_argument("--file", "-f", help="File with URLs (one per line)")
     parser.add_argument("--dry-run", action="store_true", help="Extract + classify without storing")

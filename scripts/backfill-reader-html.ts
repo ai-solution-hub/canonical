@@ -134,7 +134,7 @@ async function fetchHtml(url: string): Promise<string | null> {
       signal: controller.signal,
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) IMS-Backfill/1.0",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) KB-Backfill/1.0",
         Accept: "text/html,application/xhtml+xml",
       },
       redirect: "follow",
@@ -157,7 +157,7 @@ async function fetchHtml(url: string): Promise<string | null> {
 
 async function main() {
   console.log("=".repeat(60));
-  console.log("IMS Reader HTML Backfill");
+  console.log("Reader HTML Backfill");
   console.log("=".repeat(60));
   console.log(`  Limit:      ${LIMIT || "all"}`);
   console.log(`  Dry run:    ${DRY_RUN}`);

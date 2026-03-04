@@ -7,7 +7,7 @@ Usage from wrapper scripts:
 
 Usage from Python scripts:
     from kb_pipeline.pipeline_log import start_run, complete_run, fail_run
-    run_id = start_run('gmail')
+    run_id = start_run('ingest')
     try:
         count = do_work()
         complete_run(run_id, items_processed=count)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ingest local markdown files into IMS.
+"""Ingest local markdown files into Knowledge Hub.
 
 Reads .md files from a directory or single file path, classifies them via
 Claude Opus 4.6, generates embeddings via OpenAI, and stores them in Supabase.
@@ -256,7 +256,7 @@ def process_markdown_file(
     dry_run: bool = False,
     generate_summary_flag: bool = True,
 ) -> dict:
-    """Process a single markdown file through the IMS pipeline.
+    """Process a single markdown file through the Knowledge Hub pipeline.
 
     Flow: read → extract title → clean MDX → dedup check → classify → embed → summarise → store
 
@@ -519,7 +519,7 @@ def process_markdown_file(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Ingest local markdown files into IMS"
+        description="Ingest local markdown files into Knowledge Hub"
     )
     parser.add_argument(
         "path",
@@ -592,7 +592,7 @@ def main():
 
     log.info("")
     log.info("=" * 60)
-    log.info("IMS Markdown File Ingestion")
+    log.info("Knowledge Hub Markdown File Ingestion")
     log.info("=" * 60)
     log.info("  Path:       %s", input_path)
     log.info("  Files:      %d", len(files))

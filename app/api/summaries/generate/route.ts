@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
 import {
-  getAuthenticatedClient,
-  unauthorisedResponse,
+  getAuthorisedClient,
+  forbiddenResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -21,9 +21,9 @@ const MAX_CONTENT_LENGTH = 100_000;
 
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    // Auth + role check
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user, supabase } = auth;
 
     // Rate limit: 10 requests per minute
