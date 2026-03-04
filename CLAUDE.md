@@ -41,6 +41,13 @@ development partner. All code is written through human-AI collaboration.
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 
+## Extraction Scripts
+
+The scripts allow the chat session output to be extracted programmatically and saved, enabling verification.
+
+| `python3 ~/.claude/tools/parse-subagents.py <session-id> <output-dir>` | Extract full subagent outputs |
+| `python3 ~/.claude/tools/parse-session.py <session-uuid> <output-dir>` | Extract main session output |
+
 ## Architecture
 
 ```
@@ -192,7 +199,8 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 ## Deployment
 
 - **Platform:** Vercel
-- **URL:** TODO — will be configured per deployment
+- **URL:** https://knowledge-hub-seven-kappa.vercel.app
+- **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
 - **Region:** TBD (client is UK-based, likely LHR1)
 
 ## Key Design Principles
