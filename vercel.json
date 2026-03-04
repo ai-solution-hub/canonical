@@ -38,7 +38,6 @@
   "regions": ["lhr1"],
   "functions": {
     "app/api/summaries/generate/*": { "maxDuration": 30 },
-    "app/api/transcripts/**/*": { "maxDuration": 60 },
     "app/api/digest/generate/*": { "maxDuration": 60 },
     "app/api/bids/[id]/questions/extract/*": { "maxDuration": 120 },
     "app/api/bids/[id]/questions/match/*": { "maxDuration": 120 },

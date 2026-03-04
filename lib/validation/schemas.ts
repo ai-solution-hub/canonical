@@ -102,24 +102,6 @@ export const SummaryGenerateBodySchema = z.object({
   force: z.boolean().optional(),
 });
 
-/** POST /api/transcripts/highlights */
-export const HighlightsGenerateBodySchema = z.object({
-  item_id: z.string().uuid('item_id must be a valid UUID'),
-  force: z.boolean().optional(),
-});
-
-/** POST /api/transcripts/highlights/star */
-export const HighlightStarBodySchema = z.object({
-  item_id: z.string().uuid('item_id must be a valid UUID'),
-  highlight_id: z.string().uuid('highlight_id must be a valid UUID'),
-  starred: z.boolean(),
-});
-
-/** POST /api/transcripts/segment */
-export const SegmentGenerateBodySchema = z.object({
-  item_id: z.string().uuid('item_id must be a valid UUID'),
-  force: z.boolean().optional(),
-});
 
 /** POST /api/digest/generate */
 export const DigestGenerateBodySchema = z.object({
@@ -207,60 +189,6 @@ export const ItemProjectBodySchema = z.object({
   action: z.enum(['assign', 'unassign']),
 });
 
-// ──────────────────────────────────────────
-// Quality Issues
-// ──────────────────────────────────────────
-
-export const VALID_FLAG_TYPES = [
-  'missing_thumbnail',
-  'short_content',
-  'missing_date',
-  'duplicate_candidate',
-  'scrape_failed',
-  'encoding_issue',
-  'missing_author',
-  'classification_low',
-  'manual_review',
-  'dead_letter',
-] as const;
-
-export const VALID_SEVERITIES = ['info', 'warning', 'error'] as const;
-
-export const VALID_RESOLUTION_REASONS = [
-  'fixed',
-  'accepted',
-  'ignored',
-  'deleted',
-] as const;
-
-/** GET /api/pipeline/quality */
-export const QualityIssueQuerySchema = z.object({
-  flag_type: z.enum(VALID_FLAG_TYPES).nullable().optional(),
-  severity: z.enum(VALID_SEVERITIES).nullable().optional(),
-  resolved: z.enum(['true', 'false', 'all']).optional().default('false'),
-  sort: z.enum(['created_at', 'severity', 'flag_type']).optional().default('created_at'),
-  dir: z.enum(['asc', 'desc']).optional().default('desc'),
-  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-  offset: z.coerce.number().int().min(0).optional().default(0),
-});
-
-/** PATCH /api/pipeline/quality/[id] */
-export const QualityResolveBodySchema = z.object({
-  resolved: z.boolean(),
-  resolution_reason: z.enum(VALID_RESOLUTION_REASONS),
-  resolution_notes: z.string().max(1000).optional().default(''),
-});
-
-/** POST /api/pipeline/quality/bulk */
-export const QualityBulkActionSchema = z.object({
-  action: z.enum(['resolve', 'delete']),
-  ids: z.array(z.string().uuid()).min(1).max(100),
-  resolution_reason: z.enum(VALID_RESOLUTION_REASONS).optional(),
-  resolution_notes: z.string().max(1000).optional().default(''),
-}).refine(
-  (data) => data.action !== 'resolve' || data.resolution_reason != null,
-  { message: 'resolution_reason is required when action is resolve' }
-);
 
 // ──────────────────────────────────────────
 // Inline Editing Allowlist

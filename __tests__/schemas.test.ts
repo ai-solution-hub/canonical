@@ -6,7 +6,6 @@ import {
   DigestGenerateBodySchema,
   DigestListParamsSchema,
   EmbedBodySchema,
-  HighlightStarBodySchema,
   ReviewQueueParamsSchema,
   ReadMarkBodySchema,
   ItemUpdateBodySchema,
@@ -270,42 +269,6 @@ describe('EmbedBodySchema', () => {
   });
 });
 
-describe('HighlightStarBodySchema', () => {
-  it('should accept valid star request', () => {
-    const result = HighlightStarBodySchema.safeParse({
-      item_id: VALID_UUID,
-      highlight_id: VALID_UUID,
-      starred: true,
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it('should reject invalid item_id UUID', () => {
-    const result = HighlightStarBodySchema.safeParse({
-      item_id: 'bad',
-      highlight_id: VALID_UUID,
-      starred: true,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject invalid highlight_id UUID', () => {
-    const result = HighlightStarBodySchema.safeParse({
-      item_id: VALID_UUID,
-      highlight_id: 'bad',
-      starred: false,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject missing starred field', () => {
-    const result = HighlightStarBodySchema.safeParse({
-      item_id: VALID_UUID,
-      highlight_id: VALID_UUID,
-    });
-    expect(result.success).toBe(false);
-  });
-});
 
 describe('ReviewQueueParamsSchema', () => {
   it('should apply default limit when no fields provided', () => {
