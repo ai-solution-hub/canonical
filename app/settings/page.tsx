@@ -653,6 +653,8 @@ function GovernanceTab() {
   const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>('open');
   const [editTimeoutDays, setEditTimeoutDays] = useState('7');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(null);
 
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
@@ -670,9 +672,28 @@ function GovernanceTab() {
     }
   }, []);
 
+  const fetchLastFreshnessCheck = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('content_items')
+        .select('freshness_checked_at')
+        .not('freshness_checked_at', 'is', null)
+        .order('freshness_checked_at', { ascending: false })
+        .limit(1)
+        .single();
+      if (data?.freshness_checked_at) {
+        setLastRecalcAt(data.freshness_checked_at);
+      }
+    } catch {
+      // Non-critical -- just means we won't show "Last run"
+    }
+  }, []);
+
   useEffect(() => {
     fetchConfigs();
-  }, [fetchConfigs]);
+    fetchLastFreshnessCheck();
+  }, [fetchConfigs, fetchLastFreshnessCheck]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -715,6 +736,30 @@ function GovernanceTab() {
     setEditPosture(config.posture as 'open' | 'review_on_change');
     setEditTimeoutDays(String(config.timeout_days ?? 7));
     setDialogOpen(true);
+  }
+
+  async function handleRecalculateFreshness() {
+    setRecalculating(true);
+    try {
+      const res = await fetch('/api/freshness/recalculate-all', {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to recalculate');
+      }
+      const result = await res.json();
+      toast.success(
+        `Freshness recalculated: ${result.updated} items updated`,
+      );
+      setLastRecalcAt(result.recalculated_at);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to recalculate freshness',
+      );
+    } finally {
+      setRecalculating(false);
+    }
   }
 
   if (loading) {
@@ -862,6 +907,46 @@ function GovernanceTab() {
             ))}
           </div>
         )}
+      </Card>
+
+      <Separator className="my-2" />
+
+      <div>
+        <h3 className="text-base font-semibold">Content Freshness</h3>
+        <p className="text-sm text-muted-foreground">
+          Recalculate freshness states for all content items based on their
+          lifecycle type and last update date.
+        </p>
+      </div>
+
+      <Card className="flex items-center justify-between px-4 py-4">
+        <div className="text-sm text-muted-foreground">
+          {lastRecalcAt ? (
+            <>
+              Last run:{' '}
+              {new Date(lastRecalcAt).toLocaleDateString('en-GB', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}{' '}
+              at{' '}
+              {new Date(lastRecalcAt).toLocaleTimeString('en-GB', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </>
+          ) : (
+            'Never run'
+          )}
+        </div>
+        <Button
+          size="sm"
+          onClick={handleRecalculateFreshness}
+          disabled={recalculating}
+        >
+          {recalculating && <Loader2 className="mr-2 size-4 animate-spin" />}
+          {recalculating ? 'Recalculating...' : 'Recalculate Now'}
+        </Button>
       </Card>
     </div>
   );

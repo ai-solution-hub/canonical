@@ -30,6 +30,7 @@ export function useTranscript({
     // Not yet implemented
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleHighlightStarToggle = useCallback((_index: number) => {
     // Not yet implemented
   }, []);

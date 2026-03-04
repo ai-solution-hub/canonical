@@ -3,6 +3,75 @@ import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 /**
+ * Formats a quality flag details JSONB value into a human-readable string.
+ *
+ * The `details` column in `ingestion_quality_log` is JSONB. It may be:
+ *  - null/undefined (no details)
+ *  - a string (already serialised or double-serialised JSON)
+ *  - an object with fields like `reason`, `confidence`, `remediation_source`
+ *
+ * Returns a concise summary or an empty string if nothing useful.
+ */
+function formatQualityDetails(
+  details: unknown,
+): string {
+  if (details === null || details === undefined) return '';
+
+  // If it's already a plain string, use it directly
+  if (typeof details === 'string') {
+    // It might be a double-serialised JSON string — try parsing it
+    try {
+      const parsed = JSON.parse(details);
+      if (typeof parsed === 'object' && parsed !== null) {
+        return formatQualityDetailsObject(parsed);
+      }
+      // Parsed to a primitive — just return the string
+      return details;
+    } catch {
+      // Not JSON, just a plain string
+      return details;
+    }
+  }
+
+  if (typeof details === 'object') {
+    return formatQualityDetailsObject(details as Record<string, unknown>);
+  }
+
+  return String(details);
+}
+
+/**
+ * Formats a quality details object into a human-readable string.
+ * Extracts known fields (reason, confidence) and presents them clearly.
+ */
+function formatQualityDetailsObject(
+  obj: Record<string, unknown>,
+): string {
+  const parts: string[] = [];
+
+  if (typeof obj.reason === 'string' && obj.reason) {
+    parts.push(obj.reason);
+  }
+
+  if (typeof obj.confidence === 'number') {
+    parts.push(`confidence ${Math.round(obj.confidence * 100)}%`);
+  }
+
+  // If we extracted known fields, return them
+  if (parts.length > 0) return parts.join(' — ');
+
+  // Fallback: enumerate key-value pairs for any unknown structure
+  const entries = Object.entries(obj).filter(
+    ([, v]) => v !== null && v !== undefined,
+  );
+  if (entries.length === 0) return '';
+
+  return entries
+    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .join(', ');
+}
+
+/**
  * GET /api/activity
  *
  * Unified activity feed showing recent changes across the KB.
@@ -72,7 +141,7 @@ export async function GET(request: NextRequest) {
       type: 'quality_flag',
       entity_type: 'content_item',
       entity_id: entry.content_item_id,
-      summary: `${entry.severity}: ${entry.flag_type}${entry.details ? ` — ${entry.details}` : ''}`,
+      summary: `${entry.severity}: ${entry.flag_type}${entry.details ? ` — ${formatQualityDetails(entry.details)}` : ''}`,
       user_id: null,
       created_at: entry.created_at,
       metadata: {

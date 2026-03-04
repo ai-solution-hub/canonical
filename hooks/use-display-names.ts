@@ -11,7 +11,7 @@ const nameCache = new Map<string, string>();
 /**
  * Track in-flight fetches to avoid duplicate requests.
  */
-let pendingIds = new Set<string>();
+const pendingIds = new Set<string>();
 let pendingPromise: Promise<void> | null = null;
 
 async function fetchDisplayNames(ids: string[]): Promise<void> {
@@ -66,15 +66,21 @@ export function useDisplayNames(
   useEffect(() => {
     if (validIds.length === 0) return;
 
+    // Build map from cache for the current set of IDs
+    const buildFromCache = () => {
+      const map = new Map<string, string>();
+      validIds.forEach((id) => {
+        const name = nameCache.get(id);
+        if (name) map.set(id, name);
+      });
+      return map;
+    };
+
     // Check if all are already cached
     const allCached = validIds.every((id) => nameCache.has(id));
     if (allCached) {
-      const cached = new Map<string, string>();
-      validIds.forEach((id) => {
-        const name = nameCache.get(id);
-        if (name) cached.set(id, name);
-      });
-      setNames(cached);
+      // Defer state update to avoid setting state directly in effect
+      queueMicrotask(() => setNames(buildFromCache()));
       return;
     }
 
@@ -83,12 +89,7 @@ export function useDisplayNames(
     idsRef.current = idsKey;
 
     fetchDisplayNames(validIds).then(() => {
-      const resolved = new Map<string, string>();
-      validIds.forEach((id) => {
-        const name = nameCache.get(id);
-        if (name) resolved.set(id, name);
-      });
-      setNames(resolved);
+      setNames(buildFromCache());
     });
   }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 

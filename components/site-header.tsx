@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, BookOpen, FolderOpen, Menu, Settings } from 'lucide-react';
+import { Search, BookOpen, FolderOpen, Menu, Settings, ShieldCheck } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,9 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { ThemeSettings } from '@/components/theme-settings';
+import { NotificationBell } from '@/components/notification-bell';
 import { Separator } from '@/components/ui/separator';
+import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -30,6 +32,7 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [query, setQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { canEdit, loading: roleLoading } = useUserRole();
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +82,16 @@ export function SiteHeader() {
               </Link>
             );
           })}
+          {!roleLoading && canEdit && (
+            <Link
+              href="/review"
+              aria-current={pathname === '/review' || pathname?.startsWith('/review/') ? 'page' : undefined}
+              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ShieldCheck className="size-3.5" />
+              Review
+            </Link>
+          )}
         </div>
 
         <form
@@ -109,6 +122,7 @@ export function SiteHeader() {
           >
             <Search className="size-4" />
           </Button>
+          <NotificationBell />
           <Button
             variant="ghost"
             size="icon"
@@ -164,7 +178,24 @@ export function SiteHeader() {
                 </Link>
               );
             })}
+            {!roleLoading && canEdit && (
+              <Link
+                href="/review"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-current={pathname === '/review' || pathname?.startsWith('/review/') ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
+                  pathname === '/review' || pathname?.startsWith('/review/')
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground',
+                )}
+              >
+                <ShieldCheck className="size-4" />
+                Review
+              </Link>
+            )}
             <Separator className="my-1" />
+            <NotificationBell mobile />
             <Link
               href={SETTINGS_LINK.href}
               onClick={() => setMobileMenuOpen(false)}
