@@ -27,6 +27,7 @@ import {
   getSubtopics,
   formatSubtopic,
 } from '@/lib/taxonomy';
+import { useDisplayNames } from '@/hooks/use-display-names';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 interface MetadataSidebarProps {
@@ -48,6 +49,18 @@ export function MetadataSidebar({
   saveEdit,
   readOnly = false,
 }: MetadataSidebarProps) {
+  const displayNames = useDisplayNames([
+    item.created_by as string | null,
+    item.updated_by as string | null,
+  ]);
+
+  const createdByName = item.created_by
+    ? displayNames.get(item.created_by as string) ?? 'System'
+    : 'System';
+  const updatedByName = item.updated_by
+    ? displayNames.get(item.updated_by as string) ?? (item.updated_by as string).slice(0, 8) + '...'
+    : null;
+
   return (
     <aside className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
       <div className="rounded-lg border border-border bg-card p-4">
@@ -201,16 +214,14 @@ export function MetadataSidebar({
           <div>
             <dt className="text-xs text-muted-foreground">Created by</dt>
             <dd className="text-foreground text-xs">
-              {item.created_by
-                ? (item.created_by as string).slice(0, 8) + '...'
-                : 'System'}
+              {createdByName}
             </dd>
           </div>
           {item.updated_by && (
             <div>
               <dt className="text-xs text-muted-foreground">Last edited by</dt>
               <dd className="text-foreground text-xs">
-                {(item.updated_by as string).slice(0, 8) + '...'}
+                {updatedByName}
               </dd>
             </div>
           )}

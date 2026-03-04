@@ -1,87 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, forbiddenResponse, rateLimitResponse } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
 
+/**
+ * POST /api/review/action — perform a review action on a content item.
+ *
+ * Actions:
+ * - verify: mark item as verified (sets verified_at and verified_by)
+ * - flag: create a review_needed quality flag in ingestion_quality_log
+ * - skip: no database operation, returns success
+ * - unverify: clear verified_at and verified_by
+ */
 export async function POST(request: NextRequest) {
   try {
-    // Auth check
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    // Auth + role check — editors and admins only
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
     const { user, supabase } = auth;
+
+    // Rate limit: 30 requests per minute
+    const { allowed } = checkRateLimit(`review-action:${user.id}`, 30, 60_000);
+    if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
     const parsed = parseBody(ReviewActionBodySchema, raw);
     if (!parsed.success) return parsed.response;
-    const { item_id, action } = parsed.data;
 
-    if (action === 'read') {
+    const { item_id, action, flag_details } = parsed.data;
+
+    // Validate that the content item exists
+    const { data: item, error: fetchError } = await supabase
+      .from('content_items')
+      .select('id')
+      .eq('id', item_id)
+      .single();
+
+    if (fetchError || !item) {
+      return NextResponse.json(
+        { error: 'Content item not found' },
+        { status: 404 },
+      );
+    }
+
+    if (action === 'verify') {
       const { error } = await supabase
-        .from('read_marks')
-        .upsert(
-          { content_item_id: item_id, source: 'review', user_id: user.id },
-          { onConflict: 'user_id,content_item_id' },
-        );
+        .from('content_items')
+        .update({
+          verified_at: new Date().toISOString(),
+          verified_by: user.id,
+          updated_by: user.id,
+        })
+        .eq('id', item_id);
 
       if (error) {
-        console.error('Failed to mark as read:', error);
+        console.error('Failed to verify content item:', error);
         return NextResponse.json(
-          { error: 'Failed to mark item as read' },
+          { error: 'Failed to verify item' },
           { status: 500 },
         );
       }
-    } else if (action === 'star') {
-      const { error: starError } = await supabase.rpc('toggle_star', {
-        p_item_id: item_id,
-        p_starred: true,
-      });
-
-      if (starError) {
-        console.error('Failed to star item:', starError);
-        return NextResponse.json(
-          { error: 'Failed to star item' },
-          { status: 500 },
-        );
-      }
-
-      // Also mark as read when starring
-      await supabase
-        .from('read_marks')
-        .upsert(
-          { content_item_id: item_id, source: 'review', user_id: user.id },
-          { onConflict: 'user_id,content_item_id' },
-        );
-    } else if (action === 'undo_read') {
+    } else if (action === 'flag') {
       const { error } = await supabase
-        .from('read_marks')
-        .delete()
-        .eq('content_item_id', item_id)
-        .eq('user_id', user.id);
+        .from('ingestion_quality_log')
+        .insert({
+          content_item_id: item_id,
+          flag_type: 'review_needed',
+          severity: 'warning',
+          details: flag_details ? { notes: flag_details } : {},
+          created_by: user.id,
+        });
 
       if (error) {
-        console.error('Failed to undo read mark:', error);
+        console.error('Failed to flag content item:', error);
         return NextResponse.json(
-          { error: 'Failed to undo read mark' },
+          { error: 'Failed to flag item' },
           { status: 500 },
         );
       }
-    } else if (action === 'undo_star') {
-      const { error: unstarError } = await supabase.rpc('toggle_star', {
-        p_item_id: item_id,
-        p_starred: false,
-      });
+    } else if (action === 'unverify') {
+      const { error } = await supabase
+        .from('content_items')
+        .update({
+          verified_at: null,
+          verified_by: null,
+          updated_by: user.id,
+        })
+        .eq('id', item_id);
 
-      if (unstarError) {
-        console.error('Failed to unstar item:', unstarError);
+      if (error) {
+        console.error('Failed to unverify content item:', error);
         return NextResponse.json(
-          { error: 'Failed to unstar item' },
+          { error: 'Failed to unverify item' },
           { status: 500 },
         );
       }
-
-      // Also remove the read mark that was created with the star
-      await supabase.from('read_marks').delete().eq('content_item_id', item_id).eq('user_id', user.id);
     }
     // action === 'skip': no database operation needed
 

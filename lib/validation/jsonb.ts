@@ -173,14 +173,23 @@ export const ReviewQueueRowSchema = z
     ai_summary: z.string().nullable(),
     primary_domain: z.string().nullable(),
     primary_subtopic: z.string().nullable(),
+    secondary_domain: z.string().nullable(),
+    secondary_subtopic: z.string().nullable(),
     content_type: z.string(),
     platform: z.string(),
     author_name: z.string().nullable(),
+    source_domain: z.string().nullable(),
     thumbnail_url: z.string().nullable(),
     captured_date: z.string().nullable(),
     ai_keywords: z.array(z.string()).nullable(),
     classification_confidence: z.number().nullable(),
+    priority: z.string().nullable(),
+    user_tags: z.array(z.string()).nullable(),
+    metadata: z.record(z.string(), z.unknown()).nullable(),
+    content: z.string().nullable(),
     source_url: z.string().nullable(),
+    verified_at: z.string().nullable(),
+    verified_by: z.string().nullable(),
   })
   .passthrough();
 

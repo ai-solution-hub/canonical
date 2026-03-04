@@ -277,6 +277,8 @@ export type Database = {
           updated_at: string | null
           updated_by: string | null
           user_tags: string[] | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           ai_keywords?: string[] | null
@@ -319,6 +321,8 @@ export type Database = {
           updated_at?: string | null
           updated_by?: string | null
           user_tags?: string[] | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           ai_keywords?: string[] | null
@@ -361,6 +365,8 @@ export type Database = {
           updated_at?: string | null
           updated_by?: string | null
           user_tags?: string[] | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -634,21 +640,21 @@ export type Database = {
           id: string
           read_at: string
           source: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           content_item_id: string
           id?: string
           read_at?: string
           source?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           content_item_id?: string
           id?: string
           read_at?: string
           source?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -774,6 +780,42 @@ export type Database = {
           source_domain: string | null
           title: string | null
         }
+        Insert: {
+          author_name?: string | null
+          captured_date?: string | null
+          content_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          freshness?: string | null
+          has_embedding?: never
+          has_thumbnail?: never
+          id?: string | null
+          is_classified?: never
+          lifecycle_type?: string | null
+          platform?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          source_domain?: string | null
+          title?: string | null
+        }
+        Update: {
+          author_name?: string | null
+          captured_date?: string | null
+          content_type?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          freshness?: string | null
+          has_embedding?: never
+          has_thumbnail?: never
+          id?: string | null
+          is_classified?: never
+          lifecycle_type?: string | null
+          platform?: string | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          source_domain?: string | null
+          title?: string | null
+        }
         Relationships: []
       }
       quality_issues_pending: {
@@ -817,22 +859,22 @@ export type Database = {
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
       get_bid_summary: { Args: { p_project_id: string }; Returns: Json }
       get_capture_activity: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           count: number
           day: string
         }[]
       }
-      get_content_gaps: { Args: Record<PropertyKey, never>; Returns: Json }
+      get_content_gaps: { Args: never; Returns: Json }
       get_domain_subtopic_counts: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           item_count: number
           primary_domain: string
           primary_subtopic: string
         }[]
       }
-      get_filter_counts: { Args: Record<PropertyKey, never>; Returns: Json }
+      get_filter_counts: { Args: never; Returns: Json }
       get_item_projects: {
         Args: { p_item_id: string }
         Returns: {
@@ -849,6 +891,12 @@ export type Database = {
           updated_at: string | null
           updated_by: string | null
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "projects"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       get_popular_keywords: {
         Args: { p_limit?: number }
@@ -857,9 +905,9 @@ export type Database = {
           keyword: string
         }[]
       }
-      get_project_counts: { Args: Record<PropertyKey, never>; Returns: Json }
+      get_project_counts: { Args: never; Returns: Json }
       get_project_item_counts: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           item_count: number
           last_activity: string
@@ -886,14 +934,14 @@ export type Database = {
         }[]
       }
       get_unique_authors: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           author_name: string
           count: number
         }[]
       }
-      get_user_role: { Args: Record<PropertyKey, never>; Returns: string }
-      get_user_tag_counts: { Args: Record<PropertyKey, never>; Returns: Json }
+      get_user_role: { Args: never; Returns: string }
+      get_user_tag_counts: { Args: never; Returns: Json }
       hybrid_search: {
         Args: {
           limit_count?: number

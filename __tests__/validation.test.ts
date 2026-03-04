@@ -86,15 +86,14 @@ describe('constant arrays', () => {
     expect(VALID_PLATFORMS).toContain('email');
   });
 
-  it('VALID_REVIEW_ACTIONS should contain 5 actions', () => {
-    expect(VALID_REVIEW_ACTIONS).toHaveLength(5);
+  it('VALID_REVIEW_ACTIONS should contain 4 actions', () => {
+    expect(VALID_REVIEW_ACTIONS).toHaveLength(4);
   });
 
-  it('VALID_REVIEW_ACTIONS should include read, skip, star and undos', () => {
-    expect(VALID_REVIEW_ACTIONS).toContain('read');
+  it('VALID_REVIEW_ACTIONS should include verify, flag, skip and unverify', () => {
+    expect(VALID_REVIEW_ACTIONS).toContain('verify');
+    expect(VALID_REVIEW_ACTIONS).toContain('flag');
     expect(VALID_REVIEW_ACTIONS).toContain('skip');
-    expect(VALID_REVIEW_ACTIONS).toContain('star');
-    expect(VALID_REVIEW_ACTIONS).toContain('undo_read');
-    expect(VALID_REVIEW_ACTIONS).toContain('undo_star');
+    expect(VALID_REVIEW_ACTIONS).toContain('unverify');
   });
 });

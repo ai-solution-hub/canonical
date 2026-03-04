@@ -91,16 +91,16 @@ describe('SearchBodySchema', () => {
 });
 
 describe('ReviewActionBodySchema', () => {
-  it('should accept a valid read action', () => {
+  it('should accept a valid verify action', () => {
     const result = ReviewActionBodySchema.safeParse({
       item_id: VALID_UUID,
-      action: 'read',
+      action: 'verify',
     });
     expect(result.success).toBe(true);
   });
 
   it('should accept all valid action types', () => {
-    const actions = ['read', 'skip', 'star', 'undo_read', 'undo_star'] as const;
+    const actions = ['verify', 'flag', 'skip', 'unverify'] as const;
     for (const action of actions) {
       const result = ReviewActionBodySchema.safeParse({
         item_id: VALID_UUID,
@@ -110,10 +110,19 @@ describe('ReviewActionBodySchema', () => {
     }
   });
 
+  it('should accept flag action with details', () => {
+    const result = ReviewActionBodySchema.safeParse({
+      item_id: VALID_UUID,
+      action: 'flag',
+      flag_details: 'Wrong classification — should be compliance not security',
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('should reject an invalid UUID', () => {
     const result = ReviewActionBodySchema.safeParse({
       item_id: INVALID_UUID,
-      action: 'read',
+      action: 'verify',
     });
     expect(result.success).toBe(false);
   });

@@ -41,11 +41,17 @@ export const VALID_SORT_FIELDS = [
 export const VALID_SORT_ORDERS = ['asc', 'desc'] as const;
 
 export const VALID_REVIEW_ACTIONS = [
-  'read',
+  'verify',
+  'flag',
   'skip',
-  'star',
-  'undo_read',
-  'undo_star',
+  'unverify',
+] as const;
+
+export const VALID_REVIEW_STATUSES = [
+  'unverified',
+  'verified',
+  'flagged',
+  'all',
 ] as const;
 
 export const VALID_DIGEST_TYPES = ['weekly', 'daily', 'custom'] as const;
@@ -70,13 +76,15 @@ export const EmbedBodySchema = z.object({
 export const ReviewActionBodySchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
   action: z.enum(VALID_REVIEW_ACTIONS),
+  flag_details: z.string().max(500).optional(),
 });
 
 /** GET /api/review/queue */
 export const ReviewQueueParamsSchema = z.object({
+  status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
   domain: z.array(z.string()).optional(),
   content_type: z.array(z.string()).optional(),
-  platform: z.array(z.string()).optional(),
+  source_file: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });

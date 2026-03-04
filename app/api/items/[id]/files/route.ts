@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAuthenticatedClient,
+  getAuthorisedClient,
   unauthorisedResponse,
   rateLimitResponse,
 } from '@/lib/auth';
@@ -23,7 +23,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await getAuthenticatedClient();
+    const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth) return unauthorisedResponse();
     const { supabase, user } = auth;
 
@@ -150,7 +150,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await getAuthenticatedClient();
+    const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 

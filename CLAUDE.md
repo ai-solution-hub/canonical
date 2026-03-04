@@ -40,6 +40,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun run scripts/backfill-reader-html.ts` | Backfill reader HTML for articles/blogs (--limit, --dry-run) |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
+| `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
 
 ## Extraction Scripts
 
@@ -95,6 +96,7 @@ knowledge-hub/
   supabase/
     migrations/               # 5 consolidated DDL migration files (Phase 2)
     types/                    # Auto-generated types (database.types.ts) — never edit manually
+                              #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
     reference/                # Schema reference, classification framework, search evaluation guide
   __tests__/                  # Vitest test files (7 files)
@@ -226,6 +228,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 | Document | Location | Purpose |
 |----------|----------|---------|
+| Codebase mapping (7 docs) | `.planning/codebase/` | STACK, ARCHITECTURE, STRUCTURE, CONVENTIONS, TESTING, INTEGRATIONS, CONCERNS |
 | Master project plan | `.planning/project-plan.md` | Phases, work items, done criteria |
 | Feasibility study (12 docs) | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
 | ADS v1.0 | `.planning/ads-v1.md` | Canonical requirements |

@@ -36,18 +36,24 @@ _HEADER_MAP = {
     "query": "question",
     "requirement": "question",
     "requirements": "question",
+    "suggested questions": "question",
     # Standard response columns
     "standard response": "standard",
     "standard answer": "standard",
     "standard": "standard",
     "response": "standard",
     "answer": "standard",
+    "answer for standard audit system": "standard",
+    "answer for standard audits": "standard",
+    "standard configuration answer": "standard",
     # Advanced response columns
     "advanced response": "advanced",
     "advanced answer": "advanced",
     "advanced": "advanced",
     "enhanced response": "advanced",
     "enhanced answer": "advanced",
+    "answer for advanced audits": "advanced",
+    "advanced audits answer": "advanced",
     # Section columns
     "section": "section",
     "category": "section",
@@ -82,6 +88,33 @@ def normalize_header(text: str) -> str:
 
 # ── Table format detection ──────────────────────────────────────────────
 
+def _infer_empty_headers(headers: list[str]) -> list[str]:
+    """Infer canonical names for empty header columns.
+
+    Some Audit template files have 'Question' in column 0 but empty strings
+    in columns 1-2 that actually contain standard/advanced answers. This
+    function fills in those blanks based on position.
+    """
+    normalised = [normalize_header(h) for h in headers]
+
+    # Only apply if col 0 is "question" and we have empty columns after it
+    if not normalised or normalised[0] != "question":
+        return normalised
+
+    # Find empty columns between question and known metadata columns
+    empty_indices = [i for i in range(1, len(normalised)) if normalised[i] == ""]
+    if not empty_indices:
+        return normalised
+
+    # Assign first empty as "standard", second as "advanced"
+    result = list(normalised)
+    if len(empty_indices) >= 1:
+        result[empty_indices[0]] = "standard"
+    if len(empty_indices) >= 2:
+        result[empty_indices[1]] = "advanced"
+    return result
+
+
 def detect_table_format(headers: list[str]) -> Optional[str]:
     """Detect the table format from normalised header names.
 
@@ -99,7 +132,22 @@ def detect_table_format(headers: list[str]) -> Optional[str]:
     has_section = "section" in normalised
     has_number = "number" in normalised
 
+    # Try inferring empty headers if we have question but no standard
+    if has_question and not has_standard:
+        normalised = _infer_empty_headers(headers)
+        has_standard = "standard" in normalised
+        has_advanced = "advanced" in normalised
+
     if not has_question or not has_standard:
+        # Positional fallback: if all headers are empty or unrecognised,
+        # guess layout from column count (matches original Track 4 script)
+        all_empty = all(h.strip() == "" for h in headers)
+        if all_empty or (not has_question and not has_standard):
+            col_count = len(headers)
+            if col_count == 5:
+                return "positional_5col"
+            elif col_count >= 6:
+                return "positional_6col"
         return None
 
     col_count = len(normalised)
@@ -153,28 +201,45 @@ def extract_qa_from_table(table, section_name: str = "", table_index: int = 0,
 
     # Extract header row
     header_cells = [_cell_text(cell) for cell in rows[0].cells]
-    normalised_headers = [normalize_header(h) for h in header_cells]
 
     fmt = detect_table_format(header_cells)
     if fmt is None:
         return []  # Not a Q&A table
 
-    # Build column index map
-    col_map = {}
-    for idx, name in enumerate(normalised_headers):
-        if name not in col_map:
-            col_map[name] = idx
+    # Positional formats: row 0 is data, not a header
+    data_start = 1
+    if fmt == "positional_5col":
+        q_idx = 0
+        std_idx = 1
+        adv_idx = None
+        sec_idx = None
+        data_start = 0  # First row is data
+    elif fmt == "positional_6col":
+        q_idx = 0
+        std_idx = 1
+        adv_idx = 2
+        sec_idx = None
+        data_start = 0  # First row is data
+    else:
+        # Use inferred headers (fills in empty columns) for column mapping
+        normalised_headers = _infer_empty_headers(header_cells)
 
-    q_idx = col_map.get("question")
-    std_idx = col_map.get("standard")
-    adv_idx = col_map.get("advanced")
-    sec_idx = col_map.get("section")
+        # Build column index map
+        col_map = {}
+        for idx, name in enumerate(normalised_headers):
+            if name not in col_map:
+                col_map[name] = idx
+
+        q_idx = col_map.get("question")
+        std_idx = col_map.get("standard")
+        adv_idx = col_map.get("advanced")
+        sec_idx = col_map.get("section")
 
     if q_idx is None or std_idx is None:
         return []
 
     pairs = []
-    for row_num, row in enumerate(rows[1:], start=1):
+    for row_num, row in enumerate(rows[data_start:], start=data_start):
         cells = row.cells
 
         # Guard against rows shorter than expected
