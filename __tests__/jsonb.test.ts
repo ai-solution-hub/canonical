@@ -28,21 +28,19 @@ describe('parseJsonb', () => {
     expect(result?.tokens_used).toBe(1500);
   });
 
-  it('should parse SummaryData with deprecated fields', () => {
-    const withDeprecated = {
+  it('should pass through extra fields via passthrough()', () => {
+    const withExtra = {
       executive: 'Summary',
       detailed: 'Details',
       takeaways: ['Point'],
       generated_at: '2026-01-01T00:00:00Z',
       model: 'claude-sonnet-4-6',
-      one_line: 'Old one-liner',
-      generated_by: 'old-model',
+      extra_field: 'should be preserved',
     };
 
-    const result = parseJsonb(SummaryDataSchema, withDeprecated);
+    const result = parseJsonb(SummaryDataSchema, withExtra);
     expect(result).not.toBeNull();
-    expect(result?.one_line).toBe('Old one-liner');
-    expect(result?.generated_by).toBe('old-model');
+    expect((result as Record<string, unknown>)?.extra_field).toBe('should be preserved');
   });
 
   it('should return null for invalid SummaryData (missing required fields)', () => {
