@@ -69,22 +69,18 @@ export interface SummaryData {
   generated_at: string;
   model: string;
   tokens_used?: number;
-  /** @deprecated Use `executive` — kept for backwards compatibility with pre-session-12 data */
-  one_line?: string;
-  /** @deprecated Use `model` — kept for backwards compatibility with pre-session-12 data */
-  generated_by?: string;
 }
 
-/** Normalise SummaryData from JSONB (handles old field names) */
+/** Normalise SummaryData from JSONB */
 export function normaliseSummaryData(
   raw: Record<string, unknown>,
 ): SummaryData {
   return {
-    executive: (raw.executive ?? raw.one_line ?? '') as string,
+    executive: (raw.executive ?? '') as string,
     detailed: (raw.detailed ?? '') as string,
     takeaways: (raw.takeaways ?? []) as string[],
     generated_at: (raw.generated_at ?? '') as string,
-    model: (raw.model ?? raw.generated_by ?? '') as string,
+    model: (raw.model ?? '') as string,
     tokens_used: raw.tokens_used as number | undefined,
   };
 }

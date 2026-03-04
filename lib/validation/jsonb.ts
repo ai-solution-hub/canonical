@@ -12,10 +12,6 @@ export const SummaryDataSchema = z
     generated_at: z.string(),
     model: z.string(),
     tokens_used: z.number().optional(),
-    /** @deprecated backwards compat */
-    one_line: z.string().optional(),
-    /** @deprecated backwards compat */
-    generated_by: z.string().optional(),
   })
   .passthrough();
 
