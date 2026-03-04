@@ -17,6 +17,7 @@ import { toJson } from '@/lib/validation/jsonb';
 import type {
   DigestDomainSummary,
   DigestFilters,
+  DigestGovernanceSummary,
   ThemeCluster,
   Digest,
 } from '@/types/digest';
@@ -434,6 +435,54 @@ export async function POST(request: NextRequest) {
           }
         : null;
 
+    // Collect governance data for the period
+    let governanceSummary: DigestGovernanceSummary | null = null;
+    try {
+      // Count modified items in period
+      const { count: modifiedCount } = await supabase
+        .from('content_history')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', periodStartISO)
+        .lte('created_at', periodEndISO);
+
+      // Count verified items in period
+      const { count: verifiedCount } = await supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true })
+        .gte('verified_at', periodStartISO)
+        .lte('verified_at', periodEndISO);
+
+      // Count flagged items in period
+      const { count: flaggedCount } = await supabase
+        .from('ingestion_quality_log')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', periodStartISO)
+        .lte('created_at', periodEndISO)
+        .eq('resolved', false);
+
+      // Freshness breakdown for all items
+      const { data: freshnessData } = await supabase
+        .from('content_items')
+        .select('freshness');
+
+      const freshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
+      if (freshnessData) {
+        for (const item of freshnessData) {
+          const f = item.freshness as keyof typeof freshnessCounts;
+          if (f in freshnessCounts) freshnessCounts[f]++;
+        }
+      }
+
+      governanceSummary = {
+        items_modified: modifiedCount ?? 0,
+        items_verified: verifiedCount ?? 0,
+        items_flagged: flaggedCount ?? 0,
+        freshness_breakdown: freshnessCounts,
+      };
+    } catch (govErr) {
+      console.error('Failed to collect governance data for digest:', govErr);
+    }
+
     // Store in the digests table
     const digestRow = {
       digest_type: digestType,
@@ -446,7 +495,10 @@ export async function POST(request: NextRequest) {
       generated_at: new Date().toISOString(),
       generated_by: model,
       tokens_used: tokensUsed,
-      metadata: filters ? toJson(filters) : null,
+      metadata: toJson({
+        ...(filters ?? {}),
+        ...(governanceSummary ? { governance_summary: governanceSummary } : {}),
+      }),
       created_by: user.id,
     };
 
@@ -478,6 +530,7 @@ export async function POST(request: NextRequest) {
       generated_by: insertedDigest.generated_by,
       tokens_used: insertedDigest.tokens_used,
       filters,
+      governance_summary: governanceSummary,
       created_at: insertedDigest.created_at,
     };
 

@@ -38,16 +38,13 @@ development partner. All code is written through human-AI collaboration.
 | `bun run scripts/kb-search.ts "query"` | Semantic search CLI (--limit, --domain, --full, --json) |
 | `bun run scripts/batch_generate_summaries.ts` | Batch AI summary generation |
 | `bun run scripts/backfill-reader-html.ts` | Backfill reader HTML for articles/blogs (--limit, --dry-run) |
+| `python3 scripts/import_bid_library.py <dir>` | Import Q&A pairs from client .docx files (--dry-run, --batch-tag) |
+| `python3 scripts/extract_docx_tables.py <file>` | Extract tables from .docx files |
+| `bun run format` | Prettier format all files |
+| `bun run format:check` | Check Prettier formatting |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
-
-## Extraction Scripts
-
-The scripts allow the chat session output to be extracted programmatically and saved, enabling verification.
-
-| `python3 ~/.claude/tools/parse-subagents.py <session-id> <output-dir>` | Extract full subagent outputs |
-| `python3 ~/.claude/tools/parse-session.py <session-uuid> <output-dir>` | Extract main session output |
 
 ## Architecture
 
@@ -56,49 +53,57 @@ knowledge-hub/
   app/                        # Next.js 16 App Router (proxy.ts for auth)
     api/search/               #   POST /api/search (hybrid: embedding + keywords)
     api/search/suggestions/   #   GET /api/search/suggestions
-    api/items/[id]/           #   GET/PATCH /api/items/:id (item CRUD)
-    api/items/[id]/projects/  #   GET/POST (item-project assignments)
-    api/projects/             #   GET/POST (list/create projects)
-    api/projects/[id]/        #   PATCH/DELETE (update/archive projects)
+    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, projects)
+    api/projects/             #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
     api/embed/                #   POST /api/embed (standalone embedding)
     api/summaries/            #   POST /api/summaries/generate (Claude AI summaries)
     api/digest/               #   generate + latest + list (AI digest)
-    api/digest/[id]/          #   GET /api/digest/:id
     api/read-marks/           #   POST /api/read-marks (read tracking)
     api/insights/             #   GET /api/insights (analytical RPCs wrapper)
+    api/review/               #   queue + action + stats (content review workflow)
+    api/admin/users/          #   list + invite + [userId] (user management)
+    api/users/display-names/  #   GET (UUID→display name resolution)
+    api/upload/               #   POST (file upload)
+    api/extract/              #   POST (content extraction)
     browse/                   #   /browse (grid/list, filters, pagination)
     item/[id]/                #   /item/:id (detail + inline editing)
     search/                   #   /search (semantic search results)
     digest/                   #   /digest (AI digest generation + history)
     projects/                 #   /projects (project management)
+    review/                   #   /review (content review workflow)
+    settings/                 #   /settings (user settings)
     login/                    #   /login (Supabase Auth)
     auth/                     #   /auth/callback (OAuth callback)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~57 custom components + ui/ (22 shadcn)
+  components/                 # ~70 custom components + ui/ (22 shadcn)
   contexts/                   # React contexts (read-marks-context)
-  hooks/                      # 7 hooks (accessibility, browse-filters, keyboard-shortcuts,
-                              #   progress, reader-preferences, search, theme-mode)
+  hooks/                      # 11 hooks (accessibility, browse-filters, display-names,
+                              #   keyboard-shortcuts, progress, reader-preferences,
+                              #   review-shortcuts, search, theme-mode, transcript, user-role)
   lib/                        # Supabase clients, taxonomy, formatting, utils, anthropic,
-                              #   ai-parse, auth, error, rate-limit, digest-export, validation
+                              #   ai-parse, auth, roles, error, rate-limit, digest-export,
+                              #   browse-helpers, extraction-schemas, validation
   types/                      # TypeScript types (content, digest, review, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
                               #     embed, store, dedup, summarise, pipeline, pipeline_log)
     ingest.py                 #   Main ingestion CLI
     ingest_markdown.py        #   Markdown file ingestion
+    import_bid_library.py     #   Q&A pair import from client documents
     extract_pdf_text.py       #   PDF text extraction
     extract_pdf_images.py     #   PDF image extraction
+    extract_docx_tables.py    #   DOCX table extraction
     kb-search.ts              #   Semantic search CLI
     batch_generate_summaries.ts
     backfill-reader-html.ts
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 5 consolidated DDL migration files (Phase 2)
+    migrations/               # 6 DDL migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
-    reference/                # Schema reference, classification framework, search evaluation guide
+    reference/                # Schema reference, classification, search evaluation, import guide
   __tests__/                  # Vitest test files (7 files)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
@@ -130,9 +135,6 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-Phase 2 (Schema Evolution) is complete. The schema consolidates 38 IMS
-migrations into 5 clean product migrations in `supabase/migrations/`.
-
 ### Tables (14)
 
 | # | Table | Purpose |
@@ -151,9 +153,6 @@ migrations into 5 clean product migrations in `supabase/migrations/`.
 | 12 | `bid_responses` | AI-drafted and human-edited responses |
 | 13 | `taxonomy_domains` | Configurable taxonomy (post-MVP) |
 | 14 | `taxonomy_subtopics` | Configurable subtopics (post-MVP) |
-
-**Tables removed from IMS:** `ideas`, `idea_relationships`, `idea_keywords`,
-`idea_themes`, `idea_theme_assignments`, `tana_sync_log`, `classification_audit`
 
 ### RLS Model
 
@@ -181,15 +180,6 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - Embeddings: `vector(1024)` — OpenAI text-embedding-3-large shortened from
   3072 via Matryoshka
 - HNSW indexes (m=16, ef_construction=64, cosine similarity)
-
-### Key Columns Added in Phase 2
-
-- `content_items.created_by`/`updated_by` — UUID FK to auth.users
-- `content_items.brief`/`detail`/`reference` — progressive depth sections
-- `content_items.source_document`/`source_bid` — provenance tracking
-- `content_items.freshness`/`lifecycle_type`/`expiry_date` — freshness (post-MVP)
-- `projects.type`/`domain_metadata` — generic container support
-- `read_marks.user_id` — multi-user scoping
 
 ## Testing
 
@@ -228,17 +218,17 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| Codebase mapping (7 docs) | `.planning/codebase/` | STACK, ARCHITECTURE, STRUCTURE, CONVENTIONS, TESTING, INTEGRATIONS, CONCERNS |
+| Codebase mapping (7 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns — consult these for comprehensive context |
 | Master project plan | `.planning/project-plan.md` | Phases, work items, done criteria |
-| Feasibility study (12 docs) | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
+| Feasibility study | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
 | ADS v1.0 | `.planning/ads-v1.md` | Canonical requirements |
-| Client documentation | `.planning/client-documentation/` | 8 .docx + 1 .pdf bid library files for import |
+| Client documentation | `.planning/client-documentation/` | Bid library .docx and .pdf files for import |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
 | Search evaluation guide | `docs/reference/search-evaluation-guide.md` | How to run search tests |
+| Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
 | Search test cases | `scripts/search-evaluation.json` | 20 test cases — re-run after search logic changes |
-| IMS CLAUDE.md (external) | `/Users/liamj/Documents/development/IMS/CLAUDE.md` | Original IMS instructions (external reference only — do not modify) |
 
 ## Gotchas
 
@@ -254,9 +244,6 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   been run (needs DB password). Link to project `rovrymhhffssilaftdwd`
 - **RLS requires user_roles entry:** New users cannot write until they have a
   `user_roles` row. First admin must be seeded via service_role key
-- **Dropped columns from IMS:** `engagement_metrics`, `author_url`, `segments`,
-  `highlights` removed from `content_items`; `share_token`, `share_expires_at`,
-  `share_branding` removed from `digests`; `tana_node_id` removed from `projects`
 - **Playwright browser install:** After `pip install playwright`, must also run
   `python3 -m playwright install chromium` — version mismatches cause failures
 - **taxonomy.ts is IMS legacy:** `lib/taxonomy.ts` contains the hardcoded IMS

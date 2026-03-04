@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Settings, Users, User, Shield, Loader2, UserPlus, MoreHorizontal, Ban } from 'lucide-react';
+import { Settings, Users, User, Shield, Loader2, UserPlus, MoreHorizontal, Ban, ShieldCheck, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -49,6 +49,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { ActivityFeed } from '@/components/activity-feed';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -631,6 +632,242 @@ function TeamTab() {
 }
 
 // ---------------------------------------------------------------------------
+// Governance Tab (admin-only)
+// ---------------------------------------------------------------------------
+
+interface GovernanceConfigEntry {
+  id: string;
+  domain: string;
+  posture: string;
+  reviewer_id: string | null;
+  timeout_days: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+function GovernanceTab() {
+  const [configs, setConfigs] = useState<GovernanceConfigEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editDomain, setEditDomain] = useState('');
+  const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>('open');
+  const [editTimeoutDays, setEditTimeoutDays] = useState('7');
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const fetchConfigs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/governance');
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      setConfigs(data);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to load governance config',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConfigs();
+  }, [fetchConfigs]);
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editDomain.trim()) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch('/api/governance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: editDomain.trim(),
+          posture: editPosture,
+          timeout_days: parseInt(editTimeoutDays, 10) || 7,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save');
+      }
+
+      toast.success('Governance configuration saved');
+      setDialogOpen(false);
+      setEditDomain('');
+      setEditPosture('open');
+      setEditTimeoutDays('7');
+      fetchConfigs();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to save governance config',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleEdit(config: GovernanceConfigEntry) {
+    setEditDomain(config.domain);
+    setEditPosture(config.posture as 'open' | 'review_on_change');
+    setEditTimeoutDays(String(config.timeout_days ?? 7));
+    setDialogOpen(true);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold">Governance Configuration</h3>
+          <p className="text-sm text-muted-foreground">
+            Set review posture per domain. &quot;Open&quot; allows changes freely.
+            &quot;Review on Change&quot; requires review after edits.
+          </p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditDomain('');
+                setEditPosture('open');
+                setEditTimeoutDays('7');
+              }}
+            >
+              Add Domain
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editDomain ? 'Edit Governance' : 'Add Governance Config'}
+              </DialogTitle>
+              <DialogDescription>
+                Configure governance posture for a domain.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSave} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="gov-domain">Domain</Label>
+                <Input
+                  id="gov-domain"
+                  value={editDomain}
+                  onChange={(e) => setEditDomain(e.target.value)}
+                  placeholder="e.g. Technology & Systems"
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="gov-posture">Posture</Label>
+                <Select
+                  value={editPosture}
+                  onValueChange={(v) =>
+                    setEditPosture(v as 'open' | 'review_on_change')
+                  }
+                >
+                  <SelectTrigger id="gov-posture">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open">Open</SelectItem>
+                    <SelectItem value="review_on_change">
+                      Review on Change
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editPosture === 'review_on_change' && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="gov-timeout">Review Timeout (days)</Label>
+                  <Input
+                    id="gov-timeout"
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={editTimeoutDays}
+                    onChange={(e) => setEditTimeoutDays(e.target.value)}
+                  />
+                </div>
+              )}
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={saving}>
+                  {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                  Save
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <Card>
+        {configs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
+            <ShieldCheck className="size-8" />
+            <p className="text-sm">
+              No governance configuration yet. All domains use &quot;Open&quot;
+              posture by default.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {configs.map((config) => (
+              <div
+                key={config.id}
+                className="flex items-center justify-between px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm font-medium">{config.domain}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {config.posture === 'open' ? 'Open' : 'Review on Change'}
+                    {config.posture === 'review_on_change' &&
+                      ` (${config.timeout_days ?? 7} day timeout)`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={
+                      config.posture === 'open' ? 'secondary' : 'default'
+                    }
+                  >
+                    {config.posture === 'open' ? 'Open' : 'Review'}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEdit(config)}
+                  >
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Settings Page
 // ---------------------------------------------------------------------------
 
@@ -640,7 +877,9 @@ function SettingsContent() {
   const { loading, canAdmin } = useUserRole();
   const tabParam = searchParams.get('tab');
   const defaultTab =
-    tabParam === 'team' && canAdmin ? 'team' : 'profile';
+    (tabParam === 'team' || tabParam === 'governance' || tabParam === 'activity') && canAdmin
+      ? tabParam
+      : 'profile';
 
   function handleTabChange(value: string) {
     const newParams = new URLSearchParams(searchParams.toString());
@@ -680,6 +919,18 @@ function SettingsContent() {
               Team
             </TabsTrigger>
           )}
+          {canAdmin && (
+            <TabsTrigger value="governance">
+              <ShieldCheck className="mr-1.5 size-3.5" />
+              Governance
+            </TabsTrigger>
+          )}
+          {canAdmin && (
+            <TabsTrigger value="activity">
+              <Activity className="mr-1.5 size-3.5" />
+              Activity
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
@@ -689,6 +940,26 @@ function SettingsContent() {
         {canAdmin && (
           <TabsContent value="team" className="mt-6">
             <TeamTab />
+          </TabsContent>
+        )}
+
+        {canAdmin && (
+          <TabsContent value="governance" className="mt-6">
+            <GovernanceTab />
+          </TabsContent>
+        )}
+
+        {canAdmin && (
+          <TabsContent value="activity" className="mt-6">
+            <div className="flex flex-col gap-4">
+              <div>
+                <h3 className="text-base font-semibold">Activity Log</h3>
+                <p className="text-sm text-muted-foreground">
+                  Recent edits, rollbacks, and quality events across the knowledge base.
+                </p>
+              </div>
+              <ActivityFeed />
+            </div>
           </TabsContent>
         )}
       </Tabs>

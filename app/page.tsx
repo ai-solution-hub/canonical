@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { SearchBar } from '@/components/search-bar';
 import { ContentGrid } from '@/components/content-grid';
 import { DomainCard } from '@/components/domain-card';
+import { NeedsAttentionBanner } from '@/components/needs-attention-banner';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CONTENT_LIST_COLUMNS } from '@/types/content';
 import type { ContentListItem } from '@/types/content';
@@ -295,6 +296,9 @@ async function RecentItemsSection() {
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+      {/* Needs attention banner */}
+      <NeedsAttentionBanner className="mb-8" />
+
       {/* Hero section with search */}
       <Suspense fallback={<HeroSkeleton />}>
         <HeroSection />

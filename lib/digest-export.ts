@@ -109,6 +109,29 @@ export function digestToMarkdown(
     }
   }
 
+  // KB Health (governance summary)
+  if (digest.governance_summary) {
+    const gs = digest.governance_summary;
+    lines.push('## KB Health');
+    lines.push('');
+    lines.push(
+      `- **Items Modified:** ${gs.items_modified}`,
+    );
+    lines.push(
+      `- **Items Verified:** ${gs.items_verified}`,
+    );
+    lines.push(
+      `- **Items Flagged:** ${gs.items_flagged}`,
+    );
+    if (gs.freshness_breakdown) {
+      const fb = gs.freshness_breakdown;
+      lines.push(
+        `- **Freshness:** ${fb.fresh} fresh, ${fb.aging} aging, ${fb.stale} stale, ${fb.expired} expired`,
+      );
+    }
+    lines.push('');
+  }
+
   // Theme clusters
   if (digest.theme_clusters && digest.theme_clusters.length > 0) {
     lines.push('## Cross-Domain Themes');

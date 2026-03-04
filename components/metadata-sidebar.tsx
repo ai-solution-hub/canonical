@@ -27,6 +27,8 @@ import {
   getSubtopics,
   formatSubtopic,
 } from '@/lib/taxonomy';
+import { FreshnessBadge } from '@/components/freshness-badge';
+import { GovernanceBadge } from '@/components/governance-badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -189,6 +191,28 @@ export function MetadataSidebar({
               {formatDateUK(item.captured_date as string)}
             </dd>
           </div>
+
+          {/* Freshness */}
+          {item.freshness && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Freshness</dt>
+              <dd>
+                <FreshnessBadge freshness={item.freshness as string} />
+              </dd>
+            </div>
+          )}
+
+          {/* Governance review status */}
+          {item.governance_review_status && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Review Status</dt>
+              <dd>
+                <GovernanceBadge
+                  status={item.governance_review_status}
+                />
+              </dd>
+            </div>
+          )}
 
           {item.classification_confidence != null && (
             <div>

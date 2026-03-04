@@ -7,6 +7,7 @@ import {
   VALID_CONTENT_TYPES,
   VALID_PLATFORMS,
 } from '@/lib/validation/schemas';
+import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -70,6 +71,29 @@ export async function PATCH(
       );
     }
 
+    // Fetch current state before update (for version history)
+    const { data: currentItem, error: fetchError } = await supabase
+      .from('content_items')
+      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !currentItem) {
+      return NextResponse.json(
+        { error: 'Item not found' },
+        { status: 404 },
+      );
+    }
+
+    // Generate change summary
+    const oldValue = currentItem[field as keyof typeof currentItem];
+    const changeSummary = generateSingleFieldChangeSummary(
+      field,
+      oldValue,
+      value,
+    );
+
+    // Perform the update
     const { error } = await supabase
       .from('content_items')
       .update({ [field]: value, updated_by: user.id })
@@ -81,6 +105,98 @@ export async function PATCH(
         { error: 'Failed to update item' },
         { status: 500 },
       );
+    }
+
+    // Check if domain has review-on-change governance posture
+    // If the edited field is a significant content field, trigger governance review
+    try {
+      const significantFields = [
+        'ai_summary',
+        'suggested_title',
+        'primary_domain',
+        'primary_subtopic',
+        'secondary_domain',
+        'secondary_subtopic',
+        'content_type',
+      ];
+
+      if (significantFields.includes(field)) {
+        // Look up the item's domain to check governance config
+        const itemDomain = field === 'primary_domain' && typeof value === 'string'
+          ? value
+          : currentItem.primary_domain;
+
+        if (itemDomain) {
+          const { data: govConfig } = await supabase
+            .from('governance_config')
+            .select('posture, reviewer_id, timeout_days')
+            .eq('domain', itemDomain)
+            .single();
+
+          if (govConfig?.posture === 'review_on_change') {
+            const timeoutDays = govConfig.timeout_days ?? 7;
+            const reviewDue = new Date();
+            reviewDue.setDate(reviewDue.getDate() + timeoutDays);
+
+            await supabase
+              .from('content_items')
+              .update({
+                governance_review_status: 'pending',
+                governance_review_due: reviewDue.toISOString(),
+                governance_reviewer_id: govConfig.reviewer_id ?? null,
+              })
+              .eq('id', id);
+
+            // Notify the designated reviewer
+            if (govConfig.reviewer_id) {
+              await supabase.from('notifications').insert({
+                user_id: govConfig.reviewer_id,
+                type: 'governance_review_needed',
+                entity_type: 'content_item',
+                entity_id: id,
+                title: 'Governance review required',
+                message: `Item edited: ${changeSummary}`,
+                expires_at: reviewDue.toISOString(),
+              });
+            }
+          }
+        }
+      }
+    } catch (govErr) {
+      // Governance check is best-effort
+      console.error('Governance check failed:', govErr);
+    }
+
+    // Create version history entry (best-effort — don't fail the update if this fails)
+    try {
+      // The DB trigger content_history_auto_version() handles version numbering,
+      // but we need to provide a version number for the insert.
+      // Get the current max version for this item.
+      const { data: maxVersionData } = await supabase
+        .from('content_history')
+        .select('version')
+        .eq('content_item_id', id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .single();
+
+      const nextVersion = (maxVersionData?.version ?? 0) + 1;
+
+      await supabase.from('content_history').insert({
+        content_item_id: id,
+        version: nextVersion,
+        title: currentItem.title ?? '',
+        content: currentItem.content ?? '',
+        brief: currentItem.brief ?? null,
+        detail: currentItem.detail ?? null,
+        reference: currentItem.reference ?? null,
+        change_summary: changeSummary,
+        change_type: 'edit',
+        created_by: user.id,
+      });
+    } catch (historyErr) {
+      // Log but don't fail the update
+      console.error('Failed to create version history entry:', historyErr);
     }
 
     return NextResponse.json({ success: true });

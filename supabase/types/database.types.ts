@@ -255,6 +255,9 @@ export type Database = {
           file_path: string | null
           freshness: string | null
           freshness_checked_at: string | null
+          governance_review_due: string | null
+          governance_review_status: string | null
+          governance_reviewer_id: string | null
           id: string
           lifecycle_type: string | null
           metadata: Json | null
@@ -299,6 +302,9 @@ export type Database = {
           file_path?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
           id?: string
           lifecycle_type?: string | null
           metadata?: Json | null
@@ -343,6 +349,9 @@ export type Database = {
           file_path?: string | null
           freshness?: string | null
           freshness_checked_at?: string | null
+          governance_review_due?: string | null
+          governance_review_status?: string | null
+          governance_reviewer_id?: string | null
           id?: string
           lifecycle_type?: string | null
           metadata?: Json | null
@@ -439,6 +448,42 @@ export type Database = {
         }
         Relationships: []
       }
+      governance_config: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          domain: string
+          id: string
+          posture: string
+          reviewer_id: string | null
+          timeout_days: number | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          domain: string
+          id?: string
+          posture?: string
+          reviewer_id?: string | null
+          timeout_days?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          domain?: string
+          id?: string
+          posture?: string
+          reviewer_id?: string | null
+          timeout_days?: number | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       ingestion_quality_log: {
         Row: {
           content_item_id: string | null
@@ -501,6 +546,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          dismissed_at: string | null
+          entity_id: string
+          entity_type: string
+          expires_at: string | null
+          id: string
+          message: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          dismissed_at?: string | null
+          entity_id: string
+          entity_type: string
+          expires_at?: string | null
+          id?: string
+          message?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          dismissed_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          expires_at?: string | null
+          id?: string
+          message?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       pipeline_runs: {
         Row: {

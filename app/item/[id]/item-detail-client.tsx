@@ -32,6 +32,7 @@ import { MetadataSidebar } from '@/components/metadata-sidebar';
 import { TranscriptSection } from '@/components/transcript-section';
 import { HighlightsSection } from '@/components/highlights-section';
 import { RelatedItems } from '@/components/related-items';
+import { VersionHistory } from '@/components/version-history';
 import { ContentTypeHeader } from '@/components/content-type-header';
 import { VerificationBadge } from '@/components/verification-badge';
 import { YouTubeEmbed } from '@/components/youtube-embed';
@@ -87,6 +88,8 @@ export interface ItemData {
   summary_data: SummaryData | null;
   priority: string | null;
   user_tags: string[] | null;
+  freshness: string | null;
+  governance_review_status: string | null;
   metadata: Record<string, unknown> | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -804,6 +807,19 @@ export function ItemDetailClient({
           readOnly={!canEdit}
         />
       </div>
+
+      {/* Version history */}
+      <VersionHistory
+        itemId={item.id}
+        currentContent={item.content ?? ''}
+        currentTitle={getDisplayTitle({
+          suggested_title: item.suggested_title,
+          title: item.title,
+          content: item.content,
+        })}
+        onRollback={() => router.refresh()}
+        className="mt-8"
+      />
 
       {/* Related content */}
       <RelatedItems relatedItems={relatedItems} />
