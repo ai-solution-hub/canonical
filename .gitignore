@@ -31,6 +31,9 @@ Thumbs.db
 # Agent browser state
 .agent-browser/
 
+# TheHook knowledge capture
+.thehook/
+
 # Playwright MCP
 .playwright-mcp/
 
