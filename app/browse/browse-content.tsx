@@ -70,13 +70,13 @@ export function BrowseContent() {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('ims-browse-view') as ViewMode) || 'grid';
+      return (localStorage.getItem('kb-browse-view') as ViewMode) || 'grid';
     }
     return 'grid';
   });
   const [hideThumbnails, setHideThumbnails] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('ims-hide-thumbnails') === 'true';
+      return localStorage.getItem('kb-hide-thumbnails') === 'true';
     }
     return false;
   });
@@ -140,7 +140,7 @@ export function BrowseContent() {
   // Persist view mode
   const handleViewChange = useCallback((mode: ViewMode) => {
     setViewMode(mode);
-    localStorage.setItem('ims-browse-view', mode);
+    localStorage.setItem('kb-browse-view', mode);
   }, []);
 
   const handleSortChange = useCallback(
@@ -200,7 +200,7 @@ export function BrowseContent() {
   const handleToggleThumbnails = useCallback(() => {
     const next = !hideThumbnails;
     setHideThumbnails(next);
-    localStorage.setItem('ims-hide-thumbnails', String(next));
+    localStorage.setItem('kb-hide-thumbnails', String(next));
   }, [hideThumbnails]);
 
   // Resolve keyword search terms to matching IDs via server-side RPC

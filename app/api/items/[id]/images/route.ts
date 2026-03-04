@@ -140,7 +140,7 @@ export async function POST(
     // Write PDF to temp file and run extraction script
     const tmpPath = path.join(
       os.tmpdir(),
-      `ims-pdf-images-${Date.now()}.pdf`,
+      `kb-pdf-images-${Date.now()}.pdf`,
     );
 
     try {

@@ -6,8 +6,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { formatDateUK } from '@/lib/format';
-
 interface SourceMetadataProps {
   contentType: string | null;
   platform: string | null;
@@ -21,42 +19,6 @@ function MetadataRow({ label, children }: { label: string; children: React.React
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="text-foreground">{children}</dd>
     </div>
-  );
-}
-
-function RedditFields({ metadata }: { metadata: Record<string, unknown> }) {
-  const subreddit = metadata?.subreddit as string | undefined;
-  const score = metadata?.score as number | undefined;
-  const postType = metadata?.post_type as string | undefined;
-
-  const hasFields = subreddit || score != null || postType;
-  if (!hasFields) return null;
-
-  return (
-    <>
-      {subreddit && <MetadataRow label="Subreddit">r/{subreddit}</MetadataRow>}
-      {score != null && <MetadataRow label="Score">{score.toLocaleString('en-GB')}</MetadataRow>}
-      {postType && <MetadataRow label="Post type">{postType}</MetadataRow>}
-    </>
-  );
-}
-
-function YouTubeFields({ metadata }: { metadata: Record<string, unknown> }) {
-  const channel = (metadata?.host as string) || (metadata?.channel_id as string | undefined);
-  const guest = metadata?.guest as string | undefined;
-  const publishedAt = metadata?.published_at as string | undefined;
-  const captionsType = metadata?.captions_type as string | undefined;
-
-  const hasFields = channel || guest || publishedAt || captionsType;
-  if (!hasFields) return null;
-
-  return (
-    <>
-      {channel && <MetadataRow label="Channel">{channel}</MetadataRow>}
-      {guest && <MetadataRow label="Guest">{guest}</MetadataRow>}
-      {publishedAt && <MetadataRow label="Published">{formatDateUK(publishedAt)}</MetadataRow>}
-      {captionsType && <MetadataRow label="Captions">{captionsType}</MetadataRow>}
-    </>
   );
 }
 
@@ -83,21 +45,6 @@ function PdfFields({ metadata }: { metadata: Record<string, unknown> }) {
   if (pageCount == null) return null;
 
   return <MetadataRow label="Pages">{pageCount}</MetadataRow>;
-}
-
-function LinkedInFields({ metadata }: { metadata: Record<string, unknown> }) {
-  const authorHeadline = metadata?.author_headline as string | undefined;
-  const mediaType = metadata?.media_type as string | undefined;
-
-  const hasFields = authorHeadline || mediaType;
-  if (!hasFields) return null;
-
-  return (
-    <>
-      {authorHeadline && <MetadataRow label="Headline">{authorHeadline}</MetadataRow>}
-      {mediaType && <MetadataRow label="Media type">{mediaType}</MetadataRow>}
-    </>
-  );
 }
 
 function GenericWebFields({ metadata, content }: { metadata: Record<string, unknown>; content?: string | null }) {
@@ -141,16 +88,10 @@ export function SourceMetadata({ contentType, platform, metadata, content }: Sou
 
   let platformFields: React.ReactNode = null;
 
-  if (platform === 'reddit') {
-    platformFields = <RedditFields metadata={metadata} />;
-  } else if (platform === 'youtube') {
-    platformFields = <YouTubeFields metadata={metadata} />;
-  } else if (platform === 'email') {
+  if (platform === 'email') {
     platformFields = <EmailFields metadata={metadata} />;
   } else if (contentType === 'pdf') {
     platformFields = <PdfFields metadata={metadata} />;
-  } else if (platform === 'linkedin') {
-    platformFields = <LinkedInFields metadata={metadata} />;
   } else {
     platformFields = <GenericWebFields metadata={metadata} content={content} />;
   }

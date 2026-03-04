@@ -4,7 +4,7 @@ import { Play, Clock, User, Subtitles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { TranscriptReader } from '@/components/transcript-reader';
 import { cn } from '@/lib/utils';
-import { formatDuration, extractYouTubeVideoId } from '@/lib/format';
+import { formatDuration } from '@/lib/format';
 import type {
   TranscriptChapter,
   TranscriptSegment,
@@ -36,8 +36,6 @@ export function TranscriptReaderCard({
   const guest = metadata?.guest as string | undefined;
   const durationSeconds = metadata?.duration_seconds as number | undefined;
   const captionsType = metadata?.captions_type as string | undefined;
-
-  const videoId = sourceUrl ? extractYouTubeVideoId(sourceUrl) : null;
 
   return (
     <div
@@ -73,16 +71,6 @@ export function TranscriptReaderCard({
               {captionsType}
             </Badge>
           </span>
-        )}
-        {videoId && (
-          <a
-            href={sourceUrl!}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="ml-auto text-xs text-primary hover:underline"
-          >
-            Watch on YouTube
-          </a>
         )}
       </div>
 

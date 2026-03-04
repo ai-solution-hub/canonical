@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
-/* ===== IMS Design Tokens ===== */
+/* ===== Knowledge Hub Design Tokens ===== */
 /* OKLCH colour space, tinted neutrals (hue 250), no pure black/white/grey */
 /* Two-layer system: primitive → semantic, redefine semantic in .dark */
 

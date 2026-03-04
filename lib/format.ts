@@ -128,17 +128,6 @@ export function formatDateTime(dateString: string | null): string {
   }
 }
 
-/** Extract YouTube video ID from various URL formats */
-export function extractYouTubeVideoId(url: string): string | null {
-  const watchMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
-  if (watchMatch) return watchMatch[1];
-  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
-  if (shortMatch) return shortMatch[1];
-  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
-  if (embedMatch) return embedMatch[1];
-  return null;
-}
-
 /** Format seconds to human-readable duration (e.g. "1h 23m" or "45m") */
 export function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);

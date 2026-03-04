@@ -10,8 +10,6 @@ const PdfReaderView = dynamic(
   () => import('@/components/pdf-reader-view').then((mod) => mod.PdfReaderView),
   { ssr: false, loading: () => <div className="flex h-full items-center justify-center"><div className="h-8 w-32 animate-pulse rounded bg-accent" /></div> },
 );
-import { LinkedInReaderCard } from '@/components/reader-cards/linkedin-reader-card';
-import { RedditReaderCard } from '@/components/reader-cards/reddit-reader-card';
 import { NewsletterReaderCard } from '@/components/reader-cards/newsletter-reader-card';
 import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reader-card';
 import { cn } from '@/lib/utils';
@@ -132,8 +130,6 @@ export function ReaderPanel({
   hideCloseButton,
 }: ReaderPanelProps) {
   // Determine if a platform-specific reader card should be shown
-  const isLinkedInPost = contentType === 'post' && platform === 'linkedin';
-  const isRedditPost = contentType === 'post' && platform === 'reddit';
   const isNewsletter = platform === 'email' || contentType === 'newsletter';
   const isTranscript =
     contentType === 'transcript' &&
@@ -141,7 +137,7 @@ export function ReaderPanel({
     transcriptChapters.length > 0;
   const isPdf = contentType === 'pdf' && !!(sourceUrl || filePath);
   const hasPlatformCard =
-    isLinkedInPost || isRedditPost || isNewsletter || isTranscript || isPdf;
+    isNewsletter || isTranscript || isPdf;
   const canIframe = !!frameable && !!sourceUrl;
   const hasReaderContent = !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
 
@@ -190,25 +186,6 @@ export function ReaderPanel({
 
   // Render platform-specific reader card content
   const renderPlatformContent = () => {
-    if (isLinkedInPost && content) {
-      return (
-        <LinkedInReaderCard
-          content={content}
-          authorName={authorName ?? null}
-          metadata={metadata ?? null}
-        />
-      );
-    }
-    if (isRedditPost && content) {
-      return (
-        <RedditReaderCard
-          content={content}
-          metadata={metadata ?? null}
-          authorName={authorName}
-          sourceUrl={sourceUrl}
-        />
-      );
-    }
     if (isNewsletter) {
       return (
         <NewsletterReaderCard

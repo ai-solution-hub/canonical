@@ -150,7 +150,7 @@ function buildPrompt(item: ContentRow): string {
   const domain = item.primary_domain || 'unknown';
   const isTranscript = ['transcript', 'podcast', 'video'].includes(contentType);
 
-  return `You are summarising content for a personal knowledge management system.
+  return `You are summarising content for a knowledge base.
 Content type: ${contentType}
 Title: ${displayTitle}
 Domain: ${domain}

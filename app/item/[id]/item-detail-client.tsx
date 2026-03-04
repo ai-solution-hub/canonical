@@ -35,7 +35,6 @@ import { RelatedItems } from '@/components/related-items';
 import { VersionHistory } from '@/components/version-history';
 import { ContentTypeHeader } from '@/components/content-type-header';
 import { VerificationBadge } from '@/components/verification-badge';
-import { YouTubeEmbed } from '@/components/youtube-embed';
 import dynamic from 'next/dynamic';
 
 const PdfViewer = dynamic(
@@ -52,7 +51,7 @@ import { ProjectSelector } from '@/components/project-selector';
 import { UserTagInput } from '@/components/user-tag-input';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
-import { getDisplayTitle, extractYouTubeVideoId } from '@/lib/format';
+import { getDisplayTitle } from '@/lib/format';
 import { validateEditableField } from '@/lib/validation';
 import { toast } from 'sonner';
 import type {
@@ -380,14 +379,6 @@ export function ItemDetailClient({
           .chapters as TranscriptChapter[])
       : undefined;
 
-  const videoId = item.source_url
-    ? extractYouTubeVideoId(item.source_url)
-    : null;
-  const isYouTubeItem =
-    !!videoId &&
-    (item.content_type === 'video' ||
-      (item.content_type === 'transcript' && item.platform === 'youtube'));
-
   const handleLayoutChanged = useCallback(
     (layout: Layout) => {
       setPanelLayout(layout);
@@ -435,14 +426,8 @@ export function ItemDetailClient({
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
         <article className="min-w-0 flex-1">
-          {/* Thumbnail or YouTube embed */}
-          {isYouTubeItem ? (
-            <YouTubeEmbed
-              sourceUrl={item.source_url!}
-              title={title}
-              className="mb-6"
-            />
-          ) : item.thumbnail_url ? (
+          {/* Thumbnail */}
+          {item.thumbnail_url ? (
             <Thumbnail
               src={item.thumbnail_url as string | null}
               alt={title}
@@ -771,11 +756,9 @@ export function ItemDetailClient({
                 ) : (
                   <ExternalLink className="size-3.5" />
                 )}
-                {isYouTubeItem
-                  ? 'Watch on YouTube'
-                  : item.content_type === 'pdf'
-                    ? 'Open PDF'
-                    : 'Open original'}
+                {item.content_type === 'pdf'
+                  ? 'Open PDF'
+                  : 'Open original'}
               </Button>
             )}
             <Button

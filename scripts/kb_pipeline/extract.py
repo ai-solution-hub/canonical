@@ -1,4 +1,4 @@
-"""Content extraction — trafilatura primary, Jina Reader fallback, PDF, YouTube."""
+"""Content extraction — trafilatura primary, Jina Reader fallback, PDF."""
 
 import json
 import logging
@@ -37,13 +37,6 @@ class ExtractedContent:
 
 def detect_platform(url: str) -> str:
     """Detect platform from URL."""
-    domain = urlparse(url).netloc.lower()
-    if "linkedin.com" in domain:
-        return "linkedin"
-    if "reddit.com" in domain:
-        return "reddit"
-    if "youtube.com" in domain or "youtu.be" in domain:
-        return "youtube"
     return "web"
 
 
@@ -77,13 +70,6 @@ def detect_content_type(url: str, content: str, metadata: dict) -> str:
     # not here, to avoid a network call during classification.
     if "youtube.com" in domain or "youtu.be" in domain:
         return "video"
-
-    # Platform-specific checks (before generic path checks to avoid false matches,
-    # e.g. linkedin.com/posts/ matching the /posts/ blog pattern)
-    if "reddit.com" in domain:
-        return "post"
-    if "linkedin.com" in domain:
-        return "post"
 
     if any(x in url_lower for x in ["/podcast", "/episode", "/listen"]):
         return "podcast"
@@ -396,136 +382,8 @@ def extract_pdf(filepath: str) -> Optional[ExtractedContent]:
         return None
 
 
-def extract_youtube_transcript(video_id: str) -> Optional[ExtractedContent]:
-    """Extract YouTube transcript using youtube-transcript-api (v1.2+ instance API)."""
-    from youtube_transcript_api import YouTubeTranscriptApi
-
-    try:
-        ytt_api = YouTubeTranscriptApi()
-        fetched = ytt_api.fetch(video_id, languages=['en'])
-        entries = fetched.to_raw_data()
-
-        # Clean transcript: merge into flowing text
-        text_parts = []
-        for entry in entries:
-            text = entry["text"].strip()
-            if text:
-                text_parts.append(text)
-
-        content = " ".join(text_parts)
-
-        # Store timing data in metadata
-        transcript_entries = []
-        for entry in entries:
-            transcript_entries.append({
-                "start": entry["start"],
-                "duration": entry["duration"],
-                "text": entry["text"],
-            })
-
-        return ExtractedContent(
-            content=content,
-            content_type="transcript",
-            platform="youtube",
-            source_url=f"https://www.youtube.com/watch?v={video_id}",
-            source_domain="youtube.com",
-            metadata={
-                "video_id": video_id,
-                "transcript_entries": len(entries),
-                "extraction_source": "youtube_transcript_api",
-            },
-            extraction_method="youtube_transcript_api",
-        )
-
-    except (requests.RequestException, OSError, KeyError, ValueError, AttributeError) as e:
-        logger.warning("YouTube transcript failed for %s: %s", video_id, e)
-        return None
-
-
-def extract_reddit_json(url: str) -> Optional[ExtractedContent]:
-    """Extract Reddit post via .json endpoint (no auth needed)."""
-    try:
-        json_url = url.rstrip("/") + ".json"
-        resp = requests.get(
-            json_url,
-            timeout=15,
-            headers={"User-Agent": "KnowledgeHub-Pipeline/1.0 (knowledge management)"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-        # Reddit .json returns array: [post_listing, comments_listing]
-        post_data = data[0]["data"]["children"][0]["data"]
-
-        title = post_data.get("title", "")
-        selftext = post_data.get("selftext", "")
-        author = post_data.get("author", "")
-        subreddit = post_data.get("subreddit_name_prefixed", "")
-        thumbnail = post_data.get("thumbnail", "")
-        created_utc = post_data.get("created_utc", 0)
-        score = post_data.get("score", 0)
-        num_comments = post_data.get("num_comments", 0)
-        permalink = post_data.get("permalink", "")
-
-        # For link posts, the content is the linked URL
-        linked_url = post_data.get("url", "")
-        is_self = post_data.get("is_self", True)
-
-        content = selftext
-        if not is_self and linked_url:
-            content = f"[Linked: {linked_url}]\n\n{selftext}" if selftext else f"[Linked: {linked_url}]"
-
-        # Clean thumbnail
-        if thumbnail in ("self", "default", "nsfw", "spoiler", ""):
-            thumbnail = ""
-
-        from datetime import datetime, timezone
-        captured = datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat() if created_utc else None
-
-        return ExtractedContent(
-            title=title,
-            content=content,
-            author_name=f"u/{author}" if author else "",
-            source_url=f"https://www.reddit.com{permalink}" if permalink else url,
-            source_domain="reddit.com",
-            thumbnail_url=thumbnail,
-            content_type="post",
-            platform="reddit",
-            captured_date=captured,
-            metadata={
-                "subreddit": subreddit,
-                "score": score,
-                "num_comments": num_comments,
-                "is_self": is_self,
-                "linked_url": linked_url if not is_self else None,
-                "extraction_source": "reddit_json",
-            },
-            extraction_method="reddit_json",
-        )
-
-    except (requests.RequestException, json.JSONDecodeError, KeyError, IndexError, OSError) as e:
-        logger.warning("Reddit extraction failed for %s: %s", url, e)
-        return None
-
-
 def extract_url(url: str) -> Optional[ExtractedContent]:
     """Main extraction entry point — tries best method for URL."""
-    platform = detect_platform(url)
-
-    # Reddit: use .json endpoint
-    if platform == "reddit":
-        return extract_reddit_json(url)
-
-    # YouTube: use transcript API
-    if platform == "youtube":
-        video_id = None
-        if "v=" in url:
-            video_id = url.split("v=")[1].split("&")[0]
-        elif "youtu.be/" in url:
-            video_id = url.split("youtu.be/")[1].split("?")[0]
-        if video_id:
-            return extract_youtube_transcript(video_id)
-
     # PDF — check extension first, then Content-Type header for extensionless URLs
     if is_pdf_url(url):
         # Download then extract

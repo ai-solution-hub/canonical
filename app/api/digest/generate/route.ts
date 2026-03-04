@@ -53,7 +53,7 @@ function buildStandardPrompt(
   crossDomainSection: string,
   filterContext: string,
 ): string {
-  return `You are generating a content digest for a personal knowledge management system.
+  return `You are generating a content digest for a knowledge base.
 Period: ${periodLabel}
 Total items: ${itemCount}
 ${filterContext}
@@ -79,7 +79,7 @@ function buildDailyPrompt(
   itemsByDomainText: string,
   filterContext: string,
 ): string {
-  return `You are generating a brief daily digest for a personal knowledge management system.
+  return `You are generating a brief daily digest for a knowledge base.
 Date: ${periodLabel}
 Total new items: ${itemCount}
 ${filterContext}

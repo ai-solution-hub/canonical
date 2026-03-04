@@ -1,12 +1,9 @@
 'use client';
 
 import {
-  ArrowUp,
   Clock,
-  ExternalLink,
   FileText,
   Mail,
-  MessageSquare,
   Play,
   Subtitles,
   User,
@@ -64,83 +61,6 @@ function VideoHeader({
   );
 }
 
-function RedditPostHeader({
-  metadata,
-}: {
-  metadata: Record<string, unknown> | null;
-}) {
-  const subreddit = metadata?.subreddit as string | undefined;
-  const score = metadata?.score as number | undefined;
-  const postType = metadata?.post_type as string | undefined;
-
-  return (
-    <div className="mb-4 flex flex-wrap gap-3 text-sm text-muted-foreground">
-      {subreddit && (
-        <a
-          href={`https://reddit.com/r/${subreddit}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 hover:text-foreground"
-        >
-          <MessageSquare className="size-3.5" />
-          r/{subreddit}
-        </a>
-      )}
-      {score != null && (
-        <span className="flex items-center gap-1">
-          <ArrowUp className="size-3.5" />
-          {score.toLocaleString('en-GB')}
-        </span>
-      )}
-      {postType && <Badge variant="secondary">{postType}</Badge>}
-    </div>
-  );
-}
-
-function LinkedInPostHeader({
-  metadata,
-  authorName,
-}: {
-  metadata: Record<string, unknown> | null;
-  authorName: string | null;
-}) {
-  const authorHeadline = metadata?.author_headline as string | undefined;
-  const isRepost = metadata?.is_repost as boolean | undefined;
-  const repostAuthor = metadata?.repost_author as string | undefined;
-  const articleUrl = metadata?.article_url as string | undefined;
-  const articleTitle = metadata?.article_title as string | undefined;
-
-  return (
-    <div className="mb-4 flex flex-col gap-1 text-sm">
-      {authorName && (
-        <span className="font-medium text-foreground">{authorName}</span>
-      )}
-      {authorHeadline && (
-        <span className="text-muted-foreground">{authorHeadline}</span>
-      )}
-      {isRepost && (
-        <span className="flex items-center gap-1.5 text-muted-foreground">
-          <Badge variant="secondary">Repost</Badge>
-          {repostAuthor && <>by {repostAuthor}</>}
-        </span>
-      )}
-      {articleUrl && (
-        <a
-          href={articleUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-        >
-          <ExternalLink className="size-3.5 shrink-0" />
-          <span className="truncate">
-            Shared: {articleTitle || articleUrl}
-          </span>
-        </a>
-      )}
-    </div>
-  );
-}
-
 function NewsletterHeader({
   metadata,
 }: {
@@ -192,24 +112,9 @@ export function ContentTypeHeader({
   metadata,
   authorName,
 }: ContentTypeHeaderProps) {
-  // Video or YouTube transcript
-  if (
-    contentType === 'video' ||
-    (contentType === 'transcript' && platform === 'youtube')
-  ) {
+  // Video
+  if (contentType === 'video') {
     return <VideoHeader metadata={metadata} authorName={authorName} />;
-  }
-
-  // Reddit post
-  if (contentType === 'post' && platform === 'reddit') {
-    return <RedditPostHeader metadata={metadata} />;
-  }
-
-  // LinkedIn post
-  if (contentType === 'post' && platform === 'linkedin') {
-    return (
-      <LinkedInPostHeader metadata={metadata} authorName={authorName} />
-    );
   }
 
   // Newsletter / email

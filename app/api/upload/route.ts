@@ -82,7 +82,7 @@ interface PdfExtractionResult {
 async function extractPdfText(
   buffer: Buffer,
 ): Promise<PdfExtractionResult> {
-  const tmpPath = path.join(os.tmpdir(), `ims-upload-${Date.now()}.pdf`);
+  const tmpPath = path.join(os.tmpdir(), `kb-upload-${Date.now()}.pdf`);
   try {
     await fs.writeFile(tmpPath, buffer);
 

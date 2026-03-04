@@ -30,7 +30,7 @@ interface ReaderPreferences {
   detachedSize: FloatingSize | null;
 }
 
-const STORAGE_KEY = 'ims-reader-preferences';
+const STORAGE_KEY = 'kb-reader-preferences';
 
 const DEFAULT_LAYOUT: PanelLayout = { detail: 55, reader: 45 };
 

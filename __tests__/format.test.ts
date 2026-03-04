@@ -11,7 +11,6 @@ import {
   formatDateShort,
   formatTimeShort,
   formatDateTime,
-  extractYouTubeVideoId,
   formatDuration,
 } from '@/lib/format';
 
@@ -166,9 +165,9 @@ describe('formatSecondsToTimestamp', () => {
 
 describe('formatPlatform', () => {
   it('should capitalise the first letter', () => {
-    expect(formatPlatform('linkedin')).toBe('Linkedin');
-    expect(formatPlatform('youtube')).toBe('Youtube');
     expect(formatPlatform('web')).toBe('Web');
+    expect(formatPlatform('email')).toBe('Email');
+    expect(formatPlatform('manual')).toBe('Manual');
   });
 
   it('should return empty string for null', () => {
@@ -252,32 +251,6 @@ describe('formatDateTime', () => {
 
   it('should return empty string for invalid date', () => {
     expect(formatDateTime('not-a-date')).toBe('');
-  });
-});
-
-describe('extractYouTubeVideoId', () => {
-  it('should extract from youtube.com/watch?v= URL', () => {
-    expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-  });
-
-  it('should extract from youtu.be/ URL', () => {
-    expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-  });
-
-  it('should extract from youtube.com/embed/ URL', () => {
-    expect(extractYouTubeVideoId('https://www.youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
-  });
-
-  it('should extract with extra query params', () => {
-    expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=120')).toBe('dQw4w9WgXcQ');
-  });
-
-  it('should return null for non-YouTube URL', () => {
-    expect(extractYouTubeVideoId('https://example.com/video')).toBeNull();
-  });
-
-  it('should return null for empty string', () => {
-    expect(extractYouTubeVideoId('')).toBeNull();
   });
 });
 

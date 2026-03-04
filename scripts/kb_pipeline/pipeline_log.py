@@ -1,7 +1,7 @@
 """Log pipeline execution to the pipeline_runs table in Supabase.
 
 Usage from wrapper scripts:
-    RUN_ID=$(python3 -c "from kb_pipeline.pipeline_log import start_run; print(start_run('bookmarklet'))")
+    RUN_ID=$(python3 -c "from kb_pipeline.pipeline_log import start_run; print(start_run('ingest'))")
     # ... run pipeline ...
     python3 -c "from kb_pipeline.pipeline_log import complete_run; complete_run('$RUN_ID', items_processed=$ITEMS)"
 

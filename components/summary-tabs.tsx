@@ -12,8 +12,6 @@ import { ContentRenderer } from '@/components/content-renderer';
 import { ExternalLink } from 'lucide-react';
 import { ReaderView } from '@/components/reader-view';
 import { IframeViewer } from '@/components/iframe-viewer';
-import { LinkedInReaderCard } from '@/components/reader-cards/linkedin-reader-card';
-import { RedditReaderCard } from '@/components/reader-cards/reddit-reader-card';
 import { NewsletterReaderCard } from '@/components/reader-cards/newsletter-reader-card';
 import { TranscriptReaderCard } from '@/components/reader-cards/transcript-reader-card';
 import type {
@@ -122,15 +120,13 @@ export function SummaryTabs({
   };
 
   // Determine if a platform-specific reader card should be shown
-  const isLinkedInPost = contentType === 'post' && platform === 'linkedin';
-  const isRedditPost = contentType === 'post' && platform === 'reddit';
   const isNewsletter = platform === 'email' || contentType === 'newsletter';
   const isTranscript =
     contentType === 'transcript' &&
     !!transcriptChapters &&
     transcriptChapters.length > 0;
   const hasPlatformCard =
-    isLinkedInPost || isRedditPost || isNewsletter || isTranscript;
+    isNewsletter || isTranscript;
   const canIframe = !!frameable && !!sourceUrl;
   const hasReaderContent = !!readerHtml || hasPlatformCard || canIframe || !!sourceUrl;
 
@@ -140,20 +136,7 @@ export function SummaryTabs({
     return (
       <TabsContent value="reader" className="p-4">
         <div className="max-h-[60vh] overflow-y-auto">
-          {isLinkedInPost && content ? (
-            <LinkedInReaderCard
-              content={content}
-              authorName={authorName ?? null}
-              metadata={metadata ?? null}
-            />
-          ) : isRedditPost && content ? (
-            <RedditReaderCard
-              content={content}
-              metadata={metadata ?? null}
-              authorName={authorName}
-              sourceUrl={sourceUrl}
-            />
-          ) : isNewsletter ? (
+          {isNewsletter ? (
             <NewsletterReaderCard
               content={content ?? null}
               readerHtml={readerHtml}

@@ -4,7 +4,7 @@
     "created": "25/02/2026",
     "item_count": 2234,
     "items_with_embeddings": 2186,
-    "description": "Search evaluation test suite for IMS hybrid search (pgvector + keyword + recency via hybrid_search RPC)",
+    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC)",
     "search_endpoint": "POST /api/search",
     "search_defaults": {
       "threshold": 0.35,

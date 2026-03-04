@@ -6,7 +6,7 @@ import { Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 const MAX_RECENT_SEARCHES = 10;
-const STORAGE_KEY = 'ims-recent-searches';
+const STORAGE_KEY = 'kb-recent-searches';
 
 function getRecentSearches(): string[] {
   if (typeof window === 'undefined') return [];

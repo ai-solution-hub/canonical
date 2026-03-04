@@ -45,7 +45,7 @@ def generate_summary(title: str, content: str, content_type: str,
 
     is_transcript = content_type in ("transcript", "podcast", "video")
 
-    prompt = f"""You are summarising content for a personal knowledge management system.
+    prompt = f"""You are summarising content for a knowledge base.
 Content type: {content_type}
 Title: {title}
 Domain: {primary_domain}

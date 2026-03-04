@@ -320,7 +320,7 @@ describe('ReviewQueueParamsSchema', () => {
     const result = ReviewQueueParamsSchema.safeParse({
       domain: ['AI & EMERGING TECH'],
       content_type: ['post', 'article'],
-      platform: ['linkedin'],
+      platform: ['web'],
     });
     expect(result.success).toBe(true);
   });

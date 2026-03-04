@@ -176,7 +176,6 @@ async function main() {
     })
     .in("content_type", types)
     .like("source_url", "https://%")
-    .not("source_url", "like", "gmail://%")
     .order("captured_date", { ascending: false });
 
   // We'll filter out items that already have reader_html in code

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       contentType,
     );
 
-    const prompt = `You are summarising content for a personal knowledge management system.
+    const prompt = `You are summarising content for a knowledge base.
 Content type: ${contentType}
 Title: ${displayTitle}
 Domain: ${domain}
