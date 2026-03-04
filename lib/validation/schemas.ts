@@ -355,6 +355,11 @@ export const ResponseDraftAllBodySchema = z.object({
   skip_existing: z.boolean().default(true),
 });
 
+/** POST /api/bids/:id/responses/estimate */
+export const CostEstimateBodySchema = z.object({
+  skip_existing: z.boolean().default(true),
+});
+
 /** PATCH /api/bids/:id/responses/:rId */
 export const ResponseUpdateBodySchema = z.object({
   response_text: z.string().max(100000).optional(),

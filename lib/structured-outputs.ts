@@ -1,3 +1,4 @@
+import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import mammoth from 'mammoth';
 
@@ -98,15 +99,15 @@ const EXTRACT_QUESTIONS_TOOL = {
                   evaluation_weight: { type: 'number' as const },
                   category: { type: 'string' as const, enum: ['mandatory', 'desirable', 'informational'] },
                 },
-                required: ['question_text', 'question_sequence'] as const,
+                required: ['question_text', 'question_sequence'] as string[],
               },
             },
           },
-          required: ['section_name', 'section_sequence', 'questions'] as const,
+          required: ['section_name', 'section_sequence', 'questions'] as string[],
         },
       },
     },
-    required: ['sections'] as const,
+    required: ['sections'] as string[],
   },
 };
 
@@ -134,7 +135,7 @@ export interface GeneratedSearchQueries {
  * Extract the tool_use result from a Claude response.
  * Shared helper for PDF and DOCX extraction.
  */
-function extractToolResult(response: Awaited<ReturnType<ReturnType<typeof getAnthropicClient>['messages']['create']>>): ExtractedPDFQuestions {
+function extractToolResult(response: Anthropic.Message): ExtractedPDFQuestions {
   const toolBlock = response.content.find(block => block.type === 'tool_use');
   if (!toolBlock || toolBlock.type !== 'tool_use') {
     throw new Error('No tool_use content in response');

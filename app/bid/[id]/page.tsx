@@ -13,11 +13,13 @@ import {
   RefreshCw,
   Trash2,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid-export-menu';
+import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
 import { ConfidenceDot } from '@/components/confidence-badge';
 import { QuestionList } from '@/components/question-list';
 import { QuestionReview } from '@/components/question-review';
@@ -50,6 +52,8 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     word_limit: number | null;
     category: string;
   }>>([]);
+  const [showCostEstimate, setShowCostEstimate] = useState(false);
+  const [draftingAll, setDraftingAll] = useState(false);
 
   const fetchBid = useCallback(async () => {
     try {
@@ -192,6 +196,42 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       fetchQuestions();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to match questions');
+    }
+  }
+
+  async function handleDraftAll() {
+    setDraftingAll(true);
+    try {
+      const response = await fetch(`/api/bids/${id}/responses/draft-all`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ skip_existing: true }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to draft responses');
+      }
+
+      const result = await response.json();
+      const { drafted, skipped, failed } = result;
+
+      if (failed > 0) {
+        toast.warning(`Drafted ${drafted} responses, ${failed} failed, ${skipped} skipped`);
+      } else {
+        toast.success(`Drafted ${drafted} responses (${skipped} skipped)`);
+      }
+
+      if (result.total_cost > 0) {
+        toast.info(`Total cost: $${result.total_cost.toFixed(4)}`);
+      }
+
+      fetchBid();
+      fetchQuestions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to draft responses');
+    } finally {
+      setDraftingAll(false);
     }
   }
 
@@ -339,12 +379,17 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         {activeTab === 'overview' && (
           <OverviewTab
             bid={bid}
+            bidId={id}
             stats={stats}
             progressPercent={progressPercent}
             completedCount={completedCount}
             totalQuestions={totalQuestions}
             canEdit={canEdit}
             onMatchQuestions={handleMatchQuestions}
+            showCostEstimate={showCostEstimate}
+            onShowCostEstimate={setShowCostEstimate}
+            draftingAll={draftingAll}
+            onDraftAll={handleDraftAll}
           />
         )}
         {activeTab === 'questions' && (
@@ -396,20 +441,30 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
 function OverviewTab({
   bid,
+  bidId,
   stats,
   progressPercent,
   completedCount,
   totalQuestions,
   canEdit,
   onMatchQuestions,
+  showCostEstimate,
+  onShowCostEstimate,
+  draftingAll,
+  onDraftAll,
 }: {
   bid: Bid;
+  bidId: string;
   stats: BidQuestionStats | null;
   progressPercent: number;
   completedCount: number;
   totalQuestions: number;
   canEdit: boolean;
   onMatchQuestions: () => void;
+  showCostEstimate: boolean;
+  onShowCostEstimate: (open: boolean) => void;
+  draftingAll: boolean;
+  onDraftAll: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const postureBreakdown = stats ? ([
@@ -437,6 +492,37 @@ function OverviewTab({
           </p>
         )}
       </div>
+
+      {/* Draft All Responses action */}
+      {canEdit && totalQuestions > 0 && ['drafting', 'in_review'].includes(metadata.status) && (
+        <div className="rounded-lg border bg-card p-4">
+          <h2 className="text-sm font-medium text-foreground">AI Drafting</h2>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            Draft all eligible questions using the three-pass AI pipeline
+            (analysis, drafting, quality check).
+          </p>
+          <Button
+            variant="default"
+            size="sm"
+            className="mt-3 gap-1.5"
+            disabled={draftingAll}
+            onClick={() => onShowCostEstimate(true)}
+          >
+            {draftingAll ? (
+              <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+            ) : (
+              <Sparkles className="size-3.5" aria-hidden="true" />
+            )}
+            {draftingAll ? 'Drafting...' : 'Draft All Responses'}
+          </Button>
+          <CostEstimateDialog
+            open={showCostEstimate}
+            onOpenChange={onShowCostEstimate}
+            bidId={bidId}
+            onProceed={onDraftAll}
+          />
+        </div>
+      )}
 
       {/* Confidence breakdown */}
       {postureBreakdown.length > 0 && (
