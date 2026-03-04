@@ -5,7 +5,6 @@ import {
   ShieldAlert,
   Clock,
   ShieldX,
-  Shield,
 } from 'lucide-react';
 import {
   Tooltip,

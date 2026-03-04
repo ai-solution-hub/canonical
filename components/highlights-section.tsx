@@ -12,6 +12,7 @@ interface HighlightsSectionProps {
 }
 
 /** Placeholder — highlights section not yet implemented in Knowledge Hub. */
-export function HighlightsSection(_props: HighlightsSectionProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function HighlightsSection(props: HighlightsSectionProps) {
   return null;
 }

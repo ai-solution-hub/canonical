@@ -18,7 +18,6 @@ import type {
   DigestDomainSummary,
   DigestFilters,
   DigestGovernanceSummary,
-  ThemeCluster,
   Digest,
 } from '@/types/digest';
 

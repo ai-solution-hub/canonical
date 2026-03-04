@@ -12,7 +12,6 @@ import {
   loadTaxonomy,
   getDomainNames as getServerDomainNames,
   getDomainColourKey as getServerDomainColourKey,
-  formatDomainName as formatServerDomainName,
 } from '@/lib/taxonomy-server';
 import {
   FileText,
@@ -259,8 +258,6 @@ async function DomainCoverageSection() {
 
   // Sort by count descending
   domainsWithCounts.sort((a, b) => b.count - a.count);
-
-  const maxCount = Math.max(...domainsWithCounts.map((d) => d.count), 1);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

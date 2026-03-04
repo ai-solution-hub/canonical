@@ -132,7 +132,7 @@ export function RedditReaderCard({
               />
             </div>
             <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Image className="size-3" />
+              <Image className="size-3" alt="" />
               <span className="truncate">{effectiveLinkedUrl}</span>
             </div>
           </a>

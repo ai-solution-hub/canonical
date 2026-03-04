@@ -9,6 +9,7 @@ interface YouTubeEmbedProps {
 }
 
 /** Placeholder — YouTube embeds not yet implemented in Knowledge Hub. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function YouTubeEmbed({ sourceUrl, title, className }: YouTubeEmbedProps) {
   return (
     <div className={cn('rounded-lg border border-dashed border-border p-4', className)}>

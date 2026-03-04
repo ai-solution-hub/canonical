@@ -11,6 +11,7 @@ interface TranscriptSectionProps {
 }
 
 /** Placeholder — transcript section not yet implemented in Knowledge Hub. */
-export function TranscriptSection(_props: TranscriptSectionProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function TranscriptSection(props: TranscriptSectionProps) {
   return null;
 }

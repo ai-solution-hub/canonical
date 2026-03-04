@@ -12,7 +12,6 @@ const nameCache = new Map<string, string>();
  * Track in-flight fetches to avoid duplicate requests.
  */
 const pendingIds = new Set<string>();
-let pendingPromise: Promise<void> | null = null;
 
 async function fetchDisplayNames(ids: string[]): Promise<void> {
   // Filter out already-cached and already-pending IDs
@@ -38,7 +37,6 @@ async function fetchDisplayNames(ids: string[]): Promise<void> {
     }
   } finally {
     needed.forEach((id) => pendingIds.delete(id));
-    pendingPromise = null;
   }
 }
 

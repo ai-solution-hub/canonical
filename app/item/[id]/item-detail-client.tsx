@@ -59,8 +59,6 @@ import type {
   ContentListItem,
   SummaryData,
   TranscriptChapter,
-  TranscriptSegment,
-  TranscriptHighlight,
 } from '@/types/content';
 import type { Layout } from 'react-resizable-panels';
 
