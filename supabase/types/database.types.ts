@@ -93,6 +93,7 @@ export type Database = {
           review_status: string
           source_content_ids: string[] | null
           updated_at: string | null
+          version: number
         }
         Insert: {
           approved_by?: string | null
@@ -107,6 +108,7 @@ export type Database = {
           review_status?: string
           source_content_ids?: string[] | null
           updated_at?: string | null
+          version?: number
         }
         Update: {
           approved_by?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           review_status?: string
           source_content_ids?: string[] | null
           updated_at?: string | null
+          version?: number
         }
         Relationships: [
           {
@@ -925,6 +928,13 @@ export type Database = {
       }
     }
     Functions: {
+      check_content_exists: {
+        Args: { ids: string[] }
+        Returns: {
+          id: string
+          item_exists: boolean
+        }[]
+      }
       claim_next_job: {
         Args: never
         Returns: {
@@ -984,6 +994,20 @@ export type Database = {
           unmatched_count: number
         }[]
       }
+      get_bid_question_stats_batch: {
+        Args: { p_project_ids: string[] }
+        Returns: {
+          complete_count: number
+          drafted_count: number
+          needs_sme_count: number
+          no_content_count: number
+          partial_match_count: number
+          project_id: string
+          strong_match_count: number
+          total_questions: number
+          unmatched_count: number
+        }[]
+      }
       get_bid_summary: { Args: { p_project_id: string }; Returns: Json }
       get_capture_activity: {
         Args: never
@@ -1002,6 +1026,13 @@ export type Database = {
         }[]
       }
       get_filter_counts: { Args: never; Returns: Json }
+      get_freshness_breakdown: {
+        Args: never
+        Returns: {
+          count: number
+          freshness: string
+        }[]
+      }
       get_item_projects: {
         Args: { p_item_id: string }
         Returns: {
@@ -1118,6 +1149,16 @@ export type Database = {
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
+      }
+      recalculate_all_freshness: {
+        Args: never
+        Returns: {
+          aging_count: number
+          expired_count: number
+          fresh_count: number
+          stale_count: number
+          total_updated: number
+        }[]
       }
       run_quality_scan: {
         Args: { p_batch_name?: string }
