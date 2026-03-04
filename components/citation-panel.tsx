@@ -1,0 +1,158 @@
+'use client';
+
+import { useState } from 'react';
+import { ChevronDown, ChevronUp, ExternalLink, FileText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import type { CitationEntry } from '@/types/bid-metadata';
+
+interface SourceContent {
+  id: string;
+  title: string | null;
+  content_type: string | null;
+  primary_domain: string | null;
+  primary_subtopic: string | null;
+  ai_summary: string | null;
+  similarity?: number;
+}
+
+interface CitationPanelProps {
+  citations: CitationEntry[];
+  sourceContent: SourceContent[];
+  onCitationClick?: (contentId: string) => void;
+  className?: string;
+}
+
+export function CitationPanel({
+  citations,
+  sourceContent,
+  onCitationClick,
+  className,
+}: CitationPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedCitationIndex, setExpandedCitationIndex] = useState<number | null>(null);
+
+  if (citations.length === 0) {
+    return (
+      <div className={cn('rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground', className)}>
+        No citations — this response was not sourced from KB content.
+      </div>
+    );
+  }
+
+  // Deduplicate citations by source_id for the summary
+  const uniqueSources = new Map<string, { citation: CitationEntry; source?: SourceContent; count: number }>();
+  for (const citation of citations) {
+    const existing = uniqueSources.get(citation.source_id);
+    if (existing) {
+      existing.count++;
+    } else {
+      const source = sourceContent.find((s) => s.id === citation.source_id);
+      uniqueSources.set(citation.source_id, { citation, source, count: 1 });
+    }
+  }
+
+  return (
+    <div className={cn('rounded-md border', className)}>
+      {/* Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
+        aria-expanded={isExpanded}
+        type="button"
+      >
+        <span className="flex items-center gap-2">
+          <FileText className="size-4 text-muted-foreground" />
+          {citations.length} citation{citations.length !== 1 ? 's' : ''} from{' '}
+          {uniqueSources.size} source{uniqueSources.size !== 1 ? 's' : ''}
+        </span>
+        {isExpanded ? (
+          <ChevronUp className="size-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="size-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {/* Expanded citation list */}
+      {isExpanded && (
+        <div className="border-t divide-y">
+          {citations.map((citation, index) => {
+            const source = sourceContent.find((s) => s.id === citation.source_id);
+            const isExpandedCitation = expandedCitationIndex === index;
+
+            return (
+              <div key={`${citation.source_id}-${index}`} className="px-4 py-2.5">
+                <div className="flex items-start gap-2">
+                  <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm italic text-muted-foreground line-clamp-2">
+                      &ldquo;{citation.cited_text}&rdquo;
+                    </p>
+                    <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => onCitationClick?.(citation.source_id)}
+                        className="text-xs font-medium text-primary hover:underline truncate max-w-[200px]"
+                        type="button"
+                      >
+                        {citation.source_title || 'Untitled source'}
+                      </button>
+                      {source?.content_type && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                          {source.content_type.replace(/_/g, ' ')}
+                        </Badge>
+                      )}
+                      {source?.primary_domain && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {source.primary_domain}
+                        </Badge>
+                      )}
+                      {source?.similarity != null && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {Math.round(source.similarity * 100)}% match
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Expandable source detail */}
+                    {isExpandedCitation && source?.ai_summary && (
+                      <p className="mt-2 text-xs text-muted-foreground border-l-2 border-primary/20 pl-2">
+                        {source.ai_summary}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={() => setExpandedCitationIndex(isExpandedCitation ? null : index)}
+                    aria-label={isExpandedCitation ? 'Collapse source detail' : 'Expand source detail'}
+                    type="button"
+                  >
+                    {isExpandedCitation ? (
+                      <ChevronUp className="size-3" />
+                    ) : (
+                      <ChevronDown className="size-3" />
+                    )}
+                  </Button>
+                  {onCitationClick && (
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => onCitationClick(citation.source_id)}
+                      aria-label={`View source: ${citation.source_title}`}
+                      type="button"
+                    >
+                      <ExternalLink className="size-3" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -100,7 +100,7 @@ export async function runAIQualityCheck(
   responseHtml: string,
   citations: CitationEntry[],
   matchedContentCount: number,
-): Promise<{ result: AIQualityResult; tokensUsed: number; cost: number }> {
+): Promise<{ result: AIQualityResult; tokensUsed: number; inputTokens: number; outputTokens: number; cost: number }> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier('quality');
   const plainText = htmlToPlainText(responseHtml);
@@ -149,15 +149,17 @@ Check for:
     }
   }
 
-  const tokensUsed = aiCheck.usage.input_tokens + aiCheck.usage.output_tokens;
+  const inputTokens = aiCheck.usage.input_tokens;
+  const outputTokens = aiCheck.usage.output_tokens;
+  const tokensUsed = inputTokens + outputTokens;
   const cost = estimateCost(model, {
-    input_tokens: aiCheck.usage.input_tokens,
-    output_tokens: aiCheck.usage.output_tokens,
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
     cache_creation_input_tokens: aiCheck.usage.cache_creation_input_tokens ?? undefined,
     cache_read_input_tokens: aiCheck.usage.cache_read_input_tokens ?? undefined,
   });
 
-  return { result: aiResult, tokensUsed, cost };
+  return { result: aiResult, tokensUsed, inputTokens, outputTokens, cost };
 }
 
 /**
@@ -169,7 +171,7 @@ export async function checkResponseQuality(
   responseHtml: string,
   citations: CitationEntry[],
   matchedContentCount: number,
-): Promise<{ qualityData: QualityData; tokensUsed: number; cost: number }> {
+): Promise<{ qualityData: QualityData; tokensUsed: number; inputTokens: number; outputTokens: number; cost: number }> {
   // Deterministic checks first
   const { wordCount, issues } = runDeterministicChecks(
     responseHtml,
@@ -179,7 +181,7 @@ export async function checkResponseQuality(
   );
 
   // AI-assisted check
-  const { result: aiResult, tokensUsed, cost } = await runAIQualityCheck(
+  const { result: aiResult, tokensUsed, inputTokens, outputTokens, cost } = await runAIQualityCheck(
     question,
     responseHtml,
     citations,
@@ -205,5 +207,5 @@ export async function checkResponseQuality(
     issues,
   };
 
-  return { qualityData, tokensUsed, cost };
+  return { qualityData, tokensUsed, inputTokens, outputTokens, cost };
 }
