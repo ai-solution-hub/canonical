@@ -5,11 +5,20 @@ import type { Database } from '@/supabase/types/database.types';
 
 /** Server-side Supabase client for API routes and Server Components (with cookie-based auth) */
 export async function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
+  }
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set');
+  }
+
   const cookieStore = await cookies();
 
   return createSupabaseServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
@@ -32,9 +41,18 @@ export async function createClient() {
 
 /** Service client for operations that bypass RLS (admin API, pipeline compatibility) */
 export function createServiceClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
+  }
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY;
+  if (!supabaseSecretKey) {
+    throw new Error('SUPABASE_SECRET_KEY environment variable is not set');
+  }
+
   return createSupabaseClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!,
+    supabaseUrl,
+    supabaseSecretKey,
     {
       auth: {
         persistSession: false,

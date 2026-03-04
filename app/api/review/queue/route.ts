@@ -9,6 +9,9 @@ import type { Database } from '@/supabase/types/database.types';
 
 type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
+/** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
+const REVIEW_COLUMNS = 'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
+
 /**
  * GET /api/review/queue — fetch content items for the review workflow.
  *
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
     // Standard query for unverified/verified/all statuses
     let query = supabase
       .from('content_items')
-      .select('*', { count: 'exact' });
+      .select(REVIEW_COLUMNS, { count: 'exact' });
 
     // Apply verification status filter
     if (status === 'unverified') {
@@ -170,7 +173,7 @@ async function handleFlaggedQuery(
   // Now query content_items filtered to those IDs
   let query = supabase
     .from('content_items')
-    .select('*', { count: 'exact' })
+    .select(REVIEW_COLUMNS, { count: 'exact' })
     .in('id', itemIds);
 
   if (domainParams.length > 0) {
