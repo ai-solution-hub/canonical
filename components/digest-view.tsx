@@ -1,12 +1,13 @@
 'use client';
 
-import { Layers, Sparkles } from 'lucide-react';
+import { Layers, Sparkles, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DigestDomainSection } from '@/components/digest-domain-section';
 import { DigestExportMenu } from '@/components/digest-export-menu';
 import { formatDate } from '@/lib/format';
 import { digestTypeLabel } from '@/lib/digest-export';
-import type { Digest } from '@/types/digest';
+import { FreshnessBadge } from '@/components/freshness-badge';
+import type { Digest, DigestGovernanceSummary } from '@/types/digest';
 import { cn } from '@/lib/utils';
 
 interface DigestViewProps {
@@ -72,6 +73,11 @@ export function DigestView({ digest, className }: DigestViewProps) {
         </section>
       )}
 
+      {/* Governance / KB Health */}
+      {digest.governance_summary && (
+        <GovernanceSection summary={digest.governance_summary} />
+      )}
+
       {/* Theme clusters */}
       {digest.theme_clusters.length > 0 && (
         <section className="rounded-xl border border-border bg-card p-6">
@@ -104,5 +110,64 @@ export function DigestView({ digest, className }: DigestViewProps) {
         </section>
       )}
     </div>
+  );
+}
+
+function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
+  const { items_modified, items_verified, items_flagged, freshness_breakdown } =
+    summary;
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <Shield className="size-4 text-primary" />
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          KB Health
+        </h2>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border border-border bg-background p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">
+            {items_modified}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Items Modified
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">
+            {items_verified}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Items Verified
+          </p>
+        </div>
+        <div className="rounded-lg border border-border bg-background p-4 text-center">
+          <p className="text-2xl font-bold text-foreground">
+            {items_flagged}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Items Flagged
+          </p>
+        </div>
+      </div>
+      {freshness_breakdown && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Freshness Breakdown
+          </p>
+          <div className="flex flex-wrap gap-4">
+            {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => (
+              <div key={state} className="flex items-center gap-1.5">
+                <FreshnessBadge freshness={state} compact />
+                <span className="text-sm font-medium text-foreground">
+                  {freshness_breakdown[state]}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

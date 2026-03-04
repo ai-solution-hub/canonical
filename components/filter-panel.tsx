@@ -29,6 +29,7 @@ import { SubtopicFilter } from '@/components/subtopic-filter';
 import { ContentTypeFilter } from '@/components/content-type-filter';
 import { PlatformFilter } from '@/components/platform-filter';
 import { AuthorFilter } from '@/components/author-filter';
+import { FreshnessBadge } from '@/components/freshness-badge';
 import type { Project } from '@/types/content';
 
 interface FilterPanelProps {
@@ -61,6 +62,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     priorities: filters.priority ?? ([] as string[]),
     project: filters.project ?? '',
     user_tags: filters.user_tags ?? ([] as string[]),
+    freshness: filters.freshness ?? ([] as string[]),
   });
 
   // Filter counts (M8) — cached with a 30-second TTL to avoid re-fetching on every panel open
@@ -108,6 +110,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       priorities: filters.priority ?? [],
       project: filters.project ?? '',
       user_tags: filters.user_tags ?? [],
+      freshness: filters.freshness ?? [],
     });
   }
 
@@ -320,6 +323,18 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     }));
   }, []);
 
+  const handleFreshnessToggle = useCallback((state: string) => {
+    setDraft((prev) => {
+      const isSelected = prev.freshness.includes(state);
+      return {
+        ...prev,
+        freshness: isSelected
+          ? prev.freshness.filter((f) => f !== state)
+          : [...prev.freshness, state],
+      };
+    });
+  }, []);
+
   const handleUserTagToggle = useCallback((tag: string) => {
     setDraft((prev) => {
       const isSelected = prev.user_tags.includes(tag);
@@ -357,6 +372,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       priority: draft.priorities.length ? draft.priorities : undefined,
       project: draft.project || undefined,
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
+      freshness: draft.freshness.length ? draft.freshness : undefined,
     });
     onOpenChange(false);
   }, [draft, setFilters, onOpenChange]);
@@ -375,6 +391,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       priorities: [],
       project: '',
       user_tags: [],
+      freshness: [],
     });
     setAuthorSearch('');
     clearFilters();
@@ -394,6 +411,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.priorities.length > 0,
     draft.project,
     draft.user_tags.length > 0,
+    draft.freshness.length > 0,
   ].filter(Boolean).length;
 
   return (
@@ -599,6 +617,33 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               <Separator className="my-3" />
             </>
           )}
+
+          {/* Freshness */}
+          <FilterSection title="Freshness">
+            <div className="flex flex-wrap gap-2">
+              {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => {
+                const isActive = draft.freshness.includes(state);
+                return (
+                  <button
+                    key={state}
+                    type="button"
+                    onClick={() => handleFreshnessToggle(state)}
+                    aria-pressed={isActive}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                      isActive
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-muted text-foreground hover:bg-accent'
+                    }`}
+                  >
+                    <FreshnessBadge freshness={state} compact />
+                    <span className="capitalize">{state}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </FilterSection>
+
+          <Separator className="my-3" />
 
           {/* Starred */}
           <FilterSection title="Starred">

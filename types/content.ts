@@ -19,7 +19,9 @@ export interface ContentListItem {
   ai_keywords: ContentItemRow['ai_keywords'];
   classification_confidence: ContentItemRow['classification_confidence'];
   priority: ContentItemRow['priority'];
+  freshness: ContentItemRow['freshness'];
   user_tags: ContentItemRow['user_tags'];
+  governance_review_status: ContentItemRow['governance_review_status'];
   metadata: Record<string, unknown> | null;
 }
 
@@ -153,6 +155,7 @@ export interface BrowseFilters {
   priority?: string[];
   project?: string; // project UUID
   user_tags?: string[]; // user tag strings
+  freshness?: string[]; // multi-select: fresh, aging, stale, expired
   sort?: 'captured_date' | 'classification_confidence' | 'primary_domain';
   order?: 'asc' | 'desc';
 }
@@ -162,7 +165,7 @@ export const CONTENT_LIST_COLUMNS = `
   id, title, suggested_title, ai_summary,
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
-  ai_keywords, classification_confidence, priority, user_tags, metadata
+  ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata
 ` as const;
 
 /** Columns selected for detail view */
@@ -170,5 +173,6 @@ export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
   content, source_url, file_path, secondary_domain, secondary_subtopic,
   classification_reasoning, summary_data,
-  created_at, updated_at, created_by, updated_by
+  created_at, updated_at, created_by, updated_by,
+  governance_review_status, governance_review_due, governance_reviewer_id
 ` as const;

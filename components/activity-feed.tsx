@@ -1,0 +1,223 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  Edit3,
+  RotateCcw,
+  AlertTriangle,
+  Loader2,
+  Activity,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useDisplayNames } from '@/hooks/use-display-names';
+import { formatRelativeDate } from '@/lib/format';
+import { cn } from '@/lib/utils';
+
+interface ActivityItem {
+  id: string;
+  type: string;
+  entity_type: string;
+  entity_id: string;
+  summary: string;
+  user_id: string | null;
+  created_at: string | null;
+  metadata: Record<string, unknown>;
+}
+
+interface ActivityFeedProps {
+  className?: string;
+  /** Maximum items to show initially */
+  initialLimit?: number;
+}
+
+function activityIcon(type: string) {
+  switch (type) {
+    case 'edit':
+      return <Edit3 className="size-3.5 text-blue-500" />;
+    case 'rollback':
+      return <RotateCcw className="size-3.5 text-amber-500" />;
+    case 'quality_flag':
+      return <AlertTriangle className="size-3.5 text-red-500" />;
+    default:
+      return <Activity className="size-3.5 text-muted-foreground" />;
+  }
+}
+
+function activityTypeLabel(type: string): string {
+  switch (type) {
+    case 'edit':
+      return 'Edit';
+    case 'rollback':
+      return 'Rollback';
+    case 'quality_flag':
+      return 'Quality Flag';
+    default:
+      return type;
+  }
+}
+
+function activityBadgeVariant(
+  type: string,
+): 'default' | 'secondary' | 'outline' | 'destructive' {
+  switch (type) {
+    case 'edit':
+      return 'secondary';
+    case 'rollback':
+      return 'outline';
+    case 'quality_flag':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+}
+
+/**
+ * Activity feed component showing recent KB changes.
+ *
+ * Fetches from /api/activity and displays a timeline of edits,
+ * rollbacks, and quality events.
+ */
+export function ActivityFeed({
+  className,
+  initialLimit = 20,
+}: ActivityFeedProps) {
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+
+  // Collect user IDs for display name resolution
+  const userIds = activities
+    .map((a) => a.user_id)
+    .filter((id): id is string => id !== null);
+  const displayNames = useDisplayNames(userIds);
+
+  const fetchActivities = useCallback(
+    async (currentOffset: number, append = false) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const res = await fetch(
+          `/api/activity?limit=${initialLimit}&offset=${currentOffset}`,
+        );
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const items: ActivityItem[] = data.activities ?? [];
+
+        if (append) {
+          setActivities((prev) => [...prev, ...items]);
+        } else {
+          setActivities(items);
+        }
+
+        setHasMore(items.length >= initialLimit);
+      } catch {
+        // Non-critical
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [initialLimit],
+  );
+
+  useEffect(() => {
+    fetchActivities(0);
+  }, [fetchActivities]);
+
+  function handleLoadMore() {
+    const newOffset = offset + initialLimit;
+    setOffset(newOffset);
+    fetchActivities(newOffset, true);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (activities.length === 0) {
+    return (
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground',
+          className,
+        )}
+      >
+        <Activity className="size-8" />
+        <p className="text-sm">No activity recorded yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('space-y-3', className)}>
+      {activities.map((activity) => (
+        <Card key={activity.id} className="px-4 py-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 shrink-0">{activityIcon(activity.type)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <Badge
+                  variant={activityBadgeVariant(activity.type)}
+                  className="text-[11px]"
+                >
+                  {activityTypeLabel(activity.type)}
+                </Badge>
+                {activity.created_at && (
+                  <span className="text-xs text-muted-foreground">
+                    {formatRelativeDate(activity.created_at)}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-sm text-foreground">{activity.summary}</p>
+              <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                {activity.user_id && (
+                  <span>
+                    by{' '}
+                    {displayNames.get(activity.user_id) ??
+                      activity.user_id.slice(0, 8)}
+                  </span>
+                )}
+                {activity.entity_id && (
+                  <Link
+                    href={`/item/${activity.entity_id}`}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    View item
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      ))}
+
+      {hasMore && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore && <Loader2 className="mr-2 size-4 animate-spin" />}
+            Load More
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

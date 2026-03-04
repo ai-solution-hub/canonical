@@ -28,6 +28,18 @@ export interface DigestDomainSummary {
   key_themes: string[];
 }
 
+export interface DigestGovernanceSummary {
+  items_modified: number;
+  items_verified: number;
+  items_flagged: number;
+  freshness_breakdown?: {
+    fresh: number;
+    aging: number;
+    stale: number;
+    expired: number;
+  };
+}
+
 export interface Digest {
   id: string;
   digest_type: string;
@@ -42,6 +54,7 @@ export interface Digest {
   tokens_used: number | null;
   item_ids?: string[];
   filters?: DigestFilters | null;
+  governance_summary?: DigestGovernanceSummary | null;
   created_at: string;
 }
 

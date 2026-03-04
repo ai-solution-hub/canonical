@@ -27,6 +27,11 @@ export function useBrowseFilters() {
       ?.split(',')
       .filter(Boolean);
 
+    const freshnessRaw = searchParams
+      .get('freshness')
+      ?.split(',')
+      .filter(Boolean);
+
     return {
       domain: domainRaw?.length ? domainRaw : undefined,
       subtopic: searchParams.get('subtopic') ?? undefined,
@@ -41,6 +46,7 @@ export function useBrowseFilters() {
       priority: priorityRaw?.length ? priorityRaw : undefined,
       project: searchParams.get('project') ?? undefined,
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
+      freshness: freshnessRaw?.length ? freshnessRaw : undefined,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -60,6 +66,7 @@ export function useBrowseFilters() {
     if (filters.priority?.length) count += filters.priority.length;
     if (filters.project) count++;
     if (filters.user_tags?.length) count++;
+    if (filters.freshness?.length) count += filters.freshness.length;
     return count;
   }, [filters]);
 
@@ -135,6 +142,13 @@ export function useBrowseFilters() {
           params.delete('user_tags');
         }
       }
+      if ('freshness' in newFilters) {
+        if (newFilters.freshness?.length) {
+          params.set('freshness', newFilters.freshness.join(','));
+        } else {
+          params.delete('freshness');
+        }
+      }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')
           params.set('sort', newFilters.sort);
@@ -167,7 +181,7 @@ export function useBrowseFilters() {
 
   /** Remove a single value from a multi-select array filter */
   const removeFilterValue = useCallback(
-    (key: 'domain' | 'content_type' | 'platform' | 'author' | 'keywords' | 'priority' | 'user_tags', value: string) => {
+    (key: 'domain' | 'content_type' | 'platform' | 'author' | 'keywords' | 'priority' | 'user_tags' | 'freshness', value: string) => {
       const current = filters[key];
       if (!current?.length) return;
       const updated = current.filter((v) => v !== value);

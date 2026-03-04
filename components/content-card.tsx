@@ -9,6 +9,8 @@ import { PriorityBadge } from '@/components/priority-selector';
 import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
 import { getDomainColourKey } from '@/lib/taxonomy';
 import { ContentTypeIcon } from '@/components/content-type-icon';
+import { FreshnessBadge } from '@/components/freshness-badge';
+import { GovernanceBadge } from '@/components/governance-badge';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
@@ -123,12 +125,20 @@ export function ContentCard({ item, isRead, hideThumbnail }: ContentCardProps) {
               .filter(Boolean)
               .join(' \u00B7 ')}
           </span>
-          <time
-            className="text-xs text-muted-foreground"
-            dateTime={item.captured_date ?? undefined}
-          >
-            {formatDate(item.captured_date)}
-          </time>
+          <div className="flex items-center gap-2">
+            <time
+              className="text-xs text-muted-foreground"
+              dateTime={item.captured_date ?? undefined}
+            >
+              {formatDate(item.captured_date)}
+            </time>
+            {item.freshness && item.freshness !== 'fresh' && (
+              <FreshnessBadge freshness={item.freshness} compact />
+            )}
+            {item.governance_review_status === 'pending' && (
+              <GovernanceBadge status="pending" compact />
+            )}
+          </div>
         </div>
       </div>
     </Link>

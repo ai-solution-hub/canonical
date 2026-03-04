@@ -300,6 +300,36 @@ export function validateEditableField(field: string): field is EditableField {
 // Structured Extraction
 // ──────────────────────────────────────────
 
+/** POST /api/items/[id]/rollback */
+export const RollbackBodySchema = z.object({
+  version_id: z.string().uuid('version_id must be a valid UUID'),
+});
+
+/** POST /api/governance (create/update governance config) */
+export const GovernanceConfigBodySchema = z.object({
+  domain: z.string().trim().min(1, 'Domain is required').max(200),
+  posture: z.enum(['open', 'review_on_change']),
+  reviewer_id: z.string().uuid('reviewer_id must be a valid UUID').nullable().optional(),
+  timeout_days: z.number().int().min(1).max(365).nullable().optional(),
+});
+
+/** POST /api/governance/review */
+export const GovernanceReviewBodySchema = z.object({
+  item_id: z.string().uuid('item_id must be a valid UUID'),
+  action: z.enum(['approve', 'request_changes', 'revert']),
+  notes: z.string().max(1000).optional(),
+});
+
+/** POST /api/freshness/calculate */
+export const FreshnessCalculateBodySchema = z.object({
+  item_ids: z.array(z.string().uuid()).min(1).max(500),
+});
+
+/** POST /api/notifications/read */
+export const NotificationReadBodySchema = z.object({
+  notification_ids: z.array(z.string().uuid()).min(1).max(100),
+});
+
 /** POST /api/extract */
 export const ExtractBodySchema = z.object({
   itemId: z.string().uuid('itemId must be a valid UUID'),

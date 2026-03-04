@@ -257,5 +257,7 @@ function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
     verified_by: row.verified_by ?? null,
     secondary_domain: row.secondary_domain ?? null,
     secondary_subtopic: row.secondary_subtopic ?? null,
+    freshness: row.freshness ?? null,
+    governance_review_status: row.governance_review_status ?? null,
   };
 }
