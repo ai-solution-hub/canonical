@@ -2,11 +2,11 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterSection } from '@/components/filter-section';
-import { formatSubtopic } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 interface SubtopicFilterProps {
   domainName: string;
-  subtopics: readonly string[];
+  subtopics: readonly string[] | string[];
   selectedSubtopic: string;
   onToggle: (subtopic: string) => void;
 }
@@ -17,8 +17,10 @@ export function SubtopicFilter({
   selectedSubtopic,
   onToggle,
 }: SubtopicFilterProps) {
+  const { formatSubtopic, formatDomainName } = useTaxonomy();
+
   return (
-    <FilterSection title={`Subtopic (${domainName})`}>
+    <FilterSection title={`Subtopic (${formatDomainName(domainName)})`}>
       <div className="flex flex-col gap-2">
         {subtopics.map((subtopic) => (
           <label

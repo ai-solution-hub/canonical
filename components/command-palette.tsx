@@ -14,6 +14,8 @@ import {
   Keyboard,
   BookOpen,
   FolderOpen,
+  ShieldCheck,
+  Settings,
 } from 'lucide-react';
 
 export function CommandPalette() {
@@ -149,7 +151,7 @@ export function CommandPalette() {
                   className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground"
                 >
                   <Command.Item
-                    value="Home"
+                    value="Home dashboard"
                     onSelect={() => runCommand(() => router.push('/'))}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
@@ -162,7 +164,7 @@ export function CommandPalette() {
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <LayoutGrid className="size-4 text-muted-foreground" />
-                    Browse all content
+                    Browse
                   </Command.Item>
                   <Command.Item
                     value="Search knowledge base"
@@ -171,6 +173,14 @@ export function CommandPalette() {
                   >
                     <Search className="size-4 text-muted-foreground" />
                     Search
+                  </Command.Item>
+                  <Command.Item
+                    value="Review content verification"
+                    onSelect={() => runCommand(() => router.push('/review'))}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                  >
+                    <ShieldCheck className="size-4 text-muted-foreground" />
+                    Review
                   </Command.Item>
                   <Command.Item
                     value="Projects manage collections"
@@ -187,6 +197,14 @@ export function CommandPalette() {
                   >
                     <BookOpen className="size-4 text-muted-foreground" />
                     Content Digest
+                  </Command.Item>
+                  <Command.Item
+                    value="Settings preferences"
+                    onSelect={() => runCommand(() => router.push('/settings'))}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                  >
+                    <Settings className="size-4 text-muted-foreground" />
+                    Settings
                   </Command.Item>
                 </Command.Group>
 

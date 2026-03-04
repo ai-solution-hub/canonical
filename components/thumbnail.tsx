@@ -17,6 +17,14 @@ import {
   GraduationCap,
   FlaskConical,
   Globe,
+  CircleHelp,
+  FileCheck,
+  Shield,
+  Award,
+  ClipboardCheck,
+  Workflow,
+  Star,
+  ShoppingBag,
 } from 'lucide-react';
 import { getDomainColourKey } from '@/lib/taxonomy';
 
@@ -37,6 +45,15 @@ const ICON_MAP: Record<string, React.ElementType> = {
   course: GraduationCap,
   research: FlaskConical,
   other: Globe,
+  // Knowledge Hub content types
+  q_a_pair: CircleHelp,
+  case_study: FileCheck,
+  policy: Shield,
+  certification: Award,
+  compliance: ClipboardCheck,
+  methodology: Workflow,
+  capability: Star,
+  product_description: ShoppingBag,
 };
 
 const SUPABASE_STORAGE_HOST = `${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace('https://', '')}/storage`;

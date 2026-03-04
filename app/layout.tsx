@@ -7,6 +7,7 @@ import { SiteHeader } from '@/components/site-header';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provider';
 import { ReadMarksProvider } from '@/contexts/read-marks-context';
+import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
@@ -31,6 +32,7 @@ export default async function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
         <ThemeProvider>
+          <TaxonomyProvider>
           <ReadMarksProvider>
             <TooltipProvider>
               <a href="#main-content" className="skip-link">
@@ -48,6 +50,7 @@ export default async function RootLayout({
               />
             </TooltipProvider>
           </ReadMarksProvider>
+          </TaxonomyProvider>
         </ThemeProvider>
         <Analytics />
       </body>

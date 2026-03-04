@@ -21,7 +21,7 @@ import {
   FilterCountsSchema,
   AuthorCountSchema,
 } from '@/lib/validation/jsonb';
-import { getDomainNames, getSubtopics, type Domain } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { createClient } from '@/lib/supabase/client';
 import { FilterSection } from '@/components/filter-section';
 import { DomainFilter } from '@/components/domain-filter';
@@ -231,11 +231,12 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [open, userTagsLoaded]);
 
+  const { getDomainNames, getSubtopics } = useTaxonomy();
   const domainNames = getDomainNames();
 
   // Derive available subtopics: only when exactly ONE domain is selected
   const singleDomain =
-    draft.domains.length === 1 ? (draft.domains[0] as Domain) : null;
+    draft.domains.length === 1 ? draft.domains[0] : null;
   const availableSubtopics =
     singleDomain && domainNames.includes(singleDomain)
       ? getSubtopics(singleDomain)

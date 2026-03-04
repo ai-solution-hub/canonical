@@ -1,63 +1,53 @@
+/**
+ * Static taxonomy exports for components that cannot use React hooks
+ * (server components, non-React code, tests).
+ *
+ * Client components should prefer useTaxonomy() from contexts/taxonomy-context.tsx
+ * for database-driven taxonomy data.
+ *
+ * These static values match the seeded taxonomy_domains/taxonomy_subtopics tables.
+ */
+
 export const DOMAINS = {
-  'AI & EMERGING TECH': {
-    colour: 'ai',
+  security: {
+    colour: 'security',
     subtopics: [
-      'ai-models-llms',
-      'ai-tools-frameworks',
-      'ai-research',
-      'ai-implementation-practice',
-      'technical-implementation',
-      'ai-safety-governance',
+      'data-protection',
+      'cyber-security',
+      'encryption',
+      'access-control',
+      'iso-27001',
     ],
   },
-  'STRATEGY & BUSINESS': {
-    colour: 'strategy',
+  compliance: {
+    colour: 'compliance',
+    subtopics: ['standards', 'regulatory', 'audit', 'certification'],
+  },
+  implementation: {
+    colour: 'implementation',
+    subtopics: ['deployment', 'migration', 'onboarding', 'integration'],
+  },
+  support: {
+    colour: 'support',
+    subtopics: ['sla', 'helpdesk', 'maintenance', 'incident'],
+  },
+  corporate: {
+    colour: 'corporate',
     subtopics: [
-      'business-model-monetization',
-      'market-analysis',
-      'organizational-strategy',
-      'growth-scaling',
+      'company-info',
+      'financial',
+      'insurance',
+      'references',
+      'staffing',
     ],
   },
-  'PRODUCTS & INNOVATION': {
-    colour: 'products',
-    subtopics: [
-      'product-ideas',
-      'feature-ideas',
-      'design-ux',
-      'build-tech-stack',
-    ],
+  'product-feature': {
+    colour: 'product',
+    subtopics: ['functionality', 'technical', 'reporting', 'usability'],
   },
-  'INSIGHTS & ANALYSIS': {
-    colour: 'insights',
-    subtopics: [
-      'customer-feedback',
-      'pain-points-problems',
-      'success-stories',
-      'industry-trends-opinions',
-      'market-signals-moves',
-      'ai-workforce-impact',
-      'ai-society-critique',
-      'ai-agents-automation-trends',
-    ],
-  },
-  'LEARNING & DEVELOPMENT': {
-    colour: 'learning',
-    subtopics: [
-      'courses-curricula',
-      'how-to-guides',
-      'best-practices-frameworks',
-      'resources-tools',
-    ],
-  },
-  'META & PERSONAL': {
-    colour: 'meta',
-    subtopics: [
-      'personal-tasks-gtd',
-      'system-improvements',
-      'learning-about-self',
-      'archive-reference',
-    ],
+  methodology: {
+    colour: 'methodology',
+    subtopics: ['approach', 'project-management', 'quality', 'delivery'],
   },
 } as const;
 
@@ -72,7 +62,7 @@ export function getSubtopics(domain: Domain): readonly string[] {
 /** Get the colour key for a domain (maps to CSS var --domain-{key}-*) */
 export function getDomainColourKey(domain: string): string {
   const entry = Object.entries(DOMAINS).find(([key]) => key === domain);
-  return entry ? entry[1].colour : 'meta';
+  return entry ? entry[1].colour : 'corporate';
 }
 
 /** Get all domain names */
@@ -80,7 +70,7 @@ export function getDomainNames(): Domain[] {
   return Object.keys(DOMAINS) as Domain[];
 }
 
-/** Format subtopic for display (kebab-case → Title Case, abbreviations uppercased) */
+/** Format subtopic for display (kebab-case to Title Case, abbreviations uppercased) */
 const ABBREVIATIONS = new Set([
   'ai',
   'ux',
@@ -92,10 +82,23 @@ const ABBREVIATIONS = new Set([
   'html',
   'url',
   'crm',
+  'sla',
+  'iso',
 ]);
 
 export function formatSubtopic(subtopic: string): string {
   return subtopic
+    .split('-')
+    .map((word) => {
+      if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
+/** Format domain name for display (kebab-case to Title Case) */
+export function formatDomainName(domain: string): string {
+  return domain
     .split('-')
     .map((word) => {
       if (ABBREVIATIONS.has(word.toLowerCase())) return word.toUpperCase();
@@ -121,6 +124,14 @@ export const CONTENT_TYPES = [
   'course',
   'research',
   'other',
+  'q_a_pair',
+  'case_study',
+  'policy',
+  'certification',
+  'compliance',
+  'methodology',
+  'capability',
+  'product_description',
 ] as const;
 
 export type ContentType = (typeof CONTENT_TYPES)[number];
@@ -137,7 +148,7 @@ export const PLATFORMS = [
 
 export type Platform = (typeof PLATFORMS)[number];
 
-/** Content type → Lucide icon name mapping */
+/** Content type to Lucide icon name mapping */
 export const CONTENT_TYPE_ICONS: Record<ContentType, string> = {
   post: 'MessageSquare',
   article: 'FileText',
@@ -154,4 +165,12 @@ export const CONTENT_TYPE_ICONS: Record<ContentType, string> = {
   course: 'GraduationCap',
   research: 'FlaskConical',
   other: 'HelpCircle',
+  q_a_pair: 'CircleHelp',
+  case_study: 'FileCheck',
+  policy: 'Shield',
+  certification: 'Award',
+  compliance: 'ClipboardCheck',
+  methodology: 'Workflow',
+  capability: 'Star',
+  product_description: 'ShoppingBag',
 };

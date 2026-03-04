@@ -190,6 +190,20 @@ describe('formatContentType', () => {
     expect(formatContentType('post')).toBe('Post');
   });
 
+  it('should format underscore-separated types using display name map', () => {
+    expect(formatContentType('q_a_pair')).toBe('Q&A Pair');
+    expect(formatContentType('case_study')).toBe('Case Study');
+    expect(formatContentType('product_description')).toBe('Product Description');
+  });
+
+  it('should format unmapped underscore types as Title Case', () => {
+    expect(formatContentType('methodology')).toBe('Methodology');
+    expect(formatContentType('certification')).toBe('Certification');
+    expect(formatContentType('compliance')).toBe('Compliance');
+    expect(formatContentType('capability')).toBe('Capability');
+    expect(formatContentType('policy')).toBe('Policy');
+  });
+
   it('should return empty string for null', () => {
     expect(formatContentType(null)).toBe('');
   });

@@ -20,15 +20,22 @@ export const VALID_CONTENT_TYPES = [
   'course',
   'research',
   'other',
+  'q_a_pair',
+  'case_study',
+  'policy',
+  'certification',
+  'compliance',
+  'methodology',
+  'capability',
+  'product_description',
 ] as const;
 
 export const VALID_PLATFORMS = [
-  'linkedin',
-  'reddit',
-  'youtube',
   'web',
   'email',
   'manual',
+  'upload',
+  'extraction',
   'other',
 ] as const;
 

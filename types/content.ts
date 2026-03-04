@@ -21,6 +21,12 @@ export interface ContentListItem {
   priority: ContentItemRow['priority'];
   user_tags: ContentItemRow['user_tags'];
   metadata: Record<string, unknown> | null;
+  /** ISO timestamp when the item was verified, null if unverified */
+  verified_at?: string | null;
+  /** Source document name for imported Q&A pairs */
+  source_document?: string | null;
+  /** Brief/executive summary for progressive depth */
+  brief?: string | null;
 }
 
 /** Content list item with read state */
@@ -43,6 +49,14 @@ export interface ContentItemDetail extends ContentListItem {
   updated_at: string;
   created_by: string | null;
   updated_by: string | null;
+  /** UUID of user who verified the item */
+  verified_by?: string | null;
+  /** Source bid reference for provenance tracking */
+  source_bid?: string | null;
+  /** Progressive depth: detailed explanation */
+  detail?: string | null;
+  /** Progressive depth: reference/technical detail */
+  reference?: string | null;
 }
 
 /** Multi-level summary data stored as JSONB on content_items */
@@ -121,10 +135,12 @@ export interface TranscriptHighlight {
   created_item_id?: string;
 }
 
-/** Search result with similarity score and optional content snippet */
-export interface SearchResult extends ContentListItem {
+/** Search result with similarity score and optional content snippet.
+ *  Note: hybrid_search() does NOT return user_tags — it will be undefined. */
+export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {
   similarity: number;
   snippet?: string | null;
+  user_tags?: ContentListItem['user_tags'];
 }
 
 /** Project (from projects table) */
@@ -162,7 +178,8 @@ export const CONTENT_LIST_COLUMNS = `
   id, title, suggested_title, ai_summary,
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
-  ai_keywords, classification_confidence, priority, user_tags, metadata
+  ai_keywords, classification_confidence, priority, user_tags, metadata,
+  verified_at, source_document, brief
 ` as const;
 
 /** Columns selected for detail view */
@@ -170,5 +187,6 @@ export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
   content, source_url, file_path, secondary_domain, secondary_subtopic,
   classification_reasoning, summary_data,
-  created_at, updated_at, created_by, updated_by
+  created_at, updated_at, created_by, updated_by,
+  verified_by, source_bid, detail, reference
 ` as const;

@@ -58,27 +58,30 @@
   /* Radius */
   --radius: 0.5rem;
 
-  /* Domain colours — badge backgrounds (light) */
-  --domain-ai-bg: oklch(0.93 0.04 240);
-  --domain-ai-text: oklch(0.35 0.12 240);
-  --domain-strategy-bg: oklch(0.93 0.04 75);
-  --domain-strategy-text: oklch(0.4 0.12 75);
-  --domain-products-bg: oklch(0.93 0.04 155);
-  --domain-products-text: oklch(0.35 0.12 155);
-  --domain-insights-bg: oklch(0.93 0.04 300);
-  --domain-insights-text: oklch(0.38 0.12 300);
-  --domain-learning-bg: oklch(0.93 0.04 185);
-  --domain-learning-text: oklch(0.35 0.12 185);
-  --domain-meta-bg: oklch(0.93 0.02 250);
-  --domain-meta-text: oklch(0.4 0.03 250);
+  /* Knowledge Hub domain colours — badge backgrounds (light) */
+  --domain-security-bg: oklch(0.93 0.04 220);
+  --domain-security-text: oklch(0.35 0.12 220);
+  --domain-compliance-bg: oklch(0.93 0.04 275);
+  --domain-compliance-text: oklch(0.35 0.12 275);
+  --domain-implementation-bg: oklch(0.93 0.04 155);
+  --domain-implementation-text: oklch(0.35 0.12 155);
+  --domain-support-bg: oklch(0.93 0.04 45);
+  --domain-support-text: oklch(0.4 0.12 45);
+  --domain-corporate-bg: oklch(0.93 0.02 200);
+  --domain-corporate-text: oklch(0.4 0.08 200);
+  --domain-product-bg: oklch(0.93 0.04 145);
+  --domain-product-text: oklch(0.35 0.12 145);
+  --domain-methodology-bg: oklch(0.93 0.04 340);
+  --domain-methodology-text: oklch(0.38 0.12 340);
 
-  /* Domain surface colours (home page cards) */
-  --domain-ai-surface: oklch(0.96 0.02 240);
-  --domain-strategy-surface: oklch(0.96 0.02 75);
-  --domain-products-surface: oklch(0.96 0.02 155);
-  --domain-insights-surface: oklch(0.96 0.02 300);
-  --domain-learning-surface: oklch(0.96 0.02 185);
-  --domain-meta-surface: oklch(0.95 0.01 250);
+  /* Knowledge Hub domain surface colours (home page cards) */
+  --domain-security-surface: oklch(0.96 0.02 220);
+  --domain-compliance-surface: oklch(0.96 0.02 275);
+  --domain-implementation-surface: oklch(0.96 0.02 155);
+  --domain-support-surface: oklch(0.96 0.02 45);
+  --domain-corporate-surface: oklch(0.95 0.01 200);
+  --domain-product-surface: oklch(0.96 0.02 145);
+  --domain-methodology-surface: oklch(0.96 0.02 340);
 
   /* Progress & review */
   --color-progress: oklch(0.55 0.15 240);
@@ -157,27 +160,30 @@
 
   --success: oklch(0.45 0.12 145);
 
-  /* Domain colours — badge (dark) */
-  --domain-ai-bg: oklch(0.25 0.06 240);
-  --domain-ai-text: oklch(0.8 0.1 240);
-  --domain-strategy-bg: oklch(0.25 0.06 75);
-  --domain-strategy-text: oklch(0.82 0.1 75);
-  --domain-products-bg: oklch(0.25 0.06 155);
-  --domain-products-text: oklch(0.8 0.1 155);
-  --domain-insights-bg: oklch(0.25 0.06 300);
-  --domain-insights-text: oklch(0.8 0.1 300);
-  --domain-learning-bg: oklch(0.25 0.06 185);
-  --domain-learning-text: oklch(0.8 0.1 185);
-  --domain-meta-bg: oklch(0.25 0.03 250);
-  --domain-meta-text: oklch(0.75 0.02 250);
+  /* Knowledge Hub domain colours — badge (dark) */
+  --domain-security-bg: oklch(0.25 0.06 220);
+  --domain-security-text: oklch(0.8 0.1 220);
+  --domain-compliance-bg: oklch(0.25 0.06 275);
+  --domain-compliance-text: oklch(0.8 0.1 275);
+  --domain-implementation-bg: oklch(0.25 0.06 155);
+  --domain-implementation-text: oklch(0.8 0.1 155);
+  --domain-support-bg: oklch(0.25 0.06 45);
+  --domain-support-text: oklch(0.82 0.1 45);
+  --domain-corporate-bg: oklch(0.25 0.03 200);
+  --domain-corporate-text: oklch(0.75 0.06 200);
+  --domain-product-bg: oklch(0.25 0.06 145);
+  --domain-product-text: oklch(0.8 0.1 145);
+  --domain-methodology-bg: oklch(0.25 0.06 340);
+  --domain-methodology-text: oklch(0.8 0.1 340);
 
-  /* Domain surface colours (dark) */
-  --domain-ai-surface: oklch(0.2 0.03 240);
-  --domain-strategy-surface: oklch(0.2 0.03 75);
-  --domain-products-surface: oklch(0.2 0.03 155);
-  --domain-insights-surface: oklch(0.2 0.03 300);
-  --domain-learning-surface: oklch(0.2 0.03 185);
-  --domain-meta-surface: oklch(0.2 0.02 250);
+  /* Knowledge Hub domain surface colours (dark) */
+  --domain-security-surface: oklch(0.2 0.03 220);
+  --domain-compliance-surface: oklch(0.2 0.03 275);
+  --domain-implementation-surface: oklch(0.2 0.03 155);
+  --domain-support-surface: oklch(0.2 0.03 45);
+  --domain-corporate-surface: oklch(0.2 0.02 200);
+  --domain-product-surface: oklch(0.2 0.03 145);
+  --domain-methodology-surface: oklch(0.2 0.03 340);
 
   /* Chart colours (dark) */
   --chart-1: oklch(0.65 0.13 240);

@@ -71,11 +71,26 @@ export function formatPlatform(platform: string | null): string {
   return platform.charAt(0).toUpperCase() + platform.slice(1);
 }
 
-/** Format content type for display (kebab-case → Title Case) */
+/**
+ * Display name overrides for content types that use underscores or
+ * need special formatting (e.g. abbreviations, ampersands).
+ */
+const CONTENT_TYPE_DISPLAY_NAMES: Record<string, string> = {
+  q_a_pair: 'Q&A Pair',
+  case_study: 'Case Study',
+  product_description: 'Product Description',
+  // Single-word underscore types map naturally via the fallback
+};
+
+/** Format content type for display (kebab/underscore-case to Title Case) */
 export function formatContentType(type: string | null): string {
   if (!type) return '';
+  // Check explicit display name map first
+  const override = CONTENT_TYPE_DISPLAY_NAMES[type];
+  if (override) return override;
+  // Fallback: split on hyphens or underscores and title-case each word
   return type
-    .split('-')
+    .split(/[-_]/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 }

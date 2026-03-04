@@ -2,7 +2,7 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterSection } from '@/components/filter-section';
-import { getDomainNames } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 interface DomainFilterProps {
   selectedDomains: string[];
@@ -10,13 +10,14 @@ interface DomainFilterProps {
   onToggle: (domain: string) => void;
 }
 
-const domainNames = getDomainNames();
-
 export function DomainFilter({
   selectedDomains,
   counts,
   onToggle,
 }: DomainFilterProps) {
+  const { getDomainNames, formatDomainName } = useTaxonomy();
+  const domainNames = getDomainNames();
+
   return (
     <FilterSection title="Domain">
       <div className="flex flex-col gap-2">
@@ -29,7 +30,7 @@ export function DomainFilter({
               checked={selectedDomains.includes(domain)}
               onCheckedChange={() => onToggle(domain)}
             />
-            <span className="flex-1 leading-none">{domain}</span>
+            <span className="flex-1 leading-none">{formatDomainName(domain)}</span>
             {counts[domain] !== undefined && (
               <span className="text-xs tabular-nums text-muted-foreground">
                 {counts[domain]}

@@ -6,6 +6,7 @@ import { DomainBadge } from '@/components/domain-badge';
 import { SimilarityBadge } from '@/components/similarity-badge';
 import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
+import { VerificationBadge } from '@/components/verification-badge';
 import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
 import { getDomainColourKey } from '@/lib/taxonomy';
 import { ContentTypeIcon } from '@/components/content-type-icon';
@@ -111,7 +112,12 @@ export function ContentCard({ item, isRead, hideThumbnail }: ContentCardProps) {
           </p>
         ) : null}
         <div className="mt-auto flex flex-col gap-1.5 pt-1">
-          <DomainBadge domain={item.primary_domain ?? ''} />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <DomainBadge domain={item.primary_domain ?? ''} />
+            {item.verified_at && (
+              <VerificationBadge verified={true} size="sm" />
+            )}
+          </div>
           {item.author_name && (
             <span className="truncate text-xs font-medium text-foreground">
               {item.author_name}

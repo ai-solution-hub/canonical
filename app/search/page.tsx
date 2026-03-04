@@ -12,6 +12,7 @@ import { SimilarityBadge } from '@/components/similarity-badge';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
+import { VerificationBadge } from '@/components/verification-badge';
 import {
   Tooltip,
   TooltipContent,
@@ -27,7 +28,7 @@ import type { SearchResult } from '@/types/content';
 
 type ViewMode = 'grid' | 'list';
 
-const VIEW_MODE_KEY = 'ims-search-view-mode';
+const VIEW_MODE_KEY = 'kb-search-view-mode';
 
 function getStoredViewMode(): ViewMode {
   if (typeof window === 'undefined') return 'grid';
@@ -131,7 +132,8 @@ function highlightTerms(text: string, query: string): ReactNode[] {
   });
 }
 
-/** Search result card with query term highlighting on title and summary */
+/** Search result card with query term highlighting on title and summary.
+ *  Q&A pair items show answer preview instead of ai_summary, plus source document. */
 function HighlightedSearchCard({
   item,
   query,
@@ -142,6 +144,12 @@ function HighlightedSearchCard({
   isRead?: boolean;
 }) {
   const title = getDisplayTitle(item);
+  const isQAPair = item.content_type === 'q_a_pair';
+
+  // For Q&A pairs, show the answer content (from ai_summary) as preview
+  const previewText = isQAPair
+    ? (item.ai_summary ?? null)
+    : (item.ai_summary ?? null);
 
   return (
     <Link
@@ -183,13 +191,26 @@ function HighlightedSearchCard({
           <span className="line-clamp-2">{highlightTerms(title, query)}</span>
         </h3>
         <SimilarityBadge score={item.similarity} />
-        {item.ai_summary && (
+        {previewText && (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {highlightTerms(item.ai_summary, query)}
+            {isQAPair && (
+              <span className="mr-1 font-medium text-foreground/70">A:</span>
+            )}
+            {highlightTerms(previewText, query)}
           </p>
         )}
         <div className="mt-auto flex flex-col gap-1.5 pt-1">
-          <DomainBadge domain={item.primary_domain ?? ''} />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <DomainBadge domain={item.primary_domain ?? ''} />
+            {item.verified_at && (
+              <VerificationBadge verified={true} size="sm" />
+            )}
+          </div>
+          {isQAPair && item.source_document && (
+            <span className="truncate text-xs text-muted-foreground">
+              Source: {item.source_document}
+            </span>
+          )}
           {item.author_name && (
             <span className="truncate text-xs font-medium text-foreground">
               {item.author_name}

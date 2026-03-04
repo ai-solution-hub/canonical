@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getDomainColourKey, formatSubtopic } from '@/lib/taxonomy';
+import { getDomainColourKey, formatSubtopic, formatDomainName } from '@/lib/taxonomy';
 
 interface DomainCardProps {
   domain: string;
@@ -27,7 +27,7 @@ export function DomainCard({
           className="text-sm font-semibold"
           style={{ color: `var(--domain-${colourKey}-text)` }}
         >
-          {domain}
+          {formatDomainName(domain)}
         </h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {count} {count === 1 ? 'item' : 'items'}

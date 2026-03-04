@@ -1,4 +1,4 @@
-import { getDomainColourKey } from '@/lib/taxonomy';
+import { getDomainColourKey, formatDomainName } from '@/lib/taxonomy';
 
 interface DomainBadgeProps {
   domain: string;
@@ -16,7 +16,7 @@ export function DomainBadge({ domain, className = '' }: DomainBadgeProps) {
         color: `var(--domain-${colourKey}-text)`,
       }}
     >
-      {domain}
+      {formatDomainName(domain)}
     </span>
   );
 }

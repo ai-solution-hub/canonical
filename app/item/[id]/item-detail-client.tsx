@@ -33,6 +33,7 @@ import { TranscriptSection } from '@/components/transcript-section';
 import { HighlightsSection } from '@/components/highlights-section';
 import { RelatedItems } from '@/components/related-items';
 import { ContentTypeHeader } from '@/components/content-type-header';
+import { VerificationBadge } from '@/components/verification-badge';
 import { YouTubeEmbed } from '@/components/youtube-embed';
 import dynamic from 'next/dynamic';
 
@@ -91,6 +92,14 @@ export interface ItemData {
   updated_at?: string | null;
   created_by?: string | null;
   updated_by?: string | null;
+  // Phase 5 fields
+  verified_at?: string | null;
+  verified_by?: string | null;
+  source_document?: string | null;
+  source_bid?: string | null;
+  brief?: string | null;
+  detail?: string | null;
+  reference?: string | null;
   [key: string]: unknown;
 }
 
@@ -540,6 +549,75 @@ export function ItemDetailClient({
             }
             className="mb-6"
           />
+
+          {/* Verification status + source provenance */}
+          {(item.verified_at || item.source_document) && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <VerificationBadge
+                verified={!!item.verified_at}
+                size="md"
+              />
+              {item.source_document && (
+                <span className="text-xs text-muted-foreground">
+                  Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Q&A Pair display format */}
+          {item.content_type === 'q_a_pair' && item.content && (
+            <section className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Question
+              </h2>
+              <p className="mb-4 text-sm font-medium leading-relaxed text-foreground">
+                {item.suggested_title || item.title || 'Untitled question'}
+              </p>
+              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Answer
+              </h2>
+              <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                {item.content}
+              </div>
+            </section>
+          )}
+
+          {/* Progressive depth sections */}
+          {(item.brief || item.detail || item.reference) && (
+            <section className="mb-6 space-y-4">
+              {item.brief && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Brief
+                  </h2>
+                  <p className="text-sm leading-relaxed text-foreground/90">
+                    {item.brief}
+                  </p>
+                </div>
+              )}
+              {item.detail && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Detail
+                  </h2>
+                  <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {item.detail}
+                  </div>
+                </div>
+              )}
+              {item.reference && (
+                <div>
+                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Reference
+                  </h2>
+                  <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                    {item.reference}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Content-type specific header */}
           <ContentTypeHeader

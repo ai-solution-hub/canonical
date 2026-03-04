@@ -27,7 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DigestView } from '@/components/digest-view';
 import { formatDate } from '@/lib/format';
 import { useReadMarks } from '@/contexts/read-marks-context';
-import { DOMAINS } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { Digest } from '@/types/digest';
 
 type DigestMode = 'preset' | 'daily' | 'custom';
@@ -38,7 +38,7 @@ const PERIOD_OPTIONS = [
   { value: '30', label: 'Last 30 days', type: 'custom' as const },
 ];
 
-const DOMAIN_OPTIONS = Object.keys(DOMAINS) as Array<keyof typeof DOMAINS>;
+// Domain options are now loaded from taxonomy context in the page component
 
 function DigestSkeleton() {
   return (
@@ -156,6 +156,7 @@ interface GenerateControlsProps {
   onCustomDomainChange: (value: string) => void;
   customKeywords: string;
   onCustomKeywordsChange: (value: string) => void;
+  domainOptions: string[];
 }
 
 function GenerateControls({
@@ -176,6 +177,7 @@ function GenerateControls({
   onCustomDomainChange,
   customKeywords,
   onCustomKeywordsChange,
+  domainOptions,
 }: GenerateControlsProps) {
   const buttonVariant = variant === 'hero' ? 'default' : 'outline';
   const buttonSize = variant === 'hero' ? 'lg' : 'default';
@@ -294,7 +296,7 @@ function GenerateControls({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All domains</SelectItem>
-                  {DOMAIN_OPTIONS.map((domain) => (
+                  {domainOptions.map((domain) => (
                     <SelectItem key={domain} value={domain}>
                       {domain}
                     </SelectItem>
@@ -401,6 +403,8 @@ function GenerateControls({
 
 export default function DigestPage() {
   const { markBulkRead, loadReadMarks } = useReadMarks();
+  const { getDomainNames } = useTaxonomy();
+  const domainOptions = getDomainNames();
 
   // Trigger lazy loading of read marks for this page
   useEffect(() => {
@@ -591,6 +595,7 @@ export default function DigestPage() {
     onCustomDomainChange: setCustomDomain,
     customKeywords,
     onCustomKeywordsChange: setCustomKeywords,
+    domainOptions,
   };
 
   // Loading state

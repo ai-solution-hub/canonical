@@ -63,8 +63,8 @@ describe('EDITABLE_FIELDS set', () => {
 });
 
 describe('constant arrays', () => {
-  it('VALID_CONTENT_TYPES should contain 15 types', () => {
-    expect(VALID_CONTENT_TYPES).toHaveLength(15);
+  it('VALID_CONTENT_TYPES should contain 23 types', () => {
+    expect(VALID_CONTENT_TYPES).toHaveLength(23);
   });
 
   it('VALID_CONTENT_TYPES should include key types', () => {
@@ -73,17 +73,28 @@ describe('constant arrays', () => {
     expect(VALID_CONTENT_TYPES).toContain('transcript');
     expect(VALID_CONTENT_TYPES).toContain('product-page');
     expect(VALID_CONTENT_TYPES).toContain('other');
+    // Knowledge Hub types
+    expect(VALID_CONTENT_TYPES).toContain('q_a_pair');
+    expect(VALID_CONTENT_TYPES).toContain('case_study');
+    expect(VALID_CONTENT_TYPES).toContain('policy');
+    expect(VALID_CONTENT_TYPES).toContain('certification');
+    expect(VALID_CONTENT_TYPES).toContain('compliance');
+    expect(VALID_CONTENT_TYPES).toContain('methodology');
+    expect(VALID_CONTENT_TYPES).toContain('capability');
+    expect(VALID_CONTENT_TYPES).toContain('product_description');
   });
 
-  it('VALID_PLATFORMS should contain 7 platforms', () => {
-    expect(VALID_PLATFORMS).toHaveLength(7);
+  it('VALID_PLATFORMS should contain 6 platforms', () => {
+    expect(VALID_PLATFORMS).toHaveLength(6);
   });
 
   it('VALID_PLATFORMS should include key platforms', () => {
-    expect(VALID_PLATFORMS).toContain('linkedin');
-    expect(VALID_PLATFORMS).toContain('youtube');
     expect(VALID_PLATFORMS).toContain('web');
     expect(VALID_PLATFORMS).toContain('email');
+    expect(VALID_PLATFORMS).toContain('manual');
+    expect(VALID_PLATFORMS).toContain('upload');
+    expect(VALID_PLATFORMS).toContain('extraction');
+    expect(VALID_PLATFORMS).toContain('other');
   });
 
   it('VALID_REVIEW_ACTIONS should contain 4 actions', () => {
