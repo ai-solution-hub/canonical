@@ -29,8 +29,6 @@ import { Badge } from '@/components/ui/badge';
 import { Thumbnail } from '@/components/thumbnail';
 import { SummaryTabs } from '@/components/summary-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
-import { TranscriptSection } from '@/components/transcript-section';
-import { HighlightsSection } from '@/components/highlights-section';
 import { RelatedItems } from '@/components/related-items';
 import { VersionHistory } from '@/components/version-history';
 import { ContentTypeHeader } from '@/components/content-type-header';
@@ -665,27 +663,6 @@ export function ItemDetailClient({
                 className="mb-6"
               />
             )}
-
-          {/* Transcript chapters (for transcripts/podcasts/videos) */}
-          <TranscriptSection
-            contentType={item.content_type as string}
-            metadata={item.metadata}
-            segments={segments}
-            itemId={item.id as string}
-            onSegmentsGenerated={(newSegments) => setSegments(newSegments)}
-          />
-
-          {/* Highlights (transcript items only) */}
-          {item.content_type === 'transcript' && (
-            <HighlightsSection
-              highlights={highlights}
-              isExtracting={isExtractingHighlights}
-              itemId={item.id as string}
-              transcriptChapters={transcriptChapters}
-              onExtract={handleExtractHighlights}
-              onStarToggle={handleHighlightStarToggle}
-            />
-          )}
 
           {/* Transcript reader (for transcripts with chapters -- Full Text tab is hidden for these) */}
           {item.content &&
