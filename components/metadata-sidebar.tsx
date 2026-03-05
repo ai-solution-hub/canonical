@@ -22,6 +22,7 @@ import {
   formatDateUK,
   formatContentType,
   formatPlatform,
+  getConfidenceDisplay,
 } from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/freshness-badge';
@@ -274,17 +275,17 @@ export function MetadataSidebar({
             </div>
           )}
 
-          {item.classification_confidence != null && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Confidence</dt>
-              <dd className="text-foreground">
-                {((item.classification_confidence as number) * 100).toFixed(
-                  0,
-                )}
-                %
-              </dd>
-            </div>
-          )}
+          {item.classification_confidence != null && (() => {
+            const confidence = getConfidenceDisplay(item.classification_confidence as number | null);
+            return (
+              <div>
+                <dt className="text-xs text-muted-foreground">Confidence</dt>
+                <dd className={`font-medium ${confidence.colourClass}`}>
+                  {confidence.label}
+                </dd>
+              </div>
+            );
+          })()}
 
           {/* Quality flags */}
           {qualityFlags.length > 0 && (

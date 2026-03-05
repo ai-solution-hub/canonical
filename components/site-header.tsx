@@ -16,7 +16,7 @@ import { ThemeSettings } from '@/components/theme-settings';
 import { NotificationBell } from '@/components/notification-bell';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
-import { cn } from '@/lib/utils';
+import { cn, getModifierKey } from '@/lib/utils';
 
 const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: null },
@@ -83,11 +83,15 @@ export function SiteHeader() {
               </Link>
             );
           })}
-          {!roleLoading && canEdit && (
+          {(roleLoading || canEdit) && (
             <Link
               href="/review"
               aria-current={pathname === '/review' || pathname?.startsWith('/review/') ? 'page' : undefined}
-              className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              className={cn(
+                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
+                roleLoading && 'pointer-events-none opacity-50',
+              )}
+              tabIndex={roleLoading ? -1 : undefined}
             >
               <ShieldCheck className="size-3.5" />
               Review
@@ -109,7 +113,7 @@ export function SiteHeader() {
             aria-label="Search knowledge base"
           />
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            <span className="text-xs">&#8984;</span>K
+            <span className="text-xs">{getModifierKey()}</span>K
           </kbd>
         </form>
 
@@ -179,7 +183,7 @@ export function SiteHeader() {
                 </Link>
               );
             })}
-            {!roleLoading && canEdit && (
+            {(roleLoading || canEdit) && (
               <Link
                 href="/review"
                 onClick={() => setMobileMenuOpen(false)}
@@ -189,7 +193,9 @@ export function SiteHeader() {
                   pathname === '/review' || pathname?.startsWith('/review/')
                     ? 'bg-accent text-foreground'
                     : 'text-muted-foreground',
+                  roleLoading && 'pointer-events-none opacity-50',
                 )}
+                tabIndex={roleLoading ? -1 : undefined}
               >
                 <ShieldCheck className="size-4" />
                 Review

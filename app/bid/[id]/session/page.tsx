@@ -19,6 +19,7 @@ import { BidContextProvider } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
+import { CopilotKitProvider } from '@/components/copilotkit-provider';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useDraftStream } from '@/hooks/use-draft-stream';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
@@ -605,13 +606,15 @@ export default function BidSessionPage({
   );
 
   return (
-    <BidContextProvider bidId={id}>
-      <BidCopilotActions />
-      <BidCopilotSuggestions />
-      <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
-        {sessionContent}
-      </BidCopilotSidebar>
-    </BidContextProvider>
+    <CopilotKitProvider>
+      <BidContextProvider bidId={id}>
+        <BidCopilotActions />
+        <BidCopilotSuggestions />
+        <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
+          {sessionContent}
+        </BidCopilotSidebar>
+      </BidContextProvider>
+    </CopilotKitProvider>
   );
 }
 

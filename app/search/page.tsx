@@ -22,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSearch } from '@/hooks/use-search';
 import { useReadMarks } from '@/contexts/read-marks-context';
-import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
+import { getDisplayTitle, formatContentType, formatPlatform, formatSmartDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { SearchResult } from '@/types/content';
 
@@ -171,7 +171,7 @@ function HighlightedSearchCard({
         <div className="absolute right-1 top-1 flex items-center gap-1">
           {isRead === false && (
             <span
-              className="size-2 rounded-full bg-primary shadow-sm"
+              className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
               aria-label="Unread"
             />
           )}
@@ -218,7 +218,7 @@ function HighlightedSearchCard({
           )}
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <ContentTypeIcon contentType={item.content_type} size="size-3" />
-            {[formatContentType(item.content_type), item.platform]
+            {[formatContentType(item.content_type), formatPlatform(item.platform)]
               .filter(Boolean)
               .join(' \u00B7 ')}
           </span>
@@ -226,7 +226,7 @@ function HighlightedSearchCard({
             className="text-xs text-muted-foreground"
             dateTime={item.captured_date ?? undefined}
           >
-            {formatDate(item.captured_date)}
+            {formatSmartDate(item.captured_date)}
           </time>
         </div>
       </div>
@@ -325,7 +325,7 @@ function HighlightedList({
               className="shrink-0 text-xs text-muted-foreground"
               dateTime={item.captured_date ?? undefined}
             >
-              {formatDate(item.captured_date)}
+              {formatSmartDate(item.captured_date)}
             </time>
           </Link>
         );

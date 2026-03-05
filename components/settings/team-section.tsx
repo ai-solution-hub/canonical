@@ -72,6 +72,12 @@ function formatDate(dateString: string | null): string {
   });
 }
 
+function getDisplayFallback(user: TeamUser): string {
+  if (user.display_name?.trim()) return user.display_name.trim();
+  const atIndex = user.email.indexOf('@');
+  return atIndex > 0 ? user.email.slice(0, atIndex) : user.email;
+}
+
 // ---------------------------------------------------------------------------
 // Invite User Dialog
 // ---------------------------------------------------------------------------
@@ -326,11 +332,11 @@ export function TeamSection() {
                   {/* Name */}
                   <div className="flex items-center gap-2">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium uppercase text-muted-foreground">
-                      {(user.display_name ?? user.email)?.[0] ?? '?'}
+                      {getDisplayFallback(user)[0]?.toUpperCase() ?? '?'}
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">
-                        {user.display_name ?? 'No name'}
+                        {getDisplayFallback(user)}
                         {isSelf && (
                           <span className="ml-1.5 text-xs text-muted-foreground">
                             (you)

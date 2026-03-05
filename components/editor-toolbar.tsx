@@ -22,7 +22,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { getModifierKey } from '@/lib/utils';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -37,25 +38,26 @@ interface ToolbarAction {
   disabled?: (editor: Editor) => boolean;
 }
 
-const FORMATTING_ACTIONS: ToolbarAction[] = [
+function getFormattingActions(mod: string): ToolbarAction[] {
+  return [
   {
     icon: Bold,
     label: 'Bold',
-    shortcut: 'Ctrl+B',
+    shortcut: `${mod}+B`,
     action: (e) => e.chain().focus().toggleBold().run(),
     isActive: (e) => e.isActive('bold'),
   },
   {
     icon: Italic,
     label: 'Italic',
-    shortcut: 'Ctrl+I',
+    shortcut: `${mod}+I`,
     action: (e) => e.chain().focus().toggleItalic().run(),
     isActive: (e) => e.isActive('italic'),
   },
   {
     icon: Underline,
     label: 'Underline',
-    shortcut: 'Ctrl+U',
+    shortcut: `${mod}+U`,
     action: (e) => e.chain().focus().toggleUnderline().run(),
     isActive: (e) => e.isActive('underline'),
   },
@@ -65,7 +67,8 @@ const FORMATTING_ACTIONS: ToolbarAction[] = [
     action: (e) => e.chain().focus().toggleStrike().run(),
     isActive: (e) => e.isActive('strike'),
   },
-];
+  ];
+}
 
 const HEADING_ACTIONS: ToolbarAction[] = [
   {
@@ -103,22 +106,24 @@ const LIST_ACTIONS: ToolbarAction[] = [
   },
 ];
 
-const HISTORY_ACTIONS: ToolbarAction[] = [
-  {
-    icon: Undo2,
-    label: 'Undo',
-    shortcut: 'Ctrl+Z',
-    action: (e) => e.chain().focus().undo().run(),
-    disabled: (e) => !e.can().undo(),
-  },
-  {
-    icon: Redo2,
-    label: 'Redo',
-    shortcut: 'Ctrl+Shift+Z',
-    action: (e) => e.chain().focus().redo().run(),
-    disabled: (e) => !e.can().redo(),
-  },
-];
+function getHistoryActions(mod: string): ToolbarAction[] {
+  return [
+    {
+      icon: Undo2,
+      label: 'Undo',
+      shortcut: `${mod}+Z`,
+      action: (e) => e.chain().focus().undo().run(),
+      disabled: (e) => !e.can().undo(),
+    },
+    {
+      icon: Redo2,
+      label: 'Redo',
+      shortcut: `${mod}+Shift+Z`,
+      action: (e) => e.chain().focus().redo().run(),
+      disabled: (e) => !e.can().redo(),
+    },
+  ];
+}
 
 function ToolbarButton({
   editor,
@@ -159,6 +164,9 @@ function ToolbarButton({
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
+  const mod = getModifierKey();
+  const FORMATTING_ACTIONS = useMemo(() => getFormattingActions(mod), [mod]);
+  const HISTORY_ACTIONS = useMemo(() => getHistoryActions(mod), [mod]);
 
   const handleLinkToggle = useCallback(() => {
     if (!editor) return;

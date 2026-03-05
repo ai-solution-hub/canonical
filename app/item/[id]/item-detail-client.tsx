@@ -278,6 +278,31 @@ export function ItemDetailClient({
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveAnnouncement, setSaveAnnouncement] = useState('');
 
+  // WP13: Back button context label
+  const [backLabel, setBackLabel] = useState('Back');
+  useEffect(() => {
+    const getBackLabel = (): string => {
+      try {
+        const referrer = document.referrer;
+        if (!referrer) return 'Back';
+        const ref = new URL(referrer);
+        if (ref.origin !== window.location.origin) return 'Back';
+        const path = ref.pathname;
+        if (path.startsWith('/browse')) return 'Back to Browse';
+        if (path.startsWith('/search')) return 'Back to Search';
+        if (path.startsWith('/review')) return 'Back to Review';
+        if (path.startsWith('/bid/')) return 'Back to Bid';
+        if (path.startsWith('/bid')) return 'Back to Bids';
+        if (path.startsWith('/projects')) return 'Back to Projects';
+        if (path === '/') return 'Back to Home';
+        return 'Back';
+      } catch {
+        return 'Back';
+      }
+    };
+    setBackLabel(getBackLabel());
+  }, []);
+
   // Content body editing state
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [editContentHtml, setEditContentHtml] = useState('');
@@ -639,7 +664,7 @@ export function ItemDetailClient({
           className="-ml-2 gap-1.5 text-muted-foreground"
         >
           <ArrowLeft className="size-4" />
-          Back
+          {backLabel}
         </Button>
         <div className="flex items-center gap-1">
           <PrioritySelector
@@ -655,6 +680,32 @@ export function ItemDetailClient({
           />
         </div>
       </div>
+
+      {/* WP14: Breadcrumb navigation */}
+      <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
+        <ol className="flex items-center gap-1">
+          <li>
+            <Link href="/browse" className="hover:text-foreground transition-colors">Browse</Link>
+          </li>
+          {item.primary_domain && (
+            <>
+              <li aria-hidden="true">&rsaquo;</li>
+              <li>
+                <Link
+                  href={`/browse?domain=${encodeURIComponent(item.primary_domain as string)}`}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {item.primary_domain}
+                </Link>
+              </li>
+            </>
+          )}
+          <li aria-hidden="true">&rsaquo;</li>
+          <li className="truncate text-foreground" aria-current="page">
+            {title.length > 50 ? title.slice(0, 50) + '...' : title}
+          </li>
+        </ol>
+      </nav>
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}

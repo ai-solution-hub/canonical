@@ -5,8 +5,8 @@ import { Check } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { DomainBadge } from '@/components/domain-badge';
-import { getDisplayTitle } from '@/lib/format';
-import { formatDateUK } from '@/lib/format';
+import { ContentRenderer } from '@/components/content-renderer';
+import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/format';
 import type { ReviewQueueItem } from '@/types/review';
 
 interface ReviewCardProps {
@@ -16,30 +16,14 @@ interface ReviewCardProps {
   className?: string;
 }
 
-/** Confidence label and colour based on classification score */
-function getConfidenceDisplay(confidence: number | null): {
-  label: string;
-  colourClass: string;
-} {
-  if (confidence === null || confidence === undefined) {
-    return { label: 'Unknown', colourClass: 'text-muted-foreground' };
-  }
-
-  const percentage = Math.round(confidence * 100);
-
-  if (confidence >= 0.8) {
-    return { label: `High ${percentage}%`, colourClass: 'text-[var(--success,hsl(142_71%_45%))]' };
-  }
-  if (confidence >= 0.5) {
-    return { label: `Medium ${percentage}%`, colourClass: 'text-[var(--warning,hsl(38_92%_50%))]' };
-  }
-  return { label: `Low ${percentage}%`, colourClass: 'text-destructive' };
+/** Pre-process Q&A prefixes to markdown bold before rendering */
+function formatQaPrefixes(content: string): string {
+  return content.replace(
+    /^(Q:|Standard:|Advanced:|A:)\s*/gm,
+    '**$1** ',
+  );
 }
 
-/**
- * Renders the content body with Q&A-specific formatting.
- * Bolds Q:, Standard:, and Advanced: prefixes.
- */
 function ContentBody({ content }: { content: string | null }) {
   if (!content) {
     return (
@@ -47,31 +31,11 @@ function ContentBody({ content }: { content: string | null }) {
     );
   }
 
-  // Parse Q&A structure: bold the prefixes
-  const lines = content.split('\n');
-  const formattedLines = lines.map((line, i) => {
-    const trimmed = line.trimStart();
-
-    // Match Q:, Standard:, Advanced:, A: prefixes
-    const prefixMatch = trimmed.match(/^(Q:|Standard:|Advanced:|A:)\s*/);
-    if (prefixMatch) {
-      const prefix = prefixMatch[1];
-      const rest = trimmed.slice(prefixMatch[0].length);
-      return (
-        <span key={i}>
-          <strong className="font-semibold text-foreground">{prefix}</strong>{' '}
-          {rest}
-          {'\n'}
-        </span>
-      );
-    }
-
-    return <span key={i}>{line}{'\n'}</span>;
-  });
+  const processed = formatQaPrefixes(content);
 
   return (
-    <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
-      {formattedLines}
+    <div className="text-sm leading-relaxed">
+      <ContentRenderer content={processed} className="text-sm" />
     </div>
   );
 }

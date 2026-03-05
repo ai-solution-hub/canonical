@@ -2,8 +2,8 @@
 
 import { CopilotKit } from '@copilotkit/react-core';
 import '@copilotkit/react-ui/styles.css';
-import { ReactNode, Component } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { ReactNode, Component, useState, useEffect, useRef } from 'react';
+import { AlertTriangle, X } from 'lucide-react';
 
 // ────────────────────────────────────────────
 // Error Boundary
@@ -66,6 +66,74 @@ class CopilotKitErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
 }
 
 // ────────────────────────────────────────────
+// Unavailable Banner
+// ────────────────────────────────────────────
+
+function UnavailableBanner() {
+  const [dismissed, setDismissed] = useState(false);
+
+  if (dismissed) return null;
+
+  return (
+    <div
+      role="status"
+      className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+        <span>AI assistant unavailable — bid workspace is fully functional without it</span>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          className="ml-auto rounded p-0.5 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:hover:bg-amber-900"
+          aria-label="Dismiss"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────
+// Connection Health Check Hook
+// ────────────────────────────────────────────
+
+type HealthStatus = 'checking' | 'available' | 'unavailable';
+
+function useCopilotHealthCheck(): HealthStatus {
+  const [status, setStatus] = useState<HealthStatus>('checking');
+  const checkedRef = useRef(false);
+
+  useEffect(() => {
+    if (checkedRef.current) return;
+    checkedRef.current = true;
+
+    let cancelled = false;
+
+    fetch('/api/copilotkit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+      .then((res) => {
+        if (cancelled) return;
+        // Any 5xx means CopilotKit is down.
+        // 4xx responses (e.g. 400 bad request) are expected for an empty body
+        // and indicate the endpoint IS reachable and functioning.
+        setStatus(res.status >= 500 ? 'unavailable' : 'available');
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('unavailable');
+      });
+
+    return () => { cancelled = true; };
+  }, []);
+
+  return status;
+}
+
+// ────────────────────────────────────────────
 // Provider
 // ────────────────────────────────────────────
 
@@ -74,12 +142,32 @@ interface CopilotKitProviderProps {
 }
 
 /**
- * CopilotKit provider scoped to the bid workspace.
+ * CopilotKit provider scoped to the bid session page.
  *
- * Wraps children with the CopilotKit context and an error boundary.
- * The runtimeUrl points to the Next.js API route at /api/copilotkit.
+ * Performs a lightweight health check against /api/copilotkit before
+ * mounting the CopilotKit component. If the endpoint is unreachable
+ * or returns a server error, renders children directly with a
+ * dismissible warning banner instead of entering an infinite retry loop.
  */
 export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
+  const health = useCopilotHealthCheck();
+
+  // While checking, render children without CopilotKit to avoid flash
+  if (health === 'checking') {
+    return <>{children}</>;
+  }
+
+  // Endpoint unreachable — render children with warning banner
+  if (health === 'unavailable') {
+    return (
+      <>
+        <UnavailableBanner />
+        {children}
+      </>
+    );
+  }
+
+  // Endpoint available — wrap with error boundary + CopilotKit
   return (
     <CopilotKitErrorBoundary>
       <CopilotKit runtimeUrl="/api/copilotkit">

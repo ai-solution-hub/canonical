@@ -43,6 +43,12 @@ export function useSearch() {
 
         if (!response.ok) {
           const data = await response.json();
+          const code = data.code;
+          if (code === 'EMBEDDING_FAILED') {
+            throw new Error(
+              'Search is temporarily unavailable. The embedding service could not be reached. Please try again shortly.',
+            );
+          }
           throw new Error(data.error || 'Search failed');
         }
 

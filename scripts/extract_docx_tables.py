@@ -319,6 +319,11 @@ def extract_qa_from_docx(file_path: str) -> list[dict]:
                     # Extract the text content of this heading
                     texts = element.itertext()
                     heading_text = "".join(texts).strip()
+                    # Clean up duplicated text from merged/complex formatting runs.
+                    # Take only the first line if the heading spans multiple lines
+                    # (subsequent lines are often formatting artefacts).
+                    if "\n" in heading_text:
+                        heading_text = heading_text.split("\n")[0].strip()
                     if heading_text:
                         current_section = heading_text
 

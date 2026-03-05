@@ -7,7 +7,7 @@ import { SimilarityBadge } from '@/components/similarity-badge';
 import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
 import { VerificationBadge } from '@/components/verification-badge';
-import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
+import { getDisplayTitle, formatSmartDate, formatContentType, formatPlatform } from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { FreshnessBadge } from '@/components/freshness-badge';
@@ -61,7 +61,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           <div className="absolute right-1 top-1 flex items-center gap-1">
             {isRead === false && (
               <span
-                className="size-2 rounded-full bg-primary shadow-sm"
+                className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
                 aria-label="Unread"
               />
             )}
@@ -87,7 +87,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           <div className="flex items-center justify-end gap-1">
             {isRead === false && (
               <span
-                className="size-2 rounded-full bg-primary shadow-sm"
+                className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
                 aria-label="Unread"
               />
             )}
@@ -130,7 +130,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           )}
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <ContentTypeIcon contentType={item.content_type} size="size-3" />
-            {[formatContentType(item.content_type), item.platform]
+            {[formatContentType(item.content_type), formatPlatform(item.platform)]
               .filter(Boolean)
               .join(' \u00B7 ')}
           </span>
@@ -139,7 +139,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
               className="text-xs text-muted-foreground"
               dateTime={item.captured_date ?? undefined}
             >
-              {formatDate(item.captured_date)}
+              {formatSmartDate(item.captured_date)}
             </time>
             {item.freshness && item.freshness !== 'fresh' && (
               <FreshnessBadge freshness={item.freshness} compact />

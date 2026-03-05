@@ -22,6 +22,7 @@ export interface DashboardData {
   };
   unread_notification_count: number;
   recent_activity: ActivityItem[];
+  user_role: string;
   errors: string[];
 }
 
@@ -81,6 +82,7 @@ export async function fetchDashboardData(
   supabase: SupabaseClient<Database>,
   userId: string,
   isAdmin: boolean,
+  role?: string,
 ): Promise<DashboardData> {
   const errors: string[] = [];
 
@@ -131,6 +133,15 @@ export async function fetchDashboardData(
       )
       .order('created_at', { ascending: false })
       .limit(15),
+
+    // 7: Quality flags for admin activity feed
+    isAdmin
+      ? supabase
+          .from('ingestion_quality_log')
+          .select('id, content_item_id, flag_type, severity, created_at')
+          .order('created_at', { ascending: false })
+          .limit(15)
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   // --- Extract governance review count ---
@@ -293,6 +304,38 @@ export async function fetchDashboardData(
     errors.push('recent_activity query failed');
   }
 
+  // --- Merge quality flags into activity for admins (result index 7) ---
+  if (isAdmin && results[7].status === 'fulfilled') {
+    const r7 = results[7].value as {
+      data: Array<{
+        id: string;
+        content_item_id: string;
+        flag_type: string;
+        severity: string;
+        created_at: string;
+      }> | null;
+      error: unknown;
+    };
+    if (r7.data) {
+      const qualityEvents: ActivityItem[] = r7.data.map((entry) => ({
+        id: entry.id,
+        type: 'quality_flag',
+        entity_type: 'content_item',
+        entity_id: entry.content_item_id,
+        summary: `${entry.severity}: ${entry.flag_type.replace(/_/g, ' ')}`,
+        user_id: null,
+        created_at: entry.created_at,
+      }));
+      recent_activity = [...recent_activity, ...qualityEvents]
+        .sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 10);
+    }
+  }
+
   return {
     needs_attention: {
       governance_review_count,
@@ -305,6 +348,7 @@ export async function fetchDashboardData(
     freshness_summary,
     unread_notification_count,
     recent_activity,
+    user_role: role ?? 'viewer',
     errors,
   };
 }

@@ -464,7 +464,7 @@ export function ReviewContent() {
       <div className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Content Review</h1>
+            <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
           </div>
           <ReviewFilters
             filters={filters}
@@ -523,7 +523,7 @@ export function ReviewContent() {
     return (
       <div className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-foreground">Content Review</h1>
+          <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
           <ReviewFilters
             filters={filters}
             onFiltersChange={handleFiltersChange}
@@ -557,7 +557,7 @@ export function ReviewContent() {
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Content Review</h1>
+          <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
         </div>
         <ReviewFilters
           filters={filters}
@@ -648,7 +648,7 @@ export function ReviewContent() {
           <DialogHeader>
             <DialogTitle>Keyboard shortcuts</DialogTitle>
             <DialogDescription>
-              Available shortcuts for the Content Review page
+              Available shortcuts for the Review Queue page
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">

@@ -7,6 +7,7 @@ interface NeedsAttentionSectionProps {
   quality_flag_count: number | null;
   stale_content_count: number | null;
   expired_content_count: number | null;
+  userRole?: string;
 }
 
 export function NeedsAttentionSection({
@@ -15,13 +16,17 @@ export function NeedsAttentionSection({
   quality_flag_count,
   stale_content_count,
   expired_content_count,
+  userRole = 'viewer',
 }: NeedsAttentionSectionProps) {
-  const totalAttention =
-    (governance_review_count ?? 0) +
-    (unverified_count ?? 0) +
-    (quality_flag_count ?? 0) +
-    (stale_content_count ?? 0) +
-    (expired_content_count ?? 0);
+  const isViewer = userRole === 'viewer';
+
+  const totalAttention = isViewer
+    ? (stale_content_count ?? 0) + (expired_content_count ?? 0)
+    : (governance_review_count ?? 0) +
+      (unverified_count ?? 0) +
+      (quality_flag_count ?? 0) +
+      (stale_content_count ?? 0) +
+      (expired_content_count ?? 0);
 
   return (
     <section aria-label="Items needing attention">
@@ -45,20 +50,24 @@ export function NeedsAttentionSection({
         </div>
       ) : (
         <div className="space-y-2">
-          <AttentionCard
-            icon={ShieldAlert}
-            count={governance_review_count}
-            label={`governance ${(governance_review_count ?? 0) === 1 ? 'review' : 'reviews'} pending`}
-            href="/review?status=all"
-            actionLabel="Review"
-          />
-          <AttentionCard
-            icon={Eye}
-            count={unverified_count}
-            label={`unverified ${(unverified_count ?? 0) === 1 ? 'item' : 'items'}`}
-            href="/review"
-            actionLabel="Review"
-          />
+          {!isViewer && (
+            <AttentionCard
+              icon={ShieldAlert}
+              count={governance_review_count}
+              label={`governance ${(governance_review_count ?? 0) === 1 ? 'review' : 'reviews'} pending`}
+              href="/review?status=all"
+              actionLabel="Review"
+            />
+          )}
+          {!isViewer && (
+            <AttentionCard
+              icon={Eye}
+              count={unverified_count}
+              label={`unverified ${(unverified_count ?? 0) === 1 ? 'item' : 'items'}`}
+              href="/review"
+              actionLabel="Review"
+            />
+          )}
           <AttentionCard
             icon={Clock}
             count={
@@ -70,13 +79,15 @@ export function NeedsAttentionSection({
             href="/browse?freshness=stale"
             actionLabel="Browse stale"
           />
-          <AttentionCard
-            icon={Flag}
-            count={quality_flag_count}
-            label={`quality ${(quality_flag_count ?? 0) === 1 ? 'flag' : 'flags'} unresolved`}
-            href="/browse?quality_issues=true"
-            actionLabel="Browse flagged"
-          />
+          {!isViewer && (
+            <AttentionCard
+              icon={Flag}
+              count={quality_flag_count}
+              label={`quality ${(quality_flag_count ?? 0) === 1 ? 'flag' : 'flags'} unresolved`}
+              href="/browse?quality_issues=true"
+              actionLabel="Browse flagged"
+            />
+          )}
         </div>
       )}
     </section>

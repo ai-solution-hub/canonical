@@ -1,4 +1,4 @@
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { differenceInDays, format, formatDistanceToNow, isToday, isYesterday, parseISO } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 
 /** Format a date string as DD MMM YYYY (e.g. "15 Jan 2026") */
@@ -65,10 +65,61 @@ export function formatSecondsToTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-/** Format platform for display */
+const PLATFORM_DISPLAY_NAMES: Record<string, string> = {
+  extraction: 'Imported',
+  manual: 'Manual entry',
+  web: 'Web article',
+  upload: 'Uploaded',
+  email: 'Email',
+  other: 'Other',
+};
+
+/** Format platform for display with human-friendly labels */
 export function formatPlatform(platform: string | null): string {
   if (!platform) return '';
-  return platform.charAt(0).toUpperCase() + platform.slice(1);
+  return PLATFORM_DISPLAY_NAMES[platform]
+    ?? platform.charAt(0).toUpperCase() + platform.slice(1);
+}
+
+/** Smart date: "Today", "Yesterday", "3 days ago" for <7 days, else "15 Jan 2026" */
+export function formatSmartDate(dateString: string | null): string {
+  if (!dateString) return '';
+  try {
+    const date = parseISO(dateString);
+    if (isToday(date)) return 'Today';
+    if (isYesterday(date)) return 'Yesterday';
+    const diff = differenceInDays(new Date(), date);
+    if (diff < 7 && diff >= 0) {
+      return formatDistanceToNow(date, { addSuffix: true, locale: enGB });
+    }
+    return format(date, 'd MMM yyyy', { locale: enGB });
+  } catch {
+    return '';
+  }
+}
+
+/** Confidence label and colour based on classification score */
+export function getConfidenceDisplay(confidence: number | null): {
+  label: string;
+  colourClass: string;
+} {
+  if (confidence === null || confidence === undefined) {
+    return { label: 'Unknown', colourClass: 'text-muted-foreground' };
+  }
+  const percentage = Math.round(confidence * 100);
+  if (confidence >= 0.8) {
+    return {
+      label: `High (${percentage}%)`,
+      colourClass: 'text-[var(--success,hsl(142_71%_45%))]',
+    };
+  }
+  if (confidence >= 0.5) {
+    return {
+      label: `Medium (${percentage}%)`,
+      colourClass: 'text-[var(--warning,hsl(38_92%_50%))]',
+    };
+  }
+  return { label: `Low (${percentage}%)`, colourClass: 'text-destructive' };
 }
 
 /**

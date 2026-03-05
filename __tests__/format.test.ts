@@ -7,6 +7,8 @@ import {
   formatSimilarity,
   formatSecondsToTimestamp,
   formatPlatform,
+  formatSmartDate,
+  getConfidenceDisplay,
   formatContentType,
   formatDateShort,
   formatTimeShort,
@@ -164,10 +166,17 @@ describe('formatSecondsToTimestamp', () => {
 });
 
 describe('formatPlatform', () => {
-  it('should capitalise the first letter', () => {
-    expect(formatPlatform('web')).toBe('Web');
+  it('should return human-friendly labels for known platforms', () => {
+    expect(formatPlatform('web')).toBe('Web article');
     expect(formatPlatform('email')).toBe('Email');
-    expect(formatPlatform('manual')).toBe('Manual');
+    expect(formatPlatform('manual')).toBe('Manual entry');
+    expect(formatPlatform('extraction')).toBe('Imported');
+    expect(formatPlatform('upload')).toBe('Uploaded');
+    expect(formatPlatform('other')).toBe('Other');
+  });
+
+  it('should capitalise unknown platforms as fallback', () => {
+    expect(formatPlatform('custom')).toBe('Custom');
   });
 
   it('should return empty string for null', () => {
@@ -269,5 +278,55 @@ describe('formatDuration', () => {
 
   it('should format large durations', () => {
     expect(formatDuration(7200)).toBe('2h 0m');
+  });
+});
+
+describe('formatSmartDate', () => {
+  it('should return "Today" for today', () => {
+    const today = new Date().toISOString();
+    expect(formatSmartDate(today)).toBe('Today');
+  });
+
+  it('should return "Yesterday" for yesterday', () => {
+    const yesterday = new Date(Date.now() - 86400000).toISOString();
+    expect(formatSmartDate(yesterday)).toBe('Yesterday');
+  });
+
+  it('should return absolute date for >7 days', () => {
+    expect(formatSmartDate('2025-01-15T00:00:00Z')).toBe('15 Jan 2025');
+  });
+
+  it('should return empty string for null', () => {
+    expect(formatSmartDate(null)).toBe('');
+  });
+
+  it('should return empty string for invalid date', () => {
+    expect(formatSmartDate('not-a-date')).toBe('');
+  });
+});
+
+describe('getConfidenceDisplay', () => {
+  it('should return High for >= 0.8', () => {
+    const result = getConfidenceDisplay(0.82);
+    expect(result.label).toBe('High (82%)');
+    expect(result.colourClass).toContain('success');
+  });
+
+  it('should return Medium for >= 0.5', () => {
+    const result = getConfidenceDisplay(0.55);
+    expect(result.label).toBe('Medium (55%)');
+    expect(result.colourClass).toContain('warning');
+  });
+
+  it('should return Low for < 0.5', () => {
+    const result = getConfidenceDisplay(0.3);
+    expect(result.label).toBe('Low (30%)');
+    expect(result.colourClass).toContain('destructive');
+  });
+
+  it('should return Unknown for null', () => {
+    const result = getConfidenceDisplay(null);
+    expect(result.label).toBe('Unknown');
+    expect(result.colourClass).toContain('muted');
   });
 });

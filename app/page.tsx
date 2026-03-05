@@ -26,8 +26,9 @@ async function getDashboardData() {
     .eq('user_id', user.id)
     .single();
   const isAdmin = roleData?.role === 'admin';
+  const role = roleData?.role ?? 'viewer';
 
-  return fetchDashboardData(supabase, user.id, isAdmin);
+  return fetchDashboardData(supabase, user.id, isAdmin, role);
 }
 
 // ---------------------------------------------------------------------------
@@ -100,7 +101,7 @@ async function DashboardContent() {
     <>
       {/* Two-column layout: Needs Attention + Active Bids */}
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <NeedsAttentionSection {...data.needs_attention} />
+        <NeedsAttentionSection {...data.needs_attention} userRole={data.user_role} />
         <ActiveBidsSection bids={data.active_bids} />
       </div>
 
