@@ -205,6 +205,27 @@ export default function TemplateCompletionPage() {
     await loadTemplateDetail(selectedTemplate.id);
   }, [bidId, selectedTemplate, loadTemplateDetail]);
 
+  const handleBulkReject = useCallback(async (fieldIds: string[]) => {
+    if (!selectedTemplate || fieldIds.length === 0) return;
+
+    const mappings = fieldIds.map((id) => ({
+      field_id: id,
+      question_id: null,
+      mapping_status: 'rejected' as const,
+    }));
+
+    const res = await fetch(
+      `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mappings }),
+      },
+    );
+    if (!res.ok) throw new Error('Bulk reject failed');
+    await loadTemplateDetail(selectedTemplate.id);
+  }, [bidId, selectedTemplate, loadTemplateDetail]);
+
   const handleFill = useCallback(async () => {
     if (!selectedTemplate) return;
     setStep('fill');
@@ -358,6 +379,7 @@ export default function TemplateCompletionPage() {
           onAutoMap={handleAutoMap}
           onFill={handleFill}
           onBulkAccept={handleBulkAccept}
+          onBulkReject={handleBulkReject}
         />
       )}
 
