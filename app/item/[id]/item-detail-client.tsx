@@ -705,7 +705,7 @@ export function ItemDetailClient({
                 </h1>
                 {saveSuccess === 'suggested_title' ? (
                   <Check className="mt-1 size-4 shrink-0 text-[var(--success)]" />
-                ) : (
+                ) : canEdit ? (
                   <button
                     onClick={() => startEdit('suggested_title')}
                     className="mt-1 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
@@ -713,7 +713,7 @@ export function ItemDetailClient({
                   >
                     <Pencil className="size-3.5 text-muted-foreground" />
                   </button>
-                )}
+                ) : null}
               </>
             )}
           </div>
@@ -738,36 +738,44 @@ export function ItemDetailClient({
                     >
                       {keyword}
                     </Link>
-                    <button
-                      onClick={() => handleKeywordRemove(keyword)}
-                      className="rounded-full p-0.5 opacity-100 transition-opacity hover:bg-foreground/10 sm:opacity-0 sm:group-hover/kw:opacity-100 sm:group-focus-within/kw:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
-                      aria-label={`Remove ${keyword}`}
-                    >
-                      <X className="size-3" />
-                    </button>
+                    {canEdit && (
+                      <button
+                        onClick={() => handleKeywordRemove(keyword)}
+                        className="rounded-full p-0.5 opacity-100 transition-opacity hover:bg-foreground/10 sm:opacity-0 sm:group-hover/kw:opacity-100 sm:group-focus-within/kw:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={`Remove ${keyword}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
                   </Badge>
                 ))}
-                <Input
-                  placeholder="Add keyword..."
-                  onKeyDown={handleKeywordAdd}
-                  className="h-6 w-28 border-dashed text-xs"
-                />
+                {canEdit && (
+                  <Input
+                    placeholder="Add keyword..."
+                    onKeyDown={handleKeywordAdd}
+                    className="h-6 w-28 border-dashed text-xs"
+                  />
+                )}
               </div>
             </section>
           )}
 
-          {/* Projects */}
-          <ProjectSelector itemId={item.id} className="mb-6" />
+          {/* Projects (editor+ only) */}
+          {canEdit && (
+            <ProjectSelector itemId={item.id} className="mb-6" />
+          )}
 
-          {/* User tags */}
-          <UserTagInput
-            itemId={item.id}
-            tags={(item.user_tags as string[]) ?? []}
-            onTagsChanged={(newTags) =>
-              setItem((prev) => ({ ...prev, user_tags: newTags }))
-            }
-            className="mb-6"
-          />
+          {/* User tags (editor+ only) */}
+          {canEdit && (
+            <UserTagInput
+              itemId={item.id}
+              tags={(item.user_tags as string[]) ?? []}
+              onTagsChanged={(newTags) =>
+                setItem((prev) => ({ ...prev, user_tags: newTags }))
+              }
+              className="mb-6"
+            />
+          )}
 
           {/* Verification status + source provenance */}
           {(item.verified_at || item.source_document) && (
