@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { DomainBadge } from '@/components/domain-badge';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { Badge } from '@/components/ui/badge';
-import { getDomainColourKey } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { formatContentType } from '@/lib/format';
 import type { DigestDomainSummary } from '@/types/digest';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ export function DigestDomainSection({
   domainSummary,
   className,
 }: DigestDomainSectionProps) {
+  const { getDomainColourKey } = useTaxonomy();
   const colourKey = getDomainColourKey(domainSummary.domain);
 
   return (

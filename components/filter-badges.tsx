@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
-import { formatSubtopic } from '@/lib/taxonomy';
+import { formatSubtopic } from '@/lib/taxonomy-format';
 import { formatContentType, formatPlatform, formatDateUK } from '@/lib/format';
 
 interface FilterBadgeItem {

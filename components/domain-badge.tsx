@@ -1,4 +1,6 @@
-import { getDomainColourKey, formatDomainName } from '@/lib/taxonomy';
+'use client';
+
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 interface DomainBadgeProps {
   domain: string;
@@ -6,6 +8,7 @@ interface DomainBadgeProps {
 }
 
 export function DomainBadge({ domain, className = '' }: DomainBadgeProps) {
+  const { getDomainColourKey, formatDomainName } = useTaxonomy();
   const colourKey = getDomainColourKey(domain);
 
   return (

@@ -124,12 +124,20 @@ export async function DELETE(
     }
 
     // Soft delete (archive)
-    const { error } = await supabase
+    const { data: archived, error } = await supabase
       .from('projects')
       .update({ is_archived: true, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !archived) {
+      if (!archived && !error) {
+        return NextResponse.json(
+          { error: 'Project not found' },
+          { status: 404 },
+        );
+      }
       console.error('Failed to archive project:', error);
       return NextResponse.json(
         { error: 'Failed to archive project' },

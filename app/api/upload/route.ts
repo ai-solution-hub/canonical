@@ -264,12 +264,14 @@ export async function POST(request: NextRequest) {
 
     updateData.updated_by = user.id;
 
-    const { error: updateError } = await supabase
+    const { data: updatedItem, error: updateError } = await supabase
       .from('content_items')
       .update(updateData)
-      .eq('id', itemId);
+      .eq('id', itemId)
+      .select('id')
+      .single();
 
-    if (updateError) {
+    if (updateError || !updatedItem) {
       console.error('Failed to update content item:', updateError);
       // The item and file exist, just the update failed
       return NextResponse.json(

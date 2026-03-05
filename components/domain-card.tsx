@@ -1,5 +1,7 @@
+'use client';
+
 import Link from 'next/link';
-import { getDomainColourKey, formatSubtopic, formatDomainName } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 interface DomainCardProps {
   domain: string;
@@ -14,6 +16,7 @@ export function DomainCard({
   topSubtopics,
   unreadCount,
 }: DomainCardProps) {
+  const { getDomainColourKey, formatSubtopic, formatDomainName } = useTaxonomy();
   const colourKey = getDomainColourKey(domain);
 
   return (

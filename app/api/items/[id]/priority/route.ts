@@ -38,12 +38,20 @@ export async function PATCH(
       );
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('content_items')
       .update({ priority, updated_by: user.id })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id')
+      .single();
 
-    if (error) {
+    if (error || !data) {
+      if (!data && !error) {
+        return NextResponse.json(
+          { error: 'Item not found' },
+          { status: 404 },
+        );
+      }
       console.error('Failed to update priority:', error);
       return NextResponse.json(
         { error: 'Failed to update priority' },

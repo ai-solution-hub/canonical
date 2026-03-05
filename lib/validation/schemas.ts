@@ -391,6 +391,36 @@ export const KBIntegrationBodySchema = z.object({
   })),
 });
 
+/** Runtime validation for projects.domain_metadata when type='bid' */
+export const BidMetadataSchema = z.object({
+  buyer: z.string(),
+  status: z.enum([
+    'draft', 'questions_extracted', 'matching', 'drafting',
+    'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
+  ]),
+  deadline: z.string().datetime({ offset: true }).nullable(),
+  reference_number: z.string().max(100).nullable(),
+  estimated_value: z.string().max(100).nullable(),
+  tender_source: z.enum(['upload', 'manual']).nullable(),
+  tender_document_ids: z.array(z.string()),
+  submission_date: z.string().datetime({ offset: true }).nullable(),
+  outcome: z.enum(['won', 'lost', 'withdrawn']).nullable(),
+  outcome_notes: z.string().max(5000).nullable(),
+  notes: z.string().max(5000).nullable(),
+  outcome_recorded_at: z.string().datetime({ offset: true }).optional(),
+  outcome_recorded_by: z.string().uuid().optional(),
+}).passthrough();
+
+/** Parse and validate domain_metadata for bid projects */
+export function parseBidMetadata(raw: unknown): z.infer<typeof BidMetadataSchema> | null {
+  const result = BidMetadataSchema.safeParse(raw);
+  if (!result.success) {
+    console.warn('Invalid bid metadata:', result.error.format());
+    return null;
+  }
+  return result.data;
+}
+
 // ──────────────────────────────────────────
 // Bid Export Schemas (Phase 7A)
 // ──────────────────────────────────────────

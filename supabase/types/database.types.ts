@@ -398,6 +398,13 @@ export type Database = {
             referencedRelation: "content_items_overview"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "content_items_source_bid_fkey"
+            columns: ["source_bid"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
         ]
       }
       digests: {
@@ -1559,3 +1566,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

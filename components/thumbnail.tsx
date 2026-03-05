@@ -26,7 +26,7 @@ import {
   Star,
   ShoppingBag,
 } from 'lucide-react';
-import { getDomainColourKey } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   post: MessageSquare,
@@ -106,6 +106,7 @@ export function Thumbnail({
   className = '',
   sizes = GRID_SIZES,
 }: ThumbnailProps) {
+  const { getDomainColourKey } = useTaxonomy();
   const [hasError, setHasError] = useState(false);
   const showFallback = !src || hasError;
   const colourKey = domain ? getDomainColourKey(domain) : 'meta';
@@ -165,6 +166,7 @@ export function ThumbnailSmall({
   contentType,
   domain,
 }: Omit<ThumbnailProps, 'aspectRatio' | 'className'>) {
+  const { getDomainColourKey } = useTaxonomy();
   const [hasError, setHasError] = useState(false);
   const showFallback = !src || hasError;
   const colourKey = domain ? getDomainColourKey(domain) : 'meta';

@@ -34,6 +34,8 @@ export interface BidMetadata {
   outcome: 'won' | 'lost' | 'withdrawn' | null;
   outcome_notes: string | null;
   notes: string | null;
+  outcome_recorded_at?: string;
+  outcome_recorded_by?: string;
 }
 
 export interface Bid {

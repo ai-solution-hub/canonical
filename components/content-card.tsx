@@ -8,7 +8,7 @@ import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
 import { VerificationBadge } from '@/components/verification-badge';
 import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
-import { getDomainColourKey } from '@/lib/taxonomy';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
@@ -28,6 +28,7 @@ function isSearchResult(
 }
 
 export function ContentCard({ item, isRead, hideThumbnail }: ContentCardProps) {
+  const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const colourKey = item.primary_domain
     ? getDomainColourKey(item.primary_domain)
