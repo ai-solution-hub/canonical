@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Upload, Plus } from 'lucide-react';
 import { ContentGrid } from '@/components/content-grid';
 import { ContentList } from '@/components/content-list';
 import { FilterPanel } from '@/components/filter-panel';
@@ -526,15 +527,28 @@ export function BrowseContent() {
         {/* Controls */}
         <div className="flex items-center gap-2">
           {canEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowUpload(true)}
-              className="gap-1.5"
-            >
-              <Upload className="size-3.5" />
-              Upload
-            </Button>
+            <>
+              <Button
+                variant="default"
+                size="sm"
+                asChild
+                className="gap-1.5"
+              >
+                <Link href="/item/new">
+                  <Plus className="size-3.5" />
+                  New Content
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowUpload(true)}
+                className="gap-1.5"
+              >
+                <Upload className="size-3.5" />
+                Upload
+              </Button>
+            </>
           )}
           <FilterBar
             showUnreadOnly={showUnreadOnly}

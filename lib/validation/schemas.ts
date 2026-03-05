@@ -136,6 +136,39 @@ export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   }),
 ]);
 
+/** POST /api/items -- create new content item */
+export const ItemCreateBodySchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(500),
+  content: z.string().min(1, 'Content is required').max(500_000),
+  content_type: z.enum(VALID_CONTENT_TYPES),
+
+  // Optional metadata
+  primary_domain: z.string().max(200).optional(),
+  primary_subtopic: z.string().max(200).optional(),
+  secondary_domain: z.string().max(200).optional(),
+  secondary_subtopic: z.string().max(200).optional(),
+  priority: z.enum(['high', 'medium', 'low']).optional(),
+  user_tags: z.array(z.string().max(100)).max(50).optional(),
+  ai_keywords: z.array(z.string().max(100)).max(50).optional(),
+  author_name: z.string().max(200).optional(),
+  source_url: z.string().url().max(2000).optional(),
+
+  // Progressive depth (optional)
+  brief: z.string().max(5000).optional(),
+  detail: z.string().max(50_000).optional(),
+  reference: z.string().max(50_000).optional(),
+
+  // AI options
+  auto_classify: z.boolean().default(true),
+  auto_summarise: z.boolean().default(true),
+  auto_embed: z.boolean().default(true),
+});
+
+/** POST /api/items/:id/classify -- on-demand classification */
+export const ClassifyBodySchema = z.object({
+  force: z.boolean().default(false),
+});
+
 /** PATCH /api/items/:id */
 export const ItemUpdateBodySchema = z.object({
   field: z.enum([
@@ -151,12 +184,40 @@ export const ItemUpdateBodySchema = z.object({
     'platform',
     'priority',
     'user_tags',
+    'content',
+    'brief',
+    'detail',
+    'reference',
   ]),
   value: z.union([
-    z.string().max(5000),
+    z.string().max(500_000),
     z.array(z.string().max(100)),
     z.null(),
   ]),
+  // Optional flags for content updates
+  regenerate_embedding: z.boolean().optional(),
+  reclassify: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  // Reject null for NOT NULL columns
+  const NOT_NULL_FIELDS = ['content', 'suggested_title'];
+  if (data.value === null && NOT_NULL_FIELDS.includes(data.field)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `Field '${data.field}' cannot be null`,
+      path: ['value'],
+    });
+  }
+  // Enforce field-specific max lengths
+  const LONG_TEXT_FIELDS = ['content', 'brief', 'detail', 'reference'];
+  if (typeof data.value === 'string' && !LONG_TEXT_FIELDS.includes(data.field)) {
+    if (data.value.length > 5_000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Value for field '${data.field}' must be at most 5,000 characters`,
+        path: ['value'],
+      });
+    }
+  }
 });
 
 /** POST /api/projects */
@@ -210,6 +271,10 @@ export const EDITABLE_FIELDS = new Set([
   'platform',
   'priority',
   'user_tags',
+  'content',
+  'brief',
+  'detail',
+  'reference',
 ] as const);
 
 export type EditableField =
@@ -224,7 +289,11 @@ export type EditableField =
   | 'content_type'
   | 'platform'
   | 'priority'
-  | 'user_tags';
+  | 'user_tags'
+  | 'content'
+  | 'brief'
+  | 'detail'
+  | 'reference';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);
@@ -446,3 +515,50 @@ export const XlsxExportBodySchema = z.object({
   include_unanswered: z.boolean().default(true),
   use_advanced_variant: z.boolean().default(false),
 });
+
+// ──────────────────────────────────────────
+// Taxonomy Admin Schemas
+// ──────────────────────────────────────────
+
+/** POST /api/taxonomy/domains */
+export const TaxonomyDomainCreateSchema = z.object({
+  name: z.string().trim().min(1, 'Domain name is required').max(100),
+  colour: z.string().trim().max(50).optional(),
+  display_order: z.number().int().min(0).max(999).optional(),
+});
+
+/** PATCH /api/taxonomy/domains/:id */
+export const TaxonomyDomainUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  colour: z.string().trim().max(50).nullable().optional(),
+  display_order: z.number().int().min(0).max(999).optional(),
+  is_active: z.boolean().optional(),
+});
+
+/** POST /api/taxonomy/subtopics */
+export const TaxonomySubtopicCreateSchema = z.object({
+  domain_id: z.string().uuid('domain_id must be a valid UUID'),
+  name: z.string().trim().min(1, 'Subtopic name is required').max(100),
+  display_order: z.number().int().min(0).max(999).optional(),
+});
+
+/** PATCH /api/taxonomy/subtopics/:id */
+export const TaxonomySubtopicUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  display_order: z.number().int().min(0).max(999).optional(),
+  is_active: z.boolean().optional(),
+});
+
+/** POST /api/taxonomy/reorder */
+export const TaxonomyReorderSchema = z.object({
+  type: z.enum(['domain', 'subtopic']),
+  /** Required when type === 'subtopic'. Scopes reordering to a single domain. */
+  domain_id: z.string().uuid().optional(),
+  items: z.array(z.object({
+    id: z.string().uuid(),
+    display_order: z.number().int().min(0).max(999),
+  })).min(1).max(100),
+}).refine(
+  (data) => data.type === 'domain' || !!data.domain_id,
+  { message: 'domain_id is required when reordering subtopics', path: ['domain_id'] },
+);

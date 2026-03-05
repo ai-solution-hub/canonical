@@ -8,6 +8,8 @@ import {
   VALID_PLATFORMS,
 } from '@/lib/validation/schemas';
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
+import { generateEmbedding } from '@/lib/embeddings';
+import { htmlToPlainText } from '@/lib/editor-utils';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,7 +38,7 @@ export async function PATCH(
     const parsed = parseBody(ItemUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { field, value } = parsed.data;
+    const { field, value, regenerate_embedding, reclassify } = parsed.data;
 
     // Additional field-specific validation
     if (field === 'content_type' && typeof value === 'string') {
@@ -114,6 +116,7 @@ export async function PATCH(
     // If the edited field is a significant content field, trigger governance review
     try {
       const significantFields = [
+        'content',
         'ai_summary',
         'suggested_title',
         'primary_domain',
@@ -204,6 +207,48 @@ export async function PATCH(
       warnings.push('Version history entry could not be created');
     }
 
+    // Regenerate embedding if requested (for content body edits)
+    if (regenerate_embedding && typeof value === 'string') {
+      try {
+        // Fetch the updated item to build embedding text
+        const { data: updatedItem } = await supabase
+          .from('content_items')
+          .select('title, content, ai_summary')
+          .eq('id', id)
+          .single();
+
+        if (updatedItem?.content) {
+          const plainText = htmlToPlainText(updatedItem.content);
+          const embeddingText = `${updatedItem.title ?? ''}\n\n${plainText}`;
+          const embedding = await generateEmbedding(embeddingText);
+          await supabase
+            .from('content_items')
+            .update({ embedding: JSON.stringify(embedding) })
+            .eq('id', id);
+        }
+      } catch (embedErr) {
+        console.error('Embedding regeneration failed:', embedErr);
+        warnings.push('Embedding regeneration failed');
+      }
+    }
+
+    // Trigger reclassification if requested
+    if (reclassify) {
+      try {
+        const classifyUrl = `/api/items/${id}/classify`;
+        // Fire-and-forget internal call
+        fetch(classifyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force: true }),
+        }).catch((err) =>
+          console.error('Background reclassification failed:', err),
+        );
+      } catch {
+        warnings.push('Reclassification could not be triggered');
+      }
+    }
+
     const response: Record<string, unknown> = { success: true };
     if (warnings.length > 0) {
       response.warnings = warnings;
@@ -212,6 +257,111 @@ export async function PATCH(
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process item request') },
+      { status: 500 },
+    );
+  }
+}
+
+/** DELETE /api/items/:id -- delete content item (admin only) */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    // Auth + role check (admin only)
+    const auth = await getAuthorisedClient(['admin']);
+    if (!auth) return forbiddenResponse();
+    const { supabase } = auth;
+
+    const { id } = await params;
+
+    // Validate UUID format
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json(
+        { error: 'Invalid item ID — must be a valid UUID' },
+        { status: 400 },
+      );
+    }
+
+    // Verify item exists
+    const { data: existingItem, error: fetchError } = await supabase
+      .from('content_items')
+      .select('id, title')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !existingItem) {
+      return NextResponse.json(
+        { error: 'Item not found' },
+        { status: 404 },
+      );
+    }
+
+    // Delete related records in order (no CASCADE on live DB FKs)
+    // Each step is best-effort — continue even if one fails
+    const deletionErrors: string[] = [];
+
+    try {
+      await supabase
+        .from('ingestion_quality_log')
+        .delete()
+        .eq('content_item_id', id);
+    } catch (err) {
+      console.error('Failed to delete quality log entries:', err);
+      deletionErrors.push('ingestion_quality_log');
+    }
+
+    try {
+      await supabase
+        .from('read_marks')
+        .delete()
+        .eq('content_item_id', id);
+    } catch (err) {
+      console.error('Failed to delete read marks:', err);
+      deletionErrors.push('read_marks');
+    }
+
+    try {
+      await supabase
+        .from('content_history')
+        .delete()
+        .eq('content_item_id', id);
+    } catch (err) {
+      console.error('Failed to delete content history:', err);
+      deletionErrors.push('content_history');
+    }
+
+    try {
+      await supabase
+        .from('content_item_projects')
+        .delete()
+        .eq('content_item_id', id);
+    } catch (err) {
+      console.error('Failed to delete project associations:', err);
+      deletionErrors.push('content_item_projects');
+    }
+
+    // Delete the content item itself
+    const { error: deleteError } = await supabase
+      .from('content_items')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Failed to delete content item:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete content item' },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json({
+      deleted: true,
+      id,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to delete content item') },
       { status: 500 },
     );
   }

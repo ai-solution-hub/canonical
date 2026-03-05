@@ -55,6 +55,8 @@ interface TaxonomyContextValue {
   formatSubtopic: (subtopic: string) => string;
   /** Format a domain name for display (kebab-case to Title Case) */
   formatDomainName: (domain: string) => string;
+  /** Force re-fetch taxonomy from DB (called after admin mutations) */
+  refresh: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,52 +81,56 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const fetchTaxonomy = useCallback(async () => {
+    try {
+      const [domainsResult, subtopicsResult] = await Promise.all([
+        supabase
+          .from('taxonomy_domains')
+          .select('id, name, display_order, colour, is_active')
+          .eq('is_active', true)
+          .order('display_order', { ascending: true }),
+        supabase
+          .from('taxonomy_subtopics')
+          .select('id, domain_id, name, display_order, is_active')
+          .eq('is_active', true)
+          .order('display_order', { ascending: true }),
+      ]);
+
+      if (!isMountedRef.current) return;
+
+      if (domainsResult.error) {
+        setError(`Failed to fetch domains: ${domainsResult.error.message}`);
+        setLoading(false);
+        return;
+      }
+
+      if (subtopicsResult.error) {
+        setError(`Failed to fetch subtopics: ${subtopicsResult.error.message}`);
+        setLoading(false);
+        return;
+      }
+
+      setDomains((domainsResult.data ?? []) as TaxonomyDomain[]);
+      setSubtopics((subtopicsResult.data ?? []) as TaxonomySubtopic[]);
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      setError(err instanceof Error ? err.message : 'Failed to load taxonomy');
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, []);
+
   useEffect(() => {
     if (hasFetchedRef.current) return;
     hasFetchedRef.current = true;
-
-    async function fetchTaxonomy() {
-      try {
-        const [domainsResult, subtopicsResult] = await Promise.all([
-          supabase
-            .from('taxonomy_domains')
-            .select('id, name, display_order, colour, is_active')
-            .eq('is_active', true)
-            .order('display_order', { ascending: true }),
-          supabase
-            .from('taxonomy_subtopics')
-            .select('id, domain_id, name, display_order, is_active')
-            .eq('is_active', true)
-            .order('display_order', { ascending: true }),
-        ]);
-
-        if (!isMountedRef.current) return;
-
-        if (domainsResult.error) {
-          setError(`Failed to fetch domains: ${domainsResult.error.message}`);
-          setLoading(false);
-          return;
-        }
-
-        if (subtopicsResult.error) {
-          setError(`Failed to fetch subtopics: ${subtopicsResult.error.message}`);
-          setLoading(false);
-          return;
-        }
-
-        setDomains((domainsResult.data ?? []) as TaxonomyDomain[]);
-        setSubtopics((subtopicsResult.data ?? []) as TaxonomySubtopic[]);
-        setLoading(false);
-      } catch (err) {
-        if (!isMountedRef.current) return;
-        setError(err instanceof Error ? err.message : 'Failed to load taxonomy');
-        setLoading(false);
-      }
-    }
-
     fetchTaxonomy();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, []);
+  }, [fetchTaxonomy]);
+
+  const refresh = useCallback(() => {
+    fetchTaxonomy();
+  }, [fetchTaxonomy]);
 
   // Build lookup maps for efficient access
   const domainByName = useMemo(() => {
@@ -190,6 +196,7 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
       getDomainColourKey,
       formatSubtopic,
       formatDomainName,
+      refresh,
     }),
     [
       domains,
@@ -201,6 +208,7 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
       getDomainColourKey,
       formatSubtopic,
       formatDomainName,
+      refresh,
     ],
   );
 

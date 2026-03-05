@@ -47,11 +47,17 @@ import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
 import { ProjectSelector } from '@/components/project-selector';
 import { UserTagInput } from '@/components/user-tag-input';
+import { DeleteContentDialog } from '@/components/delete-content-dialog';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { validateEditableField } from '@/lib/validation';
 import { toast } from 'sonner';
+
+const ContentEditor = dynamic(
+  () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" /> },
+);
 import type {
   ContentListItem,
   SummaryData,
@@ -111,7 +117,7 @@ export function ItemDetailClient({
   relatedItems,
 }: ItemDetailClientProps) {
   const router = useRouter();
-  const { canEdit } = useUserRole();
+  const { canEdit, canAdmin } = useUserRole();
   const [item, setItem] = useState<ItemData>(initialItem);
   const {
     segments,
@@ -146,6 +152,18 @@ export function ItemDetailClient({
   const [editValue, setEditValue] = useState('');
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveAnnouncement, setSaveAnnouncement] = useState('');
+
+  // Content body editing state
+  const [isEditingContent, setIsEditingContent] = useState(false);
+  const [editContentHtml, setEditContentHtml] = useState('');
+  const [isSavingContent, setIsSavingContent] = useState(false);
+  const [regenerateEmbedding, setRegenerateEmbedding] = useState(false);
+  const [reclassifyAfterSave, setReclassifyAfterSave] = useState(false);
+
+  // Progressive depth editing state
+  const [editingDepthField, setEditingDepthField] = useState<string | null>(null);
+  const [editDepthValue, setEditDepthValue] = useState('');
+  const [isSavingDepth, setIsSavingDepth] = useState(false);
 
   // Vision analysis state
   const [isAnalysing, setIsAnalysing] = useState(false);
@@ -271,6 +289,95 @@ export function ItemDetailClient({
       (e.target as HTMLInputElement).value = '';
     }
   };
+
+  // Content body editing handlers
+  const startContentEdit = useCallback(() => {
+    setEditContentHtml(item.content ?? '');
+    setIsEditingContent(true);
+    setRegenerateEmbedding(false);
+    setReclassifyAfterSave(false);
+  }, [item.content]);
+
+  const cancelContentEdit = useCallback(() => {
+    setIsEditingContent(false);
+    setEditContentHtml('');
+  }, []);
+
+  const saveContentEdit = useCallback(async () => {
+    if (!editContentHtml.trim()) return;
+    setIsSavingContent(true);
+
+    const previousContent = item.content;
+    setItem((prev) => ({ ...prev, content: editContentHtml }));
+    setIsEditingContent(false);
+
+    try {
+      const res = await fetch(`/api/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          field: 'content',
+          value: editContentHtml,
+          regenerate_embedding: regenerateEmbedding,
+          reclassify: reclassifyAfterSave,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Update failed');
+      }
+
+      toast.success('Content saved');
+    } catch {
+      setItem((prev) => ({ ...prev, content: previousContent }));
+      setIsEditingContent(true);
+      setEditContentHtml(previousContent ?? '');
+      toast.error('Failed to save content — please try again');
+    } finally {
+      setIsSavingContent(false);
+    }
+  }, [editContentHtml, item.id, item.content, regenerateEmbedding, reclassifyAfterSave]);
+
+  // Progressive depth field editing handlers
+  const startDepthEdit = useCallback((field: string) => {
+    setEditingDepthField(field);
+    setEditDepthValue(String(item[field] ?? ''));
+  }, [item]);
+
+  const cancelDepthEdit = useCallback(() => {
+    setEditingDepthField(null);
+    setEditDepthValue('');
+  }, []);
+
+  const saveDepthEdit = useCallback(async (field: string) => {
+    setIsSavingDepth(true);
+    const previousValue = item[field];
+    const newValue = editDepthValue.trim() || null;
+
+    setItem((prev) => ({ ...prev, [field]: newValue }));
+    setEditingDepthField(null);
+
+    try {
+      const res = await fetch(`/api/items/${item.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field, value: newValue }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Update failed');
+      }
+
+      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} saved`);
+    } catch {
+      setItem((prev) => ({ ...prev, [field]: previousValue }));
+      toast.error('Failed to save — please try again');
+    } finally {
+      setIsSavingDepth(false);
+    }
+  }, [editDepthValue, item]);
 
   const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
 
@@ -552,8 +659,8 @@ export function ItemDetailClient({
             </div>
           )}
 
-          {/* Q&A Pair display format */}
-          {item.content_type === 'q_a_pair' && item.content && (
+          {/* Content body section (Q&A pair or regular) — editable */}
+          {item.content_type === 'q_a_pair' ? (
             <section className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
               <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Question
@@ -561,48 +668,194 @@ export function ItemDetailClient({
               <p className="mb-4 text-sm font-medium leading-relaxed text-foreground">
                 {item.suggested_title || item.title || 'Untitled question'}
               </p>
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Answer
-              </h2>
-              <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                {item.content}
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Answer
+                </h2>
+                {canEdit && !isEditingContent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startContentEdit}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Pencil className="size-3" />
+                    Edit
+                  </Button>
+                )}
               </div>
+              {isEditingContent ? (
+                <div className="space-y-3">
+                  <ContentEditor
+                    content={editContentHtml}
+                    onChange={setEditContentHtml}
+                    placeholder="Write the answer..."
+                    minHeight="200px"
+                  />
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={regenerateEmbedding}
+                        onChange={(e) => setRegenerateEmbedding(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Re-generate embedding
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={reclassifyAfterSave}
+                        onChange={(e) => setReclassifyAfterSave(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Re-classify after save
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={saveContentEdit} disabled={isSavingContent}>
+                      {isSavingContent ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelContentEdit}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  {item.content}
+                </div>
+              )}
             </section>
-          )}
+          ) : item.content && !['transcript', 'pdf'].includes(item.content_type ?? '') ? (
+            <section className="mb-6">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Content
+                </h2>
+                {canEdit && !isEditingContent && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={startContentEdit}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Pencil className="size-3" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              {isEditingContent ? (
+                <div className="space-y-3">
+                  <ContentEditor
+                    content={editContentHtml}
+                    onChange={setEditContentHtml}
+                    placeholder="Edit content..."
+                    minHeight="200px"
+                  />
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={regenerateEmbedding}
+                        onChange={(e) => setRegenerateEmbedding(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Re-generate embedding
+                    </label>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={reclassifyAfterSave}
+                        onChange={(e) => setReclassifyAfterSave(e.target.checked)}
+                        className="accent-primary"
+                      />
+                      Re-classify after save
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={saveContentEdit} disabled={isSavingContent}>
+                      {isSavingContent ? 'Saving...' : 'Save'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelContentEdit}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="prose prose-sm max-w-none text-sm leading-relaxed text-foreground/90 dark:prose-invert whitespace-pre-wrap">
+                  {item.content}
+                </div>
+              )}
+            </section>
+          ) : null}
 
-          {/* Progressive depth sections */}
-          {(item.brief || item.detail || item.reference) && (
+          {/* Progressive depth sections (editable) */}
+          {(item.brief || item.detail || item.reference || canEdit) && (
             <section className="mb-6 space-y-4">
-              {item.brief && (
-                <div>
-                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Brief
-                  </h2>
-                  <p className="text-sm leading-relaxed text-foreground/90">
-                    {item.brief}
-                  </p>
-                </div>
-              )}
-              {item.detail && (
-                <div>
-                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Detail
-                  </h2>
-                  <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {item.detail}
+              {['brief', 'detail', 'reference'].map((field) => {
+                const fieldValue = item[field] as string | null;
+                const isEditing = editingDepthField === field;
+                const labels: Record<string, string> = {
+                  brief: 'Brief',
+                  detail: 'Detail',
+                  reference: 'Reference',
+                };
+
+                if (!fieldValue && !isEditing && !canEdit) return null;
+
+                return (
+                  <div key={field}>
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        {labels[field]}
+                      </h2>
+                      {canEdit && !isEditing && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => startDepthEdit(field)}
+                          className="gap-1.5 text-xs"
+                        >
+                          <Pencil className="size-3" />
+                          {fieldValue ? 'Edit' : 'Add'}
+                        </Button>
+                      )}
+                    </div>
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editDepthValue}
+                          onChange={(e) => setEditDepthValue(e.target.value)}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          rows={4}
+                          autoFocus
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            onClick={() => saveDepthEdit(field)}
+                            disabled={isSavingDepth}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={cancelDepthEdit}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : fieldValue ? (
+                      <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                        {fieldValue}
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              )}
-              {item.reference && (
-                <div>
-                  <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Reference
-                  </h2>
-                  <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                    {item.reference}
-                  </div>
-                </div>
-              )}
+                );
+              })}
             </section>
           )}
 
@@ -754,6 +1007,14 @@ export function ItemDetailClient({
               )}
               {copied ? 'Copied' : 'Copy link'}
             </Button>
+            {canAdmin && (
+              <div className="ml-auto">
+                <DeleteContentDialog
+                  itemId={item.id}
+                  itemTitle={title}
+                />
+              </div>
+            )}
           </div>
         </article>
 
