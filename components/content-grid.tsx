@@ -316,6 +316,7 @@ export function ContentGrid({
                       isRead={
                         readItemIds ? readItemIds.has(item.id) : undefined
                       }
+                      hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                       hideThumbnail={hideThumbnails}
                     />
                   </div>

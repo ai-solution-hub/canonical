@@ -29,6 +29,8 @@ export interface ContentListItem {
   source_document?: string | null;
   /** Brief/executive summary for progressive depth */
   brief?: string | null;
+  /** Full content text (used for Q&A answer preview on browse cards) */
+  content?: string | null;
 }
 
 /** Content list item with read state */
@@ -180,13 +182,13 @@ export const CONTENT_LIST_COLUMNS = `
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
   ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,
-  verified_at, source_document, brief
+  verified_at, source_document, brief, content
 ` as const;
 
 /** Columns selected for detail view */
 export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
-  content, source_url, file_path, secondary_domain, secondary_subtopic,
+  source_url, file_path, secondary_domain, secondary_subtopic,
   classification_reasoning, classified_at, summary_data,
   created_at, updated_at, created_by, updated_by,
   verified_by, source_bid, detail, reference,
