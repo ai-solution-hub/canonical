@@ -116,10 +116,6 @@ export function ItemDetailClient({
   const {
     segments,
     highlights,
-    isExtractingHighlights,
-    extractHighlights: handleExtractHighlights,
-    handleHighlightStarToggle,
-    setSegments,
   } = useTranscript({
     itemId: item.id as string,
     initialSegments: null,

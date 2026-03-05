@@ -160,6 +160,7 @@ export function BidCopilotActions() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             question_ids: [targetQuestionId],
+            ...(instructions ? { instructions } : {}),
           }),
         },
       );

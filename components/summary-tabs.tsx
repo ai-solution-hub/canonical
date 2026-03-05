@@ -290,9 +290,8 @@ export function SummaryTabs({
     );
   }
 
-  // Resolve field names (backwards compatibility with pre-session-12 data)
-  const executive = summaryData.executive ?? summaryData.one_line ?? '';
-  const model = summaryData.model ?? summaryData.generated_by ?? '';
+  const executive = summaryData.executive ?? '';
+  const model = summaryData.model ?? '';
 
   // Summary tabs with all data
   return (

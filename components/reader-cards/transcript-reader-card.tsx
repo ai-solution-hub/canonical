@@ -29,7 +29,6 @@ export function TranscriptReaderCard({
   highlights,
   metadata,
   authorName,
-  sourceUrl,
   className,
 }: TranscriptReaderCardProps) {
   const channel = (metadata?.host as string) || authorName;

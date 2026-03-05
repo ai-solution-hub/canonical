@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useCopilotReadable } from '@copilotkit/react-core';
 import { useUserRole } from '@/hooks/use-user-role';
-import type { BidMetadata, BidQuestion, ConfidencePosture } from '@/types/bid';
+import type { BidMetadata, BidQuestion } from '@/types/bid';
 
 // ────────────────────────────────────────────
 // Context value types
@@ -201,7 +201,6 @@ export function BidContextProvider({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount
     fetchBid();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount
     fetchQuestions();
   }, [fetchBid, fetchQuestions]);
 

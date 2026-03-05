@@ -19,11 +19,10 @@ import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { useUserRole } from '@/hooks/use-user-role';
-import { cn } from '@/lib/utils';
 import { getOrphanedSourceIds } from '@/lib/citations';
 import { toast } from 'sonner';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
-import type { CitationEntry, QualityData, BidResponseMetadata } from '@/types/bid-metadata';
+import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
 interface NavigatorQuestion {
   id: string;
