@@ -70,15 +70,20 @@ def _copy_cell_formatting(source_cell, target_cell, text: str):
     # Handle multi-paragraph text (split on double newlines)
     paragraphs_text = text.split('\n\n')
 
+    # Track the last inserted element so subsequent paragraphs are appended
+    # in order (addnext inserts immediately after the reference element).
+    last_inserted = target_para._element
+
     for i, para_text in enumerate(paragraphs_text):
         if i == 0:
             # Use existing first paragraph
             para = target_para
         else:
-            # Add new paragraph
+            # Add new paragraph after the last inserted one
             from docx.oxml.ns import qn
-            new_p = target_para._element.makeelement(qn('w:p'), {})
-            target_para._element.addnext(new_p)
+            new_p = last_inserted.makeelement(qn('w:p'), {})
+            last_inserted.addnext(new_p)
+            last_inserted = new_p
             from docx.text.paragraph import Paragraph
             para = Paragraph(new_p, target_cell)
 

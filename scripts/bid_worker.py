@@ -214,7 +214,7 @@ def analyse_template_job(supabase: Client, payload: dict) -> dict:
         supabase.storage.from_("templates").upload(
             structure_path,
             structure_json.encode("utf-8"),
-            {"contentType": "application/json"},
+            {"content-type": "application/json"},
         )
 
         # Update template record
@@ -266,7 +266,7 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
             supabase.storage.from_("templates").upload(
                 completed_path,
                 f.read(),
-                {"contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
+                {"content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"},
             )
 
         file_size = os.path.getsize(output_path)
@@ -285,7 +285,7 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
             "fields_failed": result["fields_failed"],
             "file_size": file_size,
             "created_by": payload.get("user_id"),
-        }).select("id").execute()
+        }).execute()
 
         # Update field fill_status
         for mapping in field_mappings:

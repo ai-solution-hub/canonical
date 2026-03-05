@@ -126,7 +126,14 @@ def _extract_section_headings(doc: Document) -> dict[int, str]:
                     "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", ""
                 )
                 if style_val.startswith("Heading"):
-                    heading_text = "".join(element.itertext()).strip()
+                    # Use w:t elements only — itertext() traverses all
+                    # descendants and produces repeated text (e.g. paragraph,
+                    # run, and text nodes all yield the same string).
+                    ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+                    t_elements = element.findall(f".//{ns}t")
+                    heading_text = "".join(
+                        t.text for t in t_elements if t.text
+                    ).strip()
                     if heading_text:
                         current_section = heading_text
 

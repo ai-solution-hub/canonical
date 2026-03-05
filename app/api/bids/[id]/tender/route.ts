@@ -4,6 +4,7 @@ import {
   forbiddenResponse,
   rateLimitResponse,
 } from '@/lib/auth';
+import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -122,6 +123,21 @@ export async function POST(
             'File content does not match its declared type. Ensure the file is a genuine PDF or DOCX.',
         },
         { status: 415 },
+      );
+    }
+
+    // Reject password-protected .docx documents early (PDFs are not affected)
+    if (
+      file.type ===
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' &&
+      isEncryptedDocx(arrayBuffer)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'This document is password-protected. Please remove the password and re-upload.',
+        },
+        { status: 400 },
       );
     }
 

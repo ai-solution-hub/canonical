@@ -49,6 +49,13 @@ export function ResponseEditor({
     },
   });
 
+  // Sync editable state (e.g., when streaming locks/unlocks the editor)
+  useEffect(() => {
+    if (editor && editor.isEditable === readOnly) {
+      editor.setEditable(!readOnly);
+    }
+  }, [editor, readOnly]);
+
   // Sync content from parent (e.g., when AI draft arrives)
   useEffect(() => {
     if (editor && content !== editor.getHTML()) {

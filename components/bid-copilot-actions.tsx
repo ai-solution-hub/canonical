@@ -377,7 +377,7 @@ export function BidCopilotActions() {
   useCopilotAction({
     name: 'submitForReview',
     description:
-      'Submit the current response for review. Use when the user says "submit for review" or "mark as ready for review". Saves the current content and marks the response as needing review.',
+      'Submit the current response for review. Use when the user says "submit for review" or "mark as ready for review". Saves the current content and marks the response as needing review. This action will show a confirmation dialog and wait for the user to confirm or cancel.',
     parameters: [
       {
         name: 'questionId',
@@ -386,67 +386,71 @@ export function BidCopilotActions() {
         required: false,
       },
     ],
-    handler: async ({ questionId }: { questionId?: string }) => {
-      const targetId = questionId ?? activeQuestionId;
-      if (!targetId || !activeResponse?.id) {
-        return { error: 'No question selected or no response to submit.' };
-      }
+    renderAndWaitForResponse: ({ args, status, respond }) => {
+      const targetId = args.questionId ?? activeQuestionId;
 
-      // Save current editor content first
-      if (editorRef.current) {
-        const html = editorRef.current.getHTML();
-        await fetch(`/api/bids/${bidId}/responses/${activeResponse.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ response_text: html }),
-        });
-      }
-
-      // Update review status
-      const response = await fetch(
-        `/api/bids/${bidId}/responses/${activeResponse.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ review_status: 'needs_review' }),
-        },
-      );
-
-      if (!response.ok) {
-        return { error: 'Submit for review failed.' };
-      }
-
-      return {
-        success: true,
-        message: 'Response submitted for review.',
-      };
-    },
-    render: ({ status, result }) => {
-      if (status === 'executing') {
+      if (status === 'inProgress') {
         return (
           <ReviewConfirmation
-            questionId={activeQuestionId}
+            questionId={targetId}
             isLoading={true}
             onConfirm={() => {}}
             onCancel={() => {}}
           />
         );
       }
-      if (result?.success) {
-        return (
-          <div className="rounded-md border bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-            Response submitted for review.
-          </div>
-        );
+
+      if (status === 'complete') {
+        return <></>;
       }
-      if (result?.error) {
-        return (
-          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {result.error}
-          </div>
-        );
-      }
-      return <></>;
+
+      // status === 'executing' — show confirmation and wait
+      return (
+        <ReviewConfirmation
+          questionId={targetId}
+          isLoading={false}
+          onConfirm={async () => {
+            if (!targetId || !activeResponse?.id) {
+              respond?.({ error: 'No question selected or no response to submit.' });
+              return;
+            }
+
+            try {
+              // Save current editor content first
+              if (editorRef.current) {
+                const html = editorRef.current.getHTML();
+                await fetch(`/api/bids/${bidId}/responses/${activeResponse.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ response_text: html }),
+                });
+              }
+
+              // Update review status
+              const response = await fetch(
+                `/api/bids/${bidId}/responses/${activeResponse.id}`,
+                {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ review_status: 'needs_review' }),
+                },
+              );
+
+              if (!response.ok) {
+                respond?.({ error: 'Submit for review failed.' });
+                return;
+              }
+
+              respond?.({ success: true, message: 'Response submitted for review.' });
+            } catch {
+              respond?.({ error: 'Submit for review failed.' });
+            }
+          }}
+          onCancel={() => {
+            respond?.({ cancelled: true, message: 'Review submission cancelled.' });
+          }}
+        />
+      );
     },
   });
 

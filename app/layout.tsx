@@ -21,6 +21,12 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: 'Knowledge Hub',
   description: 'Knowledge base platform for AI-powered bid management',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+    ],
+  },
 };
 
 export default async function RootLayout({

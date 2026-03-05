@@ -349,6 +349,12 @@ export const ResponseDraftBodySchema = z.object({
   force: z.boolean().default(false),
 });
 
+/** POST /api/bids/:id/responses/draft-stream — single question, SSE */
+export const ResponseDraftStreamBodySchema = z.object({
+  question_id: z.string().uuid(),
+  model_tier: z.enum(['analysis', 'drafting']).default('drafting'),
+});
+
 /** POST /api/bids/:id/responses/draft-all */
 export const ResponseDraftAllBodySchema = z.object({
   model_tier: z.enum(['analysis', 'drafting']).default('drafting'),

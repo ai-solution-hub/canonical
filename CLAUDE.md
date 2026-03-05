@@ -40,6 +40,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun run scripts/backfill-reader-html.ts` | Backfill reader HTML for articles/blogs (--limit, --dry-run) |
 | `python3 scripts/import_bid_library.py <dir>` | Import Q&A pairs from client .docx files (--dry-run, --batch-tag) |
 | `python3 scripts/extract_docx_tables.py <file>` | Extract tables from .docx files |
+| `python3 -m pytest scripts/tests/` | Run Python tests |
 | `bun run format` | Prettier format all files |
 | `bun run format:check` | Check Prettier formatting |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
@@ -199,10 +200,13 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest (`bun test`)
 - **Coverage:** `bun test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 17 files (schemas, utils, jsonb, format, ai-parse,
+- **Location:** `__tests__/` — 21 files (schemas, utils, jsonb, format, ai-parse,
   validation, digest-export, bid-schemas, bid-matching, bid-state-machine,
   bid-export-docx, bid-export-xlsx, change-summary, citations, editor-utils,
-  freshness, quality-check)
+  freshness, quality-check, bid-drafting, cost-estimation, template-schemas,
+  template-auto-map)
+- **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
+  template filling)
 
 ## Deployment
 
@@ -249,6 +253,8 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 | Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
 | Search evaluation guide | `docs/reference/search-evaluation-guide.md` | How to run search tests |
 | Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
+| E2E test flows | `docs/reference/e2e-test-flows.md` | 12 flows covering all pages |
+| E2E test setup | `docs/reference/e2e-test-setup.md` | Test data creation runbook |
 | Search test cases | `scripts/search-evaluation.json` | 20 test cases — re-run after search logic changes |
 
 ## Gotchas

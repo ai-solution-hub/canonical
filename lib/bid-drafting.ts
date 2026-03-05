@@ -264,6 +264,122 @@ RULES:
 }
 
 // ──────────────────────────────────────────
+// Pass 2 Streaming Variant
+// ──────────────────────────────────────────
+
+/**
+ * Stream Pass 2 (response drafting) token-by-token. Returns an async
+ * generator that yields text deltas, plus a `finalise()` function that
+ * returns the complete Pass2Result with extracted citations.
+ *
+ * Usage:
+ *   const stream = draftResponseStreaming(question, content, analysis);
+ *   for await (const chunk of stream.textStream) { write(chunk); }
+ *   const result = await stream.finalise();
+ */
+export function draftResponseStreaming(
+  question: DraftableQuestion,
+  matchedContent: DraftableContent[],
+  analysis: QuestionAnalysis,
+  modelTier: ModelTier = 'drafting',
+  regenerationInstructions?: string,
+): { textStream: AsyncIterable<string>; finalise: () => Promise<Pass2Result> } {
+  const anthropic = getAnthropicClient();
+  const model = getModelForTier(modelTier);
+
+  const sourceBlocks = matchedContent.map((item) => ({
+    type: 'search_result' as const,
+    source: `/item/${item.id}`,
+    title: item.title ?? 'Untitled',
+    content: [
+      {
+        type: 'text' as const,
+        text: item.content ?? '',
+      },
+    ],
+    citations: { enabled: true },
+    cache_control: { type: 'ephemeral' as const },
+  }));
+
+  const wordLimitInstruction = question.word_limit
+    ? `Aim for 90-95% of the ${question.word_limit}-word limit`
+    : 'No specific limit, but be concise and thorough';
+
+  const headings = analysis.response_structure.suggested_headings.join(' > ');
+  const keyPoints = analysis.key_points_to_cover.join(', ');
+
+  let systemText = `You are a professional UK bid writer for a technology company.
+
+RULES:
+- Write in UK English throughout
+- Be specific and factual, citing the provided KB content
+- Word limit: ${wordLimitInstruction}
+- Structure: ${headings}
+- Key points to cover: ${keyPoints}
+- Tone: ${analysis.tone}
+- NEVER fabricate information not in the KB content
+- If the KB content does not cover a point, say "Our documentation on [topic] is being updated" rather than guessing
+- Use the company's own language and terminology from the KB content
+- Every factual claim MUST be supported by the provided KB content`;
+
+  if (regenerationInstructions) {
+    systemText += `\n\nADDITIONAL INSTRUCTIONS FROM REVIEWER:\n${regenerationInstructions}`;
+  }
+
+  const messageStream = anthropic.messages.stream({
+    model,
+    max_tokens: 4096,
+    system: [
+      {
+        type: 'text',
+        text: systemText,
+        cache_control: { type: 'ephemeral' },
+      },
+    ],
+    messages: [
+      {
+        role: 'user',
+        content: [
+          ...sourceBlocks,
+          {
+            type: 'text',
+            text: `\n\nDraft a response to this bid question:\n\n"${question.question_text}"`,
+          },
+        ],
+      },
+    ],
+  });
+
+  // Create async iterable from the stream's text events
+  const textStream: AsyncIterable<string> = {
+    async *[Symbol.asyncIterator]() {
+      for await (const event of messageStream) {
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta.type === 'text_delta'
+        ) {
+          yield event.delta.text;
+        }
+      }
+    },
+  };
+
+  // Finalise: collect the complete message and extract citations + usage
+  async function finalise(): Promise<Pass2Result> {
+    const finalMessage = await messageStream.finalMessage();
+    const { text, citations } = extractCitedResponse(finalMessage, matchedContent);
+    const inputTokens = finalMessage.usage.input_tokens;
+    const outputTokens = finalMessage.usage.output_tokens;
+    const tokensUsed = inputTokens + outputTokens;
+    const cost = estimateCost(model, finalMessage.usage);
+
+    return { responseText: text, citations, tokensUsed, inputTokens, outputTokens, cost, model };
+  }
+
+  return { textStream, finalise };
+}
+
+// ──────────────────────────────────────────
 // Full Pipeline Orchestrator
 // ──────────────────────────────────────────
 

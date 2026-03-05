@@ -6,6 +6,7 @@ import {
   forbiddenResponse,
   rateLimitResponse,
 } from '@/lib/auth';
+import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -113,6 +114,17 @@ export async function POST(
             'File content does not match its declared type. Ensure the file is a genuine .docx document.',
         },
         { status: 415 },
+      );
+    }
+
+    // Reject password-protected documents early
+    if (isEncryptedDocx(arrayBuffer)) {
+      return NextResponse.json(
+        {
+          error:
+            'This document is password-protected. Please remove the password and re-upload.',
+        },
+        { status: 400 },
       );
     }
 

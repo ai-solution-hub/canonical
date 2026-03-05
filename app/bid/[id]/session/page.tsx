@@ -14,11 +14,13 @@ import { ResponseEditor } from '@/components/response-editor';
 import { CitationPanel } from '@/components/citation-panel';
 import { QualityScore } from '@/components/quality-score';
 import { ResponseActions, type ResponseAction } from '@/components/response-actions';
+import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
 import { BidContextProvider } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useDraftStream } from '@/hooks/use-draft-stream';
 import { getOrphanedSourceIds } from '@/lib/citations';
 import { toast } from 'sonner';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
@@ -90,6 +92,75 @@ export default function BidSessionPage({
 
   // Editor ref for CopilotKit integration
   const editorContentRef = useRef<string>('');
+
+  // ── Streaming draft ──
+  const stream = useDraftStream(id);
+  const streamTextRef = useRef<string>('');
+  const rafRef = useRef<number | null>(null);
+  const lastEditorUpdateRef = useRef<number>(0);
+
+  // Track whether we are actively streaming to lock the editor
+  const isStreaming =
+    stream.phase !== 'idle' && stream.phase !== 'done' && stream.phase !== 'error';
+
+  // Throttled editor update: accumulate text in ref, push to editor at ~60ms intervals
+  useEffect(() => {
+    if (stream.phase !== 'drafting') return;
+    if (stream.text === streamTextRef.current) return;
+
+    streamTextRef.current = stream.text;
+
+    const now = Date.now();
+    const elapsed = now - lastEditorUpdateRef.current;
+
+    // If enough time has passed, update immediately
+    if (elapsed >= 60) {
+      setEditorContent(stream.text);
+      lastEditorUpdateRef.current = now;
+      return;
+    }
+
+    // Otherwise schedule an update
+    if (rafRef.current !== null) return; // Already scheduled
+    rafRef.current = window.requestAnimationFrame(() => {
+      setEditorContent(streamTextRef.current);
+      lastEditorUpdateRef.current = Date.now();
+      rafRef.current = null;
+    });
+  }, [stream.phase, stream.text]);
+
+  // Clean up RAF on unmount
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+      }
+    };
+  }, []);
+
+  // Handle stream completion
+  useEffect(() => {
+    if (stream.phase === 'done') {
+      // Final content sync
+      if (stream.text) {
+        setEditorContent(stream.text);
+      }
+      // Refresh data from database
+      void fetchResponse();
+      void fetchBidData();
+      const costMsg = stream.totalCost
+        ? ` (cost: $${stream.totalCost.toFixed(4)})`
+        : '';
+      toast.success(`Response drafted successfully${costMsg}`);
+    }
+  }, [stream.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle stream error
+  useEffect(() => {
+    if (stream.phase === 'error' && stream.error) {
+      toast.error(stream.error);
+    }
+  }, [stream.phase, stream.error]);
 
   const currentQuestion = questions[currentIndex] ?? null;
 
@@ -184,6 +255,10 @@ export default function BidSessionPage({
   // ── Navigation ──
   function handleNavigate(index: number) {
     if (index >= 0 && index < questions.length) {
+      // Cancel any in-flight stream when navigating away
+      if (isStreaming) {
+        stream.cancel();
+      }
       setCurrentIndex(index);
     }
   }
@@ -240,7 +315,7 @@ export default function BidSessionPage({
 
         case 'regenerate': {
           if (response?.id) {
-            // Regenerate existing response
+            // Regenerate existing response (non-streaming, uses instructions)
             const regenRes = await fetch(
               `/api/bids/${id}/responses/${response.id}/regenerate`,
               {
@@ -256,26 +331,19 @@ export default function BidSessionPage({
               throw new Error(err.error ?? 'Regeneration failed');
             }
             toast.success('Response regenerated');
+            await fetchResponse();
+            await fetchBidData();
           } else {
-            // Draft new response
-            const draftRes = await fetch(
-              `/api/bids/${id}/responses/draft`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  question_ids: [currentQuestion.id],
-                }),
-              },
-            );
-            if (!draftRes.ok) {
-              const err = await draftRes.json().catch(() => ({}));
-              throw new Error(err.error ?? 'Drafting failed');
-            }
-            toast.success('Response drafted');
+            // Draft new response via SSE streaming
+            // Clear editor and reset streaming refs
+            setEditorContent('');
+            streamTextRef.current = '';
+            lastEditorUpdateRef.current = 0;
+            // startDraft is async but completion is handled by the
+            // stream.phase effects above, so we don't await here
+            void stream.startDraft(currentQuestion.id);
+            // Don't await fetchResponse — the done effect handles that
           }
-          await fetchResponse();
-          await fetchBidData();
           break;
         }
 
@@ -468,11 +536,22 @@ export default function BidSessionPage({
                 <ResponseActions
                   onAction={handleAction}
                   reviewStatus={response?.review_status ?? null}
-                  isLoading={actionLoading}
-                  loadingAction={loadingAction}
+                  isLoading={actionLoading || isStreaming}
+                  loadingAction={isStreaming ? 'regenerate' : loadingAction}
                   hasDraft={
                     !!response?.response_text || editorContent.length > 7
                   }
+                />
+              )}
+
+              {/* Streaming phase indicator */}
+              {stream.phase !== 'idle' && (
+                <StreamingPhaseIndicator
+                  phase={stream.phase}
+                  error={stream.error}
+                  qualityScore={stream.qualityScore}
+                  totalCost={stream.totalCost}
+                  onCancel={stream.cancel}
                 />
               )}
 
@@ -487,11 +566,13 @@ export default function BidSessionPage({
                     handleAction('save');
                   }
                 }}
-                readOnly={!canEdit}
+                readOnly={!canEdit || isStreaming}
                 placeholder={
-                  response
-                    ? 'Edit your response...'
-                    : 'No response yet. Use "Regenerate" to draft an AI response or "Author Manually" to write your own.'
+                  isStreaming
+                    ? 'Response is being drafted...'
+                    : response
+                      ? 'Edit your response...'
+                      : 'No response yet. Use "Regenerate" to draft an AI response or "Author Manually" to write your own.'
                 }
               />
 
