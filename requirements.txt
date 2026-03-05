@@ -11,10 +11,10 @@ extruct==0.18.0
 beautifulsoup4>=4.12.0
 lxml>=5.0.0
 
-# PDF extraction
+# PDF extraction (used by Python scripts only; JS routes use unpdf)
 pdfplumber==0.11.9
 
-# Document processing
+# Document processing (used by Python scripts only; JS routes use mammoth + Claude)
 python-docx>=1.1.2
 docxtpl>=0.19.0
 

@@ -3,7 +3,7 @@ import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import path from 'path';
 import mammoth from 'mammoth';
-import { extractText, getDocumentProxy } from 'unpdf';
+import { extractText } from 'unpdf';
 
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
@@ -78,12 +78,11 @@ async function extractPdfText(
   buffer: Buffer,
 ): Promise<PdfExtractionResult> {
   const data = new Uint8Array(buffer);
-  const pdf = await getDocumentProxy(data);
-  const { totalPages, text } = await extractText(pdf, { mergePages: false });
+  const { totalPages, text } = await extractText(data, { mergePages: false });
   return {
     text: (text as string[]).join('\n\n'),
     page_count: totalPages,
-    tables: [],
+    tables: [],      // unpdf does not support table extraction
     table_count: 0,
   };
 }
