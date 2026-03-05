@@ -11,6 +11,7 @@ import { TemplateFieldReview } from '@/components/template-field-review';
 import { TemplateFillProgress } from '@/components/template-fill-progress';
 import { TemplateCompletionSummary } from '@/components/template-completion-summary';
 import type {
+  FillResult,
   Template,
   TemplateWithDetail,
   TemplateCompletion,
@@ -35,6 +36,7 @@ export default function TemplateCompletionPage() {
   const [loading, setLoading] = useState(true);
   const [fillJobId, setFillJobId] = useState<string | null>(null);
   const [latestCompletion, setLatestCompletion] = useState<TemplateCompletion | null>(null);
+  const [fillResult, setFillResult] = useState<FillResult | null>(null);
 
   // Load existing templates and bid questions
   useEffect(() => {
@@ -254,8 +256,10 @@ export default function TemplateCompletionPage() {
   }, [bidId, selectedTemplate]);
 
   const handleFillComplete = useCallback(
-    async () => {
+    async (result: Record<string, unknown>) => {
       if (!selectedTemplate) return;
+      // Store fill result for truncation/error display in summary
+      setFillResult(result as unknown as FillResult);
       // Reload to get fresh completion data
       await loadTemplateDetail(selectedTemplate.id);
       setStep('complete');
@@ -276,6 +280,20 @@ export default function TemplateCompletionPage() {
       toast.error('Failed to download completed template');
     }
   }, [bidId, selectedTemplate, latestCompletion]);
+
+  const handleDownloadOriginal = useCallback(async () => {
+    if (!selectedTemplate) return;
+    try {
+      const res = await fetch(
+        `/api/bids/${bidId}/templates/${selectedTemplate.id}/download`,
+      );
+      if (!res.ok) throw new Error('Failed to get download link');
+      const { download_url } = await res.json();
+      window.open(download_url, '_blank');
+    } catch {
+      toast.error('Failed to download original template');
+    }
+  }, [bidId, selectedTemplate]);
 
   if (loading) {
     return (
@@ -403,6 +421,10 @@ export default function TemplateCompletionPage() {
           templateName={selectedTemplate.name}
           onDownload={handleDownload}
           onRefill={() => setStep('review')}
+          truncatedCount={fillResult?.truncated?.length}
+          errors={fillResult?.errors}
+          originalStoragePath={selectedTemplate.storage_path}
+          onDownloadOriginal={handleDownloadOriginal}
         />
       )}
     </div>
