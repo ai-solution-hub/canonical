@@ -74,8 +74,8 @@ export function NeedsAttentionSection({
             icon={Flag}
             count={quality_flag_count}
             label={`quality ${(quality_flag_count ?? 0) === 1 ? 'flag' : 'flags'} unresolved`}
-            href="/review"
-            actionLabel="Review"
+            href="/browse?quality_issues=true"
+            actionLabel="Browse flagged"
           />
         </div>
       )}
