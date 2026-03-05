@@ -179,6 +179,18 @@ export default function BidSessionPage({
 
   const currentQuestion = questions[currentIndex] ?? null;
 
+  // ── Cmd+L / Ctrl+L — open Content Library with current question context ──
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
+        e.preventDefault();
+        contentLibrary.toggle(currentQuestion?.question_text);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [contentLibrary.toggle, currentQuestion?.question_text]);
+
   // ── Fetch bid and questions ──
   const fetchBidData = useCallback(async () => {
     try {

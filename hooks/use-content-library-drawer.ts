@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 interface UseContentLibraryDrawerReturn {
   isOpen: boolean;
@@ -11,8 +11,9 @@ interface UseContentLibraryDrawerReturn {
 }
 
 /**
- * Manages Content Library Drawer open/close state and Cmd+L keyboard shortcut.
- * Used in the bid session page to give coordinators quick access to KB content.
+ * Manages Content Library Drawer open/close state.
+ * The Cmd+L keyboard shortcut is registered in the session page so it can
+ * pass the current question text to toggle().
  */
 export function useContentLibraryDrawer(): UseContentLibraryDrawerReturn {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,19 +34,6 @@ export function useContentLibraryDrawer(): UseContentLibraryDrawerReturn {
       return !prev;
     });
   }, []);
-
-  // Register Cmd+L / Ctrl+L keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'l') {
-        e.preventDefault();
-        toggle();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [toggle]);
 
   return { isOpen, questionText, open, close, toggle };
 }

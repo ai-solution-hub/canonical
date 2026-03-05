@@ -8,6 +8,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +45,7 @@ export function ContentLibraryDrawer({
   const { results, isLoading, error, search } = useSearch();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ContentTypeFilter>('all');
+  const [domainFilter, setDomainFilter] = useState<string>('all');
   const [hasSearched, setHasSearched] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -68,6 +76,7 @@ export function ContentLibraryDrawer({
       const timer = setTimeout(() => {
         setQuery('');
         setTypeFilter('all');
+        setDomainFilter('all');
         setHasSearched(false);
       }, 300);
       return () => clearTimeout(timer);
@@ -88,6 +97,7 @@ export function ContentLibraryDrawer({
 
       debounceRef.current = setTimeout(() => {
         setHasSearched(true);
+        setDomainFilter('all');
         search(value, 0.3, 15);
       }, 300);
     },
@@ -101,11 +111,23 @@ export function ContentLibraryDrawer({
     };
   }, []);
 
-  // Filter results client-side by content type
+  // Compute unique domains from search results
+  const availableDomains = useMemo(
+    () =>
+      Array.from(
+        new Set(results.map((r) => r.primary_domain).filter(Boolean)),
+      ).sort() as string[],
+    [results],
+  );
+
+  // Filter results client-side by content type and domain
   const filteredResults = useMemo(() => {
-    if (typeFilter === 'all') return results;
-    return results.filter((r) => r.content_type === typeFilter);
-  }, [results, typeFilter]);
+    return results.filter((r) => {
+      if (typeFilter !== 'all' && r.content_type !== typeFilter) return false;
+      if (domainFilter !== 'all' && r.primary_domain !== domainFilter) return false;
+      return true;
+    });
+  }, [results, typeFilter, domainFilter]);
 
   // Group Q&A results by source document
   const groupedResults = useMemo(() => {
@@ -175,7 +197,7 @@ export function ContentLibraryDrawer({
         </div>
 
         {/* Filter chips */}
-        <div className="mt-2 flex items-center gap-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           <Badge
             variant={typeFilter === 'all' ? 'default' : 'secondary'}
             className="cursor-pointer text-xs"
@@ -190,6 +212,21 @@ export function ContentLibraryDrawer({
           >
             Q&A pairs
           </Badge>
+          {hasSearched && results.length > 0 && (
+            <Select value={domainFilter} onValueChange={setDomainFilter}>
+              <SelectTrigger size="sm" className="h-6 gap-1 px-2 text-xs">
+                <SelectValue placeholder="All domains" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All domains</SelectItem>
+                {availableDomains.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {hasSearched && !isLoading && (
             <span className="ml-auto text-xs text-muted-foreground">
               {filteredResults.length} result{filteredResults.length !== 1 ? 's' : ''}
