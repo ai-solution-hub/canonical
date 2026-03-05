@@ -26,7 +26,7 @@ import { TranscriptReader } from '@/components/transcript-reader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Thumbnail } from '@/components/thumbnail';
-import { SummaryTabs } from '@/components/summary-tabs';
+import { ContentTabs } from '@/components/content-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
 import { RelatedItems } from '@/components/related-items';
 import { VersionHistory } from '@/components/version-history';
@@ -309,6 +309,9 @@ export function ItemDetailClient({
   const [isEditing, setIsEditing] = useState(false);
   const [editDirty, setEditDirty] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+
+  // Tab-level editing state (brief / detail / reference / content)
+  const [isSavingTab, setIsSavingTab] = useState(false);
 
 
   // Vision analysis state
@@ -607,13 +610,42 @@ export function ItemDetailClient({
   const isQAPair = item.content_type === 'q_a_pair';
   const hasReaderContent = !!(item.metadata?.reader_html) || isQAPair;
 
-  const summaryTabsElement = (
-    <SummaryTabs
+  // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
+  const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
+  type TabField = (typeof tabFields)[number];
+  const tabEditingField: TabField | null = tabFields.includes(editingField as TabField)
+    ? (editingField as TabField)
+    : null;
+
+  const tabEditConfig = canEdit
+    ? {
+        editingField: tabEditingField,
+        editValue,
+        isSaving: isSavingTab,
+        onStartEdit: (field: TabField) => startEdit(field),
+        onEditValueChange: setEditValue,
+        onSaveEdit: async (field: string) => {
+          setIsSavingTab(true);
+          try {
+            await saveEdit(field, editValue);
+          } finally {
+            setIsSavingTab(false);
+          }
+        },
+        onCancelEdit: cancelEdit,
+      }
+    : undefined;
+
+  const contentTabsElement = (
+    <ContentTabs
       itemId={item.id as string}
       summaryData={item.summary_data ?? null}
       contentType={item.content_type as string}
       content={item.content}
       aiSummary={item.ai_summary}
+      brief={item.brief}
+      detail={item.detail}
+      reference={item.reference}
       readerHtml={item.metadata?.reader_html as string | undefined}
       hideFullText={
         item.content_type === 'transcript' &&
@@ -628,9 +660,8 @@ export function ItemDetailClient({
       segments={segments}
       highlights={highlights}
       frameable={item.metadata?.frameable === true}
-      qaMode={isQAPair}
-      isEditing={isEditing}
-      onDirty={() => setEditDirty(true)}
+      canEdit={canEdit}
+      editConfig={tabEditConfig}
       className="mb-6"
     />
   );
@@ -886,10 +917,10 @@ export function ItemDetailClient({
               verified={!!item.verified_at}
               canEdit={canEdit}
               onEditQuestion={enterEditMode}
-              contentTabs={summaryTabsElement}
+              contentTabs={contentTabsElement}
             />
           ) : (
-            summaryTabsElement
+            contentTabsElement
           )}
 
           {/* Table of Contents (Item 5) */}
