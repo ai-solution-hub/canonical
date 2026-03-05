@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
+  Library,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QuestionNavigator } from '@/components/question-navigator';
@@ -15,12 +16,15 @@ import { CitationPanel } from '@/components/citation-panel';
 import { QualityScore } from '@/components/quality-score';
 import { ResponseActions, type ResponseAction } from '@/components/response-actions';
 import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
+import { ContentLibraryDrawer } from '@/components/content-library-drawer';
 import { BidContextProvider } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { CopilotKitProvider } from '@/components/copilotkit-provider';
 import { useUserRole } from '@/hooks/use-user-role';
+import { isMacPlatform } from '@/lib/utils';
+import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useDraftStream } from '@/hooks/use-draft-stream';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { toast } from 'sonner';
@@ -86,6 +90,9 @@ export default function BidSessionPage({
   const [response, setResponse] = useState<BidResponse | null>(null);
   const [responseLoading, setResponseLoading] = useState(false);
   const [editorContent, setEditorContent] = useState('');
+
+  // Content Library Drawer
+  const contentLibrary = useContentLibraryDrawer();
 
   // Citation orphan detection — batch-check source IDs via RPC
   const citationSourceIds = useMemo(
@@ -541,15 +548,29 @@ export default function BidSessionPage({
             <div className="space-y-4">
               {/* Response actions */}
               {canEdit && (
-                <ResponseActions
-                  onAction={handleAction}
-                  reviewStatus={response?.review_status ?? null}
-                  isLoading={actionLoading || isStreaming}
-                  loadingAction={isStreaming ? 'regenerate' : loadingAction}
-                  hasDraft={
-                    !!response?.response_text || editorContent.length > 7
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <ResponseActions
+                      onAction={handleAction}
+                      reviewStatus={response?.review_status ?? null}
+                      isLoading={actionLoading || isStreaming}
+                      loadingAction={isStreaming ? 'regenerate' : loadingAction}
+                      hasDraft={
+                        !!response?.response_text || editorContent.length > 7
+                      }
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => contentLibrary.open(currentQuestion?.question_text)}
+                    className="shrink-0 gap-1.5"
+                    title={`Content Library (${isMacPlatform() ? '⌘' : 'Ctrl+'}L)`}
+                  >
+                    <Library className="size-3.5" aria-hidden="true" />
+                    <span className="hidden sm:inline">Library</span>
+                  </Button>
+                </div>
               )}
 
               {/* Streaming phase indicator */}
@@ -613,6 +634,13 @@ export default function BidSessionPage({
         <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
           {sessionContent}
         </BidCopilotSidebar>
+        <ContentLibraryDrawer
+          open={contentLibrary.isOpen}
+          onOpenChange={(open) => {
+            if (!open) contentLibrary.close();
+          }}
+          questionText={currentQuestion?.question_text}
+        />
       </BidContextProvider>
     </CopilotKitProvider>
   );
