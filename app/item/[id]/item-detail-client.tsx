@@ -272,10 +272,17 @@ export function ItemDetailClient({
     }
   };
 
-  const { toggleRead, loadReadMarks } = useReadMarks();
+  const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
 
-  // Trigger lazy loading of read marks for this page
+  // Trigger lazy loading of read marks counts for this page
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
+
+  // Check read status for this specific item
+  useEffect(() => {
+    if (item?.id) {
+      checkReadStatus([item.id]);
+    }
+  }, [item?.id, checkReadStatus]);
 
   // Star toggle handler for keyboard shortcut
   const handleStarToggle = useCallback(async () => {

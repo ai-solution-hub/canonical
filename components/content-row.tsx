@@ -8,6 +8,7 @@ import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
 import { getDisplayTitle, formatDate, formatContentType } from '@/lib/format';
 import { ContentTypeIcon } from '@/components/content-type-icon';
+import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
@@ -15,6 +16,7 @@ interface ContentRowProps {
   item: ContentListItem | SearchResult;
   isActive?: boolean;
   isRead?: boolean;
+  hasQualityFlag?: boolean;
 }
 
 function isSearchResult(
@@ -27,6 +29,7 @@ export function ContentRow({
   item,
   isActive = false,
   isRead,
+  hasQualityFlag,
 }: ContentRowProps) {
   const title = getDisplayTitle(item);
 
@@ -63,6 +66,12 @@ export function ContentRow({
           />
           {isSearchResult(item) && (
             <SimilarityBadge score={item.similarity} className="shrink-0" />
+          )}
+          {hasQualityFlag && (
+            <AlertTriangle
+              className="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+              aria-label="Has quality issues"
+            />
           )}
         </div>
         <span

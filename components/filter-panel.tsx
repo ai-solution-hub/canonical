@@ -63,6 +63,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     project: filters.project ?? '',
     user_tags: filters.user_tags ?? ([] as string[]),
     freshness: filters.freshness ?? ([] as string[]),
+    quality_issues: filters.quality_issues ?? false,
   });
 
   // Filter counts (M8) — cached with a 30-second TTL to avoid re-fetching on every panel open
@@ -111,6 +112,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       project: filters.project ?? '',
       user_tags: filters.user_tags ?? [],
       freshness: filters.freshness ?? [],
+      quality_issues: filters.quality_issues ?? false,
     });
   }
 
@@ -374,6 +376,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       project: draft.project || undefined,
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
+      quality_issues: draft.quality_issues || undefined,
     });
     onOpenChange(false);
   }, [draft, setFilters, onOpenChange]);
@@ -393,6 +396,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       project: '',
       user_tags: [],
       freshness: [],
+      quality_issues: false,
     });
     setAuthorSearch('');
     clearFilters();
@@ -413,6 +417,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.project,
     draft.user_tags.length > 0,
     draft.freshness.length > 0,
+    draft.quality_issues,
   ].filter(Boolean).length;
 
   return (
@@ -642,6 +647,23 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                 );
               })}
             </div>
+          </FilterSection>
+
+          <Separator className="my-3" />
+
+          {/* Quality Issues */}
+          <FilterSection title="Quality">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={draft.quality_issues}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, quality_issues: e.target.checked }))
+                }
+                className="size-4 rounded border-border accent-primary"
+              />
+              <span className="text-sm">Has quality issues</span>
+            </label>
           </FilterSection>
 
           <Separator className="my-3" />

@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   extractCitedResponse,
   deduplicateCitations,
   countUniqueSources,
   getOrphanedSourceIds,
+  checkOrphanedSourceIds,
 } from '@/lib/citations';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CitationEntry } from '@/types/bid-metadata';
@@ -510,5 +511,117 @@ describe('getOrphanedSourceIds', () => {
     const result = getOrphanedSourceIds(citations, sourceContent);
     expect(result.size).toBe(1);
     expect(result.has('uuid-deleted')).toBe(true);
+  });
+});
+
+describe('checkOrphanedSourceIds', () => {
+  function createMockSupabase(
+    data: Array<{ id: string; item_exists: boolean }> | null,
+    error: unknown = null,
+  ) {
+    return {
+      rpc: vi.fn().mockResolvedValue({ data, error }),
+    };
+  }
+
+  it('returns empty set when all sources exist', async () => {
+    const supabase = createMockSupabase([
+      { id: 'uuid-1', item_exists: true },
+      { id: 'uuid-2', item_exists: true },
+    ]);
+
+    const result = await checkOrphanedSourceIds(['uuid-1', 'uuid-2'], supabase);
+    expect(result.size).toBe(0);
+    expect(supabase.rpc).toHaveBeenCalledWith('check_content_exists', {
+      ids: ['uuid-1', 'uuid-2'],
+    });
+  });
+
+  it('detects orphaned source IDs via RPC', async () => {
+    const supabase = createMockSupabase([
+      { id: 'uuid-1', item_exists: true },
+      { id: 'uuid-2', item_exists: false },
+      { id: 'uuid-3', item_exists: false },
+    ]);
+
+    const result = await checkOrphanedSourceIds(
+      ['uuid-1', 'uuid-2', 'uuid-3'],
+      supabase,
+    );
+    expect(result.size).toBe(2);
+    expect(result.has('uuid-2')).toBe(true);
+    expect(result.has('uuid-3')).toBe(true);
+    expect(result.has('uuid-1')).toBe(false);
+  });
+
+  it('returns empty set for empty input', async () => {
+    const supabase = createMockSupabase(null);
+
+    const result = await checkOrphanedSourceIds([], supabase);
+    expect(result.size).toBe(0);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it('filters out empty source IDs', async () => {
+    const supabase = createMockSupabase([
+      { id: 'uuid-1', item_exists: true },
+    ]);
+
+    const result = await checkOrphanedSourceIds(['', 'uuid-1', ''], supabase);
+    expect(result.size).toBe(0);
+    expect(supabase.rpc).toHaveBeenCalledWith('check_content_exists', {
+      ids: ['uuid-1'],
+    });
+  });
+
+  it('deduplicates input source IDs', async () => {
+    const supabase = createMockSupabase([
+      { id: 'uuid-1', item_exists: true },
+    ]);
+
+    await checkOrphanedSourceIds(['uuid-1', 'uuid-1', 'uuid-1'], supabase);
+    expect(supabase.rpc).toHaveBeenCalledWith('check_content_exists', {
+      ids: ['uuid-1'],
+    });
+  });
+
+  it('returns empty set on RPC error (fails open)', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const supabase = createMockSupabase(null, { message: 'RPC failed' });
+
+    const result = await checkOrphanedSourceIds(['uuid-1'], supabase);
+    expect(result.size).toBe(0);
+    expect(consoleSpy).toHaveBeenCalledWith(
+      'check_content_exists RPC failed:',
+      { message: 'RPC failed' },
+    );
+    consoleSpy.mockRestore();
+  });
+
+  it('returns empty set when RPC returns null data', async () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const supabase = createMockSupabase(null);
+
+    const result = await checkOrphanedSourceIds(['uuid-1'], supabase);
+    expect(result.size).toBe(0);
+    consoleSpy.mockRestore();
+  });
+
+  it('handles single orphaned source correctly', async () => {
+    const supabase = createMockSupabase([
+      { id: 'uuid-deleted', item_exists: false },
+    ]);
+
+    const result = await checkOrphanedSourceIds(['uuid-deleted'], supabase);
+    expect(result.size).toBe(1);
+    expect(result.has('uuid-deleted')).toBe(true);
+  });
+
+  it('skips RPC call when all source IDs are empty', async () => {
+    const supabase = createMockSupabase(null);
+
+    const result = await checkOrphanedSourceIds(['', '', ''], supabase);
+    expect(result.size).toBe(0);
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });

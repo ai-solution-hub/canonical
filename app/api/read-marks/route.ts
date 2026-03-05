@@ -2,7 +2,99 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { ReadMarkBodySchema } from '@/lib/validation/schemas';
+import {
+  ReadMarkBodySchema,
+  ReadMarkCheckParamsSchema,
+} from '@/lib/validation/schemas';
+
+/**
+ * GET /api/read-marks?item_ids=uuid1,uuid2,...
+ *
+ * Returns read status for the specified item IDs.
+ * Also returns the user's total read count (for progress tracking)
+ * and the total content item count.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const auth = await getAuthenticatedClient();
+    if (!auth) return unauthorisedResponse();
+    const { user, supabase } = auth;
+
+    const { searchParams } = new URL(request.url);
+    const rawItemIds = searchParams.get('item_ids');
+
+    // If no item_ids provided, return just the counts
+    if (!rawItemIds) {
+      const [readCountResult, totalCountResult] = await Promise.all([
+        supabase
+          .from('read_marks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id),
+        supabase
+          .from('content_items')
+          .select('*', { count: 'exact', head: true }),
+      ]);
+
+      return NextResponse.json({
+        read_item_ids: [],
+        read_count: readCountResult.count ?? 0,
+        total_count: totalCountResult.count ?? 0,
+      });
+    }
+
+    // Validate item_ids
+    const parsed = ReadMarkCheckParamsSchema.safeParse({
+      item_ids: rawItemIds,
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: 'Invalid item_ids parameter. Provide comma-separated UUIDs (max 200).' },
+        { status: 400 },
+      );
+    }
+
+    const { item_ids } = parsed.data;
+
+    // Fetch read marks for the specified items + counts in parallel
+    const [readResult, readCountResult, totalCountResult] = await Promise.all([
+      supabase
+        .from('read_marks')
+        .select('content_item_id')
+        .eq('user_id', user.id)
+        .in('content_item_id', item_ids),
+      supabase
+        .from('read_marks')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true }),
+    ]);
+
+    if (readResult.error) {
+      console.error('Failed to check read status:', readResult.error);
+      return NextResponse.json(
+        { error: 'Failed to check read status' },
+        { status: 500 },
+      );
+    }
+
+    const readItemIds = (readResult.data ?? []).map(
+      (r: { content_item_id: string }) => r.content_item_id,
+    );
+
+    return NextResponse.json({
+      read_item_ids: readItemIds,
+      read_count: readCountResult.count ?? 0,
+      total_count: totalCountResult.count ?? 0,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to check read marks') },
+      { status: 500 },
+    );
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {

@@ -47,6 +47,7 @@ export function useBrowseFilters() {
       project: searchParams.get('project') ?? undefined,
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
+      quality_issues: searchParams.get('quality_issues') === 'true' || undefined,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -67,6 +68,7 @@ export function useBrowseFilters() {
     if (filters.project) count++;
     if (filters.user_tags?.length) count++;
     if (filters.freshness?.length) count += filters.freshness.length;
+    if (filters.quality_issues) count++;
     return count;
   }, [filters]);
 
@@ -148,6 +150,10 @@ export function useBrowseFilters() {
         } else {
           params.delete('freshness');
         }
+      }
+      if ('quality_issues' in newFilters) {
+        if (newFilters.quality_issues) params.set('quality_issues', 'true');
+        else params.delete('quality_issues');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

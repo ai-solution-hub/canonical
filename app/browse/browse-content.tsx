@@ -51,10 +51,22 @@ export function BrowseContent() {
     markBulkRead,
     isLoaded: readMarksLoaded,
     loadReadMarks,
+    checkReadStatus,
   } = useReadMarks();
 
-  // Trigger lazy loading of read marks for this page
+  // Trigger lazy loading of read marks counts for this page
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
+
+  // Fetch quality-flagged item IDs for browse card indicators
+  const [qualityFlaggedIds, setQualityFlaggedIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const fetchQualityFlags = async () => {
+      const { data } = await supabase.rpc('get_items_with_quality_flags');
+      if (data) setQualityFlaggedIds(new Set(data as string[]));
+    };
+    fetchQualityFlags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, []);
 
   const [items, setItems] = useState<ContentListItem[]>([]);
   const [totalCount, setTotalCount] = useState<number | null>(null);
@@ -150,6 +162,13 @@ export function BrowseContent() {
     [setFilters],
   );
 
+  // Check read status for visible items when items change
+  useEffect(() => {
+    if (items.length > 0) {
+      checkReadStatus(items.map((item) => item.id));
+    }
+  }, [items, checkReadStatus]);
+
   // Filter displayed items by unread status (client-side)
   const displayItems =
     showUnreadOnly && readMarksLoaded
@@ -232,6 +251,18 @@ export function BrowseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [filters.project]);
 
+  // Resolve quality issues filter to matching content_item IDs
+  const resolveQualityIssueIds = useCallback(async (): Promise<string[] | null> => {
+    if (!filters.quality_issues) return null;
+    const { data, error } = await supabase.rpc('get_items_with_quality_flags');
+    if (error) {
+      console.error('Quality issues filter RPC failed:', error);
+      return null;
+    }
+    return (data as string[]) ?? [];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, [filters.quality_issues]);
+
   // Build the Supabase query with filters and cursor-based pagination
   const buildQuery = useCallback(
     (
@@ -239,6 +270,7 @@ export function BrowseContent() {
       isInitial: boolean,
       keywordMatchIds?: string[] | null,
       projectMatchIds?: string[] | null,
+      qualityIssueIds?: string[] | null,
     ) => {
       let query = supabase
         .from('content_items')
@@ -276,17 +308,20 @@ export function BrowseContent() {
         query = query.lte('captured_date', filters.date_to);
       }
 
-      // Apply ID-based filters (keywords and/or project membership)
-      if (keywordMatchIds && projectMatchIds) {
-        // Intersect both sets
-        const intersection = keywordMatchIds.filter((id) =>
-          projectMatchIds.includes(id),
-        );
+      // Apply ID-based filters (keywords, project membership, quality issues)
+      // Collect all non-null ID sets, then intersect them
+      const idSets: string[][] = [];
+      if (keywordMatchIds) idSets.push(keywordMatchIds);
+      if (projectMatchIds) idSets.push(projectMatchIds);
+      if (qualityIssueIds) idSets.push(qualityIssueIds);
+
+      if (idSets.length > 0) {
+        let intersection = idSets[0];
+        for (let i = 1; i < idSets.length; i++) {
+          const currentSet = new Set(idSets[i]);
+          intersection = intersection.filter((id) => currentSet.has(id));
+        }
         query = query.in('id', intersection.length ? intersection : ['__none__']);
-      } else if (keywordMatchIds) {
-        query = query.in('id', keywordMatchIds);
-      } else if (projectMatchIds) {
-        query = query.in('id', projectMatchIds.length ? projectMatchIds : ['__none__']);
       }
 
       if (filters.starred) {
@@ -373,14 +408,16 @@ export function BrowseContent() {
       setItems([]);
       setCursor(null);
 
-      // Resolve keyword + project filters via server-side lookups
-      const [keywordIds, projectIds] = await Promise.all([
+      // Resolve keyword + project + quality issue filters via server-side lookups
+      const [keywordIds, projectIds, qualityIds] = await Promise.all([
         resolveKeywordIds(),
         resolveProjectIds(),
+        resolveQualityIssueIds(),
       ]);
       if (
         (keywordIds !== null && keywordIds.length === 0) ||
-        (projectIds !== null && projectIds.length === 0)
+        (projectIds !== null && projectIds.length === 0) ||
+        (qualityIds !== null && qualityIds.length === 0)
       ) {
         // Filter was specified but nothing matched
         if (currentRequestId !== requestIdRef.current) return;
@@ -391,7 +428,7 @@ export function BrowseContent() {
         return;
       }
 
-      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds);
+      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds, qualityIds);
 
       // Discard stale response
       if (currentRequestId !== requestIdRef.current) return;
@@ -418,7 +455,7 @@ export function BrowseContent() {
     };
 
     fetchData();
-  }, [buildQuery, resolveKeywordIds, resolveProjectIds, filters.sort]);
+  }, [buildQuery, resolveKeywordIds, resolveProjectIds, resolveQualityIssueIds, filters.sort]);
 
   // Load more using cursor
   const handleLoadMore = useCallback(async () => {
@@ -426,11 +463,12 @@ export function BrowseContent() {
 
     setIsLoadingMore(true);
 
-    const [keywordIds, projectIds] = await Promise.all([
+    const [keywordIds, projectIds, qualityIds] = await Promise.all([
       resolveKeywordIds(),
       resolveProjectIds(),
+      resolveQualityIssueIds(),
     ]);
-    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds);
+    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds);
 
     if (error) {
       console.error('Failed to load more items:', error);
@@ -457,6 +495,7 @@ export function BrowseContent() {
     buildQuery,
     resolveKeywordIds,
     resolveProjectIds,
+    resolveQualityIssueIds,
     filters.sort,
   ]);
 
@@ -543,6 +582,7 @@ export function BrowseContent() {
                   items={displayItems}
                   activeIndex={activeIndex}
                   readItemIds={readMarksLoaded ? readItemIds : undefined}
+                  qualityFlaggedIds={qualityFlaggedIds}
                   multiSelectMode={multiSelectMode}
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelectItem}
@@ -561,6 +601,7 @@ export function BrowseContent() {
                   items={displayItems}
                   activeIndex={activeIndex}
                   readItemIds={readMarksLoaded ? readItemIds : undefined}
+                  qualityFlaggedIds={qualityFlaggedIds}
                   multiSelectMode={multiSelectMode}
                   selectedIds={selectedIds}
                   onToggleSelect={toggleSelectItem}

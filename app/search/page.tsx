@@ -338,10 +338,18 @@ function SearchResults() {
   const searchParams = useSearchParams();
   const query = searchParams.get('q') ?? '';
   const { results, count, isLoading, error, search } = useSearch();
-  const { readItemIds, isLoaded: readMarksLoaded, loadReadMarks } = useReadMarks();
+  const { readItemIds, isLoaded: readMarksLoaded, loadReadMarks, checkReadStatus } = useReadMarks();
 
-  // Trigger lazy loading of read marks for this page
+  // Trigger lazy loading of read marks counts for this page
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
+
+  // Check read status for search results when they change
+  useEffect(() => {
+    if (results.length > 0) {
+      checkReadStatus(results.map((r) => r.id));
+    }
+  }, [results, checkReadStatus]);
+
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
   // Initialise view mode from localStorage after mount

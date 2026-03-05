@@ -116,3 +116,43 @@ export function getOrphanedSourceIds(
       .filter((id) => id && !existingIds.has(id)),
   );
 }
+
+/**
+ * Batch-check whether source content items still exist in the database using
+ * the `check_content_exists` RPC. Returns a Set of source_id values that no
+ * longer exist (orphaned).
+ *
+ * This is the authoritative check -- it queries the database directly rather
+ * than relying on a pre-fetched source_content array. Use this when you need
+ * definitive orphan detection (e.g., after content deletions).
+ *
+ * @param sourceIds - Array of content item UUIDs to check
+ * @param supabase  - An initialised Supabase client
+ * @returns Set of source_id values that no longer exist
+ */
+export async function checkOrphanedSourceIds(
+  sourceIds: string[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: { rpc: (...args: any[]) => PromiseLike<{ data: any; error: any }> },
+): Promise<Set<string>> {
+  // Filter out empty/falsy IDs and deduplicate
+  const uniqueIds = [...new Set(sourceIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return new Set();
+
+  const { data, error } = await supabase.rpc('check_content_exists', {
+    ids: uniqueIds,
+  });
+
+  if (error || !data) {
+    // On error, return empty set -- fail open (don't mark things as orphaned
+    // when we can't verify)
+    console.warn('check_content_exists RPC failed:', error);
+    return new Set();
+  }
+
+  return new Set(
+    (data as Array<{ id: string; item_exists: boolean }>)
+      .filter((r) => !r.item_exists)
+      .map((r) => r.id),
+  );
+}

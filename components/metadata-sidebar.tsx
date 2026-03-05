@@ -1,6 +1,8 @@
 'use client';
 
-import { Check, Pencil } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Check, Pencil, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Accordion,
   AccordionContent,
@@ -25,7 +27,34 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
+import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
+
+interface QualityFlag {
+  id: string;
+  flag_type: string;
+  severity: string;
+  details: Record<string, unknown> | null;
+  created_at: string | null;
+}
+
+/** Human-readable labels for quality flag types */
+function formatFlagType(flagType: string): string {
+  const labels: Record<string, string> = {
+    classification_low: 'Low Classification',
+    short_content: 'Short Content',
+    missing_content: 'Missing Content',
+    manual_review: 'Needs Review',
+    duplicate_candidate: 'Possible Duplicate',
+    review_needed: 'Review Needed',
+    freshness_expired: 'Expired Content',
+    import_warning: 'Import Warning',
+    governance_review: 'Governance Review',
+    needs_review: 'Needs Review',
+  };
+  return labels[flagType] ?? flagType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 interface MetadataSidebarProps {
   item: ItemData;
@@ -51,6 +80,41 @@ export function MetadataSidebar({
     item.created_by as string | null,
     item.updated_by as string | null,
   ]);
+
+  // Quality flags
+  const [qualityFlags, setQualityFlags] = useState<QualityFlag[]>([]);
+  useEffect(() => {
+    const fetchFlags = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('ingestion_quality_log')
+        .select('id, flag_type, severity, details, created_at')
+        .eq('content_item_id', item.id)
+        .eq('resolved', false)
+        .order('created_at', { ascending: false });
+      if (data) setQualityFlags(data as QualityFlag[]);
+    };
+    fetchFlags();
+  }, [item.id]);
+
+  const resolveFlag = useCallback(async (flagId: string) => {
+    try {
+      const res = await fetch('/api/quality', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flag_id: flagId }),
+      });
+      if (res.ok) {
+        setQualityFlags((prev) => prev.filter((f) => f.id !== flagId));
+        toast.success('Quality flag resolved');
+      } else {
+        const data = await res.json();
+        toast.error(data.error ?? 'Failed to resolve flag');
+      }
+    } catch {
+      toast.error('Failed to resolve quality flag');
+    }
+  }, []);
 
   const createdByName = item.created_by
     ? displayNames.get(item.created_by as string) ?? 'System'
@@ -218,6 +282,53 @@ export function MetadataSidebar({
                   0,
                 )}
                 %
+              </dd>
+            </div>
+          )}
+
+          {/* Quality flags */}
+          {qualityFlags.length > 0 && (
+            <div>
+              <dt className="mb-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <AlertTriangle className="size-3" aria-hidden="true" />
+                  Quality Flags ({qualityFlags.length})
+                </span>
+              </dt>
+              <dd className="space-y-1.5">
+                {qualityFlags.map((flag) => (
+                  <div
+                    key={flag.id}
+                    className={cn(
+                      'rounded px-2 py-1.5 text-xs',
+                      flag.severity === 'error'
+                        ? 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
+                        : flag.severity === 'warning'
+                          ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                          : 'bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-300',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-medium">
+                        {formatFlagType(flag.flag_type)}
+                      </span>
+                      {!readOnly && (
+                        <button
+                          onClick={() => resolveFlag(flag.id)}
+                          className="text-[11px] underline-offset-2 hover:underline"
+                          aria-label={`Resolve ${formatFlagType(flag.flag_type)} flag`}
+                        >
+                          Resolve
+                        </button>
+                      )}
+                    </div>
+                    {'reason' in (flag.details ?? {}) && flag.details?.reason != null && (
+                      <p className="mt-0.5 text-[11px] opacity-80">
+                        {String(flag.details.reason)}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </dd>
             </div>
           )}

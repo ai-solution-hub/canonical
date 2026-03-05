@@ -459,16 +459,13 @@ export async function POST(request: NextRequest) {
         .lte('created_at', periodEndISO)
         .eq('resolved', false);
 
-      // Freshness breakdown for all items
-      const { data: freshnessData } = await supabase
-        .from('content_items')
-        .select('freshness');
-
+      // Freshness breakdown via server-side aggregation RPC
       const freshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
-      if (freshnessData) {
-        for (const item of freshnessData) {
-          const f = item.freshness as keyof typeof freshnessCounts;
-          if (f in freshnessCounts) freshnessCounts[f]++;
+      const { data: freshnessRows } = await supabase.rpc('get_freshness_breakdown');
+      if (freshnessRows) {
+        for (const row of freshnessRows as Array<{ freshness: string; count: number }>) {
+          const f = row.freshness as keyof typeof freshnessCounts;
+          if (f in freshnessCounts) freshnessCounts[f] = Number(row.count);
         }
       }
 

@@ -19,6 +19,7 @@ interface ContentGridProps {
   items: (ContentListItem | SearchResult)[];
   activeIndex?: number;
   readItemIds?: Set<string>;
+  qualityFlaggedIds?: Set<string>;
   multiSelectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (itemId: string) => void;
@@ -29,6 +30,7 @@ export function ContentGrid({
   items,
   activeIndex,
   readItemIds,
+  qualityFlaggedIds,
   multiSelectMode,
   selectedIds,
   onToggleSelect,
@@ -206,6 +208,7 @@ export function ContentGrid({
               <ContentCard
                 item={item}
                 isRead={readItemIds ? readItemIds.has(item.id) : undefined}
+                hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                 hideThumbnail={hideThumbnails}
               />
             </div>

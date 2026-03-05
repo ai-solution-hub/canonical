@@ -153,6 +153,15 @@ export function FilterBadges() {
     });
   }
 
+  if (filters.quality_issues) {
+    badges.push({
+      id: 'quality-issues',
+      label: 'Filter',
+      value: 'Quality issues',
+      onRemove: () => removeFilter('quality_issues'),
+    });
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {badges.map((badge) => (

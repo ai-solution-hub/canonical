@@ -19,15 +19,14 @@ interface UseProgressReturn {
 
 export function useProgress(): UseProgressReturn {
   const supabase = createClient();
-  const { readItemIds, totalCount, isLoaded, loadReadMarks } = useReadMarks();
+  const { readCount, totalCount, isLoaded, loadReadMarks } = useReadMarks();
 
-  // Trigger lazy loading of read marks for consumers of this hook
+  // Trigger lazy loading of read marks counts for consumers of this hook
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
   const [streak, setStreak] = useState(0);
   const [itemsThisWeek, setItemsThisWeek] = useState(0);
   const celebratedRef = useRef<Set<number>>(new Set());
 
-  const readCount = readItemIds.size;
   const unreadCount = totalCount - readCount;
   const percentage =
     totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
@@ -110,7 +109,7 @@ export function useProgress(): UseProgressReturn {
       calculateStats();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, readItemIds]);
+  }, [isLoaded, readCount]);
 
   // Milestone celebrations
   useEffect(() => {

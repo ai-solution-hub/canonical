@@ -209,6 +209,67 @@ export async function DELETE(
       );
     }
 
+    // Verify bid exists before cleanup
+    const { data: bid, error: fetchError } = await supabase
+      .from('projects')
+      .select('id, domain_metadata')
+      .eq('id', id)
+      .eq('type', 'bid')
+      .single();
+
+    if (fetchError || !bid) {
+      return NextResponse.json(
+        { error: 'Bid not found' },
+        { status: 404 },
+      );
+    }
+
+    // Clean up storage files before DB delete (best-effort)
+    try {
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const serviceClient = createServiceClient();
+
+      // Delete tender documents
+      const { data: tenderFiles } = await serviceClient.storage
+        .from('tender-documents')
+        .list(id, { limit: 200 });
+      if (tenderFiles?.length) {
+        await serviceClient.storage
+          .from('tender-documents')
+          .remove(tenderFiles.map((f) => `${id}/${f.name}`));
+      }
+
+      // Delete template files and completions
+      const { data: templates } = await supabase
+        .from('templates')
+        .select('id, storage_path, structure_path')
+        .eq('project_id', id);
+
+      if (templates?.length) {
+        const templatePaths = templates
+          .flatMap((t) => [t.storage_path, t.structure_path])
+          .filter(Boolean) as string[];
+
+        // Get completed template files
+        const templateIds = templates.map((t) => t.id);
+        const { data: completions } = await supabase
+          .from('template_completions')
+          .select('storage_path')
+          .in('template_id', templateIds);
+
+        const completionPaths = (completions ?? [])
+          .map((c) => c.storage_path)
+          .filter(Boolean);
+
+        const allPaths = [...templatePaths, ...completionPaths];
+        if (allPaths.length) {
+          await serviceClient.storage.from('templates').remove(allPaths);
+        }
+      }
+    } catch (storageErr) {
+      console.error('Storage cleanup failed (non-fatal):', storageErr);
+    }
+
     const { error } = await supabase
       .from('projects')
       .delete()

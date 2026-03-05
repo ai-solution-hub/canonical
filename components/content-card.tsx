@@ -12,12 +12,14 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
+import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
 interface ContentCardProps {
   item: ContentListItem | SearchResult;
   isRead?: boolean;
+  hasQualityFlag?: boolean;
   hideThumbnail?: boolean;
 }
 
@@ -27,7 +29,7 @@ function isSearchResult(
   return 'similarity' in item;
 }
 
-export function ContentCard({ item, isRead, hideThumbnail }: ContentCardProps) {
+export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const colourKey = item.primary_domain
@@ -144,6 +146,15 @@ export function ContentCard({ item, isRead, hideThumbnail }: ContentCardProps) {
             )}
             {item.governance_review_status === 'pending' && (
               <GovernanceBadge status="pending" compact />
+            )}
+            {hasQualityFlag && (
+              <span
+                className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                title="Has quality issues"
+              >
+                <AlertTriangle className="size-2.5" aria-hidden="true" />
+                <span>Quality</span>
+              </span>
             )}
           </div>
         </div>

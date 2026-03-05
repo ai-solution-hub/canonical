@@ -110,6 +110,14 @@ export const DigestListParamsSchema = z.object({
   offset: z.number().int().min(0).default(0),
 });
 
+/** GET /api/read-marks?item_ids=uuid1,uuid2,... */
+export const ReadMarkCheckParamsSchema = z.object({
+  item_ids: z
+    .string()
+    .transform((s) => s.split(',').filter(Boolean))
+    .pipe(z.array(z.string().uuid()).min(1).max(200)),
+});
+
 /** POST /api/read-marks */
 export const ReadMarkBodySchema = z.discriminatedUnion('action', [
   z.object({

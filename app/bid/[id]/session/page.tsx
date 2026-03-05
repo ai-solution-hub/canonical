@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, use } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -21,7 +21,7 @@ import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useDraftStream } from '@/hooks/use-draft-stream';
-import { getOrphanedSourceIds } from '@/lib/citations';
+import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { toast } from 'sonner';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
@@ -85,6 +85,13 @@ export default function BidSessionPage({
   const [response, setResponse] = useState<BidResponse | null>(null);
   const [responseLoading, setResponseLoading] = useState(false);
   const [editorContent, setEditorContent] = useState('');
+
+  // Citation orphan detection — batch-check source IDs via RPC
+  const citationSourceIds = useMemo(
+    () => (response?.citations ?? []).map((c) => c.source_id),
+    [response?.citations],
+  );
+  const orphanedSourceIds = useCitationOrphans(citationSourceIds);
 
   // Action states
   const [actionLoading, setActionLoading] = useState(false);
@@ -586,10 +593,7 @@ export default function BidSessionPage({
                 <CitationPanel
                   citations={response.citations ?? []}
                   sourceContent={response.source_content ?? []}
-                  orphanedSourceIds={getOrphanedSourceIds(
-                    response.citations ?? [],
-                    response.source_content ?? [],
-                  )}
+                  orphanedSourceIds={orphanedSourceIds}
                   onCitationClick={handleCitationClick}
                 />
               )}

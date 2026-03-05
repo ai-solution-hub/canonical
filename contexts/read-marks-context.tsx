@@ -8,20 +8,21 @@ import {
   useCallback,
   useRef,
 } from 'react';
-import { createClient } from '@/lib/supabase/client';
 
 type ReadSource = 'manual' | 'review' | 'digest' | 'bulk';
 
 interface ReadMarksContextValue {
-  /** Set of content_item IDs that have been read */
+  /** Set of content_item IDs that have been checked and are read */
   readItemIds: Set<string>;
+  /** Total number of read items (server-side count, accurate even without loading all IDs) */
+  readCount: number;
   /** Total number of unread items */
   unreadCount: number;
   /** Total number of items */
   totalCount: number;
-  /** Whether initial data has loaded */
+  /** Whether initial counts have loaded */
   isLoaded: boolean;
-  /** Check if a specific item has been read */
+  /** Check if a specific item has been read (only reliable after checkReadStatus for that ID) */
   isRead: (itemId: string) => boolean;
   /** Toggle read state for an item */
   toggleRead: (itemId: string, source?: ReadSource) => Promise<void>;
@@ -31,19 +32,23 @@ interface ReadMarksContextValue {
   markUnread: (itemId: string) => Promise<void>;
   /** Mark multiple items as read */
   markBulkRead: (itemIds: string[], source?: ReadSource) => Promise<void>;
-  /** Trigger lazy loading of read marks data. Idempotent — skips if already loaded or loading. */
+  /** Trigger loading of counts. Idempotent — skips if already loaded or loading. */
   loadReadMarks: () => void;
+  /** Check read status for a batch of item IDs. Merges results into readItemIds. */
+  checkReadStatus: (itemIds: string[]) => Promise<void>;
 }
 
 const ReadMarksContext = createContext<ReadMarksContextValue | null>(null);
 
 export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
   const [readItemIds, setReadItemIds] = useState<Set<string>>(new Set());
+  const [readCount, setReadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const isMountedRef = useRef(true);
   const isLoadingRef = useRef(false);
+  /** Track which item IDs have already been checked to avoid redundant requests */
+  const checkedIdsRef = useRef<Set<string>>(new Set());
 
   // Cleanup mounted ref
   useEffect(() => {
@@ -53,59 +58,84 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  // Lazy-load read marks data. Idempotent — skips if already loaded or currently loading.
+  // Lazy-load counts (read count + total count). No longer fetches all read mark IDs.
   const loadReadMarks = useCallback(() => {
     if (isLoaded || isLoadingRef.current) return;
     isLoadingRef.current = true;
 
-    async function fetchData() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+    async function fetchCounts() {
+      try {
+        const res = await fetch('/api/read-marks');
+        if (!res.ok) throw new Error('Failed to fetch read marks counts');
+        const data = await res.json();
+
+        if (!isMountedRef.current) {
+          isLoadingRef.current = false;
+          return;
+        }
+
+        setReadCount(data.read_count ?? 0);
+        setTotalCount(data.total_count ?? 0);
+        setIsLoaded(true);
+      } catch (error) {
+        console.error('Failed to fetch read marks counts:', error);
         if (isMountedRef.current) {
           setIsLoaded(true);
         }
-        isLoadingRef.current = false;
-        return;
       }
-
-      const [readResult, countResult] = await Promise.all([
-        supabase.from('read_marks').select('content_item_id'),
-        supabase
-          .from('content_items')
-          .select('*', { count: 'exact', head: true }),
-      ]);
-
-      if (!isMountedRef.current) {
-        isLoadingRef.current = false;
-        return;
-      }
-
-      if (readResult.error) {
-        console.error('Failed to fetch read marks:', readResult.error);
-      } else {
-        const ids = new Set(
-          (readResult.data ?? []).map(
-            (r: { content_item_id: string }) => r.content_item_id,
-          ),
-        );
-        setReadItemIds(ids);
-      }
-
-      if (!countResult.error && countResult.count !== null) {
-        setTotalCount(countResult.count ?? 0);
-      }
-
-      setIsLoaded(true);
       isLoadingRef.current = false;
     }
 
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+    fetchCounts();
   }, [isLoaded]);
 
-  const unreadCount = totalCount - readItemIds.size;
+  /**
+   * Check read status for a batch of item IDs.
+   * Only fetches IDs not already checked. Merges results into the readItemIds set.
+   */
+  const checkReadStatus = useCallback(async (itemIds: string[]) => {
+    // Filter out IDs we've already checked
+    const uncheckedIds = itemIds.filter((id) => !checkedIdsRef.current.has(id));
+    if (uncheckedIds.length === 0) return;
+
+    // Mark these as checked immediately to prevent duplicate requests
+    for (const id of uncheckedIds) {
+      checkedIdsRef.current.add(id);
+    }
+
+    try {
+      const res = await fetch(
+        `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
+      );
+      if (!res.ok) throw new Error('Failed to check read status');
+      const data = await res.json();
+
+      if (!isMountedRef.current) return;
+
+      const readIds: string[] = data.read_item_ids ?? [];
+      if (readIds.length > 0) {
+        setReadItemIds((prev) => {
+          const next = new Set(prev);
+          for (const id of readIds) {
+            next.add(id);
+          }
+          return next;
+        });
+      }
+
+      // Update counts if returned
+      if (data.read_count != null) setReadCount(data.read_count);
+      if (data.total_count != null) setTotalCount(data.total_count);
+    } catch (error) {
+      console.error('Failed to check read status:', error);
+      // Remove from checked so they can be retried
+      for (const id of uncheckedIds) {
+        checkedIdsRef.current.delete(id);
+      }
+    }
+  }, []);
+
+  const unreadCount = totalCount - readCount;
 
   const isRead = useCallback(
     (itemId: string) => readItemIds.has(itemId),
@@ -114,12 +144,17 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
   const markRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
-      // Optimistic update
+      // Optimistic update — track whether this was actually a new read
+      let wasNew = false;
       setReadItemIds((prev) => {
+        if (prev.has(itemId)) return prev; // Already read, no-op
+        wasNew = true;
         const next = new Set(prev);
         next.add(itemId);
         return next;
       });
+      if (wasNew) setReadCount((prev) => prev + 1);
+      checkedIdsRef.current.add(itemId);
 
       try {
         const res = await fetch('/api/read-marks', {
@@ -134,12 +169,15 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         if (!res.ok) throw new Error('Failed to mark as read');
       } catch (error) {
         console.error('Failed to mark as read:', error);
-        // Rollback
-        setReadItemIds((prev) => {
-          const next = new Set(prev);
-          next.delete(itemId);
-          return next;
-        });
+        // Rollback only if we actually added it
+        if (wasNew) {
+          setReadItemIds((prev) => {
+            const next = new Set(prev);
+            next.delete(itemId);
+            return next;
+          });
+          setReadCount((prev) => Math.max(0, prev - 1));
+        }
       }
     },
     [],
@@ -147,11 +185,13 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
   const markUnread = useCallback(async (itemId: string) => {
     // Optimistic update
+    const wasRead = readItemIds.has(itemId);
     setReadItemIds((prev) => {
       const next = new Set(prev);
       next.delete(itemId);
       return next;
     });
+    if (wasRead) setReadCount((prev) => Math.max(0, prev - 1));
 
     try {
       const res = await fetch('/api/read-marks', {
@@ -168,8 +208,9 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         next.add(itemId);
         return next;
       });
+      if (wasRead) setReadCount((prev) => prev + 1);
     }
-  }, []);
+  }, [readItemIds]);
 
   const toggleRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
@@ -196,6 +237,10 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         }
         return next;
       });
+      setReadCount((prev) => prev + unreadIds.length);
+      for (const id of unreadIds) {
+        checkedIdsRef.current.add(id);
+      }
 
       try {
         const res = await fetch('/api/read-marks', {
@@ -218,6 +263,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
           }
           return next;
         });
+        setReadCount((prev) => Math.max(0, prev - unreadIds.length));
       }
     },
     [readItemIds],
@@ -225,6 +271,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
   const contextValue: ReadMarksContextValue = {
     readItemIds,
+    readCount,
     unreadCount,
     totalCount,
     isLoaded,
@@ -234,6 +281,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     markUnread,
     markBulkRead,
     loadReadMarks,
+    checkReadStatus,
   };
 
   return (
