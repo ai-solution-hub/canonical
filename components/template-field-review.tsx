@@ -1,15 +1,19 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle,
   XCircle,
   CircleDot,
   AlertCircle,
   UserPen,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import type { TemplateField, TemplateSummary } from '@/types/template';
@@ -30,9 +34,12 @@ interface TemplateFieldReviewProps {
   onAutoMap: () => Promise<void>;
   onFill: () => void;
   onBulkAccept: () => Promise<void>;
+  onBulkReject?: (fieldIds: string[]) => Promise<void>;
 }
 
 type FilterStatus = 'all' | 'unreviewed' | 'confirmed' | 'unmapped' | 'rejected';
+type SortField = 'sequence' | 'section' | 'confidence' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 const STATUS_CONFIG = {
   unreviewed: {
@@ -102,6 +109,15 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   );
 }
 
+/** Status sort weight — lower = earlier in ascending sort */
+const STATUS_ORDER: Record<string, number> = {
+  unmapped: 0,
+  unreviewed: 1,
+  manual: 2,
+  confirmed: 3,
+  rejected: 4,
+};
+
 export function TemplateFieldReview({
   templateId,
   bidId,
@@ -112,6 +128,7 @@ export function TemplateFieldReview({
   onAutoMap,
   onFill,
   onBulkAccept,
+  onBulkReject,
 }: TemplateFieldReviewProps) {
   // templateId and bidId are available for future use (e.g. direct API calls)
   void templateId;
@@ -122,10 +139,42 @@ export function TemplateFieldReview({
   const [loading, setLoading] = useState<string | null>(null);
   const [autoMapping, setAutoMapping] = useState(false);
 
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>('sequence');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  // Keyboard focus state
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
   const filteredFields = useMemo(() => {
-    if (filter === 'all') return fields;
-    return fields.filter((f) => f.mapping_status === filter);
-  }, [fields, filter]);
+    const result = filter === 'all' ? [...fields] : fields.filter((f) => f.mapping_status === filter);
+
+    // Apply sorting
+    result.sort((a, b) => {
+      let cmp = 0;
+      switch (sortField) {
+        case 'sequence':
+          cmp = a.sequence - b.sequence;
+          break;
+        case 'section':
+          cmp = (a.section_name ?? '').localeCompare(b.section_name ?? '');
+          break;
+        case 'confidence':
+          cmp = (a.mapping_confidence ?? -1) - (b.mapping_confidence ?? -1);
+          break;
+        case 'status':
+          cmp = (STATUS_ORDER[a.mapping_status] ?? 99) - (STATUS_ORDER[b.mapping_status] ?? 99);
+          break;
+      }
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return result;
+  }, [fields, filter, sortField, sortDirection]);
 
   const confirmedCount = summary.confirmed_fields;
   const totalMappable = summary.total_fields - summary.rejected_fields;
@@ -202,6 +251,143 @@ export function TemplateFieldReview({
     }
   }, [onBulkAccept]);
 
+  const handleBulkReject = useCallback(async () => {
+    if (!onBulkReject || selectedIds.size === 0) return;
+    setLoading('bulk-reject');
+    try {
+      await onBulkReject(Array.from(selectedIds));
+      setSelectedIds(new Set());
+      toast.success(`${selectedIds.size} field(s) rejected`);
+    } catch {
+      toast.error('Bulk reject failed');
+    } finally {
+      setLoading(null);
+    }
+  }, [onBulkReject, selectedIds]);
+
+  const toggleSort = useCallback((field: SortField) => {
+    setSortField((prev) => {
+      if (prev === field) {
+        setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDirection('asc');
+      return field;
+    });
+  }, []);
+
+  const toggleSelection = useCallback((fieldId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldId)) next.delete(fieldId);
+      else next.add(fieldId);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    const selectableIds = filteredFields
+      .filter((f) => f.mapping_status !== 'rejected')
+      .map((f) => f.id);
+
+    setSelectedIds((prev) => {
+      const allSelected = selectableIds.every((id) => prev.has(id));
+      if (allSelected) return new Set();
+      return new Set(selectableIds);
+    });
+  }, [filteredFields]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Ignore if user is typing in an input/select/textarea
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+
+      switch (e.key) {
+        case 'j': {
+          e.preventDefault();
+          setFocusedIndex((prev) => {
+            const next = Math.min(prev + 1, filteredFields.length - 1);
+            rowRefs.current.get(next)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return next;
+          });
+          break;
+        }
+        case 'k': {
+          e.preventDefault();
+          setFocusedIndex((prev) => {
+            const next = Math.max(prev - 1, 0);
+            rowRefs.current.get(next)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            return next;
+          });
+          break;
+        }
+        case 'n': {
+          e.preventDefault();
+          const nextUnreviewed = filteredFields.findIndex(
+            (f, i) => i > focusedIndex && (f.mapping_status === 'unreviewed' || f.mapping_status === 'unmapped'),
+          );
+          if (nextUnreviewed !== -1) {
+            setFocusedIndex(nextUnreviewed);
+            rowRefs.current.get(nextUnreviewed)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          } else {
+            // Wrap around from beginning
+            const fromStart = filteredFields.findIndex(
+              (f) => f.mapping_status === 'unreviewed' || f.mapping_status === 'unmapped',
+            );
+            if (fromStart !== -1) {
+              setFocusedIndex(fromStart);
+              rowRefs.current.get(fromStart)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            }
+          }
+          break;
+        }
+        case 'Enter': {
+          if (focusedIndex < 0 || focusedIndex >= filteredFields.length) return;
+          const field = filteredFields[focusedIndex];
+          if (field.question_id && (field.mapping_status === 'unreviewed' || field.mapping_status === 'unmapped')) {
+            e.preventDefault();
+            handleConfirm(field);
+          }
+          break;
+        }
+        case 'r': {
+          if (focusedIndex < 0 || focusedIndex >= filteredFields.length) return;
+          const field = filteredFields[focusedIndex];
+          if (field.mapping_status !== 'rejected') {
+            e.preventDefault();
+            handleReject(field);
+          }
+          break;
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [filteredFields, focusedIndex, handleConfirm, handleReject]);
+
+  // Reset focused index when filter or sort changes
+  useEffect(() => {
+    setFocusedIndex(-1);
+  }, [filter, sortField, sortDirection]);
+
+  // Clear selection when filter changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filter]);
+
+  const SortIcon = useCallback(
+    ({ field }: { field: SortField }) => {
+      if (sortField !== field) return <ArrowUpDown className="ml-1 inline size-3.5 text-muted-foreground/50" />;
+      return sortDirection === 'asc'
+        ? <ArrowUp className="ml-1 inline size-3.5" />
+        : <ArrowDown className="ml-1 inline size-3.5" />;
+    },
+    [sortField, sortDirection],
+  );
+
   const hasConfirmedFields = summary.confirmed_fields > 0;
   const hasUnreviewed = summary.unreviewed_fields > 0;
 
@@ -231,6 +417,17 @@ export function TemplateFieldReview({
           >
             {autoMapping ? 'Mapping...' : 'Auto-Map'}
           </Button>
+          {selectedIds.size > 0 && onBulkReject && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkReject}
+              disabled={loading === 'bulk-reject'}
+              className="text-destructive hover:text-destructive"
+            >
+              Reject Selected ({selectedIds.size})
+            </Button>
+          )}
           {hasUnreviewed && (
             <Button
               variant="outline"
@@ -284,25 +481,63 @@ export function TemplateFieldReview({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/50">
-              <th className="px-3 py-2 text-left font-medium w-8">#</th>
-              <th className="px-3 py-2 text-left font-medium">Section</th>
+              {onBulkReject && (
+                <th className="px-2 py-2 w-8">
+                  <Checkbox
+                    checked={filteredFields.length > 0 && filteredFields.filter((f) => f.mapping_status !== 'rejected').every((f) => selectedIds.has(f.id))}
+                    onCheckedChange={() => toggleSelectAll()}
+                    aria-label="Select all fields"
+                  />
+                </th>
+              )}
+              <th className="px-3 py-2 text-left font-medium w-8">
+                <button className="inline-flex items-center" onClick={() => toggleSort('sequence')}>
+                  #<SortIcon field="sequence" />
+                </button>
+              </th>
+              <th className="px-3 py-2 text-left font-medium">
+                <button className="inline-flex items-center" onClick={() => toggleSort('section')}>
+                  Section<SortIcon field="section" />
+                </button>
+              </th>
               <th className="px-3 py-2 text-left font-medium">Question (from template)</th>
               <th className="px-3 py-2 text-left font-medium">Mapped To</th>
-              <th className="px-3 py-2 text-left font-medium w-28">Confidence</th>
-              <th className="px-3 py-2 text-left font-medium w-28">Status</th>
+              <th className="px-3 py-2 text-left font-medium w-28">
+                <button className="inline-flex items-center" onClick={() => toggleSort('confidence')}>
+                  Confidence<SortIcon field="confidence" />
+                </button>
+              </th>
+              <th className="px-3 py-2 text-left font-medium w-28">
+                <button className="inline-flex items-center" onClick={() => toggleSort('status')}>
+                  Status<SortIcon field="status" />
+                </button>
+              </th>
               <th className="px-3 py-2 text-left font-medium w-32">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filteredFields.map((field) => (
+            {filteredFields.map((field, idx) => (
               <tr
                 key={field.id}
+                ref={(el) => { if (el) rowRefs.current.set(idx, el); }}
                 className={cn(
                   'border-b last:border-0 transition-colors',
                   field.mapping_status === 'rejected' && 'opacity-50',
                   loading === field.id && 'opacity-70',
+                  focusedIndex === idx && 'bg-accent/50',
                 )}
               >
+                {onBulkReject && (
+                  <td className="px-2 py-2">
+                    {field.mapping_status !== 'rejected' && (
+                      <Checkbox
+                        checked={selectedIds.has(field.id)}
+                        onCheckedChange={() => toggleSelection(field.id)}
+                        aria-label={`Select field ${field.sequence + 1}`}
+                      />
+                    )}
+                  </td>
+                )}
                 <td className="px-3 py-2 text-muted-foreground">{field.sequence + 1}</td>
                 <td
                   className="px-3 py-2 text-xs text-muted-foreground max-w-[120px] truncate"
@@ -391,7 +626,7 @@ export function TemplateFieldReview({
             ))}
             {filteredFields.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                <td colSpan={onBulkReject ? 8 : 7} className="px-3 py-8 text-center text-muted-foreground">
                   No fields match the current filter.
                 </td>
               </tr>
@@ -399,6 +634,14 @@ export function TemplateFieldReview({
           </tbody>
         </table>
       </div>
+
+      {/* Keyboard shortcuts hint */}
+      <p className="text-xs text-muted-foreground">
+        Keyboard: <kbd className="rounded border px-1 font-mono text-[10px]">j</kbd>/<kbd className="rounded border px-1 font-mono text-[10px]">k</kbd> navigate
+        · <kbd className="rounded border px-1 font-mono text-[10px]">Enter</kbd> confirm
+        · <kbd className="rounded border px-1 font-mono text-[10px]">r</kbd> reject
+        · <kbd className="rounded border px-1 font-mono text-[10px]">n</kbd> next unreviewed
+      </p>
     </div>
   );
 }
