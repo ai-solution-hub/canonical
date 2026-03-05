@@ -4,10 +4,13 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { ReviewCard } from '@/components/review-card';
 import { ReviewActionBar } from '@/components/review-action-bar';
 import { ReviewProgressBar } from '@/components/review-progress-bar';
 import { ReviewFilters } from '@/components/review-filters';
+import { ReviewQueuePanel, type QueueSortField } from '@/components/review-queue-panel';
 import { useReviewShortcuts } from '@/hooks/use-review-shortcuts';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +30,13 @@ import type {
 
 const BATCH_SIZE = 20;
 const PREFETCH_THRESHOLD = 15;
+
+interface UndoableAction {
+  itemId: string;
+  itemTitle: string;
+  action: 'verify' | 'flag';
+  previousIndex: number;
+}
 
 /**
  * Main client component for the Content Review page.
@@ -70,6 +80,7 @@ export function ReviewContent() {
     flagged: 0,
     skipped: 0,
     total: 0,
+    sessionReviewed: 0,
   });
 
   // Filter state (initialised from URL)
@@ -108,6 +119,16 @@ export function ReviewContent() {
   const [showFlagInput, setShowFlagInput] = useState(false);
   const [flagDetails, setFlagDetails] = useState('');
 
+  // Queue panel state
+  const [showQueuePanel, setShowQueuePanel] = useState(false);
+  const [queueSort, setQueueSort] = useState<QueueSortField>('default');
+
+  // Undo state (tracked for potential future use, e.g. multi-undo)
+  const [, setLastAction] = useState<UndoableAction | null>(null);
+
+  // Flagged items tracking (for context summary)
+  const flaggedThisSessionRef = useRef<Set<string>>(new Set());
+
   // Refs for focus management
   const cardRef = useRef<HTMLDivElement>(null);
   const flagInputRef = useRef<HTMLInputElement>(null);
@@ -117,6 +138,45 @@ export function ReviewContent() {
   const [announcement, setAnnouncement] = useState('');
 
   const currentItem = queue[currentIndex] ?? null;
+
+  // Sorted queue for the side panel
+  const sortedQueue = useMemo(() => {
+    if (queueSort === 'default') return queue;
+
+    const sorted = [...queue];
+    switch (queueSort) {
+      case 'domain':
+        sorted.sort((a, b) => (a.primary_domain ?? '').localeCompare(b.primary_domain ?? ''));
+        break;
+      case 'content_type':
+        sorted.sort((a, b) => (a.content_type ?? '').localeCompare(b.content_type ?? ''));
+        break;
+      case 'confidence':
+        sorted.sort((a, b) => (b.classification_confidence ?? 0) - (a.classification_confidence ?? 0));
+        break;
+      case 'date':
+        sorted.sort((a, b) => (b.captured_date ?? '').localeCompare(a.captured_date ?? ''));
+        break;
+    }
+    return sorted;
+  }, [queue, queueSort]);
+
+  // Map sorted index back to real queue index
+  const handleSelectItem = useCallback(
+    (sortedIndex: number) => {
+      const selectedItem = sortedQueue[sortedIndex];
+      if (!selectedItem) return;
+      const realIndex = queue.findIndex((q) => q.id === selectedItem.id);
+      if (realIndex >= 0) setCurrentIndex(realIndex);
+    },
+    [sortedQueue, queue],
+  );
+
+  // Current item's index in sorted queue (for panel highlighting)
+  const currentSortedIndex = useMemo(() => {
+    if (!currentItem) return -1;
+    return sortedQueue.findIndex((q) => q.id === currentItem.id);
+  }, [sortedQueue, currentItem]);
 
   // -- Data Fetching --
 
@@ -187,6 +247,7 @@ export function ReviewContent() {
           total: data.total ?? prev.total,
           verified: data.verified_count ?? prev.verified,
           flagged: data.flagged_count ?? prev.flagged,
+          sessionReviewed: 0,
         }));
       } catch (err) {
         console.error('Failed to load review queue:', err);
@@ -250,6 +311,50 @@ export function ReviewContent() {
     }
   }, [currentIndex, isLoading, currentItem]);
 
+  // -- Undo Handler --
+
+  const handleUndo = useCallback(
+    async (undoAction: UndoableAction) => {
+      try {
+        const apiAction = undoAction.action === 'verify' ? 'unverify' : 'unflag';
+        const res = await fetch('/api/review/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_id: undoAction.itemId, action: apiAction }),
+        });
+        if (!res.ok) throw new Error('Undo failed');
+
+        // Roll back progress
+        setProgress((prev) => ({
+          ...prev,
+          verified: undoAction.action === 'verify' ? prev.verified - 1 : prev.verified,
+          flagged: undoAction.action === 'flag' ? prev.flagged - 1 : prev.flagged,
+          sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
+        }));
+
+        // Roll back queue state if verify
+        if (undoAction.action === 'verify') {
+          setQueue((prev) =>
+            prev.map((item) =>
+              item.id === undoAction.itemId
+                ? { ...item, verified_at: null, verified_by: null }
+                : item,
+            ),
+          );
+        }
+
+        // Navigate back to the undone item
+        setCurrentIndex(undoAction.previousIndex);
+        setLastAction(null);
+
+        toast.success(`Undone: ${undoAction.itemTitle}`);
+      } catch {
+        toast.error('Failed to undo. Please try again.');
+      }
+    },
+    [],
+  );
+
   // -- Actions --
 
   const advanceToNext = useCallback(() => {
@@ -265,11 +370,13 @@ export function ReviewContent() {
 
     const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
     const wasAlreadyVerified = !!currentItem.verified_at;
+    const previousIndex = currentIndex;
 
     // Optimistic update
     setProgress((prev) => ({
       ...prev,
       verified: prev.verified + (wasAlreadyVerified ? 0 : 1),
+      sessionReviewed: prev.sessionReviewed + 1,
     }));
     setQueue((prev) =>
       prev.map((item, i) =>
@@ -286,9 +393,21 @@ export function ReviewContent() {
         : `Verified. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`,
     );
 
-    if (wasAlreadyVerified) {
-      toast.success('Already verified. Re-verified.');
-    }
+    // Undo toast
+    const undoAction: UndoableAction = {
+      itemId: currentItem.id,
+      itemTitle,
+      action: 'verify',
+      previousIndex,
+    };
+    setLastAction(undoAction);
+    toast.success(`Verified: ${itemTitle}`, {
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => handleUndo(undoAction),
+      },
+    });
 
     try {
       const res = await fetch('/api/review/action', {
@@ -303,11 +422,12 @@ export function ReviewContent() {
       setProgress((prev) => ({
         ...prev,
         verified: prev.verified - (wasAlreadyVerified ? 0 : 1),
+        sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
       }));
     } finally {
       setIsActioning(false);
     }
-  }, [currentItem, isActioning, currentIndex, progress.total, advanceToNext]);
+  }, [currentItem, isActioning, currentIndex, progress.total, advanceToNext, handleUndo]);
 
   const handleFlagSubmit = useCallback(
     async (details?: string) => {
@@ -317,17 +437,38 @@ export function ReviewContent() {
       setFlagDetails('');
 
       const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
+      const previousIndex = currentIndex;
+
+      // Track flagged items
+      flaggedThisSessionRef.current.add(currentItem.id);
 
       // Optimistic update
       setProgress((prev) => ({
         ...prev,
         flagged: prev.flagged + 1,
+        sessionReviewed: prev.sessionReviewed + 1,
       }));
       advanceToNext();
 
       setAnnouncement(
         `Flagged for review. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`,
       );
+
+      // Undo toast
+      const undoAction: UndoableAction = {
+        itemId: currentItem.id,
+        itemTitle,
+        action: 'flag',
+        previousIndex,
+      };
+      setLastAction(undoAction);
+      toast.success(`Flagged: ${itemTitle}`, {
+        duration: 5000,
+        action: {
+          label: 'Undo',
+          onClick: () => handleUndo(undoAction),
+        },
+      });
 
       try {
         const body: Record<string, unknown> = {
@@ -349,12 +490,13 @@ export function ReviewContent() {
         setProgress((prev) => ({
           ...prev,
           flagged: prev.flagged - 1,
+          sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
         }));
       } finally {
         setIsActioning(false);
       }
     },
-    [currentItem, isActioning, currentIndex, progress.total, advanceToNext],
+    [currentItem, isActioning, currentIndex, progress.total, advanceToNext, handleUndo],
   );
 
   const handleFlag = useCallback(() => {
@@ -374,6 +516,7 @@ export function ReviewContent() {
     setProgress((prev) => ({
       ...prev,
       skipped: prev.skipped + 1,
+      sessionReviewed: prev.sessionReviewed + 1,
     }));
     advanceToNext();
 
@@ -401,6 +544,10 @@ export function ReviewContent() {
     setFilters(newFilters);
   }, []);
 
+  const handleTogglePanel = useCallback(() => {
+    setShowQueuePanel((prev) => !prev);
+  }, []);
+
   // -- Keyboard Shortcuts --
 
   const { showHelp, setShowHelp } = useReviewShortcuts({
@@ -410,6 +557,7 @@ export function ReviewContent() {
     onBack: handleBack,
     onExit: handleExit,
     onEdit: handleEdit,
+    onTogglePanel: handleTogglePanel,
     enabled: !showFlagInput,
   });
 
@@ -548,29 +696,46 @@ export function ReviewContent() {
     );
   }
 
-  // Main review view
-  return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
+  // Main review content (shared between panel and non-panel layouts)
+  const reviewMainContent = (
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col px-4 py-8 sm:px-6">
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
 
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
+      <div className="mx-auto w-full max-w-[800px]">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
+            {/* Queue panel toggle (hidden on mobile) */}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleTogglePanel}
+              className="hidden md:inline-flex"
+              aria-label={showQueuePanel ? 'Hide review queue panel' : 'Show review queue panel'}
+              aria-expanded={showQueuePanel}
+            >
+              {showQueuePanel ? (
+                <PanelRightClose className="size-4" />
+              ) : (
+                <PanelRightOpen className="size-4" />
+              )}
+            </Button>
+          </div>
+          <ReviewFilters
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            stats={stats}
+          />
         </div>
-        <ReviewFilters
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-          stats={stats}
-        />
+
+        {/* Progress bar */}
+        <ReviewProgressBar progress={progress} className="mb-6" />
       </div>
 
-      {/* Progress bar */}
-      <ReviewProgressBar progress={progress} className="mb-6" />
-
       {/* Content area with bottom padding for sticky action bar clearance */}
-      <div className="flex-1 pb-20">
+      <div className="mx-auto w-full max-w-[800px] flex-1 pb-20">
         {/* Review card with motion-safe transitions */}
         <div className="motion-safe:transition-opacity motion-safe:duration-150">
           <ReviewCard
@@ -660,6 +825,7 @@ export function ReviewContent() {
               ['\u2192', 'Skip to next item'],
               ['\u2190', 'Go back to previous item'],
               ['E', 'Open item in new tab for editing'],
+              ['L', 'Toggle review queue panel'],
               ['Esc', 'Exit review (go to Browse)'],
               ['?', 'Toggle this help overlay'],
             ].map(([key, desc]) => (
@@ -674,5 +840,42 @@ export function ReviewContent() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+
+  // Main review view — with optional side panel
+  return (
+    <PanelGroup
+      orientation="horizontal"
+      className="min-h-[calc(100vh-4rem)]"
+    >
+      <Panel
+        id="review-main"
+        defaultSize={showQueuePanel ? '75%' : '100%'}
+        minSize="60%"
+      >
+        {reviewMainContent}
+      </Panel>
+
+      {showQueuePanel && (
+        <>
+          <PanelResizeHandle className="hidden w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30 md:block" />
+          <Panel
+            id="review-queue"
+            defaultSize="25%"
+            minSize="20%"
+            maxSize="35%"
+            className="hidden md:block"
+          >
+            <ReviewQueuePanel
+              items={sortedQueue}
+              currentIndex={currentSortedIndex}
+              onSelectItem={handleSelectItem}
+              sortBy={queueSort}
+              onSortChange={setQueueSort}
+            />
+          </Panel>
+        </>
+      )}
+    </PanelGroup>
   );
 }

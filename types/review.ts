@@ -35,6 +35,7 @@ export interface ReviewProgress {
   flagged: number;
   skipped: number;
   total: number;
+  sessionReviewed: number;
 }
 
 // -- Session state --

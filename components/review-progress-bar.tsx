@@ -26,22 +26,26 @@ export function ReviewProgressBar({ progress, className = '' }: ReviewProgressBa
       </div>
       <Progress
         value={percentage}
+        className="h-3"
         aria-label={`Review progress: ${progress.verified} of ${progress.total} items verified`}
         aria-valuenow={percentage}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuetext={`${progress.verified} of ${progress.total} verified (${percentage}%)`}
       />
-      {(progress.flagged > 0 || progress.skipped > 0) && (
-        <div className="flex gap-3 text-xs text-muted-foreground">
-          {progress.flagged > 0 && (
-            <span>{progress.flagged} flagged</span>
-          )}
-          {progress.skipped > 0 && (
-            <span>{progress.skipped} skipped</span>
-          )}
-        </div>
-      )}
+      <div className="flex gap-3 text-xs text-muted-foreground">
+        {progress.sessionReviewed > 0 && (
+          <span className="font-medium text-foreground">
+            Reviewed {progress.sessionReviewed} this session
+          </span>
+        )}
+        {progress.flagged > 0 && (
+          <span>{progress.flagged} flagged</span>
+        )}
+        {progress.skipped > 0 && (
+          <span>{progress.skipped} skipped</span>
+        )}
+      </div>
     </div>
   );
 }

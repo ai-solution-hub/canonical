@@ -12,7 +12,8 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
-import { AlertTriangle, FileText } from 'lucide-react';
+import { AlertTriangle, Copy, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
@@ -125,7 +126,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
             </p>
           )}
 
-          {/* Footer: content type + platform, date, verification, quality */}
+          {/* Footer: content type + platform, date, copy, verification, quality */}
           <div className="mt-auto flex flex-col gap-1.5 pt-1">
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <ContentTypeIcon contentType={item.content_type} size="size-3" />
@@ -140,6 +141,21 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
               >
                 {formatSmartDate(item.captured_date)}
               </time>
+              {answerPreview && (
+                <button
+                  type="button"
+                  aria-label="Copy answer to clipboard"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(answerPreview);
+                    toast.success('Answer copied to clipboard');
+                  }}
+                >
+                  <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
+                </button>
+              )}
               {item.verified_at && (
                 <VerificationBadge verified={true} size="sm" />
               )}

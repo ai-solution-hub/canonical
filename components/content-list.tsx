@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useRef, useState, useEffect } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
@@ -26,12 +26,23 @@ export function ContentList({
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual functions are consumed locally, not passed to memoized children
-  const virtualizer = useVirtualizer({
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useEffect(() => {
+    const recalc = () => {
+      if (parentRef.current) {
+        setScrollMargin(parentRef.current.offsetTop);
+      }
+    };
+    recalc();
+    window.addEventListener('resize', recalc);
+    return () => window.removeEventListener('resize', recalc);
+  }, [items.length]);
+
+  const virtualizer = useWindowVirtualizer({
     count: items.length,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => 64,
     overscan: 10,
+    scrollMargin,
   });
 
   if (items.length === 0) return null;
@@ -41,7 +52,7 @@ export function ContentList({
       ref={parentRef}
       role="feed"
       aria-label="Content items"
-      className="max-h-[calc(100vh-280px)] overflow-auto rounded-lg border border-border"
+      className="rounded-lg border border-border"
       style={{
         contentVisibility: 'auto',
         containIntrinsicSize: '0 600px',
@@ -68,7 +79,7 @@ export function ContentList({
                 left: 0,
                 width: '100%',
                 height: `${virtualItem.size}px`,
-                transform: `translateY(${virtualItem.start}px)`,
+                transform: `translateY(${virtualItem.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
               <div className="flex w-full items-center">

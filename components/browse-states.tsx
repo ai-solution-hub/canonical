@@ -27,22 +27,52 @@ export function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
     );
   }
 
+  // Mixed skeleton: alternate between compact cards (no thumbnail) and full cards (with thumbnail)
+  // to better reflect the actual mixed grid layout with Q&A pairs and articles
   return (
     <div
       className="grid gap-4"
       style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
     >
-      {Array.from({ length: 12 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3"
-        >
-          <Skeleton className="aspect-video w-full rounded-md" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-3 w-full" />
-          <Skeleton className="h-3 w-1/2" />
-        </div>
-      ))}
+      {Array.from({ length: 12 }).map((_, i) => {
+        // Alternate: indices 0,1,3,4,6,7 are compact, 2,5,8,11 are full
+        const isCompact = i % 3 !== 2;
+
+        if (isCompact) {
+          return (
+            <div
+              key={i}
+              className="flex flex-col gap-2.5 rounded-lg border border-border bg-card p-3"
+              style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--border)' }}
+            >
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="size-5 rounded" />
+                <Skeleton className="h-5 w-16 rounded-full" />
+              </div>
+              <Skeleton className="h-4 w-4/5" />
+              <Skeleton className="h-3 w-full" />
+              <Skeleton className="h-3 w-2/3" />
+              <div className="mt-auto flex items-center gap-2 pt-1">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            key={i}
+            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3"
+            style={{ borderLeftWidth: '4px', borderLeftColor: 'var(--border)' }}
+          >
+            <Skeleton className="aspect-video w-full rounded-md" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-full" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -1,18 +1,17 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type RefCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
 import { toast } from 'sonner';
-import { Upload, Plus } from 'lucide-react';
+import { Upload, Plus, Loader2 } from 'lucide-react';
 import { ContentGrid } from '@/components/content-grid';
 import { ContentList } from '@/components/content-list';
 import { FilterPanel } from '@/components/filter-panel';
 import { FilterBadges } from '@/components/filter-badges';
 import { FilterBar, type ViewMode, type SortOption } from '@/components/filter-bar';
 import { BulkActions } from '@/components/bulk-actions';
-import { PaginationControls } from '@/components/pagination-controls';
 import { LoadingSkeleton, EmptyState } from '@/components/browse-states';
 import dynamic from 'next/dynamic';
 
@@ -500,6 +499,40 @@ export function BrowseContent() {
     filters.sort,
   ]);
 
+  // Infinite scroll — IntersectionObserver sentinel
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const handleLoadMoreRef = useRef(handleLoadMore);
+  handleLoadMoreRef.current = handleLoadMore;
+
+  const sentinelCallbackRef: RefCallback<HTMLDivElement> = useCallback(
+    (node) => {
+      sentinelRef.current = node;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          handleLoadMoreRef.current();
+        }
+      },
+      { rootMargin: '200px', threshold: 0 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [
+    // Re-create observer when these change so the sentinel ref stays current
+    hasMore,
+    isLoading,
+    isLoadingMore,
+  ]);
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
@@ -626,13 +659,19 @@ export function BrowseContent() {
         )}
       </div>
 
-      {!isLoading && hasMore && items.length > 0 && (
-        <PaginationControls
-          itemCount={items.length}
-          totalCount={totalCount}
-          isLoadingMore={isLoadingMore}
-          onLoadMore={handleLoadMore}
-        />
+      {/* Infinite scroll sentinel + status */}
+      {!isLoading && items.length > 0 && (
+        <div className="mt-8 flex flex-col items-center gap-2">
+          {hasMore && (
+            <div ref={sentinelCallbackRef} aria-hidden="true" className="h-px w-full" />
+          )}
+          {isLoadingMore && (
+            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+          )}
+          <p className="text-sm text-muted-foreground">
+            Showing {displayItems.length} of {totalCount?.toLocaleString('en-GB') ?? '...'} items
+          </p>
+        </div>
       )}
 
       <FilterPanel open={filterPanelOpen} onOpenChange={setFilterPanelOpen} />

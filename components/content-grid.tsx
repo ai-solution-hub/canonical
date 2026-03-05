@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useEffect, useCallback, useMemo, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentCard } from '@/components/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
@@ -65,13 +65,25 @@ export function ContentGrid({
 
   const rowHeight = hideThumbnails ? COMPACT_ROW_HEIGHT : ESTIMATED_ROW_HEIGHT;
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual functions are consumed locally, not passed to memoized children
-  const virtualizer = useVirtualizer({
+  const [scrollMargin, setScrollMargin] = useState(0);
+  useEffect(() => {
+    const recalc = () => {
+      if (parentRef.current) {
+        setScrollMargin(parentRef.current.offsetTop);
+      }
+    };
+    recalc();
+    // Recalculate on window resize (header height may change)
+    window.addEventListener('resize', recalc);
+    return () => window.removeEventListener('resize', recalc);
+  }, [items.length]);
+
+  const virtualizer = useWindowVirtualizer({
     count: rowCount,
-    getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
     gap: ROW_GAP,
     overscan: OVERSCAN_ROWS,
+    scrollMargin,
   });
 
   // Compute the active row from the activeIndex
@@ -225,7 +237,6 @@ export function ContentGrid({
       aria-label="Content items"
       aria-busy={false}
       onKeyDown={handleGridKeyDown}
-      className="max-h-[calc(100vh-200px)] overflow-auto"
       style={{
         contentVisibility: 'auto',
         containIntrinsicSize: '0 800px',
@@ -252,7 +263,7 @@ export function ContentGrid({
                 top: 0,
                 left: 0,
                 width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)`,
               }}
             >
               <div

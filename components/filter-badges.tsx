@@ -163,7 +163,7 @@ export function FilterBadges() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border-l-4 border-primary/30 bg-muted/50 px-3 py-2">
       {badges.map((badge) => (
         <Badge
           key={badge.id}
