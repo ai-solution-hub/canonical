@@ -16,6 +16,7 @@ interface BidListCardProps {
 
 export function BidListCard({ bid, className }: BidListCardProps) {
   const metadata = bid.domain_metadata as BidMetadata;
+  const bidStatus = (bid.status ?? metadata.status) as BidMetadata['status'];
   const stats = bid.question_stats;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
@@ -42,7 +43,7 @@ export function BidListCard({ bid, className }: BidListCardProps) {
           <h3 className="truncate text-base font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
             {bid.name}
           </h3>
-          <BidStateBadge state={metadata.status} className="shrink-0" />
+          <BidStateBadge state={bidStatus} className="shrink-0" />
         </div>
 
         {/* Buyer and deadline */}

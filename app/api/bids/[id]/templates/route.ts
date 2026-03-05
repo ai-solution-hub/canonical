@@ -131,7 +131,7 @@ export async function POST(
     // Verify bid exists and is not in a terminal state
     const { data: bid, error: bidError } = await supabase
       .from('projects')
-      .select('id, domain_metadata')
+      .select('id, status, domain_metadata')
       .eq('id', bidId)
       .eq('type', 'bid')
       .single();
@@ -143,7 +143,7 @@ export async function POST(
       );
     }
 
-    const bidStatus = (bid.domain_metadata as Record<string, unknown> | null)?.status as string | undefined;
+    const bidStatus = bid.status as string | undefined;
     if (bidStatus && TERMINAL_BID_STATUSES.has(bidStatus)) {
       return NextResponse.json(
         { error: 'Cannot add templates to a completed bid.' },

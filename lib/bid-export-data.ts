@@ -49,7 +49,7 @@ export async function fetchBidExportData(
   // Fetch bid project
   const { data: bid, error: bidError } = await supabase
     .from('projects')
-    .select('id, name, type, domain_metadata')
+    .select('id, name, type, status, domain_metadata')
     .eq('id', bidId)
     .eq('type', 'bid')
     .single();
@@ -112,7 +112,7 @@ export async function fetchBidExportData(
     buyer: (bidMetadata.buyer as string) || 'Unknown Buyer',
     reference_number: (bidMetadata.reference_number as string) || null,
     deadline: (bidMetadata.deadline as string) || null,
-    status: (bidMetadata.status as string) || 'draft',
+    status: (bid.status as string) || 'draft',
     estimated_value: (bidMetadata.estimated_value as string) || null,
     notes: (bidMetadata.notes as string) || null,
   };

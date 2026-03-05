@@ -58,7 +58,7 @@ export async function POST(
     // Verify bid exists
     const { data: bid, error: bidError } = await supabase
       .from('projects')
-      .select('id, domain_metadata')
+      .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
       .single();
@@ -195,8 +195,7 @@ export async function POST(
     }
 
     // Check if bid should transition to 'drafting'
-    const currentMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
-    const currentStatus = (currentMetadata.status as BidState) ?? 'draft';
+    const currentStatus = (bid.status as BidState) ?? 'draft';
 
     if (
       currentStatus === 'matching' &&
@@ -213,10 +212,7 @@ export async function POST(
         await supabase
           .from('projects')
           .update({
-            domain_metadata: {
-              ...currentMetadata,
-              status: 'drafting',
-            },
+            status: 'drafting',
             updated_by: user.id,
             updated_at: new Date().toISOString(),
           })

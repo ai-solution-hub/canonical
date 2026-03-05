@@ -36,7 +36,7 @@ export async function GET(
     const { data: bid, error } = await supabase
       .from('projects')
       .select(
-        'id, name, description, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
       )
       .eq('id', id)
       .eq('type', 'bid')
@@ -105,7 +105,7 @@ export async function PATCH(
     // Fetch current bid to get existing domain_metadata
     const { data: current, error: fetchError } = await supabase
       .from('projects')
-      .select('id, name, description, domain_metadata')
+      .select('id, name, description, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
       .single();
@@ -122,7 +122,7 @@ export async function PATCH(
 
     // Validate state transition if status is being changed
     if (status) {
-      const currentStatus = (currentMetadata.status as BidState) ?? 'draft';
+      const currentStatus = (current.status as BidState) ?? 'draft';
       if (!canTransition(currentStatus, status as BidState)) {
         return NextResponse.json(
           {
@@ -135,11 +135,10 @@ export async function PATCH(
       }
     }
 
-    // Merge metadata updates, preserving existing fields
+    // Merge metadata updates, preserving existing fields (exclude status from JSONB -- trigger syncs it)
     const updatedMetadata = {
       ...currentMetadata,
       ...metadataUpdates,
-      ...(status ? { status } : {}),
     };
 
     // Build project-level updates
@@ -150,6 +149,7 @@ export async function PATCH(
     };
     if (name !== undefined) projectUpdates.name = name;
     if (description !== undefined) projectUpdates.description = description;
+    if (status !== undefined) projectUpdates.status = status;
 
     const { data: updated, error: updateError } = await supabase
       .from('projects')
@@ -157,7 +157,7 @@ export async function PATCH(
       .eq('id', id)
       .eq('type', 'bid')
       .select(
-        'id, name, description, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
       )
       .single();
 

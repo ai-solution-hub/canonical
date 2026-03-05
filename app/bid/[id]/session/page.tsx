@@ -67,6 +67,7 @@ interface BidResponse {
 interface BidSummary {
   id: string;
   name: string;
+  status?: string;
   domain_metadata: BidMetadata;
 }
 

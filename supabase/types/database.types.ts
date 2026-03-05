@@ -703,6 +703,7 @@ export type Database = {
           id: string
           is_archived: boolean | null
           name: string
+          status: string | null
           type: string
           updated_at: string | null
           updated_by: string | null
@@ -717,6 +718,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           name: string
+          status?: string | null
           type?: string
           updated_at?: string | null
           updated_by?: string | null
@@ -731,6 +733,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           name?: string
+          status?: string | null
           type?: string
           updated_at?: string | null
           updated_by?: string | null

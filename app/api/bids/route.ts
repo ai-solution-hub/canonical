@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('projects')
       .select(
-        'id, name, description, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
         { count: 'exact' },
       )
       .eq('type', 'bid')
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (status) {
-      query = query.eq('domain_metadata->>status', status);
+      query = query.eq('status', status);
     }
 
     const { data: projects, error, count } = await query;
@@ -146,11 +146,12 @@ export async function POST(request: NextRequest) {
         name,
         description: description ?? null,
         type: 'bid',
+        status: 'draft',
         created_by: user.id,
         domain_metadata: domainMetadata,
       })
       .select(
-        'id, name, description, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
+        'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
       )
       .single();
 

@@ -100,9 +100,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
   async function handleStatusTransition(newStatus: BidState) {
     if (!bid) return;
-    const metadata = bid.domain_metadata as BidMetadata;
-    if (!canTransition(metadata.status, newStatus)) {
-      toast.error(`Cannot transition from ${BID_STATE_LABELS[metadata.status]} to ${BID_STATE_LABELS[newStatus]}`);
+    const currentStatus = (bid.status ?? (bid.domain_metadata as BidMetadata).status) as BidState;
+    if (!canTransition(currentStatus, newStatus)) {
+      toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
       return;
     }
 
@@ -260,12 +260,13 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
   if (!bid) return null;
 
   const metadata = bid.domain_metadata as BidMetadata;
+  const bidStatus = (bid.status ?? metadata.status) as BidState;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
   const progressPercent = totalQuestions > 0 ? Math.round((completedCount / totalQuestions) * 100) : 0;
-  const availableTransitions = getAvailableTransitions(metadata.status);
+  const availableTransitions = getAvailableTransitions(bidStatus);
   const outcomeTransitions = ['won', 'lost', 'withdrawn'] as const;
-  const isSubmitted = metadata.status === 'submitted';
+  const isSubmitted = bidStatus === 'submitted';
   const regularTransitions = availableTransitions.filter(
     t => !isSubmitted || !outcomeTransitions.includes(t as typeof outcomeTransitions[number]),
   );
@@ -293,7 +294,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-semibold text-foreground">{bid.name}</h1>
-            <BidStateBadge state={metadata.status} />
+            <BidStateBadge state={bidStatus} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {metadata.buyer && (
@@ -370,7 +371,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
       {/* State stepper */}
       <div className="mt-4">
-        <BidStateStepper state={metadata.status} />
+        <BidStateStepper state={bidStatus} />
       </div>
 
       {/* Tabs */}
@@ -521,6 +522,7 @@ function OverviewTab({
   onDraftAll: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
+  const overviewStatus = (bid.status ?? metadata.status) as BidState;
   const postureBreakdown = stats ? ([
     { posture: 'strong_match' as ConfidencePosture, count: stats.strong_match_count },
     { posture: 'partial_match' as ConfidencePosture, count: stats.partial_match_count },
@@ -548,7 +550,7 @@ function OverviewTab({
       </div>
 
       {/* Draft All Responses action */}
-      {canEdit && totalQuestions > 0 && ['drafting', 'in_review'].includes(metadata.status) && (
+      {canEdit && totalQuestions > 0 && ['drafting', 'in_review'].includes(overviewStatus) && (
         <div className="rounded-lg border bg-card p-4">
           <h2 className="text-sm font-medium text-foreground">AI Drafting</h2>
           <p className="mt-1.5 text-sm text-muted-foreground">

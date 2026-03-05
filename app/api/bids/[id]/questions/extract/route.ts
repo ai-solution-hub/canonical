@@ -180,18 +180,9 @@ export async function POST(
       questionsInserted = newQuestions.length;
 
       // Update bid status to questions_extracted
-      const { data: currentBid } = await supabase
-        .from('projects')
-        .select('domain_metadata')
-        .eq('id', id)
-        .eq('type', 'bid')
-        .single();
-      if (currentBid) {
-        const meta = (currentBid.domain_metadata ?? {}) as Record<string, unknown>;
-        await supabase.from('projects').update({
-          domain_metadata: { ...meta, status: 'questions_extracted' },
-        }).eq('id', id);
-      }
+      await supabase.from('projects').update({
+        status: 'questions_extracted',
+      }).eq('id', id);
     }
 
     // Fetch the saved questions to return with IDs

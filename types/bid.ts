@@ -42,6 +42,7 @@ export interface Bid {
   id: string;
   name: string;
   description: string | null;
+  status?: BidState;
   domain_metadata: BidMetadata;
   question_stats?: BidQuestionStats;
   tender_documents?: TenderDocument[];

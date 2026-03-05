@@ -39,7 +39,7 @@ export async function POST(
     // Fetch the bid
     const { data: bid, error: bidError } = await supabase
       .from('projects')
-      .select('id, domain_metadata')
+      .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
       .single();
@@ -52,7 +52,7 @@ export async function POST(
     }
 
     const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
-    const currentStatus = (bidMetadata.status as BidState) ?? 'draft';
+    const currentStatus = (bid.status as BidState) ?? 'draft';
 
     // Validate state transition
     if (!canTransition(currentStatus, outcome as BidState)) {
@@ -69,7 +69,6 @@ export async function POST(
     // Update bid with outcome
     const updatedMetadata = {
       ...bidMetadata,
-      status: outcome,
       outcome,
       outcome_notes: notes ?? null,
       outcome_recorded_at: new Date().toISOString(),
@@ -79,6 +78,7 @@ export async function POST(
     const { error: updateError } = await supabase
       .from('projects')
       .update({
+        status: outcome,
         domain_metadata: updatedMetadata,
         updated_by: user.id,
         updated_at: new Date().toISOString(),

@@ -65,7 +65,7 @@ export async function POST(
     // Verify bid exists and is in an appropriate state
     const { data: bid, error: bidError } = await supabase
       .from('projects')
-      .select('id, domain_metadata')
+      .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
       .single();
@@ -77,8 +77,7 @@ export async function POST(
       );
     }
 
-    const metadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
-    const bidStatus = (metadata.status as BidState) ?? 'draft';
+    const bidStatus = (bid.status as BidState) ?? 'draft';
     const draftableStates: BidState[] = ['drafting', 'in_review', 'ready_for_export'];
     if (!draftableStates.includes(bidStatus)) {
       return new Response(

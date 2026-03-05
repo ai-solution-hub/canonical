@@ -41,7 +41,7 @@ export async function POST(
     // Verify bid exists and is in won state
     const { data: bid, error: bidError } = await supabase
       .from('projects')
-      .select('id, name, domain_metadata')
+      .select('id, name, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
       .single();
@@ -54,7 +54,7 @@ export async function POST(
     }
 
     const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
-    const bidStatus = (bidMetadata.status as BidState) ?? 'draft';
+    const bidStatus = (bid.status as BidState) ?? 'draft';
 
     if (bidStatus !== 'won') {
       return NextResponse.json(
