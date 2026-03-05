@@ -20,7 +20,7 @@ import { createTestRequest } from '../helpers/mock-next';
 
 const { mockSupabase } = vi.hoisted(() => {
   const createChain = () => {
-    const chain: Record<string, any> = {};
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     const chainableMethods = [
       'select', 'insert', 'update', 'upsert', 'delete',
       'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
@@ -162,7 +162,7 @@ describe('API auth enforcement', () => {
     it('returns 200 without any authentication', async () => {
       configureUnauthenticated(mockSupabase);
 
-      const request = createTestRequest('/api/health');
+      createTestRequest('/api/health'); // build request to verify it doesn't throw
       const response = await healthGET();
 
       expect([200, 503]).toContain(response.status);

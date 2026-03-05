@@ -11,7 +11,7 @@ import { createTestRequest } from '../helpers/mock-next';
 
 const { mockSupabase, mockEmbeddingsCreate, mockOpenAIConstructor, mockCreateClient, mockCookies } = vi.hoisted(() => {
   const createChain = () => {
-    const chain: Record<string, any> = {};
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     const chainableMethods = [
       'select', 'insert', 'update', 'upsert', 'delete',
       'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',

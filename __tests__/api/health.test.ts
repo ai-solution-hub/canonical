@@ -15,11 +15,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // vi.hoisted() runs before vi.mock() factories — safe to reference in mocks
 // ---------------------------------------------------------------------------
 
-const { mockSelect, mockFrom, mockSupabaseDirectClient } = vi.hoisted(() => {
+const { mockSelect, mockSupabaseDirectClient } = vi.hoisted(() => {
   const mockSelect = vi.fn();
-  const mockFrom = vi.fn().mockReturnValue({ select: mockSelect });
-  const mockSupabaseDirectClient = { from: mockFrom };
-  return { mockSelect, mockFrom, mockSupabaseDirectClient };
+  const mockSupabaseDirectClient = { from: vi.fn().mockReturnValue({ select: mockSelect }) };
+  return { mockSelect, mockSupabaseDirectClient };
 });
 
 vi.mock('@supabase/supabase-js', () => ({

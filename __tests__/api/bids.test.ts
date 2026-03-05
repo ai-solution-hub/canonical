@@ -12,7 +12,7 @@ import { createTestRequest, createTestParams } from '../helpers/mock-next';
 
 const { mockSupabase } = vi.hoisted(() => {
   const createChain = () => {
-    const chain: Record<string, any> = {};
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
     const chainableMethods = [
       'select', 'insert', 'update', 'upsert', 'delete',
       'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
