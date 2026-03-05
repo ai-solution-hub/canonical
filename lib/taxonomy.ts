@@ -13,62 +13,27 @@
 // Re-export formatting utilities from the shared module
 export { formatSubtopic, formatDomainName } from '@/lib/taxonomy-format';
 
-/** All valid content types (matches DB CHECK constraint) */
-export const CONTENT_TYPES = [
-  'post',
-  'article',
-  'blog',
-  'pdf',
-  'product-page',
-  'podcast',
-  'video',
-  'comment',
-  'newsletter',
-  'bookmark',
-  'transcript',
-  'note',
-  'course',
-  'research',
-  'other',
-  'q_a_pair',
-  'case_study',
-  'policy',
-  'certification',
-  'compliance',
-  'methodology',
-  'capability',
-  'product_description',
-] as const;
+// Canonical content types and platforms live in lib/validation/schemas.ts.
+// Re-export here for convenience (used by filter components and the Python pipeline).
+import {
+  VALID_CONTENT_TYPES,
+  VALID_PLATFORMS,
+} from '@/lib/validation/schemas';
 
+/** All valid content types (matches DB CHECK constraint) */
+export const CONTENT_TYPES = VALID_CONTENT_TYPES;
 export type ContentType = (typeof CONTENT_TYPES)[number];
 
 /** All valid platforms (matches DB CHECK constraint) */
-export const PLATFORMS = [
-  'web',
-  'email',
-  'manual',
-  'upload',
-  'extraction',
-  'other',
-] as const;
-
+export const PLATFORMS = VALID_PLATFORMS;
 export type Platform = (typeof PLATFORMS)[number];
 
 /** Content type to Lucide icon name mapping */
 export const CONTENT_TYPE_ICONS: Record<ContentType, string> = {
-  post: 'MessageSquare',
   article: 'FileText',
   blog: 'BookOpen',
   pdf: 'File',
-  'product-page': 'Package',
-  podcast: 'Headphones',
-  video: 'Play',
-  comment: 'MessageCircle',
-  newsletter: 'Mail',
-  bookmark: 'Bookmark',
-  transcript: 'ScrollText',
   note: 'StickyNote',
-  course: 'GraduationCap',
   research: 'FlaskConical',
   other: 'HelpCircle',
   q_a_pair: 'CircleHelp',

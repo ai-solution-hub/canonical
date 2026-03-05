@@ -1,6 +1,6 @@
 'use client';
 
-import { X, BookOpen, FileText, Video, MessageSquare, ExternalLink, Maximize2, PanelRightClose } from 'lucide-react';
+import { X, BookOpen, FileText, ExternalLink, Maximize2, PanelRightClose } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ReaderView } from '@/components/reader-view';
 import { IframeViewer } from '@/components/iframe-viewer';
@@ -77,31 +77,15 @@ function getEmptyStateMessage(contentType: string | null): {
   message: string;
 } {
   switch (contentType) {
-    case 'post':
-      return {
-        icon: <MessageSquare className="size-8 text-muted-foreground" />,
-        message: 'Reader view is not available for social media posts.',
-      };
-    case 'video':
-    case 'transcript':
-      return {
-        icon: <Video className="size-8 text-muted-foreground" />,
-        message: 'Use the Transcript Reader for video content.',
-      };
     case 'pdf':
       return {
         icon: <FileText className="size-8 text-muted-foreground" />,
         message: 'Use the PDF viewer for this document.',
       };
-    case 'comment':
-      return {
-        icon: <MessageSquare className="size-8 text-muted-foreground" />,
-        message: 'Reader view is not available for comments.',
-      };
     default:
       return {
         icon: <BookOpen className="size-8 text-muted-foreground" />,
-        message: 'Reader view has not been processed for this article yet.',
+        message: 'Reader view has not been processed for this content yet.',
       };
   }
 }

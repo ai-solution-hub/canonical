@@ -43,13 +43,13 @@ def _request(method: str, path: str, data: dict = None,
 def insert_content_item(record: dict) -> tuple[bool, str]:
     """Insert a content_item. Returns (success, id_or_error).
 
-    Automatically adds 'product-page' to ai_keywords for product-page items.
+    Automatically adds 'product_description' to ai_keywords for product_description items.
     """
-    # Auto-inject "product-page" keyword for product-page content type
-    if record.get("content_type") == "product-page":
+    # Auto-inject "product_description" keyword for product_description content type
+    if record.get("content_type") == "product_description":
         keywords = record.get("ai_keywords") or []
-        if "product-page" not in keywords:
-            record["ai_keywords"] = keywords + ["product-page"]
+        if "product_description" not in keywords:
+            record["ai_keywords"] = keywords + ["product_description"]
 
     status, response = _request("POST", "content_items", record)
     if status in (200, 201):

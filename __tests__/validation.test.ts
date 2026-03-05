@@ -63,17 +63,14 @@ describe('EDITABLE_FIELDS set', () => {
 });
 
 describe('constant arrays', () => {
-  it('VALID_CONTENT_TYPES should contain 23 types', () => {
-    expect(VALID_CONTENT_TYPES).toHaveLength(23);
+  it('VALID_CONTENT_TYPES should contain 14 KB types', () => {
+    expect(VALID_CONTENT_TYPES).toHaveLength(14);
   });
 
   it('VALID_CONTENT_TYPES should include key types', () => {
-    expect(VALID_CONTENT_TYPES).toContain('post');
     expect(VALID_CONTENT_TYPES).toContain('article');
-    expect(VALID_CONTENT_TYPES).toContain('transcript');
-    expect(VALID_CONTENT_TYPES).toContain('product-page');
+    expect(VALID_CONTENT_TYPES).toContain('pdf');
     expect(VALID_CONTENT_TYPES).toContain('other');
-    // Knowledge Hub types
     expect(VALID_CONTENT_TYPES).toContain('q_a_pair');
     expect(VALID_CONTENT_TYPES).toContain('case_study');
     expect(VALID_CONTENT_TYPES).toContain('policy');
@@ -82,6 +79,18 @@ describe('constant arrays', () => {
     expect(VALID_CONTENT_TYPES).toContain('methodology');
     expect(VALID_CONTENT_TYPES).toContain('capability');
     expect(VALID_CONTENT_TYPES).toContain('product_description');
+  });
+
+  it('VALID_CONTENT_TYPES should not include removed IMS types', () => {
+    expect(VALID_CONTENT_TYPES).not.toContain('post');
+    expect(VALID_CONTENT_TYPES).not.toContain('podcast');
+    expect(VALID_CONTENT_TYPES).not.toContain('video');
+    expect(VALID_CONTENT_TYPES).not.toContain('transcript');
+    expect(VALID_CONTENT_TYPES).not.toContain('product-page');
+    expect(VALID_CONTENT_TYPES).not.toContain('newsletter');
+    expect(VALID_CONTENT_TYPES).not.toContain('bookmark');
+    expect(VALID_CONTENT_TYPES).not.toContain('comment');
+    expect(VALID_CONTENT_TYPES).not.toContain('course');
   });
 
   it('VALID_PLATFORMS should contain 6 platforms', () => {

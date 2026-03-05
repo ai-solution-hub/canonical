@@ -39,7 +39,7 @@ def build_embedding_text(
     if ai_summary:
         parts.append(ai_summary.strip())
 
-    if content_type == "transcript":
+    if content_type == "other":  # Legacy: was transcript type
         # Add chapter titles as topic outline for better semantic coverage
         if metadata:
             chapters = metadata.get("chapters", [])

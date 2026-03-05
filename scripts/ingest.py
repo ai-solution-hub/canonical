@@ -19,7 +19,7 @@ Usage:
     python3 scripts/ingest.py --skip-classify https://example.com/article
 
     # Override content type
-    python3 scripts/ingest.py --type podcast https://example.com/episode
+    python3 scripts/ingest.py --type research https://example.com/paper
 """
 
 import argparse

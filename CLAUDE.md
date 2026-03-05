@@ -181,8 +181,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 ### Key Constraints
 
-- `content_type` IN: post, article, blog, pdf, product-page, podcast, video,
-  comment, newsletter, bookmark, transcript, note, course, research, other,
+- `content_type` IN: article, blog, pdf, note, research, other,
   q_a_pair, case_study, policy, certification, compliance, methodology,
   capability, product_description
 - `platform` IN: web, email, manual, upload, extraction, other

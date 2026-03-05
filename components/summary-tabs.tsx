@@ -31,13 +31,13 @@ interface SummaryTabsProps {
   readerHtml?: string | null;
   /** Hide the Full Text tab (e.g. when a chaptered TranscriptReader is shown instead) */
   hideFullText?: boolean;
-  /** Platform of the content item (e.g. linkedin, reddit, youtube, email) */
+  /** Platform of the content item (e.g. web, email, upload, manual) */
   platform?: string | null;
   /** Full metadata JSONB from the content item */
   metadata?: Record<string, unknown> | null;
   /** Author name for platform-specific reader cards */
   authorName?: string | null;
-  /** Source URL for transcript reader card YouTube links */
+  /** Source URL for transcript reader card links */
   sourceUrl?: string | null;
   /** Transcript chapters for transcript reader card */
   transcriptChapters?: TranscriptChapter[];

@@ -5,19 +5,10 @@ import { z } from 'zod';
 // ──────────────────────────────────────────
 
 export const VALID_CONTENT_TYPES = [
-  'post',
   'article',
   'blog',
   'pdf',
-  'product-page',
-  'podcast',
-  'video',
-  'comment',
-  'newsletter',
-  'bookmark',
-  'transcript',
   'note',
-  'course',
   'research',
   'other',
   'q_a_pair',

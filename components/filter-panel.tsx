@@ -666,7 +666,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
           {/* Keywords */}
           <FilterSection title="Keywords">
             <Input
-              placeholder="e.g. llm, agents, product"
+              placeholder="e.g. ISO 27001, security, SLA"
               value={draft.keywords}
               onChange={(e) =>
                 setDraft((prev) => ({ ...prev, keywords: e.target.value }))

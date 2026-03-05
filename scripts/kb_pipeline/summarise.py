@@ -43,7 +43,7 @@ def generate_summary(title: str, content: str, content_type: str,
     # Truncate content to avoid excessive token usage
     truncated_content = content[:MAX_SUMMARY_CONTENT_LENGTH] if len(content) > MAX_SUMMARY_CONTENT_LENGTH else content
 
-    is_transcript = content_type in ("transcript", "podcast", "video")
+    is_transcript = content_type in ("other",)  # Legacy: was transcript/podcast/video
 
     prompt = f"""You are summarising content for a knowledge base.
 Content type: {content_type}

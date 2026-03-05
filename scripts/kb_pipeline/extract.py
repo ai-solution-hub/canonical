@@ -69,30 +69,30 @@ def detect_content_type(url: str, content: str, metadata: dict) -> str:
     # Note: is_pdf_url() with HEAD request is only used in extract_url(),
     # not here, to avoid a network call during classification.
     if "youtube.com" in domain or "youtu.be" in domain:
-        return "video"
+        return "other"
 
     if any(x in url_lower for x in ["/podcast", "/episode", "/listen"]):
-        return "podcast"
+        return "other"
     if any(x in domain for x in ["substack.com", "newsletter", "mailchimp"]):
-        return "newsletter"
+        return "article"
     if any(x in url_lower for x in ["/blog/", "/posts/", "/article/"]):
         return "blog"
 
-    # ── Product-page detection ────────────────────────────────────────
+    # ── Product description detection ─────────────────────────────────
     # Check og:type from metadata if available
     og_type = metadata.get("og_type", "").lower() if metadata else ""
     if og_type in ("product", "product.item"):
-        return "product-page"
+        return "product_description"
 
     # Root domain URLs (no meaningful path — likely a product/company homepage)
     if not path or path == "/":
-        return "product-page"
+        return "product_description"
 
     # Product-related paths
     product_path_segments = ("/pricing", "/features", "/product", "/platform", "/solutions", "/enterprise")
     if any(path.lower() == seg or path.lower().startswith(seg + "/") or path.lower().startswith(seg + "?")
            for seg in product_path_segments):
-        return "product-page"
+        return "product_description"
 
     # Default based on content length
     if content and len(content) > 2000:

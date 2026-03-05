@@ -6,22 +6,6 @@ export type A11yMode = 'dyslexia' | 'high-contrast' | 'large-text';
 export type A11yFont = 'atkinson' | 'opendyslexic';
 
 const STORAGE_PREFIX = 'kh';
-const OLD_PREFIX = 'ims';
-
-// One-time migration: copy old IMS keys to new KH keys
-function migrateStorageKeys() {
-  if (typeof window === 'undefined') return;
-  const migrated = localStorage.getItem(`${STORAGE_PREFIX}-migrated`);
-  if (migrated) return;
-  for (const suffix of ['a11y-mode', 'a11y-font']) {
-    const oldVal = localStorage.getItem(`${OLD_PREFIX}-${suffix}`);
-    if (oldVal && !localStorage.getItem(`${STORAGE_PREFIX}-${suffix}`)) {
-      localStorage.setItem(`${STORAGE_PREFIX}-${suffix}`, oldVal);
-    }
-    localStorage.removeItem(`${OLD_PREFIX}-${suffix}`);
-  }
-  localStorage.setItem(`${STORAGE_PREFIX}-migrated`, '1');
-}
 
 function applyWithTransition(callback: () => void) {
   if (typeof window === 'undefined') {
@@ -45,7 +29,6 @@ function applyWithTransition(callback: () => void) {
 
 function getInitialA11yMode(): A11yMode | null {
   if (typeof window === 'undefined') return null;
-  migrateStorageKeys();
   const stored = localStorage.getItem(`${STORAGE_PREFIX}-a11y-mode`);
   if (stored) return stored as A11yMode;
   if (window.matchMedia('(prefers-contrast: more)').matches) return 'high-contrast';
