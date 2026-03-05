@@ -1,0 +1,130 @@
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  getAuthorisedClient,
+  forbiddenResponse,
+  rateLimitResponse,
+} from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
+import { checkRateLimit } from '@/lib/rate-limit';
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** POST /api/bids/:id/templates/:templateId/analyse -- queue template analysis */
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; templateId: string }> },
+) {
+  try {
+    const auth = await getAuthorisedClient(['admin', 'editor']);
+    if (!auth) return forbiddenResponse();
+    const { user, supabase } = auth;
+
+    const { id: bidId, templateId } = await params;
+    if (!UUID_RE.test(bidId) || !UUID_RE.test(templateId)) {
+      return NextResponse.json(
+        { error: 'Invalid ID format -- must be a valid UUID' },
+        { status: 400 },
+      );
+    }
+
+    const { allowed } = checkRateLimit(
+      `template-analyse:${user.id}`,
+      10,
+      60_000,
+    );
+    if (!allowed) return rateLimitResponse();
+
+    // Fetch template to verify it exists and get storage path
+    const { data: template, error: templateError } = await supabase
+      .from('templates')
+      .select('id, project_id, storage_path, status')
+      .eq('id', templateId)
+      .eq('project_id', bidId)
+      .single();
+
+    if (templateError || !template) {
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 },
+      );
+    }
+
+    // Check if template can be analysed
+    const body = await request.json().catch(() => ({}));
+    const force = body?.force === true;
+
+    if (
+      !force &&
+      template.status !== 'uploaded' &&
+      template.status !== 'analysis_failed'
+    ) {
+      return NextResponse.json(
+        {
+          error: `Template is already in '${template.status}' state. Use { "force": true } to re-analyse.`,
+        },
+        { status: 409 },
+      );
+    }
+
+    // If re-analysing, clear existing fields
+    if (
+      force &&
+      (template.status === 'analysed' || template.status === 'completed')
+    ) {
+      await supabase
+        .from('template_fields')
+        .delete()
+        .eq('template_id', templateId);
+    }
+
+    // Update template status to analysing
+    await supabase
+      .from('templates')
+      .update({ status: 'analysing' })
+      .eq('id', templateId);
+
+    // Insert job into processing_queue
+    const { data: job, error: jobError } = await supabase
+      .from('processing_queue')
+      .insert({
+        job_type: 'template_analyse',
+        payload: {
+          template_id: templateId,
+          project_id: bidId,
+          storage_path: template.storage_path,
+        },
+        status: 'pending',
+      })
+      .select('id')
+      .single();
+
+    if (jobError || !job) {
+      // Revert template status
+      await supabase
+        .from('templates')
+        .update({ status: template.status })
+        .eq('id', templateId);
+
+      console.error('Failed to queue analysis job:', jobError);
+      return NextResponse.json(
+        { error: 'Failed to queue analysis job' },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(
+      {
+        job_id: job.id,
+        status: 'queued',
+        message: 'Template analysis queued',
+      },
+      { status: 202 },
+    );
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to trigger template analysis') },
+      { status: 500 },
+    );
+  }
+}
