@@ -42,9 +42,10 @@ vi.mock('@/lib/anthropic', () => ({
 }));
 
 // Mock the quality-check module to isolate Pass 3.
-// We use a custom mock variable rather than auto-mocking to avoid leaking
-// the mock into other test files that import from @/lib/quality-check.
-const mockCheckResponseQuality = vi.fn();
+// vi.hoisted() ensures the mock is available before vi.mock() factory runs.
+const { mockCheckResponseQuality } = vi.hoisted(() => ({
+  mockCheckResponseQuality: vi.fn(),
+}));
 vi.mock('@/lib/quality-check', () => ({
   checkResponseQuality: mockCheckResponseQuality,
 }));

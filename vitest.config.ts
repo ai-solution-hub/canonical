@@ -11,11 +11,21 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['__tests__/**/*.test.{ts,tsx}'],
     globals: true,
-    setupFiles: [],
+    setupFiles: ['__tests__/setup.ts'],
     coverage: {
       provider: 'v8',
-      include: ['lib/**/*.ts', 'lib/**/*.tsx'],
-      exclude: ['lib/supabase/**', 'lib/anthropic.ts'],
+      include: [
+        'lib/**/*.ts',
+        'lib/**/*.tsx',
+        'app/api/**/*.ts',
+        'components/**/*.tsx',
+        'hooks/**/*.ts',
+      ],
+      exclude: [
+        'lib/supabase/**',
+        'lib/anthropic.ts',
+        'lib/anthropic-files.ts',
+      ],
     },
   },
 });

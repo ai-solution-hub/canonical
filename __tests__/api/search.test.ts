@@ -1,0 +1,280 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  configureUnauthenticated,
+} from '../helpers/mock-supabase';
+import type { MockSupabaseClient } from '../helpers/mock-supabase';
+import { createTestRequest } from '../helpers/mock-next';
+
+// ---------------------------------------------------------------------------
+// vi.hoisted() runs before vi.mock() factories — safe to reference in mocks
+// ---------------------------------------------------------------------------
+
+const { mockSupabase, mockEmbeddingsCreate, mockOpenAIConstructor, mockCreateClient, mockCookies } = vi.hoisted(() => {
+  const createChain = () => {
+    const chain: Record<string, any> = {};
+    const chainableMethods = [
+      'select', 'insert', 'update', 'upsert', 'delete',
+      'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
+      'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+    ];
+    for (const m of chainableMethods) {
+      chain[m] = vi.fn().mockReturnValue(chain);
+    }
+    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.csv = vi.fn().mockResolvedValue({ data: null, error: null });
+    chain.then = vi.fn((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null, count: 0 }),
+    );
+    return chain;
+  };
+
+  const chain = createChain();
+
+  const mockEmbeddingsCreate = vi.fn().mockResolvedValue({
+    data: [{ embedding: new Array(1024).fill(0) }],
+  });
+
+  // Create mockSupabase as a local variable first so it can be referenced
+  // by mockCreateClient below (avoids self-referencing in return object literal)
+  const mockSupabase = {
+    from: vi.fn().mockReturnValue(chain),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+        error: null,
+      }),
+      admin: {
+        listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
+        createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        updateUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
+        deleteUser: vi.fn().mockResolvedValue({ data: null, error: null }),
+      },
+    },
+    storage: {
+      from: vi.fn().mockReturnValue({
+        upload: vi.fn().mockResolvedValue({ data: { path: 'test' }, error: null }),
+        download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
+        remove: vi.fn().mockResolvedValue({ data: [], error: null }),
+        list: vi.fn().mockResolvedValue({ data: [], error: null }),
+        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
+      }),
+    },
+    _chain: chain,
+  } as unknown as MockSupabaseClient;
+
+  return {
+    mockSupabase,
+    mockEmbeddingsCreate,
+    mockOpenAIConstructor: vi.fn().mockImplementation(function () {
+      return { embeddings: { create: mockEmbeddingsCreate } };
+    }),
+    mockCreateClient: vi.fn().mockResolvedValue(mockSupabase),
+    mockCookies: vi.fn().mockResolvedValue({ getAll: () => [], set: () => {} }),
+  };
+});
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: mockCreateClient,
+  createServiceClient: vi.fn().mockReturnValue(mockSupabase),
+}));
+
+vi.mock('next/headers', () => ({
+  cookies: mockCookies,
+}));
+
+// The search route instantiates OpenAI directly and calls openai.embeddings.create.
+// We mock the default export constructor so it returns our controlled stub.
+vi.mock('openai', () => ({
+  default: mockOpenAIConstructor,
+}));
+
+// Suppress console.error noise from the route's error handling
+vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// ---------------------------------------------------------------------------
+// Import the handler under test (AFTER mocks are registered)
+// ---------------------------------------------------------------------------
+
+import { POST } from '@/app/api/search/route';
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('POST /api/search', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Re-wire module-level mocks (cleared by clearAllMocks)
+    mockCreateClient.mockResolvedValue(mockSupabase);
+    mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
+
+    // Re-establish OpenAI constructor (must use function keyword, not arrow, for `new`)
+    mockOpenAIConstructor.mockImplementation(function () {
+      return { embeddings: { create: mockEmbeddingsCreate } };
+    });
+
+    // Re-establish default authenticated user
+    mockSupabase.auth.getUser.mockResolvedValue({
+      data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+      error: null,
+    });
+
+    // Default embedding response
+    mockEmbeddingsCreate.mockResolvedValue({
+      data: [{ embedding: new Array(1024).fill(0) }],
+    });
+
+    // Default RPC response
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'test query' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+
+    const json = await res.json();
+    expect(json.error).toBe('Unauthorised');
+  });
+
+  it('returns 400 for empty query', async () => {
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: '' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+    expect(json.details).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'query' }),
+      ]),
+    );
+  });
+
+  it('returns 400 for missing query field', async () => {
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: {},
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+  });
+
+  it('returns 200 with results array on valid search', async () => {
+    const mockResults = [
+      { id: 'item-1', title: 'Result One', similarity: 0.85 },
+      { id: 'item-2', title: 'Result Two', similarity: 0.72 },
+    ];
+    mockSupabase.rpc.mockResolvedValueOnce({ data: mockResults, error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'knowledge management' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.results).toEqual(mockResults);
+    expect(json.count).toBe(2);
+
+    // Verify the RPC was called with correct params
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('hybrid_search', {
+      query_embedding: expect.any(String),
+      query_text: 'knowledge management',
+      similarity_threshold: 0.35, // default from schema
+      limit_count: 20, // default from schema
+    });
+
+    // Verify the embedding was JSON-stringified (Supabase vector serialisation requirement)
+    const rpcCall = mockSupabase.rpc.mock.calls[0];
+    const embeddingArg = rpcCall[1].query_embedding;
+    expect(() => JSON.parse(embeddingArg)).not.toThrow();
+    expect(JSON.parse(embeddingArg)).toHaveLength(1024);
+  });
+
+  it('returns 200 with empty results for no matches', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'xyzzy nonexistent topic' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    const json = await res.json();
+    expect(json.results).toEqual([]);
+    expect(json.count).toBe(0);
+  });
+
+  it('returns 503 when embedding generation fails', async () => {
+    mockEmbeddingsCreate.mockRejectedValueOnce(new Error('OpenAI API error'));
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'test query' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(503);
+
+    const json = await res.json();
+    expect(json.code).toBe('EMBEDDING_FAILED');
+  });
+
+  it('returns 500 when RPC fails', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'RPC error', code: 'PGRST000' },
+    });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'test query' },
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+
+    const json = await res.json();
+    expect(json.error).toBe('Search query failed');
+  });
+
+  it('respects custom threshold and limit parameters', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
+
+    const req = createTestRequest('/api/search', {
+      method: 'POST',
+      body: { query: 'test', threshold: 0.5, limit: 10 },
+    });
+
+    await POST(req);
+
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('hybrid_search', {
+      query_embedding: expect.any(String),
+      query_text: 'test',
+      similarity_threshold: 0.5,
+      limit_count: 10,
+    });
+  });
+});

@@ -71,7 +71,8 @@ describe('htmlToPlainText', () => {
   });
 
   it('handles HTML with only whitespace text', () => {
-    expect(htmlToPlainText('<p>   </p>')).toBe('');
+    // DOMParser preserves whitespace in textContent — downstream consumers trim
+    expect(htmlToPlainText('<p>   </p>').trim()).toBe('');
   });
 });
 

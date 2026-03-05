@@ -197,15 +197,15 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 ## Testing
 
-- **Framework:** Vitest (`bun test`)
-- **Coverage:** `bun test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 21 files (schemas, utils, jsonb, format, ai-parse,
-  validation, digest-export, bid-schemas, bid-matching, bid-state-machine,
-  bid-export-docx, bid-export-xlsx, change-summary, citations, editor-utils,
-  freshness, quality-check, bid-drafting, cost-estimation, template-schemas,
-  template-auto-map)
+- **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
+- **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
+- **Location:** `__tests__/` — 21 unit test files (lib/ functions only)
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
+- **Known gap:** Zero component tests, zero API route integration tests, zero
+  hook tests. Strategy and patterns documented in
+  `.planning/specs/testing-strategy-spec.md` — ready to implement in a solo
+  session (177 tests validated but lost to concurrent session conflicts)
 
 ## Deployment
 
@@ -254,6 +254,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 | Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
 | E2E test flows | `docs/reference/e2e-test-flows.md` | 12 flows covering all pages |
 | E2E test setup | `docs/reference/e2e-test-setup.md` | Test data creation runbook |
+| Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns, 177 validated tests |
 | Search test cases | `scripts/search-evaluation.json` | 20 test cases — re-run after search logic changes |
 
 ## Gotchas
@@ -280,3 +281,14 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Content review vs governance review:** `/review` is content quality review
   (speed review cards). `/api/governance/review` is freshness/ownership
   governance. They are separate workflows — do not conflate them.
+- **`bun test` vs `bun run test`:** `bun test` invokes bun's native test
+  runner (no jsdom, no vitest config). `bun run test` invokes vitest via the
+  package.json script. ALWAYS use `bun run test` for this project.
+- **`vi.mock()` hoisting in Vitest v4:** `vi.mock()` factories are hoisted
+  above `const` declarations. Variables referenced inside factories must use
+  `vi.hoisted(() => { return { mock }; })`. Arrow functions in
+  `mockImplementation()` cannot be used with `new` — use `function` keyword.
+- **Concurrent Claude sessions:** Two sessions on the same working tree will
+  destroy each other's untracked files and revert shared config. Never run
+  test infrastructure work concurrently with feature work — use git worktrees
+  or sequence the sessions.

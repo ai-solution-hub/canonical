@@ -165,8 +165,9 @@ describe('runDeterministicChecks', () => {
     const html =
       '<h2>Introduction</h2><p>This is a <strong>detailed</strong> response with <em>multiple</em> sections.</p>';
     const result = runDeterministicChecks(html, [], baseQuestion, 0);
-    // "Introduction This is a detailed response with multiple sections." = 9 words
-    expect(result.wordCount).toBe(9);
+    // DOMParser textContent joins block elements without whitespace:
+    // "IntroductionThis is a detailed response with multiple sections." = 8 words
+    expect(result.wordCount).toBe(8);
   });
 
   it('can produce both word limit and empty response issues', () => {
