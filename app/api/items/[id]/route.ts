@@ -232,21 +232,11 @@ export async function PATCH(
       }
     }
 
-    // Trigger reclassification if requested
+    // Flag reclassification as needed — must be triggered via the UI
+    // (POST /api/items/:id/classify). Cannot use relative fetch() in
+    // server-side API route context.
     if (reclassify) {
-      try {
-        const classifyUrl = `/api/items/${id}/classify`;
-        // Fire-and-forget internal call
-        fetch(classifyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ force: true }),
-        }).catch((err) =>
-          console.error('Background reclassification failed:', err),
-        );
-      } catch {
-        warnings.push('Reclassification could not be triggered');
-      }
+      warnings.push('Content updated — use "Classify" to reclassify this item');
     }
 
     const response: Record<string, unknown> = { success: true };
@@ -358,6 +348,9 @@ export async function DELETE(
     return NextResponse.json({
       deleted: true,
       id,
+      ...(deletionErrors.length > 0 && {
+        warnings: deletionErrors.map((t) => `Failed to clean up ${t}`),
+      }),
     });
   } catch (err) {
     return NextResponse.json(
