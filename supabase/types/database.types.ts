@@ -646,6 +646,7 @@ export type Database = {
           max_attempts: number
           payload: Json
           priority: number
+          result: Json | null
           started_at: string | null
           status: string
           updated_at: string | null
@@ -661,6 +662,7 @@ export type Database = {
           max_attempts?: number
           payload?: Json
           priority?: number
+          result?: Json | null
           started_at?: string | null
           status?: string
           updated_at?: string | null
@@ -676,6 +678,7 @@ export type Database = {
           max_attempts?: number
           payload?: Json
           priority?: number
+          result?: Json | null
           started_at?: string | null
           status?: string
           updated_at?: string | null
@@ -828,6 +831,200 @@ export type Database = {
           },
         ]
       }
+      template_completions: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          fields_failed: number | null
+          fields_filled: number
+          fields_skipped: number | null
+          file_size: number | null
+          id: string
+          job_id: string | null
+          storage_path: string
+          template_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          fields_failed?: number | null
+          fields_filled: number
+          fields_skipped?: number | null
+          file_size?: number | null
+          id?: string
+          job_id?: string | null
+          storage_path: string
+          template_id: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          fields_failed?: number | null
+          fields_filled?: number
+          fields_skipped?: number | null
+          file_size?: number | null
+          id?: string
+          job_id?: string | null
+          storage_path?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_completions_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "processing_queue"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_completions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      template_fields: {
+        Row: {
+          col_index: number | null
+          created_at: string | null
+          field_type: string
+          fill_error: string | null
+          fill_status: string
+          id: string
+          mapping_confidence: number | null
+          mapping_status: string
+          placeholder_text: string | null
+          question_id: string | null
+          question_text: string | null
+          row_index: number | null
+          section_name: string | null
+          sequence: number
+          table_index: number | null
+          template_id: string
+          updated_at: string | null
+          word_limit: number | null
+        }
+        Insert: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type: string
+          fill_error?: string | null
+          fill_status?: string
+          id?: string
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          template_id: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Update: {
+          col_index?: number | null
+          created_at?: string | null
+          field_type?: string
+          fill_error?: string | null
+          fill_status?: string
+          id?: string
+          mapping_confidence?: number | null
+          mapping_status?: string
+          placeholder_text?: string | null
+          question_id?: string | null
+          question_text?: string | null
+          row_index?: number | null
+          section_name?: string | null
+          sequence?: number
+          table_index?: number | null
+          template_id?: string
+          updated_at?: string | null
+          word_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "template_fields_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "bid_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "template_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          field_count: number | null
+          file_size: number
+          filename: string
+          id: string
+          mapped_count: number | null
+          mime_type: string
+          name: string
+          project_id: string
+          status: string
+          storage_path: string
+          structure_path: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          field_count?: number | null
+          file_size: number
+          filename: string
+          id?: string
+          mapped_count?: number | null
+          mime_type: string
+          name: string
+          project_id: string
+          status?: string
+          storage_path: string
+          structure_path?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          field_count?: number | null
+          file_size?: number
+          filename?: string
+          id?: string
+          mapped_count?: number | null
+          mime_type?: string
+          name?: string
+          project_id?: string
+          status?: string
+          storage_path?: string
+          structure_path?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -948,6 +1145,7 @@ export type Database = {
           max_attempts: number
           payload: Json
           priority: number
+          result: Json | null
           started_at: string | null
           status: string
           updated_at: string | null
@@ -1087,6 +1285,20 @@ export type Database = {
         Returns: {
           count: number
           source_document: string
+        }[]
+      }
+      get_template_summary: {
+        Args: { p_template_id: string }
+        Returns: {
+          confirmed_fields: number
+          failed_fields: number
+          filled_fields: number
+          pending_fields: number
+          rejected_fields: number
+          skipped_fields: number
+          total_fields: number
+          unmapped_fields: number
+          unreviewed_fields: number
         }[]
       }
       get_top_authors: {
