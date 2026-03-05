@@ -10,11 +10,11 @@ import {
   FileText,
   BookOpen,
   Copy,
-  Check,
   Pencil,
-  X,
   Eye,
   Loader2,
+  MoreHorizontal,
+  Trash2,
 } from 'lucide-react';
 import { ReadToggleButton } from '@/components/read-toggle-button';
 import { StarButton } from '@/components/star-button';
@@ -25,7 +25,6 @@ import { useReaderPreferences } from '@/hooks/use-reader-preferences';
 import { TranscriptReader } from '@/components/transcript-reader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Thumbnail } from '@/components/thumbnail';
 import { SummaryTabs } from '@/components/summary-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
@@ -45,20 +44,23 @@ const ImageGallery = dynamic(
 );
 import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
-import { ProjectSelector } from '@/components/project-selector';
-import { UserTagInput } from '@/components/user-tag-input';
+import { QaPairLayout } from '@/components/qa-pair-layout';
+import { TableOfContents } from '@/components/table-of-contents';
+import { OrganiseSection } from '@/components/organise-section';
 import { DeleteContentDialog } from '@/components/delete-content-dialog';
-import { ContentRenderer } from '@/components/content-renderer';
 import { useUserRole } from '@/hooks/use-user-role';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { validateEditableField } from '@/lib/validation';
 import { toast } from 'sonner';
 
-const ContentEditor = dynamic(
-  () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
-  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" /> },
-);
 import type {
   ContentListItem,
   SummaryData,
@@ -303,17 +305,11 @@ export function ItemDetailClient({
     setBackLabel(getBackLabel());
   }, []);
 
-  // Content body editing state
-  const [isEditingContent, setIsEditingContent] = useState(false);
-  const [editContentHtml, setEditContentHtml] = useState('');
-  const [isSavingContent, setIsSavingContent] = useState(false);
-  const [regenerateEmbedding, setRegenerateEmbedding] = useState(false);
-  const [reclassifyAfterSave, setReclassifyAfterSave] = useState(false);
+  // Unified edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editDirty, setEditDirty] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
 
-  // Progressive depth editing state
-  const [editingDepthField, setEditingDepthField] = useState<string | null>(null);
-  const [editDepthValue, setEditDepthValue] = useState('');
-  const [isSavingDepth, setIsSavingDepth] = useState(false);
 
   // Vision analysis state
   const [isAnalysing, setIsAnalysing] = useState(false);
@@ -421,114 +417,6 @@ export function ItemDetailClient({
     }
   };
 
-  const handleKeywordRemove = (keyword: string) => {
-    const current = (item.ai_keywords as string[]) ?? [];
-    const updated = current.filter((k) => k !== keyword);
-    saveEdit('ai_keywords', updated);
-  };
-
-  const handleKeywordAdd = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const val = (e.target as HTMLInputElement).value.trim();
-      if (!val) return;
-      const current = (item.ai_keywords as string[]) ?? [];
-      if (!current.includes(val)) {
-        saveEdit('ai_keywords', [...current, val]);
-      }
-      (e.target as HTMLInputElement).value = '';
-    }
-  };
-
-  // Content body editing handlers
-  const startContentEdit = useCallback(() => {
-    setEditContentHtml(item.content ?? '');
-    setIsEditingContent(true);
-    setRegenerateEmbedding(false);
-    setReclassifyAfterSave(false);
-  }, [item.content]);
-
-  const cancelContentEdit = useCallback(() => {
-    setIsEditingContent(false);
-    setEditContentHtml('');
-  }, []);
-
-  const saveContentEdit = useCallback(async () => {
-    if (!editContentHtml.trim()) return;
-    setIsSavingContent(true);
-
-    const previousContent = item.content;
-    setItem((prev) => ({ ...prev, content: editContentHtml }));
-    setIsEditingContent(false);
-
-    try {
-      const res = await fetch(`/api/items/${item.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          field: 'content',
-          value: editContentHtml,
-          regenerate_embedding: regenerateEmbedding,
-          reclassify: reclassifyAfterSave,
-        }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Update failed');
-      }
-
-      toast.success('Content saved');
-    } catch {
-      setItem((prev) => ({ ...prev, content: previousContent }));
-      setIsEditingContent(true);
-      setEditContentHtml(previousContent ?? '');
-      toast.error('Failed to save content — please try again');
-    } finally {
-      setIsSavingContent(false);
-    }
-  }, [editContentHtml, item.id, item.content, regenerateEmbedding, reclassifyAfterSave]);
-
-  // Progressive depth field editing handlers
-  const startDepthEdit = useCallback((field: string) => {
-    setEditingDepthField(field);
-    setEditDepthValue(String(item[field] ?? ''));
-  }, [item]);
-
-  const cancelDepthEdit = useCallback(() => {
-    setEditingDepthField(null);
-    setEditDepthValue('');
-  }, []);
-
-  const saveDepthEdit = useCallback(async (field: string) => {
-    setIsSavingDepth(true);
-    const previousValue = item[field];
-    const newValue = editDepthValue.trim() || null;
-
-    setItem((prev) => ({ ...prev, [field]: newValue }));
-    setEditingDepthField(null);
-
-    try {
-      const res = await fetch(`/api/items/${item.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field, value: newValue }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Update failed');
-      }
-
-      toast.success(`${field.charAt(0).toUpperCase() + field.slice(1)} saved`);
-    } catch {
-      setItem((prev) => ({ ...prev, [field]: previousValue }));
-      toast.error('Failed to save — please try again');
-    } finally {
-      setIsSavingDepth(false);
-    }
-  }, [editDepthValue, item]);
-
   const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
 
   // Trigger lazy loading of read marks counts for this page
@@ -583,7 +471,69 @@ export function ItemDetailClient({
     }
   }, [item.id, item.priority]);
 
-  // Keyboard shortcuts: m = toggle read, s = toggle star, p = cycle priority, r = toggle reader, Shift+R = review
+  // Unified edit mode: enter/exit
+  const enterEditMode = useCallback(() => {
+    setIsEditing(true);
+    setEditTitle(title);
+    setEditDirty(false);
+  }, [title]);
+
+  const cancelEditMode = useCallback(() => {
+    setIsEditing(false);
+    setEditDirty(false);
+    setEditTitle('');
+  }, []);
+
+  const handleSaveAll = useCallback(async () => {
+    try {
+      // Save title if changed
+      if (editTitle && editTitle !== title) {
+        const res = await fetch(`/api/items/${item.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: 'suggested_title', value: editTitle }),
+        });
+        if (!res.ok) throw new Error('Failed to save title');
+        setItem((prev) => ({ ...prev, suggested_title: editTitle }));
+      }
+      setIsEditing(false);
+      setEditDirty(false);
+      toast.success('Changes saved');
+    } catch {
+      toast.error('Failed to save — please try again');
+    }
+  }, [editTitle, title, item.id]);
+
+  // Copy answer handler (Q&A pairs)
+  const handleCopyAnswer = useCallback(async () => {
+    const text = item.content ?? '';
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Answer copied to clipboard');
+    } catch {
+      toast.error('Failed to copy answer');
+    }
+  }, [item.content]);
+
+  // Helper: get active tab content for TableOfContents
+  const getActiveTabContent = useCallback((): string => {
+    if (item.brief) return item.brief;
+    if (item.summary_data?.executive) return item.summary_data.executive;
+    if (item.ai_summary) return item.ai_summary;
+    if (item.content) return item.content;
+    return '';
+  }, [item.brief, item.summary_data, item.ai_summary, item.content]);
+
+  // Navigate away prompt when dirty
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (editDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [editDirty]);
+
+  // Keyboard shortcuts: m = toggle read, s = toggle star, p = cycle priority, r = toggle reader, e = edit, Shift+R = review
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const target = e.target as HTMLElement;
@@ -607,6 +557,16 @@ export function ItemDetailClient({
         e.preventDefault();
         handlePriorityCycle();
       }
+      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey && canEdit) {
+        e.preventDefault();
+        setIsEditing((prev) => {
+          if (!prev) {
+            setEditTitle(title);
+            setEditDirty(false);
+          }
+          return !prev;
+        });
+      }
       if (e.key === 'r' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         toggleReader();
@@ -628,7 +588,7 @@ export function ItemDetailClient({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [item.id, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached]);
+  }, [item.id, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title]);
 
   const transcriptChapters =
     item.metadata &&
@@ -644,6 +604,37 @@ export function ItemDetailClient({
     [setPanelLayout],
   );
 
+  const isQAPair = item.content_type === 'q_a_pair';
+  const hasReaderContent = !!(item.metadata?.reader_html) || isQAPair;
+
+  const summaryTabsElement = (
+    <SummaryTabs
+      itemId={item.id as string}
+      summaryData={item.summary_data ?? null}
+      contentType={item.content_type as string}
+      content={item.content}
+      aiSummary={item.ai_summary}
+      readerHtml={item.metadata?.reader_html as string | undefined}
+      hideFullText={
+        item.content_type === 'transcript' &&
+        !!transcriptChapters &&
+        transcriptChapters.length > 0
+      }
+      platform={item.platform}
+      metadata={item.metadata}
+      authorName={item.author_name}
+      sourceUrl={item.source_url}
+      transcriptChapters={transcriptChapters}
+      segments={segments}
+      highlights={highlights}
+      frameable={item.metadata?.frameable === true}
+      qaMode={isQAPair}
+      isEditing={isEditing}
+      onDirty={() => setEditDirty(true)}
+      className="mb-6"
+    />
+  );
+
   // Item detail content -- extracted to keep the PanelGroup JSX clean
   const itemDetailContent = (
     <>
@@ -652,11 +643,11 @@ export function ItemDetailClient({
 
       {/* Screen reader: keyboard shortcut help */}
       <div className="sr-only" role="note" aria-label="Keyboard shortcuts">
-        Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, R to open reader panel.
+        Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel.
       </div>
 
-      {/* Header: back + actions */}
-      <div className="mb-4 flex items-center justify-between">
+      {/* Header: back button */}
+      <div className="mb-4">
         <Button
           variant="ghost"
           size="sm"
@@ -666,22 +657,9 @@ export function ItemDetailClient({
           <ArrowLeft className="size-4" />
           {backLabel}
         </Button>
-        <div className="flex items-center gap-1">
-          <PrioritySelector
-            itemId={item.id}
-            priority={(item.priority as Priority) ?? null}
-            size="md"
-            onChanged={(p) => setItem((prev) => ({ ...prev, priority: p }))}
-          />
-          <StarButton
-            itemId={item.id}
-            starred={item.metadata?.starred === true}
-            size="md"
-          />
-        </div>
       </div>
 
-      {/* WP14: Breadcrumb navigation */}
+      {/* Breadcrumb navigation */}
       <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
         <ol className="flex items-center gap-1">
           <li>
@@ -722,333 +700,165 @@ export function ItemDetailClient({
             />
           ) : null}
 
-          {/* Title (editable) */}
-          <div className="group mb-4 flex items-start gap-2">
-            {editingField === 'suggested_title' ? (
-              <div className="flex w-full items-center gap-2">
-                <Input
-                  autoFocus
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter')
-                      saveEdit('suggested_title', editValue);
-                    if (e.key === 'Escape') cancelEdit();
-                  }}
-                  className="text-xl font-bold"
-                />
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  onClick={() => saveEdit('suggested_title', editValue)}
-                  className="min-h-[44px] min-w-[44px]"
-                >
-                  <Check className="size-4" />
-                </Button>
-                <Button size="icon-sm" variant="ghost" onClick={cancelEdit} className="min-h-[44px] min-w-[44px]">
-                  <X className="size-4" />
-                </Button>
-              </div>
+          {/* Title + inline badges */}
+          <div className="mb-2">
+            {isEditing ? (
+              <Input
+                autoFocus
+                value={editTitle}
+                onChange={(e) => {
+                  setEditTitle(e.target.value);
+                  setEditDirty(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveAll();
+                  if (e.key === 'Escape') cancelEditMode();
+                }}
+                className="text-xl font-bold"
+              />
             ) : (
-              <>
-                <h1 className="text-fluid-xl font-bold leading-tight">
-                  {title}
-                </h1>
-                {saveSuccess === 'suggested_title' ? (
-                  <Check className="mt-1 size-4 shrink-0 text-[var(--success)]" />
-                ) : canEdit ? (
-                  <button
-                    onClick={() => startEdit('suggested_title')}
-                    className="mt-1 shrink-0 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-                    aria-label="Edit title"
-                  >
-                    <Pencil className="size-3.5 text-muted-foreground" />
-                  </button>
-                ) : null}
-              </>
+              <h1 className="text-fluid-xl font-bold leading-tight">{title}</h1>
+            )}
+            {/* Inline badges */}
+            {(item.verified_at || item.source_document) && (
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <VerificationBadge verified={!!item.verified_at} size="md" />
+                {item.source_document && (
+                  <span className="text-xs text-muted-foreground">
+                    Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Keywords (editable) */}
-          {((item.ai_keywords as string[])?.length > 0 ||
-            editingField === 'ai_keywords') && (
-            <section className="mb-6">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Keywords
-              </h2>
-              <div className="flex flex-wrap gap-1.5">
-                {((item.ai_keywords as string[]) ?? []).map((keyword) => (
-                  <Badge
-                    key={keyword}
-                    variant="secondary"
-                    className="group/kw gap-1 pr-1"
-                  >
-                    <Link
-                      href={`/browse?keywords=${encodeURIComponent(keyword)}`}
-                      className="hover:underline"
-                    >
-                      {keyword}
-                    </Link>
-                    {canEdit && (
-                      <button
-                        onClick={() => handleKeywordRemove(keyword)}
-                        className="rounded-full p-0.5 opacity-100 transition-opacity hover:bg-foreground/10 sm:opacity-0 sm:group-hover/kw:opacity-100 sm:group-focus-within/kw:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={`Remove ${keyword}`}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
-                  </Badge>
-                ))}
-                {canEdit && (
-                  <Input
-                    placeholder="Add keyword..."
-                    onKeyDown={handleKeywordAdd}
-                    className="h-6 w-28 border-dashed text-xs"
-                  />
-                )}
+          {/* Editing banner */}
+          {isEditing && (
+            <div className="mb-4 flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-50 px-4 py-2 text-sm dark:bg-amber-950/30">
+              <span className="font-medium text-amber-800 dark:text-amber-300">
+                Editing{editDirty ? ' \u2014 unsaved changes' : ''}
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleSaveAll}>Save</Button>
+                <Button size="sm" variant="outline" onClick={cancelEditMode}>Cancel</Button>
               </div>
-            </section>
-          )}
-
-          {/* Projects (editor+ only) */}
-          {canEdit && (
-            <ProjectSelector itemId={item.id} className="mb-6" />
-          )}
-
-          {/* User tags (editor+ only) */}
-          {canEdit && (
-            <UserTagInput
-              itemId={item.id}
-              tags={(item.user_tags as string[]) ?? []}
-              onTagsChanged={(newTags) =>
-                setItem((prev) => ({ ...prev, user_tags: newTags }))
-              }
-              className="mb-6"
-            />
-          )}
-
-          {/* Verification status + source provenance */}
-          {(item.verified_at || item.source_document) && (
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-              <VerificationBadge
-                verified={!!item.verified_at}
-                size="md"
-              />
-              {item.source_document && (
-                <span className="text-xs text-muted-foreground">
-                  Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
-                </span>
-              )}
             </div>
           )}
 
-          {/* Content body section (Q&A pair or regular) — editable */}
-          {item.content_type === 'q_a_pair' ? (
-            <section className="mb-6 rounded-lg border border-border bg-muted/30 p-4">
-              <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Question
-              </h2>
-              <p className="mb-4 text-sm font-medium leading-relaxed text-foreground">
-                {item.suggested_title || item.title || 'Untitled question'}
-              </p>
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Answer
-                </h2>
-                {canEdit && !isEditingContent && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={startContentEdit}
-                    className="gap-1.5 text-xs"
-                  >
-                    <Pencil className="size-3" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-              {isEditingContent ? (
-                <div className="space-y-3">
-                  <ContentEditor
-                    content={editContentHtml}
-                    onChange={setEditContentHtml}
-                    placeholder="Write the answer..."
-                    minHeight="200px"
-                  />
-                  <div className="flex flex-wrap items-center gap-4">
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={regenerateEmbedding}
-                        onChange={(e) => setRegenerateEmbedding(e.target.checked)}
-                        className="accent-primary"
-                      />
-                      Re-generate embedding
-                    </label>
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={reclassifyAfterSave}
-                        onChange={(e) => setReclassifyAfterSave(e.target.checked)}
-                        className="accent-primary"
-                      />
-                      Re-classify after save
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={saveContentEdit} disabled={isSavingContent}>
-                      {isSavingContent ? 'Saving...' : 'Save'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={cancelContentEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : item.content ? (
-                <ContentRenderer content={item.content} />
-              ) : null}
-            </section>
-          ) : item.content && !['transcript', 'pdf'].includes(item.content_type ?? '') ? (
-            <section className="mb-6">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Content
-                </h2>
-                {canEdit && !isEditingContent && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={startContentEdit}
-                    className="gap-1.5 text-xs"
-                  >
-                    <Pencil className="size-3" />
-                    Edit
-                  </Button>
-                )}
-              </div>
-              {isEditingContent ? (
-                <div className="space-y-3">
-                  <ContentEditor
-                    content={editContentHtml}
-                    onChange={setEditContentHtml}
-                    placeholder="Edit content..."
-                    minHeight="200px"
-                  />
-                  <div className="flex flex-wrap items-center gap-4">
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={regenerateEmbedding}
-                        onChange={(e) => setRegenerateEmbedding(e.target.checked)}
-                        className="accent-primary"
-                      />
-                      Re-generate embedding
-                    </label>
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={reclassifyAfterSave}
-                        onChange={(e) => setReclassifyAfterSave(e.target.checked)}
-                        className="accent-primary"
-                      />
-                      Re-classify after save
-                    </label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={saveContentEdit} disabled={isSavingContent}>
-                      {isSavingContent ? 'Saving...' : 'Save'}
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={cancelContentEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : item.content ? (
-                <ContentRenderer content={item.content} />
-              ) : null}
-            </section>
-          ) : null}
-
-          {/* AI processing indicators (classify / summarise) */}
-          {canEdit && item.content && (
-            <AiProcessingIndicators
-              item={item}
-              onItemUpdated={setItem}
+          {/* Action bar (Item 7) */}
+          <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 bg-background py-2 sm:static sm:z-auto">
+            <ReadToggleButton itemId={item.id as string} />
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={isEditing ? cancelEditMode : enterEditMode}
+                className="gap-1.5"
+              >
+                <Pencil className="size-3.5" />
+                {isEditing ? 'Cancel edit' : 'Edit'}
+              </Button>
+            )}
+            {isQAPair && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyAnswer}
+                className="gap-1.5"
+              >
+                <Copy className="size-3.5" />
+                Copy answer
+              </Button>
+            )}
+            <StarButton
+              itemId={item.id}
+              starred={item.metadata?.starred === true}
+              size="md"
             />
-          )}
+            <PrioritySelector
+              itemId={item.id}
+              priority={(item.priority as Priority) ?? null}
+              size="md"
+              onChanged={(p) => setItem((prev) => ({ ...prev, priority: p }))}
+            />
 
-          {/* Progressive depth sections (editable) */}
-          {(item.brief || item.detail || item.reference || canEdit) && (
-            <section className="mb-6 space-y-4">
-              <p className="mb-2 text-xs text-muted-foreground">
-                Human-authored content layers
-              </p>
-              {['brief', 'detail', 'reference'].map((field) => {
-                const fieldValue = item[field] as string | null;
-                const isEditing = editingDepthField === field;
-                const labels: Record<string, string> = {
-                  brief: 'Summary',
-                  detail: 'Full Detail',
-                  reference: 'Reference Material',
-                };
+            {/* Overflow menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="size-9 p-0" aria-label="More actions">
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {hasReaderContent && (
+                  <DropdownMenuItem onClick={toggleReader}>
+                    <BookOpen className="size-4" />
+                    {readerOpen ? 'Close Reader' : 'Open Reader'}
+                  </DropdownMenuItem>
+                )}
+                {item.source_url && (
+                  <DropdownMenuItem onClick={() => window.open(item.source_url as string, '_blank')}>
+                    <ExternalLink className="size-4" />
+                    Open original
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={handleCopyLink}>
+                  <Copy className="size-4" />
+                  {copied ? 'Copied!' : 'Copy link'}
+                </DropdownMenuItem>
+                {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
+                  <DropdownMenuItem onClick={() => {
+                    /* PDF viewer is dynamic, trigger it via the existing PdfViewer */
+                    const btn = document.querySelector<HTMLButtonElement>('[data-pdf-trigger]');
+                    btn?.click();
+                  }}>
+                    <FileText className="size-4" />
+                    View PDF
+                  </DropdownMenuItem>
+                )}
+                {item.content_type === 'pdf' && (
+                  <DropdownMenuItem onClick={handleVisionAnalysis} disabled={isAnalysing}>
+                    <Eye className="size-4" />
+                    {isAnalysing ? 'Analysing\u2026' : 'Visual Analysis'}
+                  </DropdownMenuItem>
+                )}
+                {canAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => {
+                        const btn = document.querySelector<HTMLButtonElement>('[data-delete-trigger]');
+                        btn?.click();
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-                if (!fieldValue && !isEditing && !canEdit) return null;
-
-                return (
-                  <div key={field}>
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        {labels[field]}
-                      </h2>
-                      {canEdit && !isEditing && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => startDepthEdit(field)}
-                          className="gap-1.5 text-xs"
-                        >
-                          <Pencil className="size-3" />
-                          {fieldValue ? 'Edit' : 'Add'}
-                        </Button>
-                      )}
-                    </div>
-                    {isEditing ? (
-                      <div className="space-y-2">
-                        <textarea
-                          value={editDepthValue}
-                          onChange={(e) => setEditDepthValue(e.target.value)}
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          rows={4}
-                          autoFocus
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => saveDepthEdit(field)}
-                            disabled={isSavingDepth}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={cancelDepthEdit}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : fieldValue ? (
-                      <div className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
-                        {fieldValue}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </section>
-          )}
+            {/* Hidden triggers for dynamic components */}
+            {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
+              <div className="hidden">
+                <PdfViewer
+                  sourceUrl={item.source_url ?? undefined}
+                  filePath={item.file_path ?? undefined}
+                  title={title}
+                />
+              </div>
+            )}
+            {canAdmin && (
+              <div className="hidden">
+                <DeleteContentDialog
+                  itemId={item.id}
+                  itemTitle={title}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Content-type specific header */}
           <ContentTypeHeader
@@ -1059,29 +869,31 @@ export function ItemDetailClient({
             authorName={item.author_name}
           />
 
-          {/* Multi-level summary */}
-          <SummaryTabs
-            itemId={item.id as string}
-            summaryData={item.summary_data ?? null}
-            contentType={item.content_type as string}
-            content={item.content}
-            aiSummary={item.ai_summary}
-            readerHtml={item.metadata?.reader_html as string | undefined}
-            hideFullText={
-              item.content_type === 'transcript' &&
-              !!transcriptChapters &&
-              transcriptChapters.length > 0
-            }
-            platform={item.platform}
-            metadata={item.metadata}
-            authorName={item.author_name}
-            sourceUrl={item.source_url}
-            transcriptChapters={transcriptChapters}
-            segments={segments}
-            highlights={highlights}
-            frameable={item.metadata?.frameable === true}
-            className="mb-6"
-          />
+          {/* AI processing indicators (classify / summarise) */}
+          {canEdit && item.content && (
+            <AiProcessingIndicators
+              item={item}
+              onItemUpdated={setItem}
+            />
+          )}
+
+          {/* Content tabs — Q&A pair variant wraps in QaPairLayout */}
+          {isQAPair ? (
+            <QaPairLayout
+              question={item.suggested_title ?? item.title ?? ''}
+              itemId={item.id}
+              sourceDocument={(item.metadata as Record<string, unknown>)?.source_document as string ?? null}
+              verified={!!item.verified_at}
+              canEdit={canEdit}
+              onEditQuestion={enterEditMode}
+              contentTabs={summaryTabsElement}
+            />
+          ) : (
+            summaryTabsElement
+          )}
+
+          {/* Table of Contents (Item 5) */}
+          <TableOfContents content={getActiveTabContent()} className="mb-6" />
 
           {/* Vision analysis (PDF items) */}
           {visionAnalysis && (
@@ -1111,7 +923,7 @@ export function ItemDetailClient({
               />
             )}
 
-          {/* Transcript reader (for transcripts with chapters -- Full Text tab is hidden for these) */}
+          {/* Transcript reader (for transcripts with chapters) */}
           {item.content &&
             item.content_type === 'transcript' &&
             transcriptChapters &&
@@ -1129,84 +941,18 @@ export function ItemDetailClient({
               </section>
             )}
 
-          {/* Action buttons */}
-          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap">
-            <ReadToggleButton itemId={item.id as string} />
-            <Button
-              variant={readerOpen ? 'default' : 'outline'}
-              size="sm"
-              onClick={toggleReader}
-              className="gap-1.5"
-            >
-              <BookOpen className="size-3.5" />
-              {readerOpen ? 'Close Reader' : 'Open Reader'}
-            </Button>
-            {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-              <>
-                <PdfViewer
-                  sourceUrl={item.source_url ?? undefined}
-                  filePath={item.file_path ?? undefined}
-                  title={title}
-                />
-                <Button
-                  variant={visionAnalysis ? 'outline' : 'default'}
-                  size="sm"
-                  onClick={handleVisionAnalysis}
-                  disabled={isAnalysing}
-                  className="gap-1.5"
-                >
-                  {isAnalysing ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Eye className="size-3.5" />
-                  )}
-                  {isAnalysing
-                    ? 'Analysing…'
-                    : visionAnalysis
-                      ? 'Re-analyse'
-                      : 'Visual Analysis'}
-                </Button>
-              </>
-            )}
-            {item.source_url && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open(item.source_url as string, '_blank')}
-                className="gap-1.5"
-              >
-                {item.content_type === 'pdf' ? (
-                  <FileText className="size-3.5" />
-                ) : (
-                  <ExternalLink className="size-3.5" />
-                )}
-                {item.content_type === 'pdf'
-                  ? 'Open PDF'
-                  : 'Open original'}
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyLink}
-              className="gap-1.5"
-            >
-              {copied ? (
-                <Check className="size-3.5" />
-              ) : (
-                <Copy className="size-3.5" />
-              )}
-              {copied ? 'Copied' : 'Copy link'}
-            </Button>
-            {canAdmin && (
-              <div className="ml-auto">
-                <DeleteContentDialog
-                  itemId={item.id}
-                  itemTitle={title}
-                />
-              </div>
-            )}
-          </div>
+          {/* OrganiseSection (Item 6) — replaces separate keywords/projects/tags */}
+          <OrganiseSection
+            itemId={item.id}
+            keywords={(item.ai_keywords as string[]) ?? []}
+            projects={[]}
+            tags={(item.user_tags as string[]) ?? []}
+            canEdit={canEdit}
+            onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
+            onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
+            onProjectsChanged={() => {}}
+            className="mb-6"
+          />
         </article>
 
         {/* Metadata sidebar */}

@@ -47,6 +47,12 @@ interface SummaryTabsProps {
   highlights?: TranscriptHighlight[] | null;
   /** Whether the source URL can be embedded in an iframe */
   frameable?: boolean;
+  /** Q&A pair mode — shows "Full Answer" instead of "Full Text" */
+  qaMode?: boolean;
+  /** Unified edit mode — when true, active tab shows editor */
+  isEditing?: boolean;
+  /** Called when any editable content changes in edit mode */
+  onDirty?: () => void;
   className?: string;
 }
 
@@ -71,8 +77,12 @@ export function SummaryTabs({
   segments,
   highlights,
   frameable,
+  qaMode,
+  isEditing: _isEditing,
+  onDirty: _onDirty,
   className,
 }: SummaryTabsProps) {
+  const fullTextLabel = qaMode ? 'Full Answer' : 'Full Text';
   const [summaryData, setSummaryData] = useState<SummaryData | null>(
     initialData,
   );
@@ -228,7 +238,7 @@ export function SummaryTabs({
             </TabsTrigger>
             {!hideFullText && (
               <TabsTrigger value="fulltext" className="min-h-[44px] px-4 text-sm">
-                Full Text
+                {fullTextLabel}
               </TabsTrigger>
             )}
             {hasReaderContent && (
@@ -309,7 +319,7 @@ export function SummaryTabs({
           </TabsTrigger>
           {content && !hideFullText && (
             <TabsTrigger value="fulltext" className="min-h-[44px] px-4 text-sm">
-              Full Text
+              {fullTextLabel}
             </TabsTrigger>
           )}
           {hasReaderContent && (
