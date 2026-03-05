@@ -370,6 +370,7 @@ export default function TemplateCompletionPage() {
             toast.error(err);
             setStep('review');
           }}
+          onRetry={handleFill}
         />
       )}
 

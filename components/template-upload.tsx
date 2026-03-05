@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Template } from '@/types/template';
 
@@ -31,6 +32,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState('');
+  const [description, setDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadedTemplate, setUploadedTemplate] = useState<Template | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -40,6 +42,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
     setPhase('idle');
     setError(null);
     setTemplateName('');
+    setDescription('');
     setSelectedFile(null);
     setUploadedTemplate(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -86,6 +89,9 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('name', templateName || selectedFile.name.replace(/\.docx$/i, ''));
+      if (description.trim()) {
+        formData.append('description', description.trim());
+      }
 
       const res = await fetch(`/api/bids/${bidId}/templates`, {
         method: 'POST',
@@ -107,7 +113,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
       setPhase('error');
       toast.error(message);
     }
-  }, [bidId, selectedFile, templateName]);
+  }, [bidId, selectedFile, templateName, description]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -289,6 +295,15 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
             onChange={(e) => setTemplateName(e.target.value)}
             placeholder="Enter template name"
             maxLength={200}
+          />
+          <Label htmlFor="template-description">Description (optional)</Label>
+          <Textarea
+            id="template-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Brief description of this template"
+            maxLength={1000}
+            rows={2}
           />
           <div className="flex gap-2">
             <Button onClick={handleUpload} disabled={!templateName.trim()}>

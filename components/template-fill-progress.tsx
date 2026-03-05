@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import type { JobStatus } from '@/types/template';
 
@@ -9,6 +10,7 @@ interface TemplateFillProgressProps {
   jobId: string;
   onComplete: (result: Record<string, unknown>) => void;
   onError: (error: string) => void;
+  onRetry?: () => void;
 }
 
 const POLL_INTERVAL = 2000;
@@ -24,6 +26,7 @@ export function TemplateFillProgress({
   jobId,
   onComplete,
   onError,
+  onRetry,
 }: TemplateFillProgressProps) {
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +73,12 @@ export function TemplateFillProgress({
           <p className="text-sm font-medium text-destructive">Fill failed</p>
           <p className="mt-1 text-xs text-destructive/80">{error}</p>
         </div>
+        {onRetry && (
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            <RefreshCw className="mr-1 size-3.5" aria-hidden="true" />
+            Retry
+          </Button>
+        )}
       </div>
     );
   }
