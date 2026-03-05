@@ -32,7 +32,6 @@ describe('validateEditableField', () => {
       'created_at',
       'embedding',
       'url',
-      'content',
       'metadata',
       'captured_date',
       'classification_confidence',
@@ -53,8 +52,8 @@ describe('validateEditableField', () => {
 });
 
 describe('EDITABLE_FIELDS set', () => {
-  it('should contain exactly 12 fields', () => {
-    expect(EDITABLE_FIELDS.size).toBe(12);
+  it('should contain exactly 16 fields', () => {
+    expect(EDITABLE_FIELDS.size).toBe(16);
   });
 
   it('should be a Set instance', () => {

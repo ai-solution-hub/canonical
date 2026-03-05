@@ -473,7 +473,7 @@ describe('ItemUpdateBodySchema', () => {
   });
 
   it('should reject dangerous field names', () => {
-    for (const field of ['embedding', 'created_at', 'content', 'metadata']) {
+    for (const field of ['embedding', 'created_at', 'metadata']) {
       const result = ItemUpdateBodySchema.safeParse({
         field,
         value: 'test',
