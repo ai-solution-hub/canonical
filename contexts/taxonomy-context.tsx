@@ -128,8 +128,13 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     fetchTaxonomy();
   }, [fetchTaxonomy]);
 
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = useCallback(() => {
-    fetchTaxonomy();
+    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
+    refreshTimeoutRef.current = setTimeout(() => {
+      hasFetchedRef.current = false;
+      fetchTaxonomy();
+    }, 300);
   }, [fetchTaxonomy]);
 
   // Build lookup maps for efficient access

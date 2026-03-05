@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, Tags, Menu } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ interface SectionDef {
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
-  { id: 'taxonomy', label: 'Taxonomy', icon: Tags, group: 'content' },
+  { id: 'taxonomy', label: 'Taxonomy', icon: FolderTree, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },

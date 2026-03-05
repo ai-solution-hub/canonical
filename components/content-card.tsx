@@ -111,9 +111,9 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
             {item.snippet}
             <span className="italic text-muted-foreground/70">&hellip;</span>
           </p>
-        ) : item.ai_summary ? (
+        ) : item.brief || item.ai_summary ? (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {item.ai_summary}
+            {item.brief || item.ai_summary}
           </p>
         ) : null}
         <div className="mt-auto flex flex-col gap-1.5 pt-1">

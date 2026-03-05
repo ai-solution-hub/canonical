@@ -87,6 +87,9 @@ export function TaxonomySection() {
   const [subtopicOrder, setSubtopicOrder] = useState('');
   const [subtopicSaving, setSubtopicSaving] = useState(false);
 
+  // Screen reader announcement
+  const [announcement, setAnnouncement] = useState('');
+
   // Deactivation dialog state
   const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<{
@@ -221,6 +224,7 @@ export function TaxonomySection() {
         }
 
         toast.success('Domain updated');
+        setAnnouncement(`Domain '${domainName.trim()}' updated`);
       } else {
         // Create
         const body: Record<string, unknown> = { name: domainName.trim() };
@@ -240,6 +244,7 @@ export function TaxonomySection() {
         }
 
         toast.success('Domain created');
+        setAnnouncement(`Domain '${domainName.trim()}' created`);
       }
 
       setDomainDialogOpen(false);
@@ -304,6 +309,7 @@ export function TaxonomySection() {
         }
 
         toast.success('Subtopic updated');
+        setAnnouncement(`Subtopic '${subtopicName.trim()}' updated`);
       } else {
         // Create
         const body: Record<string, unknown> = {
@@ -325,6 +331,7 @@ export function TaxonomySection() {
         }
 
         toast.success('Subtopic created');
+        setAnnouncement(`Subtopic '${subtopicName.trim()}' created`);
       }
 
       setSubtopicDialogOpen(false);
@@ -369,6 +376,7 @@ export function TaxonomySection() {
       }
 
       toast.success(`${type === 'domain' ? 'Domain' : 'Subtopic'} deactivated`);
+      setAnnouncement(`${type === 'domain' ? 'Domain' : 'Subtopic'} '${deactivateTarget.name}' deactivated`);
       setDeactivateDialogOpen(false);
       setDeactivateTarget(null);
 
@@ -407,6 +415,7 @@ export function TaxonomySection() {
       }
 
       toast.success(`${type === 'domain' ? 'Domain' : 'Subtopic'} reactivated`);
+      setAnnouncement(`${type === 'domain' ? 'Domain' : 'Subtopic'} reactivated`);
 
       if (type === 'domain') {
         fetchDomains();
@@ -952,6 +961,11 @@ export function TaxonomySection() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Screen reader announcements */}
+      <div aria-live="polite" className="sr-only">
+        {announcement}
+      </div>
     </div>
   );
 }

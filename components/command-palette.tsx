@@ -18,12 +18,14 @@ import {
   ShieldCheck,
   Settings,
 } from 'lucide-react';
+import { useUserRole } from '@/hooks/use-user-role';
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { canAdmin } = useUserRole();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   // Cmd+K listener
@@ -215,38 +217,42 @@ export function CommandPalette() {
                     <Settings className="size-4 text-muted-foreground" />
                     Settings
                   </Command.Item>
-                  <Command.Item
-                    value="Settings taxonomy domains subtopics"
-                    onSelect={() => runCommand(() => router.push('/settings?section=taxonomy'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Settings className="size-4 text-muted-foreground" />
-                    Settings &rsaquo; Taxonomy
-                  </Command.Item>
-                  <Command.Item
-                    value="Settings team users members"
-                    onSelect={() => runCommand(() => router.push('/settings?section=team'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Settings className="size-4 text-muted-foreground" />
-                    Settings &rsaquo; Team
-                  </Command.Item>
-                  <Command.Item
-                    value="Settings governance review posture"
-                    onSelect={() => runCommand(() => router.push('/settings?section=governance'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Settings className="size-4 text-muted-foreground" />
-                    Settings &rsaquo; Governance
-                  </Command.Item>
-                  <Command.Item
-                    value="Settings activity log"
-                    onSelect={() => runCommand(() => router.push('/settings?section=activity'))}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
-                  >
-                    <Settings className="size-4 text-muted-foreground" />
-                    Settings &rsaquo; Activity
-                  </Command.Item>
+                  {canAdmin && (
+                    <>
+                      <Command.Item
+                        value="Settings taxonomy domains subtopics"
+                        onSelect={() => runCommand(() => router.push('/settings?section=taxonomy'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Taxonomy
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings team users members"
+                        onSelect={() => runCommand(() => router.push('/settings?section=team'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Team
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings governance review posture"
+                        onSelect={() => runCommand(() => router.push('/settings?section=governance'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Governance
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings activity log"
+                        onSelect={() => runCommand(() => router.push('/settings?section=activity'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Activity
+                      </Command.Item>
+                    </>
+                  )}
                 </Command.Group>
 
                 {/* Actions */}

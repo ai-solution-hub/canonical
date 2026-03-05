@@ -1,7 +1,5 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
 import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Settings, Loader2 } from 'lucide-react';

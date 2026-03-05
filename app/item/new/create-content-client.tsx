@@ -322,6 +322,7 @@ export function CreateContentClient() {
         <button
           type="button"
           onClick={() => setShowMoreDetails(!showMoreDetails)}
+          aria-expanded={showMoreDetails}
           className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
         >
           {showMoreDetails ? (

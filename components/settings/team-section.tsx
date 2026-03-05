@@ -57,24 +57,11 @@ interface TeamUser {
   last_sign_in_at: string | null;
 }
 
+import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function roleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
-  switch (role) {
-    case 'admin':
-      return 'default';
-    case 'editor':
-      return 'secondary';
-    default:
-      return 'outline';
-  }
-}
-
-function roleLabel(role: string): string {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
 
 function formatDate(dateString: string | null): string {
   if (!dateString) return 'Never';

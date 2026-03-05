@@ -45,6 +45,7 @@ export interface ContentItemDetail extends ContentListItem {
   secondary_domain: ContentItemRow['secondary_domain'];
   secondary_subtopic: ContentItemRow['secondary_subtopic'];
   classification_reasoning: string | null;
+  classified_at: string | null;
   metadata: Record<string, unknown>;
   summary_data: SummaryData | null;
   created_at: string;
@@ -186,7 +187,7 @@ export const CONTENT_LIST_COLUMNS = `
 export const CONTENT_DETAIL_COLUMNS = `
   ${CONTENT_LIST_COLUMNS},
   content, source_url, file_path, secondary_domain, secondary_subtopic,
-  classification_reasoning, summary_data,
+  classification_reasoning, classified_at, summary_data,
   created_at, updated_at, created_by, updated_by,
   verified_by, source_bid, detail, reference,
   governance_review_status, governance_review_due, governance_reviewer_id

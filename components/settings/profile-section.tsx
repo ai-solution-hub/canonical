@@ -10,21 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-
-function roleBadgeVariant(role: string): 'default' | 'secondary' | 'outline' {
-  switch (role) {
-    case 'admin':
-      return 'default';
-    case 'editor':
-      return 'secondary';
-    default:
-      return 'outline';
-  }
-}
-
-function roleLabel(role: string): string {
-  return role.charAt(0).toUpperCase() + role.slice(1);
-}
+import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 
 export function ProfileSection() {
   const supabase = createClient();

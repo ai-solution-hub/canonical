@@ -16,10 +16,10 @@ export async function GET() {
     if (!auth) return forbiddenResponse();
     const { supabase } = auth;
 
-    // Fetch all domains with subtopic counts
+    // Fetch all domains with subtopic counts via relational count
     const { data: domains, error } = await supabase
       .from('taxonomy_domains')
-      .select('id, name, display_order, colour, is_active')
+      .select('id, name, display_order, colour, is_active, taxonomy_subtopics(count)')
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -29,28 +29,16 @@ export async function GET() {
       );
     }
 
-    // Get subtopic counts per domain (all subtopics, not just active)
-    const { data: subtopicCounts, error: countError } = await supabase
-      .from('taxonomy_subtopics')
-      .select('domain_id');
-
-    if (countError) {
-      return NextResponse.json(
-        { error: 'Failed to fetch subtopic counts' },
-        { status: 500 },
-      );
-    }
-
-    // Build count map
-    const countMap = new Map<string, number>();
-    for (const row of subtopicCounts ?? []) {
-      countMap.set(row.domain_id, (countMap.get(row.domain_id) ?? 0) + 1);
-    }
-
-    const result = (domains ?? []).map((d) => ({
-      ...d,
-      subtopic_count: countMap.get(d.id) ?? 0,
-    }));
+    // Reshape: extract count from the nested relation
+    const result = (domains ?? []).map((d) => {
+      const { taxonomy_subtopics, ...rest } = d as Record<string, unknown> & {
+        taxonomy_subtopics: Array<{ count: number }>;
+      };
+      return {
+        ...rest,
+        subtopic_count: taxonomy_subtopics?.[0]?.count ?? 0,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (err) {
