@@ -20,6 +20,8 @@ import { Progress } from '@/components/ui/progress';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid-export-menu';
 import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
+import { BidOutcomeDialog } from '@/components/bid-outcome';
+import { KBIntegrationReview } from '@/components/kb-integration-review';
 import { ConfidenceDot } from '@/components/confidence-badge';
 import { QuestionList } from '@/components/question-list';
 import { QuestionReview } from '@/components/question-review';
@@ -29,7 +31,7 @@ import { formatDateUK } from '@/lib/format';
 import { canTransition, getAvailableTransitions, BID_STATE_LABELS } from '@/lib/bid-state-machine';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { Bid, BidMetadata, BidQuestion, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult } from '@/types/bid';
+import type { Bid, BidMetadata, BidQuestion, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult, KBCandidate } from '@/types/bid';
 
 type Tab = 'overview' | 'questions' | 'responses' | 'documents';
 
@@ -54,6 +56,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
   }>>([]);
   const [showCostEstimate, setShowCostEstimate] = useState(false);
   const [draftingAll, setDraftingAll] = useState(false);
+  const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
+  const [showKBReview, setShowKBReview] = useState(false);
+  const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
 
   const fetchBid = useCallback(async () => {
     try {
@@ -235,6 +240,15 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     }
   }
 
+  function handleOutcomeRecorded(outcome: string, candidates: KBCandidate[]) {
+    setShowOutcomeDialog(false);
+    fetchBid();
+    if (candidates.length > 0) {
+      setKBCandidates(candidates);
+      setShowKBReview(true);
+    }
+  }
+
   if (loading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -250,6 +264,11 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
   const progressPercent = totalQuestions > 0 ? Math.round((completedCount / totalQuestions) * 100) : 0;
   const availableTransitions = getAvailableTransitions(metadata.status);
+  const outcomeTransitions = ['won', 'lost', 'withdrawn'] as const;
+  const isSubmitted = metadata.status === 'submitted';
+  const regularTransitions = availableTransitions.filter(
+    t => !isSubmitted || !outcomeTransitions.includes(t as typeof outcomeTransitions[number]),
+  );
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
@@ -301,9 +320,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         {/* Actions */}
         {canEdit && (
           <div className="flex items-center gap-2">
-            {availableTransitions.filter(t => t !== 'withdrawn').length > 0 && (
+            {regularTransitions.filter(t => t !== 'withdrawn').length > 0 && (
               <div className="flex items-center gap-1">
-                {availableTransitions.filter(t => t !== 'withdrawn').map((transition) => (
+                {regularTransitions.filter(t => t !== 'withdrawn').map((transition) => (
                   <Button
                     key={transition}
                     variant="outline"
@@ -318,6 +337,15 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   </Button>
                 ))}
               </div>
+            )}
+            {isSubmitted && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowOutcomeDialog(true)}
+              >
+                Record Outcome
+              </Button>
             )}
             <BidExportMenu
               bidId={id}
@@ -435,6 +463,32 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           />
         )}
       </div>
+
+      {/* Outcome dialog (submitted bids) */}
+      <BidOutcomeDialog
+        open={showOutcomeDialog}
+        onOpenChange={setShowOutcomeDialog}
+        bidId={id}
+        bidName={bid.name}
+        onOutcomeRecorded={handleOutcomeRecorded}
+      />
+
+      {/* KB integration review (after won outcome) */}
+      <KBIntegrationReview
+        open={showKBReview}
+        onOpenChange={setShowKBReview}
+        bidId={id}
+        bidName={bid.name}
+        candidates={kbCandidates}
+        onIntegrationComplete={(result) => {
+          setShowKBReview(false);
+          setKBCandidates([]);
+          fetchBid();
+          toast.success(
+            `KB integration complete: ${result.created} created, ${result.updated} updated`,
+          );
+        }}
+      />
     </div>
   );
 }
