@@ -11,7 +11,8 @@ const UUID_RE =
  * POST /api/items/[id]/rollback
  *
  * Rollback a content item to a specific version.
- * Creates a NEW version (not destructive) with the old content restored.
+ * Creates a NEW version snapshot of the current state (non-destructive),
+ * then updates the content item with the target version's data.
  * Requires editor+ role.
  */
 export async function POST(
@@ -38,14 +39,17 @@ export async function POST(
 
     const { version_id } = parsed.data;
 
-    // Fetch the version to rollback to
+    // Step 1: Fetch the target version to rollback to
     const { data: targetVersion, error: versionError } = await supabase
       .from('content_history')
-      .select('*')
+      .select(
+        'id, content_item_id, version, title, content, brief, detail, reference, metadata',
+      )
       .eq('id', version_id)
       .eq('content_item_id', id)
       .single();
 
+    // Step 2: Return 404 if target version doesn't exist
     if (versionError || !targetVersion) {
       return NextResponse.json(
         { error: 'Version not found' },
@@ -53,13 +57,14 @@ export async function POST(
       );
     }
 
-    // Fetch current state for the history snapshot
+    // Step 3: Fetch current state of the content item
     const { data: currentItem, error: currentError } = await supabase
       .from('content_items')
-      .select('title, content, brief, detail, reference')
+      .select('title, content, brief, detail, reference, metadata')
       .eq('id', id)
       .single();
 
+    // Step 4: Return 404 if content item doesn't exist
     if (currentError || !currentItem) {
       return NextResponse.json(
         { error: 'Item not found' },
@@ -67,8 +72,33 @@ export async function POST(
       );
     }
 
-    // Update the content item with the version's content
-    const { error: updateError } = await supabase
+    // Step 5: Snapshot current state into content_history before overwriting
+    const { data: maxVersionData } = await supabase
+      .from('content_history')
+      .select('version')
+      .eq('content_item_id', id)
+      .order('version', { ascending: false })
+      .limit(1)
+      .single();
+
+    const nextVersion = (maxVersionData?.version ?? 0) + 1;
+
+    await supabase.from('content_history').insert({
+      content_item_id: id,
+      version: nextVersion,
+      title: currentItem.title ?? '',
+      content: currentItem.content ?? '',
+      brief: currentItem.brief ?? null,
+      detail: currentItem.detail ?? null,
+      reference: currentItem.reference ?? null,
+      metadata: currentItem.metadata ?? null,
+      change_summary: `Rolled back to version ${targetVersion.version}`,
+      change_type: 'rollback',
+      created_by: user.id,
+    });
+
+    // Step 6: Update content_items with the target version's data
+    const { data: updateResult, error: updateError } = await supabase
       .from('content_items')
       .update({
         title: targetVersion.title,
@@ -76,11 +106,14 @@ export async function POST(
         brief: targetVersion.brief,
         detail: targetVersion.detail,
         reference: targetVersion.reference,
+        metadata: targetVersion.metadata,
         updated_by: user.id,
       })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id')
+      .single();
 
-    if (updateError) {
+    if (updateError || !updateResult) {
       console.error('Failed to rollback content item:', updateError);
       return NextResponse.json(
         { error: 'Failed to rollback item' },
@@ -88,37 +121,11 @@ export async function POST(
       );
     }
 
-    // Create a new version history entry for the rollback
-    try {
-      const { data: maxVersionData } = await supabase
-        .from('content_history')
-        .select('version')
-        .eq('content_item_id', id)
-        .order('version', { ascending: false })
-        .limit(1)
-        .single();
-
-      const nextVersion = (maxVersionData?.version ?? 0) + 1;
-
-      await supabase.from('content_history').insert({
-        content_item_id: id,
-        version: nextVersion,
-        title: targetVersion.title,
-        content: targetVersion.content,
-        brief: targetVersion.brief,
-        detail: targetVersion.detail,
-        reference: targetVersion.reference,
-        change_summary: `Rolled back to version ${targetVersion.version}`,
-        change_type: 'rollback',
-        created_by: user.id,
-      });
-    } catch (historyErr) {
-      console.error('Failed to create rollback version entry:', historyErr);
-    }
-
+    // Step 7: Return success with the new version number
     return NextResponse.json({
       success: true,
       rolled_back_to_version: targetVersion.version,
+      new_version: nextVersion,
     });
   } catch (err) {
     return NextResponse.json(

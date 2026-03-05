@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 const UUID_RE =
@@ -9,6 +9,7 @@ const UUID_RE =
  * GET /api/items/[id]/history
  *
  * List version history for a content item, ordered by version descending.
+ * Returns summary fields only (not content bodies) for efficient listing.
  * Supports pagination via ?limit=N&offset=N query params.
  */
 export async function GET(
@@ -16,8 +17,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
+    if (!auth) return forbiddenResponse();
     const { supabase } = auth;
 
     const { id } = await params;
@@ -31,7 +32,7 @@ export async function GET(
 
     const url = new URL(request.url);
     const limit = Math.min(
-      Math.max(parseInt(url.searchParams.get('limit') ?? '20', 10) || 20, 1),
+      Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10) || 50, 1),
       100,
     );
     const offset = Math.max(
@@ -41,7 +42,10 @@ export async function GET(
 
     const { data, error, count } = await supabase
       .from('content_history')
-      .select('id, content_item_id, version, title, change_summary, change_type, created_by, created_at', { count: 'exact' })
+      .select(
+        'id, content_item_id, version, change_summary, change_type, created_by, created_at',
+        { count: 'exact' },
+      )
       .eq('content_item_id', id)
       .order('version', { ascending: false })
       .range(offset, offset + limit - 1);

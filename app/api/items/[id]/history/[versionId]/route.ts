@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 const UUID_RE =
@@ -9,14 +9,15 @@ const UUID_RE =
  * GET /api/items/[id]/history/[versionId]
  *
  * Retrieve a single version history entry with full content.
+ * Used for diff comparison against the current version.
  */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; versionId: string }> },
 ) {
   try {
-    const auth = await getAuthenticatedClient();
-    if (!auth) return unauthorisedResponse();
+    const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
+    if (!auth) return forbiddenResponse();
     const { supabase } = auth;
 
     const { id, versionId } = await params;
@@ -30,7 +31,9 @@ export async function GET(
 
     const { data, error } = await supabase
       .from('content_history')
-      .select('*')
+      .select(
+        'id, content_item_id, version, title, content, brief, detail, reference, metadata, change_summary, change_type, created_by, created_at',
+      )
       .eq('id', versionId)
       .eq('content_item_id', id)
       .single();
