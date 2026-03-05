@@ -79,6 +79,56 @@ export type Database = {
           },
         ]
       }
+      bid_response_history: {
+        Row: {
+          change_reason: string | null
+          created_at: string
+          edited_by: string | null
+          id: string
+          metadata: Json | null
+          response_id: string
+          response_text: string | null
+          response_text_advanced: string | null
+          review_status: string
+          source_content_ids: string[] | null
+          version: number
+        }
+        Insert: {
+          change_reason?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          metadata?: Json | null
+          response_id: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status: string
+          source_content_ids?: string[] | null
+          version: number
+        }
+        Update: {
+          change_reason?: string | null
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          metadata?: Json | null
+          response_id?: string
+          response_text?: string | null
+          response_text_advanced?: string | null
+          review_status?: string
+          source_content_ids?: string[] | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_response_history_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "bid_responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bid_responses: {
         Row: {
           approved_by: string | null

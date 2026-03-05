@@ -170,3 +170,17 @@ export interface KBCandidate {
   source_content_ids: string[] | null;
   recommendation: 'new_entry' | 'update_existing' | 'skip';
 }
+
+// ---- Response Versioning ----
+
+export interface BidResponseVersion {
+  id: string;
+  version: number;
+  response_text: string | null;
+  response_text_advanced: string | null;
+  review_status: ResponseReviewStatus;
+  edited_by: string | null;
+  edited_by_name?: string;
+  change_reason: string | null;
+  created_at: string;
+}

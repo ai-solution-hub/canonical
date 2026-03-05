@@ -10,6 +10,7 @@ import {
   Library,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { QuestionNavigator } from '@/components/question-navigator';
 import { ResponseEditor } from '@/components/response-editor';
 import { CitationPanel } from '@/components/citation-panel';
@@ -17,6 +18,7 @@ import { QualityScore } from '@/components/quality-score';
 import { ResponseActions, type ResponseAction } from '@/components/response-actions';
 import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
 import { ContentLibraryDrawer } from '@/components/content-library-drawer';
+import { ResponseVersionHistory } from '@/components/response-version-history';
 import { BidContextProvider } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
@@ -44,6 +46,7 @@ interface BidResponse {
   question_id: string;
   response_text: string | null;
   response_text_advanced: string | null;
+  version: number;
   citations: CitationEntry[];
   source_content: Array<{
     id: string;
@@ -94,6 +97,9 @@ export default function BidSessionPage({
 
   // Content Library Drawer
   const contentLibrary = useContentLibraryDrawer();
+
+  // Version history panel
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Citation orphan detection — batch-check source IDs via RPC
   const citationSourceIds = useMemo(
@@ -573,6 +579,19 @@ export default function BidSessionPage({
                       }
                     />
                   </div>
+                  {response && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setHistoryOpen(true)}
+                      className="shrink-0 gap-1.5"
+                      title="View version history"
+                    >
+                      <Badge variant="secondary" className="text-[10px] tabular-nums">
+                        v{response.version}
+                      </Badge>
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
@@ -653,6 +672,17 @@ export default function BidSessionPage({
             if (!open) contentLibrary.close();
           }}
           questionText={currentQuestion?.question_text}
+        />
+        <ResponseVersionHistory
+          bidId={id}
+          responseId={response?.id ?? null}
+          currentVersion={response?.version ?? 1}
+          open={historyOpen}
+          onOpenChange={setHistoryOpen}
+          onRestored={() => {
+            void fetchResponse();
+            void fetchBidData();
+          }}
         />
       </BidContextProvider>
     </CopilotKitProvider>

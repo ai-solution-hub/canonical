@@ -440,6 +440,12 @@ export const ResponseUpdateBodySchema = z.object({
   response_text: z.string().max(100000).optional(),
   response_text_advanced: z.string().max(100000).nullable().optional(),
   review_status: z.enum(['draft', 'ai_drafted', 'edited', 'approved', 'needs_review']).optional(),
+  change_reason: z.string().max(500).optional(),
+});
+
+/** POST /api/bids/:id/responses/:rId/restore */
+export const ResponseRestoreBodySchema = z.object({
+  version: z.number().int().min(1),
 });
 
 /** POST /api/bids/:id/responses/:rId/regenerate */

@@ -36,7 +36,7 @@ export async function GET(
     const { data: response, error: responseError } = await supabase
       .from('bid_responses')
       .select(
-        'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, drafted_by, last_edited_by, approved_by, created_at, updated_at',
+        'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at',
       )
       .eq('id', rId)
       .single();
@@ -103,6 +103,7 @@ export async function GET(
       },
       response_text: response.response_text,
       response_text_advanced: response.response_text_advanced,
+      version: response.version,
       citations,
       source_content: sourceContent,
       quality_check: qualityCheck,
@@ -143,7 +144,7 @@ export async function PATCH(
     const parsed = parseBody(ResponseUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { response_text, response_text_advanced, review_status } = parsed.data;
+    const { response_text, response_text_advanced, review_status, change_reason } = parsed.data;
 
     // Verify the response exists and belongs to this bid
     const { data: existing, error: fetchError } = await supabase
@@ -215,12 +216,23 @@ export async function PATCH(
       };
     }
 
+    // Set change_reason session variable for the trigger to capture.
+    // set_config is a built-in PostgreSQL function not in the generated types.
+    if (change_reason) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase.rpc as any)('set_config', {
+        setting: 'app.change_reason',
+        value: change_reason,
+        is_local: true,
+      });
+    }
+
     const { data: updated, error: updateError } = await supabase
       .from('bid_responses')
       .update(updates)
       .eq('id', rId)
       .select(
-        'id, question_id, response_text, response_text_advanced, review_status, last_edited_by, approved_by, updated_at',
+        'id, question_id, response_text, response_text_advanced, review_status, version, last_edited_by, approved_by, updated_at',
       )
       .single();
 
