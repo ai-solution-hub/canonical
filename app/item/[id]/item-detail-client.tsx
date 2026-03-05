@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import {
-  ArrowLeft,
   ExternalLink,
   FileText,
   BookOpen,
@@ -47,6 +46,7 @@ import { ReaderPanel } from '@/components/reader-panel';
 import { QaPairLayout } from '@/components/qa-pair-layout';
 import { TableOfContents } from '@/components/table-of-contents';
 import { OrganiseSection } from '@/components/organise-section';
+import { BreadcrumbNav } from '@/components/breadcrumb-nav';
 import { DeleteContentDialog } from '@/components/delete-content-dialog';
 import { useUserRole } from '@/hooks/use-user-role';
 import {
@@ -280,30 +280,6 @@ export function ItemDetailClient({
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveAnnouncement, setSaveAnnouncement] = useState('');
 
-  // WP13: Back button context label
-  const [backLabel, setBackLabel] = useState('Back');
-  useEffect(() => {
-    const getBackLabel = (): string => {
-      try {
-        const referrer = document.referrer;
-        if (!referrer) return 'Back';
-        const ref = new URL(referrer);
-        if (ref.origin !== window.location.origin) return 'Back';
-        const path = ref.pathname;
-        if (path.startsWith('/browse')) return 'Back to Browse';
-        if (path.startsWith('/search')) return 'Back to Search';
-        if (path.startsWith('/review')) return 'Back to Review';
-        if (path.startsWith('/bid/')) return 'Back to Bid';
-        if (path.startsWith('/bid')) return 'Back to Bids';
-        if (path.startsWith('/projects')) return 'Back to Projects';
-        if (path === '/') return 'Back to Home';
-        return 'Back';
-      } catch {
-        return 'Back';
-      }
-    };
-    setBackLabel(getBackLabel());
-  }, []);
 
   // Unified edit mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -677,44 +653,12 @@ export function ItemDetailClient({
         Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel.
       </div>
 
-      {/* Header: back button */}
-      <div className="mb-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.back()}
-          className="-ml-2 gap-1.5 text-muted-foreground"
-        >
-          <ArrowLeft className="size-4" />
-          {backLabel}
-        </Button>
-      </div>
-
       {/* Breadcrumb navigation */}
-      <nav aria-label="Breadcrumb" className="mb-4 text-xs text-muted-foreground">
-        <ol className="flex items-center gap-1">
-          <li>
-            <Link href="/browse" className="hover:text-foreground transition-colors">Browse</Link>
-          </li>
-          {item.primary_domain && (
-            <>
-              <li aria-hidden="true">&rsaquo;</li>
-              <li>
-                <Link
-                  href={`/browse?domain=${encodeURIComponent(item.primary_domain as string)}`}
-                  className="hover:text-foreground transition-colors"
-                >
-                  {item.primary_domain}
-                </Link>
-              </li>
-            </>
-          )}
-          <li aria-hidden="true">&rsaquo;</li>
-          <li className="truncate text-foreground" aria-current="page">
-            {title.length > 50 ? title.slice(0, 50) + '...' : title}
-          </li>
-        </ol>
-      </nav>
+      <BreadcrumbNav
+        domain={item.primary_domain as string | null}
+        title={title}
+        className="mb-4"
+      />
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
