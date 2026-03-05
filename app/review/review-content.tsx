@@ -461,7 +461,7 @@ export function ReviewContent() {
     const allVerified = !hasFilters && progress.total > 0 && progress.verified >= progress.total;
 
     return (
-      <div className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
@@ -521,7 +521,7 @@ export function ReviewContent() {
   const isAtEnd = currentIndex >= queue.length;
   if (isAtEnd) {
     return (
-      <div className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
           <ReviewFilters
@@ -550,7 +550,7 @@ export function ReviewContent() {
 
   // Main review view
   return (
-    <div className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
 
@@ -569,66 +569,69 @@ export function ReviewContent() {
       {/* Progress bar */}
       <ReviewProgressBar progress={progress} className="mb-6" />
 
-      {/* Review card with motion-safe transitions */}
-      <div className="motion-safe:transition-opacity motion-safe:duration-150">
-        <ReviewCard
-          ref={cardRef}
-          item={currentItem}
-          position={currentIndex + 1}
-          total={progress.total || queue.length}
-        />
-      </div>
+      {/* Content area with bottom padding for sticky action bar clearance */}
+      <div className="flex-1 pb-20">
+        {/* Review card with motion-safe transitions */}
+        <div className="motion-safe:transition-opacity motion-safe:duration-150">
+          <ReviewCard
+            ref={cardRef}
+            item={currentItem}
+            position={currentIndex + 1}
+            total={progress.total || queue.length}
+          />
+        </div>
 
-      {/* Flag input (inline below card) */}
-      {showFlagInput && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-card p-3">
-          <label htmlFor="flag-reason" className="shrink-0 text-sm text-muted-foreground">
-            Reason (optional):
-          </label>
-          <Input
-            ref={flagInputRef}
-            id="flag-reason"
-            value={flagDetails}
-            onChange={(e) => setFlagDetails(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleFlagSubmit(flagDetails);
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
+        {/* Flag input (inline below card, above action bar) */}
+        {showFlagInput && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-card p-3">
+            <label htmlFor="flag-reason" className="shrink-0 text-sm text-muted-foreground">
+              Reason (optional):
+            </label>
+            <Input
+              ref={flagInputRef}
+              id="flag-reason"
+              value={flagDetails}
+              onChange={(e) => setFlagDetails(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleFlagSubmit(flagDetails);
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setShowFlagInput(false);
+                  setFlagDetails('');
+                  cardRef.current?.focus();
+                }
+              }}
+              placeholder="Why does this need attention?"
+              className="h-8 text-sm"
+              maxLength={500}
+            />
+            <Button
+              size="sm"
+              className="h-8 shrink-0"
+              onClick={() => handleFlagSubmit(flagDetails)}
+            >
+              Submit
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 shrink-0"
+              onClick={() => {
                 setShowFlagInput(false);
                 setFlagDetails('');
                 cardRef.current?.focus();
-              }
-            }}
-            placeholder="Why does this need attention?"
-            className="h-8 text-sm"
-            maxLength={500}
-          />
-          <Button
-            size="sm"
-            className="h-8 shrink-0"
-            onClick={() => handleFlagSubmit(flagDetails)}
-          >
-            Submit
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-8 shrink-0"
-            onClick={() => {
-              setShowFlagInput(false);
-              setFlagDetails('');
-              cardRef.current?.focus();
-            }}
-          >
-            Cancel
-          </Button>
-        </div>
-      )}
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        )}
+      </div>
 
-      {/* Action bar */}
+      {/* Sticky action bar */}
       <ReviewActionBar
         onVerify={handleVerify}
         onFlag={handleFlag}
@@ -639,7 +642,6 @@ export function ReviewContent() {
         onShowHelp={() => setShowHelp(true)}
         isActioning={isActioning}
         canGoBack={currentIndex > 0}
-        className="mt-4"
       />
 
       {/* Keyboard shortcuts help dialog */}

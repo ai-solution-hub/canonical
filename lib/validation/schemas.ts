@@ -43,6 +43,7 @@ export const VALID_REVIEW_ACTIONS = [
   'flag',
   'skip',
   'unverify',
+  'unflag',
 ] as const;
 
 export const VALID_REVIEW_STATUSES = [

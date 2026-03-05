@@ -1,11 +1,13 @@
 'use client';
 
-import { forwardRef } from 'react';
-import { Check } from 'lucide-react';
+import { forwardRef, useState, useRef, useEffect, type ReactNode } from 'react';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { DomainBadge } from '@/components/domain-badge';
 import { ContentRenderer } from '@/components/content-renderer';
+import { cn } from '@/lib/utils';
 import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/format';
 import type { ReviewQueueItem } from '@/types/review';
 
@@ -36,6 +38,69 @@ function ContentBody({ content }: { content: string | null }) {
   return (
     <div className="text-sm leading-relaxed">
       <ContentRenderer content={processed} className="text-sm" />
+    </div>
+  );
+}
+
+const COLLAPSE_HEIGHT = 300;
+
+/** Collapsible wrapper — use key={itemId} on mount to reset state on item change */
+function CollapsibleContent({ children }: { children: ReactNode }) {
+  const [expanded, setExpanded] = useState(false);
+  const [needsCollapse, setNeedsCollapse] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Measure content height on mount (key change remounts, resetting state)
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const check = () => setNeedsCollapse(el.scrollHeight > COLLAPSE_HEIGHT + 40);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div className="relative">
+      <div
+        ref={contentRef}
+        className={cn(
+          'overflow-hidden motion-safe:transition-[max-height] motion-safe:duration-300',
+        )}
+        style={!expanded && needsCollapse ? { maxHeight: `${COLLAPSE_HEIGHT}px` } : undefined}
+      >
+        {children}
+      </div>
+      {needsCollapse && !expanded && (
+        <div className="absolute inset-x-0 bottom-0 flex h-16 items-end justify-center bg-gradient-to-t from-card to-transparent">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setExpanded(true)}
+            className="mb-1 gap-1"
+          >
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+            Show more
+          </Button>
+        </div>
+      )}
+      {needsCollapse && expanded && (
+        <div className="mt-2 flex justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setExpanded(false);
+              contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }}
+            className="gap-1"
+          >
+            <ChevronUp className="size-3.5" aria-hidden="true" />
+            Show less
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -97,10 +162,44 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           )}
         </CardHeader>
 
+        {/* Context summary — at-a-glance info */}
+        {(item.ai_summary || sourceFile || item.captured_date) && (
+          <div className="mx-6 mb-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
+            {item.governance_review_status === 'pending' && (
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="size-3.5" aria-hidden="true" />
+                Governance review pending
+              </div>
+            )}
+            {item.ai_summary && (
+              <p className="line-clamp-2 text-sm text-muted-foreground">
+                {item.ai_summary}
+              </p>
+            )}
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {sourceFile && (
+                <span className="flex items-center gap-1">
+                  <FileText className="size-3" aria-hidden="true" />
+                  {sourceFile}
+                </span>
+              )}
+              {item.captured_date && (
+                <span>{formatDateUK(item.captured_date)}</span>
+              )}
+              {item.classification_confidence != null && (() => {
+                const conf = getConfidenceDisplay(item.classification_confidence);
+                return <span className={conf.colourClass}>{conf.label}</span>;
+              })()}
+            </div>
+          </div>
+        )}
+
         <CardContent className="flex flex-col gap-6">
           {/* Content body */}
           <section>
-            <ContentBody content={item.content} />
+            <CollapsibleContent key={item.id}>
+              <ContentBody content={item.content} />
+            </CollapsibleContent>
           </section>
 
           {/* Classification section */}

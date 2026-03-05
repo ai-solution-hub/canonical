@@ -6,7 +6,8 @@ export type ReviewActionType =
   | 'verify'
   | 'flag'
   | 'skip'
-  | 'unverify';
+  | 'unverify'
+  | 'unflag';
 
 export type ReviewStatus = 'unverified' | 'verified' | 'flagged' | 'all';
 

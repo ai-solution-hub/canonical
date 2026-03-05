@@ -13,6 +13,7 @@ import { ReviewActionBodySchema } from '@/lib/validation/schemas';
  * - flag: create a review_needed quality flag in ingestion_quality_log
  * - skip: no database operation, returns success
  * - unverify: clear verified_at and verified_by
+ * - unflag: resolve the most recent unresolved review_needed flag
  */
 export async function POST(request: NextRequest) {
   try {
@@ -96,6 +97,45 @@ export async function POST(request: NextRequest) {
           { error: 'Failed to unverify item' },
           { status: 500 },
         );
+      }
+    } else if (action === 'unflag') {
+      // Resolve the most recent unresolved review_needed flag for this item.
+      // Two-step query: Supabase does not support .update().limit(1).
+      const { data: flag, error: fetchFlagError } = await supabase
+        .from('ingestion_quality_log')
+        .select('id')
+        .eq('content_item_id', item_id)
+        .eq('flag_type', 'review_needed')
+        .eq('resolved', false)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (fetchFlagError) {
+        console.error('Failed to find quality flag:', fetchFlagError);
+        return NextResponse.json(
+          { error: 'Failed to unflag item' },
+          { status: 500 },
+        );
+      }
+
+      if (flag) {
+        const { error: resolveFlagError } = await supabase
+          .from('ingestion_quality_log')
+          .update({
+            resolved: true,
+            resolved_by: user.id,
+            resolved_at: new Date().toISOString(),
+          })
+          .eq('id', flag.id);
+
+        if (resolveFlagError) {
+          console.error('Failed to unflag content item:', resolveFlagError);
+          return NextResponse.json(
+            { error: 'Failed to unflag item' },
+            { status: 500 },
+          );
+        }
       }
     }
     // action === 'skip': no database operation needed

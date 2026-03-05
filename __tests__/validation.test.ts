@@ -105,14 +105,15 @@ describe('constant arrays', () => {
     expect(VALID_PLATFORMS).toContain('other');
   });
 
-  it('VALID_REVIEW_ACTIONS should contain 4 actions', () => {
-    expect(VALID_REVIEW_ACTIONS).toHaveLength(4);
+  it('VALID_REVIEW_ACTIONS should contain 5 actions', () => {
+    expect(VALID_REVIEW_ACTIONS).toHaveLength(5);
   });
 
-  it('VALID_REVIEW_ACTIONS should include verify, flag, skip and unverify', () => {
+  it('VALID_REVIEW_ACTIONS should include verify, flag, skip, unverify and unflag', () => {
     expect(VALID_REVIEW_ACTIONS).toContain('verify');
     expect(VALID_REVIEW_ACTIONS).toContain('flag');
     expect(VALID_REVIEW_ACTIONS).toContain('skip');
     expect(VALID_REVIEW_ACTIONS).toContain('unverify');
+    expect(VALID_REVIEW_ACTIONS).toContain('unflag');
   });
 });

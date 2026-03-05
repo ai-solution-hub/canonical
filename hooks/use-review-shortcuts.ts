@@ -9,6 +9,7 @@ interface UseReviewShortcutsOptions {
   onBack: () => void;
   onExit: () => void;
   onEdit: () => void;
+  onTogglePanel?: () => void;
   enabled: boolean;
 }
 
@@ -35,7 +36,7 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
   showHelp: boolean;
   setShowHelp: (show: boolean) => void;
 } {
-  const { onVerify, onFlag, onSkip, onBack, onExit, onEdit, enabled } = options;
+  const { onVerify, onFlag, onSkip, onBack, onExit, onEdit, onTogglePanel, enabled } = options;
   const [showHelp, setShowHelp] = useState(false);
 
   const handleKeyDown = useCallback(
@@ -109,8 +110,15 @@ export function useReviewShortcuts(options: UseReviewShortcutsOptions): {
         onEdit();
         return;
       }
+
+      // l -- Toggle review queue panel
+      if (e.key === 'l' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        onTogglePanel?.();
+        return;
+      }
     },
-    [enabled, onVerify, onFlag, onSkip, onBack, onExit, onEdit, showHelp],
+    [enabled, onVerify, onFlag, onSkip, onBack, onExit, onEdit, onTogglePanel, showHelp],
   );
 
   useEffect(() => {
