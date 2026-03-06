@@ -4,7 +4,6 @@ import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Loader2 } from 'lucide-react';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTranscript } from '@/hooks/use-transcript';
 import { useReaderPreferences } from '@/hooks/use-reader-preferences';
@@ -45,12 +44,14 @@ import { toast } from 'sonner';
 import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
 import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
 import { useQAProvenance } from '@/hooks/use-qa-provenance';
+import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
 import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
 
 // Extracted sub-components
 import { ItemActionBar } from '@/components/item-action-bar';
 import { QAAnswerDisplay } from '@/components/qa-answer-display';
 import { ContentLayerSelector } from '@/components/content-layer-selector';
+import { AiProcessingIndicators } from '@/components/ai-processing-indicators';
 
 import type {
   ContentListItem,
@@ -102,131 +103,6 @@ export interface ItemData {
   reference?: string | null;
   answer_standard?: string | null;
   answer_advanced?: string | null;
-}
-
-// ---------------------------------------------------------------------------
-// AI Processing Indicators (classify / summarise prompts)
-// ---------------------------------------------------------------------------
-
-function AiProcessingIndicators({
-  item,
-  onItemUpdated,
-}: {
-  item: ItemData;
-  onItemUpdated: React.Dispatch<React.SetStateAction<ItemData>>;
-}) {
-  const [classifying, setClassifying] = useState(false);
-  const [summarising, setSummarising] = useState(false);
-
-  const needsClassification = !item.classified_at;
-  const needsSummary = !item.ai_summary;
-
-  if (!needsClassification && !needsSummary) return null;
-
-  const handleClassify = async () => {
-    setClassifying(true);
-    try {
-      const res = await fetch(`/api/items/${item.id}/classify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ force: true }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Classification failed');
-        return;
-      }
-      onItemUpdated((prev) => ({
-        ...prev,
-        primary_domain: data.primary_domain,
-        primary_subtopic: data.primary_subtopic,
-        secondary_domain: data.secondary_domain,
-        secondary_subtopic: data.secondary_subtopic,
-        ai_keywords: data.ai_keywords,
-        ai_summary: data.ai_summary,
-        suggested_title: data.suggested_title,
-        classification_confidence: data.classification_confidence,
-        classification_reasoning: data.classification_reasoning,
-        classified_at: new Date().toISOString(),
-      }));
-      toast.success('Classification complete');
-    } catch (err) {
-      console.error('Failed to classify content:', err);
-      toast.error('Failed to classify content');
-    } finally {
-      setClassifying(false);
-    }
-  };
-
-  const handleSummarise = async () => {
-    setSummarising(true);
-    try {
-      const res = await fetch('/api/summaries/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: item.id }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Summary generation failed');
-        return;
-      }
-      onItemUpdated((prev) => ({
-        ...prev,
-        ai_summary: data.ai_summary ?? prev.ai_summary,
-        summary_data: data.summary_data ?? prev.summary_data,
-      }));
-      toast.success('Summary generated');
-    } catch (err) {
-      console.error('Failed to generate summary:', err);
-      toast.error('Failed to generate summary');
-    } finally {
-      setSummarising(false);
-    }
-  };
-
-  return (
-    <div className="mb-6 flex flex-col gap-2">
-      {needsClassification && (
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-2.5">
-          <span className="text-xs text-muted-foreground">
-            Classification pending
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleClassify}
-            disabled={classifying}
-            className="h-7 gap-1.5 text-xs"
-          >
-            {classifying ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : null}
-            {classifying ? 'Classifying...' : 'Classify now'}
-          </Button>
-        </div>
-      )}
-      {needsSummary && (
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-2.5">
-          <span className="text-xs text-muted-foreground">
-            Summary not yet generated
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleSummarise}
-            disabled={summarising}
-            className="h-7 gap-1.5 text-xs"
-          >
-            {summarising ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : null}
-            {summarising ? 'Generating...' : 'Generate summary'}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
 }
 
 interface ItemDetailClientProps {
@@ -443,64 +319,26 @@ export function ItemDetailClient({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [editDirty]);
 
-  // Keyboard shortcuts: m = toggle read, s = toggle star, p = cycle priority, r = toggle reader, e = edit, Shift+R = review
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName === 'INPUT' ||
-        target.tagName === 'TEXTAREA' ||
-        target.isContentEditable
-      )
-        return;
-
-      if (e.key === 'm' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        toggleRead(item.id as string);
-        toast('Read state toggled', { duration: 1500 });
-      }
-      if (e.key === 's' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-        e.preventDefault();
-        handleStarToggle();
-      }
-      if (e.key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
-        e.preventDefault();
-        handlePriorityCycle();
-      }
-      if (e.key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey && canEdit) {
-        e.preventDefault();
-        setIsEditing((prev) => {
-          if (!prev) {
-            setEditTitle(title);
-            setEditStandard(item.answer_standard ?? '');
-            setEditAdvanced(item.answer_advanced ?? '');
-            setEditDirty(false);
-          }
-          return !prev;
-        });
-      }
-      if (e.key === 'r' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        toggleReader();
-      }
-      if (
-        e.key === 'R' &&
-        e.shiftKey &&
-        !e.metaKey &&
-        !e.ctrlKey &&
-        !e.altKey
-      ) {
-        e.preventDefault();
-        if (readerOpen) {
-          toggleDetached();
-        } else {
-          router.push('/review');
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [item.id, item.answer_standard, item.answer_advanced, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title, setIsEditing, setEditTitle, setEditStandard, setEditAdvanced, setEditDirty]);
+  // Keyboard shortcuts (extracted hook)
+  useItemDetailShortcuts({
+    itemId: item.id,
+    toggleRead,
+    handleStarToggle,
+    handlePriorityCycle,
+    toggleReader,
+    readerOpen,
+    toggleDetached,
+    canEdit,
+    title,
+    answerStandard: item.answer_standard,
+    answerAdvanced: item.answer_advanced,
+    setIsEditing,
+    setEditTitle,
+    setEditStandard,
+    setEditAdvanced,
+    setEditDirty,
+    router,
+  });
 
   const transcriptChapters =
     item.metadata &&
