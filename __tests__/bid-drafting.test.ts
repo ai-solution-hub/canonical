@@ -99,7 +99,7 @@ const sampleAnalysis: QuestionAnalysis = {
   content_types_needed: ['policy', 'certification'],
   response_structure: {
     suggested_headings: ['Encryption Standards', 'Certifications'],
-    word_allocation: { 'Encryption Standards': 300, 'Certifications': 200 },
+    word_allocation: [{ heading: 'Encryption Standards', words: 300 }, { heading: 'Certifications', words: 200 }],
   },
   key_points_to_cover: ['AES-256', 'ISO 27001', 'TLS 1.3'],
   tone: 'formal',

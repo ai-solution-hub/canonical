@@ -9,9 +9,13 @@ import { PriorityBadge } from '@/components/priority-selector';
 import { getDisplayTitle, formatDate, formatSmartDate, formatContentType } from '@/lib/format';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { AlertTriangle, Copy } from 'lucide-react';
+import { FreshnessBadge } from '@/components/freshness-badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { highlightTerms } from '@/lib/highlight';
+import { isFeatureEnabled } from '@/lib/client-config';
+import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
 interface ContentRowProps {
@@ -81,8 +85,16 @@ export function ContentRow({
               domain={item.primary_domain ?? ''}
               className="shrink-0"
             />
+            {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+                {getLayerLabel(item.metadata.layer as string)}
+              </Badge>
+            )}
             {isSearchResult(item) && (
               <SimilarityBadge score={item.similarity} className="shrink-0" />
+            )}
+            {item.freshness && item.freshness !== 'fresh' && (
+              <FreshnessBadge freshness={item.freshness} compact className="shrink-0" />
             )}
             {hasQualityFlag && (
               <AlertTriangle
@@ -183,8 +195,16 @@ export function ContentRow({
             domain={item.primary_domain ?? ''}
             className="shrink-0"
           />
+          {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+            <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+              {getLayerLabel(item.metadata.layer as string)}
+            </Badge>
+          )}
           {isSearchResult(item) && (
             <SimilarityBadge score={item.similarity} className="shrink-0" />
+          )}
+          {item.freshness && item.freshness !== 'fresh' && (
+            <FreshnessBadge freshness={item.freshness} compact className="shrink-0" />
           )}
           {hasQualityFlag && (
             <AlertTriangle

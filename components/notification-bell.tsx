@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useId } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
@@ -87,6 +87,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
     useNotifications();
   const [open, setOpen] = useState(false);
   const announcementRef = useRef<HTMLDivElement>(null);
+  const popoverId = useId();
 
   // Announce new notifications to screen readers via textContent update
   useEffect(() => {
@@ -129,7 +130,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
             )}
           </button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-80 p-0">
+        <PopoverContent id={`${popoverId}-mobile`} align="start" className="w-80 p-0">
           <NotificationPanel
             notifications={notifications}
             unreadCount={unreadCount}
@@ -161,7 +162,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent id={`${popoverId}-desktop`} align="end" className="w-80 p-0">
         <NotificationPanel
           notifications={notifications}
           unreadCount={unreadCount}

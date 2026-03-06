@@ -328,6 +328,14 @@ export function BrowseContent() {
         query = query.in('id', intersection.length ? intersection : ['__none__']);
       }
 
+      if (filters.freshness?.length) {
+        query = query.in('freshness', filters.freshness);
+      }
+
+      if (filters.layer) {
+        query = query.eq('metadata->>layer', filters.layer);
+      }
+
       // Exclude draft items by default (unless include_drafts filter is on)
       if (!filters.include_drafts) {
         query = query.or('governance_review_status.is.null,governance_review_status.neq.draft');
