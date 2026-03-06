@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
       auto_classify,
       auto_summarise,
       auto_embed,
+      governance_review_status,
     } = parsed.data;
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
     if (detail) insertData.detail = detail;
     if (reference) insertData.reference = reference;
     if (embeddingValue) insertData.embedding = embeddingValue;
+    if (governance_review_status) insertData.governance_review_status = governance_review_status;
 
     // Single INSERT with embedding included
     const { data: newItem, error: insertError } = await supabase

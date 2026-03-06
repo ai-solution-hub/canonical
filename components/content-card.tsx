@@ -165,6 +165,9 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
               {item.governance_review_status === 'pending' && (
                 <GovernanceBadge status="pending" compact />
               )}
+              {item.governance_review_status === 'draft' && (
+                <GovernanceBadge status="draft" compact />
+              )}
               {hasQualityFlag && (
                 <span
                   className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
@@ -270,6 +273,9 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
               )}
               {item.governance_review_status === 'pending' && (
                 <GovernanceBadge status="pending" compact />
+              )}
+              {item.governance_review_status === 'draft' && (
+                <GovernanceBadge status="draft" compact />
               )}
               {hasQualityFlag && (
                 <span
@@ -394,6 +400,9 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
             )}
             {item.governance_review_status === 'pending' && (
               <GovernanceBadge status="pending" compact />
+            )}
+            {item.governance_review_status === 'draft' && (
+              <GovernanceBadge status="draft" compact />
             )}
             {hasQualityFlag && (
               <span

@@ -48,6 +48,7 @@ export function useBrowseFilters() {
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
       quality_issues: searchParams.get('quality_issues') === 'true' || undefined,
+      include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -69,6 +70,7 @@ export function useBrowseFilters() {
     if (filters.user_tags?.length) count++;
     if (filters.freshness?.length) count += filters.freshness.length;
     if (filters.quality_issues) count++;
+    if (filters.include_drafts) count++;
     return count;
   }, [filters]);
 
@@ -154,6 +156,10 @@ export function useBrowseFilters() {
       if ('quality_issues' in newFilters) {
         if (newFilters.quality_issues) params.set('quality_issues', 'true');
         else params.delete('quality_issues');
+      }
+      if ('include_drafts' in newFilters) {
+        if (newFilters.include_drafts) params.set('include_drafts', 'true');
+        else params.delete('include_drafts');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

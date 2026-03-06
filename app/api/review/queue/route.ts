@@ -52,7 +52,8 @@ export async function GET(request: NextRequest) {
     // Standard query for unverified/verified/all statuses
     let query = supabase
       .from('content_items')
-      .select(REVIEW_COLUMNS, { count: 'exact' });
+      .select(REVIEW_COLUMNS, { count: 'exact' })
+      .neq('governance_review_status', 'draft');
 
     // Apply verification status filter
     if (status === 'unverified') {

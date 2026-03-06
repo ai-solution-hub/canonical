@@ -73,6 +73,9 @@ export function CreateContentClient() {
   const [autoClassify, setAutoClassify] = useState(true);
   const [autoSummarise, setAutoSummarise] = useState(true);
 
+  // Draft toggle
+  const [saveAsDraft, setSaveAsDraft] = useState(false);
+
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
@@ -125,6 +128,7 @@ export function CreateContentClient() {
         if (brief.trim()) body.brief = brief.trim();
         if (detail.trim()) body.detail = detail.trim();
         if (reference.trim()) body.reference = reference.trim();
+        if (saveAsDraft) body.governance_review_status = 'draft';
 
         const res = await fetch('/api/items', {
           method: 'POST',
@@ -179,6 +183,7 @@ export function CreateContentClient() {
       brief,
       detail,
       reference,
+      saveAsDraft,
       router,
     ],
   );
@@ -542,29 +547,43 @@ export function CreateContentClient() {
 
         {/* Bottom bar: Save + AI options */}
         <div className="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="auto-classify"
-                checked={autoClassify}
-                onCheckedChange={(checked) =>
-                  setAutoClassify(checked === true)
-                }
-              />
-              <Label htmlFor="auto-classify" className="text-sm font-normal">
-                Classify automatically
-              </Label>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="auto-classify"
+                  checked={autoClassify}
+                  onCheckedChange={(checked) =>
+                    setAutoClassify(checked === true)
+                  }
+                />
+                <Label htmlFor="auto-classify" className="text-sm font-normal">
+                  Classify automatically
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="auto-summarise"
+                  checked={autoSummarise}
+                  onCheckedChange={(checked) =>
+                    setAutoSummarise(checked === true)
+                  }
+                />
+                <Label htmlFor="auto-summarise" className="text-sm font-normal">
+                  Generate summary
+                </Label>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <Checkbox
-                id="auto-summarise"
-                checked={autoSummarise}
+                id="save-as-draft"
+                checked={saveAsDraft}
                 onCheckedChange={(checked) =>
-                  setAutoSummarise(checked === true)
+                  setSaveAsDraft(checked === true)
                 }
               />
-              <Label htmlFor="auto-summarise" className="text-sm font-normal">
-                Generate summary
+              <Label htmlFor="save-as-draft" className="text-sm font-normal">
+                Save as draft (hidden from search and matching)
               </Label>
             </div>
           </div>

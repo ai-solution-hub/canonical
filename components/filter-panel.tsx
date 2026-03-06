@@ -64,6 +64,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     user_tags: filters.user_tags ?? ([] as string[]),
     freshness: filters.freshness ?? ([] as string[]),
     quality_issues: filters.quality_issues ?? false,
+    include_drafts: filters.include_drafts ?? false,
   });
 
   // Filter counts (M8) — cached with a 30-second TTL to avoid re-fetching on every panel open
@@ -113,6 +114,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       user_tags: filters.user_tags ?? [],
       freshness: filters.freshness ?? [],
       quality_issues: filters.quality_issues ?? false,
+      include_drafts: filters.include_drafts ?? false,
     });
   }
 
@@ -377,6 +379,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
       quality_issues: draft.quality_issues || undefined,
+      include_drafts: draft.include_drafts || undefined,
     });
     onOpenChange(false);
   }, [draft, setFilters, onOpenChange]);
@@ -397,6 +400,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       user_tags: [],
       freshness: [],
       quality_issues: false,
+      include_drafts: false,
     });
     setAuthorSearch('');
     clearFilters();
@@ -418,6 +422,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.user_tags.length > 0,
     draft.freshness.length > 0,
     draft.quality_issues,
+    draft.include_drafts,
   ].filter(Boolean).length;
 
   return (
@@ -664,6 +669,26 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               />
               <span className="text-sm">Has quality issues</span>
             </label>
+          </FilterSection>
+
+          <Separator className="my-3" />
+
+          {/* Include Drafts */}
+          <FilterSection title="Drafts">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={draft.include_drafts}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, include_drafts: e.target.checked }))
+                }
+                className="size-4 rounded border-border accent-primary"
+              />
+              <span className="text-sm">Include draft items</span>
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Draft items are hidden from search and matching by default
+            </p>
           </FilterSection>
 
           <Separator className="my-3" />

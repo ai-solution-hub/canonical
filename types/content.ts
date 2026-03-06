@@ -172,6 +172,7 @@ export interface BrowseFilters {
   user_tags?: string[]; // user tag strings
   freshness?: string[]; // multi-select: fresh, aging, stale, expired
   quality_issues?: boolean; // filter to items with open quality flags
+  include_drafts?: boolean; // include draft items (excluded by default)
   sort?: 'captured_date' | 'classification_confidence' | 'primary_domain';
   order?: 'asc' | 'desc';
 }

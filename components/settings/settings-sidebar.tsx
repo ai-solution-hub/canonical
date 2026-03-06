@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Menu } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Tags, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ import {
 export type SettingsSection =
   | 'profile'
   | 'taxonomy'
+  | 'tags'
   | 'team'
   | 'governance'
   | 'activity';
@@ -33,6 +34,7 @@ interface SectionDef {
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
   { id: 'taxonomy', label: 'Taxonomy', icon: FolderTree, group: 'content' },
+  { id: 'tags', label: 'Tags', icon: Tags, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },

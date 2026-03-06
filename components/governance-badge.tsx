@@ -5,6 +5,7 @@ import {
   ShieldAlert,
   Clock,
   ShieldX,
+  FileEdit,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -19,6 +20,7 @@ export type GovernanceStatus =
   | 'approved'
   | 'changes_requested'
   | 'reverted'
+  | 'draft'
   | null
   | undefined;
 
@@ -65,6 +67,13 @@ const STATUS_CONFIG: Record<
     description: 'This item was reverted by a reviewer',
     className:
       'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50',
+  },
+  draft: {
+    icon: FileEdit,
+    label: 'Draft',
+    description: 'This item is a draft — hidden from search and matching',
+    className:
+      'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800/50',
   },
 };
 

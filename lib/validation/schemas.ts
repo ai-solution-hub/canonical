@@ -163,6 +163,9 @@ export const ItemCreateBodySchema = z.object({
   auto_classify: z.boolean().default(true),
   auto_summarise: z.boolean().default(true),
   auto_embed: z.boolean().default(true),
+
+  // Governance
+  governance_review_status: z.enum(['draft']).optional(),
 });
 
 /** POST /api/items/:id/classify -- on-demand classification */
@@ -536,6 +539,38 @@ export const XlsxExportBodySchema = z.object({
   include_summary: z.boolean().default(true),
   include_unanswered: z.boolean().default(true),
   use_advanced_variant: z.boolean().default(false),
+});
+
+// ──────────────────────────────────────────
+// Tag Management Schemas (Session 53)
+// ──────────────────────────────────────────
+
+const VALID_TAG_TYPES = ['user', 'ai'] as const;
+
+/** DELETE /api/tags */
+export const TagDeleteBodySchema = z.object({
+  tag: z.string().trim().min(1, 'Tag is required').max(100),
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** POST /api/tags/rename */
+export const TagRenameBodySchema = z.object({
+  old: z.string().trim().min(1, 'Old tag name is required').max(100),
+  new: z.string().trim().min(1, 'New tag name is required').max(100),
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** POST /api/tags/merge */
+export const TagMergeBodySchema = z.object({
+  source: z.string().trim().min(1, 'Source tag is required').max(100),
+  target: z.string().trim().min(1, 'Target tag is required').max(100),
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** GET /api/tags/suggest?prefix=...&type=... */
+export const TagSuggestParamsSchema = z.object({
+  prefix: z.string().trim().min(1, 'Prefix is required').max(100),
+  type: z.enum(VALID_TAG_TYPES),
 });
 
 // ──────────────────────────────────────────

@@ -324,6 +324,11 @@ export function BrowseContent() {
         query = query.in('id', intersection.length ? intersection : ['__none__']);
       }
 
+      // Exclude draft items by default (unless include_drafts filter is on)
+      if (!filters.include_drafts) {
+        query = query.neq('governance_review_status', 'draft');
+      }
+
       if (filters.starred) {
         query = query.eq('metadata->>starred', 'true');
       }

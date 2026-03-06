@@ -9,6 +9,7 @@ import { TeamSection } from '@/components/settings/team-section';
 import { GovernanceSection } from '@/components/settings/governance-section';
 import { ActivitySection } from '@/components/settings/activity-section';
 import { TaxonomySection } from '@/components/settings/taxonomy-section';
+import { TagsSection } from '@/components/settings/tags-section';
 import {
   SettingsSidebar,
   SettingsMobileSidebar,
@@ -26,6 +27,8 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return <ProfileSection />;
     case 'taxonomy':
       return <TaxonomySection />;
+    case 'tags':
+      return <TagsSection />;
     case 'team':
       return <TeamSection />;
     case 'governance':
