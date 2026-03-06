@@ -36,11 +36,11 @@ interface ActivityFeedProps {
 function activityIcon(type: string) {
   switch (type) {
     case 'edit':
-      return <Edit3 className="size-3.5 text-blue-500" />;
+      return <Edit3 className="size-3.5 text-primary" />;
     case 'rollback':
-      return <RotateCcw className="size-3.5 text-amber-500" />;
+      return <RotateCcw className="size-3.5 text-status-warning" />;
     case 'quality_flag':
-      return <AlertTriangle className="size-3.5 text-red-500" />;
+      return <AlertTriangle className="size-3.5 text-destructive" />;
     default:
       return <Activity className="size-3.5 text-muted-foreground" />;
   }

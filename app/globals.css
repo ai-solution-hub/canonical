@@ -1,59 +1,59 @@
 @import 'tailwindcss';
 @plugin '@tailwindcss/typography';
 
-/* ===== Knowledge Hub Design Tokens ===== */
-/* OKLCH colour space, tinted neutrals (hue 250), no pure black/white/grey */
+/* ===== Warm Meridian Design Tokens ===== */
+/* OKLCH colour space, warm stone neutrals (hue 48), amber signal (hue 55) */
 /* Two-layer system: primitive → semantic, redefine semantic in .dark */
 
 :root {
-  /* Primitive tokens */
-  --slate-50: oklch(0.98 0.005 250);
-  --slate-100: oklch(0.95 0.008 250);
-  --slate-200: oklch(0.9 0.01 250);
-  --slate-300: oklch(0.82 0.012 250);
-  --slate-400: oklch(0.65 0.01 250);
-  --slate-500: oklch(0.55 0.012 250);
-  --slate-600: oklch(0.45 0.015 250);
-  --slate-700: oklch(0.4 0.015 250);
-  --slate-800: oklch(0.25 0.015 250);
-  --slate-900: oklch(0.18 0.012 250);
+  /* Primitive tokens — Stone (warm neutral, hue 48) */
+  --stone-50: oklch(0.98 0.008 48);
+  --stone-100: oklch(0.95 0.010 48);
+  --stone-200: oklch(0.90 0.012 48);
+  --stone-300: oklch(0.82 0.014 48);
+  --stone-400: oklch(0.65 0.012 48);
+  --stone-500: oklch(0.55 0.014 48);
+  --stone-600: oklch(0.45 0.016 48);
+  --stone-700: oklch(0.40 0.016 48);
+  --stone-800: oklch(0.25 0.016 48);
+  --stone-900: oklch(0.18 0.014 48);
 
   /* Semantic tokens (light mode) — shadcn compatible */
-  --background: oklch(0.98 0.005 250);
-  --foreground: oklch(0.25 0.015 250);
+  --background: oklch(0.98 0.008 48);
+  --foreground: oklch(0.25 0.016 48);
 
-  --card: oklch(0.99 0.003 250);
-  --card-foreground: oklch(0.25 0.015 250);
+  --card: oklch(0.99 0.005 48);
+  --card-foreground: oklch(0.25 0.016 48);
 
-  --popover: oklch(0.99 0.003 250);
-  --popover-foreground: oklch(0.25 0.015 250);
+  --popover: oklch(0.99 0.005 48);
+  --popover-foreground: oklch(0.25 0.016 48);
 
-  --primary: oklch(0.55 0.15 240);
-  --primary-foreground: oklch(0.98 0.005 250);
+  --primary: oklch(0.65 0.16 55);
+  --primary-foreground: oklch(0.99 0.003 48);
 
-  --secondary: oklch(0.95 0.008 250);
-  --secondary-foreground: oklch(0.25 0.015 250);
+  --secondary: oklch(0.95 0.010 48);
+  --secondary-foreground: oklch(0.25 0.016 48);
 
-  --muted: oklch(0.95 0.008 250);
-  --muted-foreground: oklch(0.4 0.015 250);
+  --muted: oklch(0.95 0.010 48);
+  --muted-foreground: oklch(0.55 0.014 48);
 
-  --accent: oklch(0.95 0.008 250);
-  --accent-foreground: oklch(0.25 0.015 250);
+  --accent: oklch(0.95 0.010 48);
+  --accent-foreground: oklch(0.25 0.016 48);
 
-  --destructive: oklch(0.55 0.2 25);
+  --destructive: oklch(0.55 0.20 20);
 
-  --border: oklch(0.9 0.01 250);
-  --input: oklch(0.9 0.01 250);
-  --ring: oklch(0.55 0.15 240);
+  --border: oklch(0.90 0.012 48);
+  --input: oklch(0.90 0.012 48);
+  --ring: oklch(0.65 0.16 55);
 
-  --success: oklch(0.55 0.15 145);
+  --success: oklch(0.55 0.15 160);
 
   /* Chart colours (shadcn chart component) */
-  --chart-1: oklch(0.55 0.15 240);
-  --chart-2: oklch(0.55 0.15 25);
-  --chart-3: oklch(0.55 0.15 145);
-  --chart-4: oklch(0.55 0.15 75);
-  --chart-5: oklch(0.55 0.15 300);
+  --chart-1: oklch(0.65 0.16 55);
+  --chart-2: oklch(0.55 0.20 20);
+  --chart-3: oklch(0.55 0.15 160);
+  --chart-4: oklch(0.60 0.14 70);
+  --chart-5: oklch(0.55 0.12 275);
 
   /* Radius */
   --radius: 0.5rem;
@@ -65,8 +65,8 @@
   --domain-compliance-text: oklch(0.35 0.12 275);
   --domain-implementation-bg: oklch(0.93 0.04 155);
   --domain-implementation-text: oklch(0.35 0.12 155);
-  --domain-support-bg: oklch(0.93 0.04 45);
-  --domain-support-text: oklch(0.4 0.12 45);
+  --domain-support-bg: oklch(0.93 0.04 85);
+  --domain-support-text: oklch(0.4 0.12 85);
   --domain-corporate-bg: oklch(0.93 0.02 200);
   --domain-corporate-text: oklch(0.4 0.08 200);
   --domain-product-bg: oklch(0.93 0.04 145);
@@ -78,42 +78,151 @@
   --domain-security-surface: oklch(0.96 0.02 220);
   --domain-compliance-surface: oklch(0.96 0.02 275);
   --domain-implementation-surface: oklch(0.96 0.02 155);
-  --domain-support-surface: oklch(0.96 0.02 45);
+  --domain-support-surface: oklch(0.96 0.02 85);
   --domain-corporate-surface: oklch(0.95 0.01 200);
   --domain-product-surface: oklch(0.96 0.02 145);
   --domain-methodology-surface: oklch(0.96 0.02 340);
 
   /* Progress & review */
-  --color-progress: oklch(0.55 0.15 240);
-  --color-success: oklch(0.55 0.15 145);
+  --color-progress: oklch(0.65 0.16 55);
+  --color-success: oklch(0.55 0.15 160);
 
   /* Progress bar colour transitions */
   --color-progress-mid: oklch(0.6 0.12 160);
-  --color-progress-complete: oklch(0.55 0.15 145);
+  --color-progress-complete: oklch(0.55 0.15 160);
 
   /* Review card directional feedback */
   --color-review-skip: oklch(0.7 0.08 15);
-  --color-review-read: oklch(0.55 0.15 145);
+  --color-review-read: oklch(0.55 0.15 160);
   --color-review-star: oklch(0.7 0.15 85);
 
   /* Highlight card */
-  --color-highlight-bg: oklch(0.96 0.03 85);
-  --color-highlight-border: oklch(0.85 0.06 85);
+  --color-highlight-bg: oklch(0.96 0.03 55);
+  --color-highlight-border: oklch(0.85 0.06 55);
 
   /* Star & priority colours */
-  --color-star: oklch(0.795 0.184 86.047);          /* warm yellow */
-  --color-priority-high: oklch(0.637 0.237 25.331);  /* red */
-  --color-priority-medium: oklch(0.769 0.188 70.08);  /* amber/orange */
-  --color-priority-low: oklch(0.723 0.191 261.348);   /* blue */
+  --color-star: oklch(0.795 0.184 86.047);
+  --color-priority-high: oklch(0.637 0.237 25.331);
+  --color-priority-medium: oklch(0.769 0.188 70.08);
+  --color-priority-low: oklch(0.723 0.191 261.348);
 
   /* Status colours */
-  --color-status-success: oklch(0.65 0.2 145);
+  --color-status-success: oklch(0.65 0.2 160);
   --color-status-warning: oklch(0.75 0.18 70);
   --color-status-error: oklch(0.63 0.24 25);
-  --color-status-info: oklch(0.7 0.15 250);
+  --color-status-info: oklch(0.65 0.16 55);
 
   /* Search highlight mark */
-  --color-highlight-mark: oklch(0.925 0.12 95);
+  --color-highlight-mark: oklch(0.925 0.12 55);
+
+  /* === Semantic status tokens (Warm Meridian) === */
+
+  /* Freshness */
+  --color-freshness-fresh: oklch(0.55 0.15 160);
+  --color-freshness-fresh-bg: oklch(0.93 0.04 160);
+  --color-freshness-aging: oklch(0.60 0.14 70);
+  --color-freshness-aging-bg: oklch(0.97 0.02 70);
+  --color-freshness-stale: oklch(0.55 0.20 20);
+  --color-freshness-stale-bg: oklch(0.95 0.03 20);
+  --color-freshness-expired: oklch(0.50 0.20 20);
+  --color-freshness-expired-bg: oklch(0.95 0.03 20);
+
+  /* Confidence */
+  --color-confidence-strong: oklch(0.55 0.15 160);
+  --color-confidence-strong-bg: oklch(0.93 0.04 160);
+  --color-confidence-strong-border: oklch(0.80 0.06 160);
+  --color-confidence-partial: oklch(0.60 0.14 70);
+  --color-confidence-partial-bg: oklch(0.97 0.02 70);
+  --color-confidence-partial-border: oklch(0.82 0.06 70);
+  --color-confidence-needs-sme: oklch(0.55 0.12 240);
+  --color-confidence-needs-sme-bg: oklch(0.95 0.02 240);
+  --color-confidence-needs-sme-border: oklch(0.80 0.06 240);
+  --color-confidence-none: oklch(0.55 0.014 48);
+  --color-confidence-none-bg: oklch(0.95 0.010 48);
+  --color-confidence-none-border: oklch(0.82 0.014 48);
+
+  /* Bid status */
+  --color-bid-draft: oklch(0.55 0.014 48);
+  --color-bid-draft-bg: oklch(0.95 0.010 48);
+  --color-bid-draft-border: oklch(0.82 0.014 48);
+  --color-bid-draft-dot: oklch(0.55 0.014 48);
+  --color-bid-discovery: oklch(0.55 0.12 240);
+  --color-bid-discovery-bg: oklch(0.95 0.02 240);
+  --color-bid-discovery-border: oklch(0.80 0.06 240);
+  --color-bid-discovery-dot: oklch(0.55 0.12 240);
+  --color-bid-active: oklch(0.60 0.14 70);
+  --color-bid-active-bg: oklch(0.97 0.02 70);
+  --color-bid-active-border: oklch(0.82 0.06 70);
+  --color-bid-active-dot: oklch(0.60 0.14 70);
+  --color-bid-review: oklch(0.55 0.15 160);
+  --color-bid-review-bg: oklch(0.93 0.04 160);
+  --color-bid-review-border: oklch(0.80 0.06 160);
+  --color-bid-review-dot: oklch(0.55 0.15 160);
+  --color-bid-submitted: oklch(0.50 0.15 160);
+  --color-bid-submitted-bg: oklch(0.93 0.04 160);
+  --color-bid-submitted-border: oklch(0.80 0.06 160);
+  --color-bid-submitted-dot: oklch(0.50 0.15 160);
+  --color-bid-won: oklch(0.50 0.15 160);
+  --color-bid-won-bg: oklch(0.93 0.04 160);
+  --color-bid-won-border: oklch(0.80 0.06 160);
+  --color-bid-lost: oklch(0.55 0.20 20);
+  --color-bid-lost-bg: oklch(0.95 0.03 20);
+  --color-bid-lost-border: oklch(0.82 0.06 20);
+  --color-bid-withdrawn: oklch(0.55 0.014 48);
+  --color-bid-withdrawn-bg: oklch(0.95 0.010 48);
+  --color-bid-withdrawn-border: oklch(0.82 0.014 48);
+
+  /* Governance */
+  --color-governance-pending: oklch(0.60 0.14 70);
+  --color-governance-pending-bg: oklch(0.97 0.02 70);
+  --color-governance-pending-border: oklch(0.88 0.04 70);
+  --color-governance-approved: oklch(0.55 0.15 160);
+  --color-governance-approved-bg: oklch(0.93 0.04 160);
+  --color-governance-approved-border: oklch(0.82 0.06 160);
+  --color-governance-changes: oklch(0.60 0.16 45);
+  --color-governance-changes-bg: oklch(0.97 0.02 45);
+  --color-governance-changes-border: oklch(0.88 0.04 45);
+  --color-governance-reverted: oklch(0.55 0.20 20);
+  --color-governance-reverted-bg: oklch(0.95 0.03 20);
+  --color-governance-reverted-border: oklch(0.88 0.04 20);
+  --color-governance-draft: oklch(0.55 0.014 48);
+  --color-governance-draft-bg: oklch(0.95 0.010 48);
+  --color-governance-draft-border: oklch(0.88 0.010 48);
+
+  /* Streaming phases */
+  --color-phase-analysing: oklch(0.55 0.12 240);
+  --color-phase-drafting: oklch(0.55 0.15 290);
+  --color-phase-quality: oklch(0.60 0.14 70);
+  --color-phase-saving: oklch(0.55 0.12 240);
+  --color-phase-done: oklch(0.55 0.15 160);
+  --color-phase-done-bg: oklch(0.93 0.04 160);
+  --color-phase-done-border: oklch(0.80 0.06 160);
+  --color-phase-active-bg: oklch(0.95 0.02 240);
+  --color-phase-active-border: oklch(0.80 0.06 240);
+
+  /* Template field review */
+  --color-template-unreviewed: oklch(0.55 0.12 240);
+  --color-template-unreviewed-bg: oklch(0.95 0.02 240);
+  --color-template-confirmed: oklch(0.55 0.15 160);
+  --color-template-confirmed-bg: oklch(0.93 0.04 160);
+  --color-template-rejected: oklch(0.55 0.014 48);
+  --color-template-rejected-bg: oklch(0.95 0.010 48);
+  --color-template-manual: oklch(0.60 0.14 70);
+  --color-template-manual-bg: oklch(0.97 0.02 70);
+  --color-template-unmapped: oklch(0.55 0.20 20);
+  --color-template-unmapped-bg: oklch(0.95 0.03 20);
+
+  /* Quality score thresholds */
+  --color-quality-good: oklch(0.55 0.15 160);
+  --color-quality-good-bg: oklch(0.93 0.04 160);
+  --color-quality-moderate: oklch(0.60 0.14 70);
+  --color-quality-moderate-bg: oklch(0.97 0.02 70);
+  --color-quality-severity-warning: oklch(0.60 0.14 70);
+  --color-quality-severity-info: oklch(0.55 0.12 240);
+
+  /* Verified */
+  --color-verified: oklch(0.55 0.15 160);
+  --color-verified-bg: oklch(0.93 0.04 160);
 
   /* Accessibility variable defaults */
   --a11y-letter-spacing: normal;
@@ -131,34 +240,34 @@
 }
 
 .dark {
-  --background: oklch(0.18 0.012 250);
-  --foreground: oklch(0.95 0.008 250);
+  --background: oklch(0.18 0.014 48);
+  --foreground: oklch(0.95 0.010 48);
 
-  --card: oklch(0.22 0.012 250);
-  --card-foreground: oklch(0.95 0.008 250);
+  --card: oklch(0.22 0.014 48);
+  --card-foreground: oklch(0.95 0.010 48);
 
-  --popover: oklch(0.22 0.012 250);
-  --popover-foreground: oklch(0.95 0.008 250);
+  --popover: oklch(0.22 0.014 48);
+  --popover-foreground: oklch(0.95 0.010 48);
 
-  --primary: oklch(0.65 0.13 240);
-  --primary-foreground: oklch(0.18 0.012 250);
+  --primary: oklch(0.72 0.14 55);
+  --primary-foreground: oklch(0.18 0.014 48);
 
-  --secondary: oklch(0.25 0.015 250);
-  --secondary-foreground: oklch(0.95 0.008 250);
+  --secondary: oklch(0.25 0.016 48);
+  --secondary-foreground: oklch(0.95 0.010 48);
 
-  --muted: oklch(0.25 0.015 250);
-  --muted-foreground: oklch(0.65 0.01 250);
+  --muted: oklch(0.25 0.016 48);
+  --muted-foreground: oklch(0.65 0.012 48);
 
-  --accent: oklch(0.25 0.015 250);
-  --accent-foreground: oklch(0.95 0.008 250);
+  --accent: oklch(0.25 0.016 48);
+  --accent-foreground: oklch(0.95 0.010 48);
 
-  --destructive: oklch(0.55 0.2 25);
+  --destructive: oklch(0.55 0.20 20);
 
-  --border: oklch(0.3 0.012 250);
-  --input: oklch(0.3 0.012 250);
-  --ring: oklch(0.65 0.13 240);
+  --border: oklch(0.30 0.014 48);
+  --input: oklch(0.30 0.014 48);
+  --ring: oklch(0.72 0.14 55);
 
-  --success: oklch(0.45 0.12 145);
+  --success: oklch(0.45 0.12 160);
 
   /* Knowledge Hub domain colours — badge (dark) */
   --domain-security-bg: oklch(0.25 0.06 220);
@@ -167,8 +276,8 @@
   --domain-compliance-text: oklch(0.8 0.1 275);
   --domain-implementation-bg: oklch(0.25 0.06 155);
   --domain-implementation-text: oklch(0.8 0.1 155);
-  --domain-support-bg: oklch(0.25 0.06 45);
-  --domain-support-text: oklch(0.82 0.1 45);
+  --domain-support-bg: oklch(0.25 0.06 85);
+  --domain-support-text: oklch(0.82 0.1 85);
   --domain-corporate-bg: oklch(0.25 0.03 200);
   --domain-corporate-text: oklch(0.75 0.06 200);
   --domain-product-bg: oklch(0.25 0.06 145);
@@ -180,49 +289,158 @@
   --domain-security-surface: oklch(0.2 0.03 220);
   --domain-compliance-surface: oklch(0.2 0.03 275);
   --domain-implementation-surface: oklch(0.2 0.03 155);
-  --domain-support-surface: oklch(0.2 0.03 45);
+  --domain-support-surface: oklch(0.2 0.03 85);
   --domain-corporate-surface: oklch(0.2 0.02 200);
   --domain-product-surface: oklch(0.2 0.03 145);
   --domain-methodology-surface: oklch(0.2 0.03 340);
 
   /* Chart colours (dark) */
-  --chart-1: oklch(0.65 0.13 240);
-  --chart-2: oklch(0.65 0.13 25);
-  --chart-3: oklch(0.55 0.12 145);
-  --chart-4: oklch(0.65 0.12 75);
-  --chart-5: oklch(0.65 0.12 300);
+  --chart-1: oklch(0.72 0.14 55);
+  --chart-2: oklch(0.65 0.15 20);
+  --chart-3: oklch(0.55 0.12 160);
+  --chart-4: oklch(0.65 0.12 70);
+  --chart-5: oklch(0.65 0.12 275);
 
   /* Progress & review (dark) */
-  --color-progress: oklch(0.65 0.13 240);
-  --color-success: oklch(0.45 0.12 145);
+  --color-progress: oklch(0.72 0.14 55);
+  --color-success: oklch(0.45 0.12 160);
 
   /* Progress bar colour transitions (dark) */
   --color-progress-mid: oklch(0.45 0.1 160);
-  --color-progress-complete: oklch(0.45 0.12 145);
+  --color-progress-complete: oklch(0.45 0.12 160);
 
   /* Review card directional feedback (dark) */
   --color-review-skip: oklch(0.35 0.08 15);
-  --color-review-read: oklch(0.35 0.12 145);
+  --color-review-read: oklch(0.35 0.12 160);
   --color-review-star: oklch(0.4 0.12 85);
 
   /* Highlight card (dark) */
-  --color-highlight-bg: oklch(0.22 0.03 85);
-  --color-highlight-border: oklch(0.3 0.05 85);
+  --color-highlight-bg: oklch(0.22 0.03 55);
+  --color-highlight-border: oklch(0.3 0.05 55);
 
   /* Status colours (dark) */
-  --color-status-success: oklch(0.72 0.17 145);
+  --color-status-success: oklch(0.72 0.17 160);
   --color-status-warning: oklch(0.82 0.15 70);
   --color-status-error: oklch(0.7 0.19 22);
-  --color-status-info: oklch(0.78 0.13 250);
+  --color-status-info: oklch(0.72 0.14 55);
 
   /* Search highlight mark (dark) */
-  --color-highlight-mark: oklch(0.35 0.08 85);
+  --color-highlight-mark: oklch(0.35 0.08 55);
 
   /* Star & priority colours (dark) */
   --color-star: oklch(0.855 0.15 86.047);
   --color-priority-high: oklch(0.704 0.191 22.216);
   --color-priority-medium: oklch(0.82 0.15 70.08);
   --color-priority-low: oklch(0.78 0.15 261.348);
+
+  /* === Semantic status tokens — dark mode === */
+
+  /* Freshness (dark) */
+  --color-freshness-fresh: oklch(0.70 0.13 160);
+  --color-freshness-fresh-bg: oklch(0.25 0.06 160);
+  --color-freshness-aging: oklch(0.72 0.12 70);
+  --color-freshness-aging-bg: oklch(0.25 0.04 70);
+  --color-freshness-stale: oklch(0.70 0.17 20);
+  --color-freshness-stale-bg: oklch(0.25 0.05 20);
+  --color-freshness-expired: oklch(0.65 0.17 20);
+  --color-freshness-expired-bg: oklch(0.25 0.05 20);
+
+  /* Confidence (dark) */
+  --color-confidence-strong: oklch(0.70 0.13 160);
+  --color-confidence-strong-bg: oklch(0.25 0.06 160);
+  --color-confidence-strong-border: oklch(0.35 0.08 160);
+  --color-confidence-partial: oklch(0.72 0.12 70);
+  --color-confidence-partial-bg: oklch(0.25 0.04 70);
+  --color-confidence-partial-border: oklch(0.35 0.06 70);
+  --color-confidence-needs-sme: oklch(0.70 0.10 240);
+  --color-confidence-needs-sme-bg: oklch(0.25 0.04 240);
+  --color-confidence-needs-sme-border: oklch(0.35 0.06 240);
+  --color-confidence-none: oklch(0.65 0.012 48);
+  --color-confidence-none-bg: oklch(0.25 0.016 48);
+  --color-confidence-none-border: oklch(0.35 0.014 48);
+
+  /* Bid status (dark) */
+  --color-bid-draft: oklch(0.65 0.012 48);
+  --color-bid-draft-bg: oklch(0.25 0.016 48);
+  --color-bid-draft-border: oklch(0.35 0.014 48);
+  --color-bid-draft-dot: oklch(0.55 0.014 48);
+  --color-bid-discovery: oklch(0.70 0.10 240);
+  --color-bid-discovery-bg: oklch(0.25 0.04 240);
+  --color-bid-discovery-border: oklch(0.35 0.06 240);
+  --color-bid-discovery-dot: oklch(0.60 0.10 240);
+  --color-bid-active: oklch(0.72 0.12 70);
+  --color-bid-active-bg: oklch(0.25 0.04 70);
+  --color-bid-active-border: oklch(0.35 0.06 70);
+  --color-bid-active-dot: oklch(0.60 0.12 70);
+  --color-bid-review: oklch(0.70 0.13 160);
+  --color-bid-review-bg: oklch(0.25 0.06 160);
+  --color-bid-review-border: oklch(0.35 0.08 160);
+  --color-bid-review-dot: oklch(0.55 0.13 160);
+  --color-bid-submitted: oklch(0.65 0.13 160);
+  --color-bid-submitted-bg: oklch(0.25 0.06 160);
+  --color-bid-submitted-border: oklch(0.35 0.08 160);
+  --color-bid-submitted-dot: oklch(0.55 0.13 160);
+  --color-bid-won: oklch(0.65 0.13 160);
+  --color-bid-won-bg: oklch(0.25 0.06 160);
+  --color-bid-won-border: oklch(0.35 0.08 160);
+  --color-bid-lost: oklch(0.70 0.17 20);
+  --color-bid-lost-bg: oklch(0.25 0.05 20);
+  --color-bid-lost-border: oklch(0.35 0.06 20);
+  --color-bid-withdrawn: oklch(0.65 0.012 48);
+  --color-bid-withdrawn-bg: oklch(0.25 0.016 48);
+  --color-bid-withdrawn-border: oklch(0.35 0.014 48);
+
+  /* Governance (dark) */
+  --color-governance-pending: oklch(0.72 0.12 70);
+  --color-governance-pending-bg: oklch(0.25 0.04 70);
+  --color-governance-pending-border: oklch(0.35 0.06 70);
+  --color-governance-approved: oklch(0.70 0.13 160);
+  --color-governance-approved-bg: oklch(0.25 0.06 160);
+  --color-governance-approved-border: oklch(0.35 0.08 160);
+  --color-governance-changes: oklch(0.72 0.14 45);
+  --color-governance-changes-bg: oklch(0.25 0.05 45);
+  --color-governance-changes-border: oklch(0.35 0.06 45);
+  --color-governance-reverted: oklch(0.70 0.17 20);
+  --color-governance-reverted-bg: oklch(0.25 0.05 20);
+  --color-governance-reverted-border: oklch(0.35 0.06 20);
+  --color-governance-draft: oklch(0.65 0.012 48);
+  --color-governance-draft-bg: oklch(0.25 0.016 48);
+  --color-governance-draft-border: oklch(0.35 0.010 48);
+
+  /* Streaming phases (dark) */
+  --color-phase-analysing: oklch(0.70 0.10 240);
+  --color-phase-drafting: oklch(0.70 0.13 290);
+  --color-phase-quality: oklch(0.72 0.12 70);
+  --color-phase-saving: oklch(0.70 0.10 240);
+  --color-phase-done: oklch(0.70 0.13 160);
+  --color-phase-done-bg: oklch(0.25 0.06 160);
+  --color-phase-done-border: oklch(0.35 0.08 160);
+  --color-phase-active-bg: oklch(0.25 0.04 240);
+  --color-phase-active-border: oklch(0.35 0.06 240);
+
+  /* Template field review (dark) */
+  --color-template-unreviewed: oklch(0.70 0.10 240);
+  --color-template-unreviewed-bg: oklch(0.25 0.04 240);
+  --color-template-confirmed: oklch(0.70 0.13 160);
+  --color-template-confirmed-bg: oklch(0.25 0.06 160);
+  --color-template-rejected: oklch(0.65 0.012 48);
+  --color-template-rejected-bg: oklch(0.25 0.016 48);
+  --color-template-manual: oklch(0.72 0.12 70);
+  --color-template-manual-bg: oklch(0.25 0.04 70);
+  --color-template-unmapped: oklch(0.70 0.17 20);
+  --color-template-unmapped-bg: oklch(0.25 0.05 20);
+
+  /* Quality score thresholds (dark) */
+  --color-quality-good: oklch(0.70 0.13 160);
+  --color-quality-good-bg: oklch(0.25 0.06 160);
+  --color-quality-moderate: oklch(0.72 0.12 70);
+  --color-quality-moderate-bg: oklch(0.25 0.04 70);
+  --color-quality-severity-warning: oklch(0.72 0.12 70);
+  --color-quality-severity-info: oklch(0.70 0.10 240);
+
+  /* Verified (dark) */
+  --color-verified: oklch(0.70 0.13 160);
+  --color-verified-bg: oklch(0.25 0.06 160);
 }
 
 /* Register theme values for Tailwind v4 */
@@ -268,12 +486,112 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  /* Semantic status tokens — Tailwind utility registration */
+  --color-freshness-fresh: var(--color-freshness-fresh);
+  --color-freshness-fresh-bg: var(--color-freshness-fresh-bg);
+  --color-freshness-aging: var(--color-freshness-aging);
+  --color-freshness-aging-bg: var(--color-freshness-aging-bg);
+  --color-freshness-stale: var(--color-freshness-stale);
+  --color-freshness-stale-bg: var(--color-freshness-stale-bg);
+  --color-freshness-expired: var(--color-freshness-expired);
+  --color-freshness-expired-bg: var(--color-freshness-expired-bg);
+
+  --color-confidence-strong: var(--color-confidence-strong);
+  --color-confidence-strong-bg: var(--color-confidence-strong-bg);
+  --color-confidence-strong-border: var(--color-confidence-strong-border);
+  --color-confidence-partial: var(--color-confidence-partial);
+  --color-confidence-partial-bg: var(--color-confidence-partial-bg);
+  --color-confidence-partial-border: var(--color-confidence-partial-border);
+  --color-confidence-needs-sme: var(--color-confidence-needs-sme);
+  --color-confidence-needs-sme-bg: var(--color-confidence-needs-sme-bg);
+  --color-confidence-needs-sme-border: var(--color-confidence-needs-sme-border);
+  --color-confidence-none: var(--color-confidence-none);
+  --color-confidence-none-bg: var(--color-confidence-none-bg);
+  --color-confidence-none-border: var(--color-confidence-none-border);
+
+  --color-bid-draft: var(--color-bid-draft);
+  --color-bid-draft-bg: var(--color-bid-draft-bg);
+  --color-bid-draft-border: var(--color-bid-draft-border);
+  --color-bid-draft-dot: var(--color-bid-draft-dot);
+  --color-bid-discovery: var(--color-bid-discovery);
+  --color-bid-discovery-bg: var(--color-bid-discovery-bg);
+  --color-bid-discovery-border: var(--color-bid-discovery-border);
+  --color-bid-discovery-dot: var(--color-bid-discovery-dot);
+  --color-bid-active: var(--color-bid-active);
+  --color-bid-active-bg: var(--color-bid-active-bg);
+  --color-bid-active-border: var(--color-bid-active-border);
+  --color-bid-active-dot: var(--color-bid-active-dot);
+  --color-bid-review: var(--color-bid-review);
+  --color-bid-review-bg: var(--color-bid-review-bg);
+  --color-bid-review-border: var(--color-bid-review-border);
+  --color-bid-review-dot: var(--color-bid-review-dot);
+  --color-bid-submitted: var(--color-bid-submitted);
+  --color-bid-submitted-bg: var(--color-bid-submitted-bg);
+  --color-bid-submitted-border: var(--color-bid-submitted-border);
+  --color-bid-submitted-dot: var(--color-bid-submitted-dot);
+  --color-bid-won: var(--color-bid-won);
+  --color-bid-won-bg: var(--color-bid-won-bg);
+  --color-bid-won-border: var(--color-bid-won-border);
+  --color-bid-lost: var(--color-bid-lost);
+  --color-bid-lost-bg: var(--color-bid-lost-bg);
+  --color-bid-lost-border: var(--color-bid-lost-border);
+  --color-bid-withdrawn: var(--color-bid-withdrawn);
+  --color-bid-withdrawn-bg: var(--color-bid-withdrawn-bg);
+  --color-bid-withdrawn-border: var(--color-bid-withdrawn-border);
+
+  --color-governance-pending: var(--color-governance-pending);
+  --color-governance-pending-bg: var(--color-governance-pending-bg);
+  --color-governance-pending-border: var(--color-governance-pending-border);
+  --color-governance-approved: var(--color-governance-approved);
+  --color-governance-approved-bg: var(--color-governance-approved-bg);
+  --color-governance-approved-border: var(--color-governance-approved-border);
+  --color-governance-changes: var(--color-governance-changes);
+  --color-governance-changes-bg: var(--color-governance-changes-bg);
+  --color-governance-changes-border: var(--color-governance-changes-border);
+  --color-governance-reverted: var(--color-governance-reverted);
+  --color-governance-reverted-bg: var(--color-governance-reverted-bg);
+  --color-governance-reverted-border: var(--color-governance-reverted-border);
+  --color-governance-draft: var(--color-governance-draft);
+  --color-governance-draft-bg: var(--color-governance-draft-bg);
+  --color-governance-draft-border: var(--color-governance-draft-border);
+
+  --color-phase-analysing: var(--color-phase-analysing);
+  --color-phase-drafting: var(--color-phase-drafting);
+  --color-phase-quality: var(--color-phase-quality);
+  --color-phase-saving: var(--color-phase-saving);
+  --color-phase-done: var(--color-phase-done);
+  --color-phase-done-bg: var(--color-phase-done-bg);
+  --color-phase-done-border: var(--color-phase-done-border);
+  --color-phase-active-bg: var(--color-phase-active-bg);
+  --color-phase-active-border: var(--color-phase-active-border);
+
+  --color-template-unreviewed: var(--color-template-unreviewed);
+  --color-template-unreviewed-bg: var(--color-template-unreviewed-bg);
+  --color-template-confirmed: var(--color-template-confirmed);
+  --color-template-confirmed-bg: var(--color-template-confirmed-bg);
+  --color-template-rejected: var(--color-template-rejected);
+  --color-template-rejected-bg: var(--color-template-rejected-bg);
+  --color-template-manual: var(--color-template-manual);
+  --color-template-manual-bg: var(--color-template-manual-bg);
+  --color-template-unmapped: var(--color-template-unmapped);
+  --color-template-unmapped-bg: var(--color-template-unmapped-bg);
+
+  --color-quality-good: var(--color-quality-good);
+  --color-quality-good-bg: var(--color-quality-good-bg);
+  --color-quality-moderate: var(--color-quality-moderate);
+  --color-quality-moderate-bg: var(--color-quality-moderate-bg);
+  --color-quality-severity-warning: var(--color-quality-severity-warning);
+  --color-quality-severity-info: var(--color-quality-severity-info);
+
+  --color-verified: var(--color-verified);
+  --color-verified-bg: var(--color-verified-bg);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Instrument Sans', system-ui, -apple-system, sans-serif;
 
   /* Spacing (4pt grid) */
   --spacing-1: 0.25rem;

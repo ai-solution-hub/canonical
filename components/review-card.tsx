@@ -153,7 +153,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
 
           {/* Verification status (if already verified) */}
           {item.verified_at && (
-            <div className="flex items-center gap-1.5 text-xs text-[var(--success,hsl(142_71%_45%))]">
+            <div className="flex items-center gap-1.5 text-xs text-quality-good">
               <Check className="size-3.5" aria-hidden="true" />
               <span>
                 Verified on {formatDateUK(item.verified_at)}
@@ -166,7 +166,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         {(item.ai_summary || sourceFile || item.captured_date) && (
           <div className="mx-6 mb-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
             {item.governance_review_status === 'pending' && (
-              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-governance-pending">
                 <AlertTriangle className="size-3.5" aria-hidden="true" />
                 Governance review pending
               </div>

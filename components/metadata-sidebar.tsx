@@ -304,10 +304,10 @@ export function MetadataSidebar({
                     className={cn(
                       'rounded px-2 py-1.5 text-xs',
                       flag.severity === 'error'
-                        ? 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
+                        ? 'bg-freshness-stale-bg text-status-error'
                         : flag.severity === 'warning'
-                          ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
-                          : 'bg-blue-50 text-blue-800 dark:bg-blue-950/30 dark:text-blue-300',
+                          ? 'bg-quality-moderate-bg text-quality-severity-warning'
+                          : 'bg-confidence-needs-sme-bg text-quality-severity-info',
                     )}
                   >
                     <div className="flex items-center justify-between gap-1">

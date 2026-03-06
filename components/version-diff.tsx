@@ -40,7 +40,7 @@ export function VersionDiff({ oldText, newText, className }: VersionDiffProps) {
           return (
             <span
               key={i}
-              className="bg-emerald-100 text-emerald-800 underline decoration-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-300"
+              className="bg-freshness-fresh-bg text-status-success underline decoration-status-success"
               aria-label={`Added: ${part.value}`}
             >
               {part.value}
@@ -51,7 +51,7 @@ export function VersionDiff({ oldText, newText, className }: VersionDiffProps) {
           return (
             <span
               key={i}
-              className="bg-red-100 text-red-800 line-through decoration-red-400 dark:bg-red-900/30 dark:text-red-300"
+              className="bg-freshness-stale-bg text-destructive line-through decoration-destructive"
               aria-label={`Removed: ${part.value}`}
             >
               {part.value}

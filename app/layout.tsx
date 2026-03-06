@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans } from 'next/font/google';
+import { Instrument_Sans } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -13,7 +13,7 @@ import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
 
-const plusJakartaSans = Plus_Jakarta_Sans({
+const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-sans',
@@ -37,7 +37,7 @@ export default async function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+      <body className={`${instrumentSans.variable} font-sans antialiased`}>
         <ThemeProvider>
           <ClientFeaturesProvider>
           <TaxonomyProvider>

@@ -32,20 +32,20 @@ const POSTURE_CONFIG: Record<
 > = {
   strong_match: {
     label: 'Strong match',
-    colour: 'text-emerald-600 dark:text-emerald-400',
-    bgColour: 'bg-emerald-100 dark:bg-emerald-900/30',
+    colour: 'text-confidence-strong',
+    bgColour: 'bg-confidence-strong-bg',
     sortOrder: 0,
   },
   partial_match: {
     label: 'Partial match',
-    colour: 'text-amber-600 dark:text-amber-400',
-    bgColour: 'bg-amber-100 dark:bg-amber-900/30',
+    colour: 'text-confidence-partial',
+    bgColour: 'bg-confidence-partial-bg',
     sortOrder: 1,
   },
   needs_sme: {
     label: 'Needs SME',
-    colour: 'text-blue-600 dark:text-blue-400',
-    bgColour: 'bg-blue-100 dark:bg-blue-900/30',
+    colour: 'text-confidence-needs-sme',
+    bgColour: 'bg-confidence-needs-sme-bg',
     sortOrder: 2,
   },
   no_content: {
@@ -190,7 +190,7 @@ export function QuestionNavigator({
               className={cn(
                 'size-3 rounded-full border transition-all',
                 isCurrent && 'ring-2 ring-ring ring-offset-1',
-                isComplete ? 'bg-emerald-500 border-emerald-600' : config.bgColour + ' border-border',
+                isComplete ? 'bg-confidence-strong border-confidence-strong-border' : config.bgColour + ' border-border',
               )}
               role="tab"
               aria-selected={isCurrent}

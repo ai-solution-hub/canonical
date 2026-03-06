@@ -120,7 +120,7 @@ export function ResponseEditor({
           className={cn(
             'tabular-nums',
             isOverLimit && 'font-semibold text-destructive',
-            isUnderTarget && 'text-amber-600 dark:text-amber-400',
+            isUnderTarget && 'text-status-warning',
             !isOverLimit && !isUnderTarget && 'text-muted-foreground',
           )}
           role="status"

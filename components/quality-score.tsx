@@ -12,15 +12,15 @@ interface QualityScoreProps {
 }
 
 function getScoreColour(score: number): string {
-  if (score >= 80) return 'text-emerald-600 dark:text-emerald-400';
-  if (score >= 60) return 'text-amber-600 dark:text-amber-400';
+  if (score >= 80) return 'text-quality-good';
+  if (score >= 60) return 'text-quality-moderate';
   return 'text-destructive';
 }
 
 function getScoreBg(score: number): string {
-  if (score >= 80) return 'bg-emerald-50 dark:bg-emerald-950/30';
-  if (score >= 60) return 'bg-amber-50 dark:bg-amber-950/30';
-  return 'bg-red-50 dark:bg-red-950/30';
+  if (score >= 80) return 'bg-quality-good-bg';
+  if (score >= 60) return 'bg-quality-moderate-bg';
+  return 'bg-destructive/5';
 }
 
 function getSeverityIcon(severity: QualityIssueEntry['severity']) {
@@ -28,9 +28,9 @@ function getSeverityIcon(severity: QualityIssueEntry['severity']) {
     case 'error':
       return <XCircle className="size-3.5 text-destructive" />;
     case 'warning':
-      return <AlertTriangle className="size-3.5 text-amber-500" />;
+      return <AlertTriangle className="size-3.5 text-quality-severity-warning" />;
     case 'info':
-      return <Lightbulb className="size-3.5 text-blue-500" />;
+      return <Lightbulb className="size-3.5 text-quality-severity-info" />;
   }
 }
 
@@ -58,14 +58,14 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
             {quality.word_limit_compliance ? (
-              <CheckCircle2 className="size-3 text-emerald-500" />
+              <CheckCircle2 className="size-3 text-quality-good" />
             ) : (
               <XCircle className="size-3 text-destructive" />
             )}
             {quality.word_count} words
           </span>
           <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <CheckCircle2 className="size-3 text-emerald-500" />
+            <CheckCircle2 className="size-3 text-quality-good" />
             {quality.citation_count} citation{quality.citation_count !== 1 ? 's' : ''}
           </span>
           {errorCount > 0 && (
@@ -74,7 +74,7 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
             </Badge>
           )}
           {warningCount > 0 && (
-            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500 text-amber-600">
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-quality-severity-warning text-quality-severity-warning">
               {warningCount} warning{warningCount !== 1 ? 's' : ''}
             </Badge>
           )}
@@ -112,7 +112,7 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
               </h4>
               {quality.suggestions.map((suggestion, i) => (
                 <div key={i} className="flex items-start gap-2 text-sm">
-                  <Lightbulb className="size-3.5 text-blue-500 mt-0.5 shrink-0" />
+                  <Lightbulb className="size-3.5 text-quality-severity-info mt-0.5 shrink-0" />
                   <span>{suggestion}</span>
                 </div>
               ))}
@@ -122,7 +122,7 @@ export function QualityScore({ quality, className }: QualityScoreProps) {
           {/* No issues */}
           {quality.issues.length === 0 && quality.suggestions.length === 0 && (
             <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-emerald-500" />
+              <CheckCircle2 className="size-4 text-quality-good" />
               No issues found. Response looks good.
             </p>
           )}

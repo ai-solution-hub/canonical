@@ -12,27 +12,27 @@ const PHASE_CONFIG: Record<
   analysing: {
     label: 'Analysing question...',
     icon: Search,
-    colour: 'text-blue-600 dark:text-blue-400',
+    colour: 'text-phase-analysing',
   },
   drafting: {
     label: 'Drafting response...',
     icon: PenLine,
-    colour: 'text-violet-600 dark:text-violet-400',
+    colour: 'text-phase-drafting',
   },
   quality: {
     label: 'Running quality check...',
     icon: ShieldCheck,
-    colour: 'text-amber-600 dark:text-amber-400',
+    colour: 'text-phase-quality',
   },
   saving: {
     label: 'Saving to database...',
     icon: Save,
-    colour: 'text-blue-600 dark:text-blue-400',
+    colour: 'text-phase-saving',
   },
   done: {
     label: 'Complete',
     icon: CheckCircle2,
-    colour: 'text-emerald-600 dark:text-emerald-400',
+    colour: 'text-phase-done',
   },
   error: {
     label: 'Error',
@@ -69,8 +69,8 @@ export function StreamingPhaseIndicator({
       className={cn(
         'flex items-center gap-2 rounded-md border px-3 py-2 text-sm',
         phase === 'error' && 'border-destructive/50 bg-destructive/5',
-        phase === 'done' && 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950',
-        isActive && 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950',
+        phase === 'done' && 'border-phase-done-border bg-phase-done-bg',
+        isActive && 'border-phase-active-border bg-phase-active-bg',
         className,
       )}
       role="status"

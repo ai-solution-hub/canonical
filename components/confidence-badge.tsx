@@ -17,26 +17,26 @@ const ICON_MAP = {
   'file-question': FileQuestion,
 } as const;
 
-const COLOUR_CLASSES: Record<string, { bg: string; text: string; border: string }> = {
-  green: {
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-300',
-    border: 'border-green-300 dark:border-green-600',
+const COLOUR_CLASSES: Record<ConfidencePosture, { bg: string; text: string; border: string }> = {
+  strong_match: {
+    bg: 'bg-confidence-strong-bg',
+    text: 'text-confidence-strong',
+    border: 'border-confidence-strong-border',
   },
-  amber: {
-    bg: 'bg-amber-100 dark:bg-amber-900/30',
-    text: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-300 dark:border-amber-600',
+  partial_match: {
+    bg: 'bg-confidence-partial-bg',
+    text: 'text-confidence-partial',
+    border: 'border-confidence-partial-border',
   },
-  blue: {
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    text: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-300 dark:border-blue-600',
+  needs_sme: {
+    bg: 'bg-confidence-needs-sme-bg',
+    text: 'text-confidence-needs-sme',
+    border: 'border-confidence-needs-sme-border',
   },
-  slate: {
-    bg: 'bg-slate-100 dark:bg-slate-800',
-    text: 'text-slate-600 dark:text-slate-400',
-    border: 'border-slate-300 dark:border-slate-600',
+  no_content: {
+    bg: 'bg-confidence-none-bg',
+    text: 'text-confidence-none',
+    border: 'border-confidence-none-border',
   },
 };
 
@@ -53,7 +53,7 @@ const SHORT_LABELS: Record<ConfidencePosture, string> = {
  */
 export function ConfidenceBadge({ posture, compact = false, className }: ConfidenceBadgeProps) {
   const config = CONFIDENCE_POSTURE_CONFIG[posture];
-  const colours = COLOUR_CLASSES[config.colour] ?? COLOUR_CLASSES.slate;
+  const colours = COLOUR_CLASSES[posture];
   const Icon = ICON_MAP[config.icon as keyof typeof ICON_MAP] ?? FileQuestion;
 
   if (compact) {
@@ -102,11 +102,11 @@ export function ConfidenceDot({
   className?: string;
 }) {
   const config = CONFIDENCE_POSTURE_CONFIG[posture];
-  const colours = COLOUR_CLASSES[config.colour] ?? COLOUR_CLASSES.slate;
+  const colours = COLOUR_CLASSES[posture];
 
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs', className)}>
-      <span className={cn('size-2 rounded-full', colours.text.replaceAll('text-', 'bg-'))} aria-hidden="true" />
+      <span className={cn('size-2 rounded-full', colours.bg)} aria-hidden="true" />
       <span className="text-muted-foreground">
         {config.label}: {count}
       </span>

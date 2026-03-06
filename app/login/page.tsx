@@ -182,7 +182,7 @@ export default function LoginPage() {
             </div>
 
             {magicLinkSent && (
-              <p className="text-sm text-[var(--success,hsl(142_71%_45%))]" role="status">
+              <p className="text-sm text-success" role="status">
                 Check your email for a sign-in link
               </p>
             )}

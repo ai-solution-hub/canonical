@@ -20,10 +20,10 @@ function ConfidenceIndicator({ confidence }: { confidence: number }) {
 
   if (confidence > 0.7) {
     label = 'High confidence';
-    colourClass = 'text-green-600 dark:text-green-400';
+    colourClass = 'text-confidence-strong';
   } else if (confidence >= 0.3) {
     label = 'Medium confidence';
-    colourClass = 'text-amber-600 dark:text-amber-400';
+    colourClass = 'text-confidence-partial';
   } else {
     label = 'Low confidence — please verify';
     colourClass = 'text-destructive';

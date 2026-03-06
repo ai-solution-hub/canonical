@@ -163,11 +163,11 @@ export function QuestionReview({
       {/* Informational warning */}
       {informationalCount > 0 && (
         <div
-          className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-600 dark:bg-amber-900/20"
+          className="flex items-start gap-2 rounded-md border border-status-warning bg-quality-moderate-bg p-3"
           role="alert"
         >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <p className="text-xs text-amber-800 dark:text-amber-300">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden="true" />
+          <p className="text-xs text-status-warning">
             {informationalCount} {informationalCount === 1 ? 'question is' : 'questions are'}{' '}
             categorised as informational (administrative). These are marked with a warning
             icon and may not require a bid response.
@@ -234,7 +234,7 @@ export function QuestionReview({
                           </span>
                         )}
                         {isInformational && (
-                          <Badge variant="outline" className="gap-1 text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-600">
+                          <Badge variant="outline" className="gap-1 text-status-warning border-status-warning">
                             <AlertTriangle className="size-3" aria-hidden="true" />
                             Informational
                           </Badge>

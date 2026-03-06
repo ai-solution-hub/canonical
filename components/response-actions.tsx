@@ -69,7 +69,7 @@ export function ResponseActions({
                   onClick={() => onAction('accept')}
                   disabled={isLoading}
                   size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  className="bg-status-success hover:bg-status-success/90 text-white"
                   type="button"
                 >
                   {loadingAction === 'accept' ? (

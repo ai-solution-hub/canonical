@@ -307,8 +307,8 @@ export function KBIntegrationReview({
                   <ActionIcon
                     className={cn(
                       'mt-0.5 size-4 shrink-0',
-                      action === 'new_entry' && 'text-green-600 dark:text-green-400',
-                      action === 'update_existing' && 'text-blue-600 dark:text-blue-400',
+                      action === 'new_entry' && 'text-status-success',
+                      action === 'update_existing' && 'text-confidence-needs-sme',
                       action === 'skip' && 'text-muted-foreground',
                     )}
                     aria-hidden="true"
@@ -332,7 +332,7 @@ export function KBIntegrationReview({
                       {canUpdate && (
                         <Badge
                           variant="outline"
-                          className="text-xs text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-600"
+                          className="text-xs text-confidence-needs-sme border-confidence-needs-sme-border"
                         >
                           Has KB source
                         </Badge>
@@ -340,7 +340,7 @@ export function KBIntegrationReview({
                       {!candidate.response_text && (
                         <Badge
                           variant="outline"
-                          className="text-xs text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-600"
+                          className="text-xs text-status-warning border-status-warning"
                         >
                           No response
                         </Badge>

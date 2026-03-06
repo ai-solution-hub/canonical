@@ -44,32 +44,32 @@ type SortDirection = 'asc' | 'desc';
 const STATUS_CONFIG = {
   unreviewed: {
     icon: CircleDot,
-    colour: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
+    colour: 'text-template-unreviewed',
+    bg: 'bg-template-unreviewed-bg',
     label: 'Unreviewed',
   },
   confirmed: {
     icon: CheckCircle,
-    colour: 'text-green-600 dark:text-green-400',
-    bg: 'bg-green-100 dark:bg-green-900/30',
+    colour: 'text-template-confirmed',
+    bg: 'bg-template-confirmed-bg',
     label: 'Confirmed',
   },
   rejected: {
     icon: XCircle,
-    colour: 'text-slate-500 dark:text-slate-400',
-    bg: 'bg-slate-100 dark:bg-slate-800/30',
+    colour: 'text-template-rejected',
+    bg: 'bg-template-rejected-bg',
     label: 'Rejected',
   },
   manual: {
     icon: UserPen,
-    colour: 'text-amber-600 dark:text-amber-400',
-    bg: 'bg-amber-100 dark:bg-amber-900/30',
+    colour: 'text-template-manual',
+    bg: 'bg-template-manual-bg',
     label: 'Manual',
   },
   unmapped: {
     icon: AlertCircle,
-    colour: 'text-red-600 dark:text-red-400',
-    bg: 'bg-red-100 dark:bg-red-900/30',
+    colour: 'text-template-unmapped',
+    bg: 'bg-template-unmapped-bg',
     label: 'Unmapped',
   },
 } as const;
@@ -95,9 +95,9 @@ function ConfidenceBadge({ confidence }: { confidence: number | null }) {
   if (confidence === null) return null;
   const pct = Math.round(confidence * 100);
   const colour =
-    pct >= 90 ? 'text-green-600 dark:text-green-400' :
-    pct >= 70 ? 'text-amber-600 dark:text-amber-400' :
-    'text-red-600 dark:text-red-400';
+    pct >= 90 ? 'text-confidence-strong' :
+    pct >= 70 ? 'text-confidence-partial' :
+    'text-freshness-stale';
   const label = pct >= 90 ? 'High' : pct >= 70 ? 'Medium' : 'Low';
   return (
     <span

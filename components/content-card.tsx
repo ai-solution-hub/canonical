@@ -94,7 +94,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
             <ContentTypeIcon contentType={item.content_type} size="size-5" />
             <DomainBadge domain={item.primary_domain ?? ''} />
             {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
             )}
@@ -187,7 +187,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
               )}
               {hasQualityFlag && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                  className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
                   title="Has quality issues"
                 >
                   <AlertTriangle className="size-2.5" aria-hidden="true" />
@@ -224,7 +224,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
             <ContentTypeIcon contentType={item.content_type} size="size-5" />
             <DomainBadge domain={item.primary_domain ?? ''} />
             {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
             )}
@@ -301,7 +301,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
               )}
               {hasQualityFlag && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                  className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
                   title="Has quality issues"
                 >
                   <AlertTriangle className="size-2.5" aria-hidden="true" />
@@ -396,7 +396,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
           <div className="flex items-center gap-1.5 flex-wrap">
             <DomainBadge domain={item.primary_domain ?? ''} />
             {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
             )}
@@ -433,7 +433,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
             )}
             {hasQualityFlag && (
               <span
-                className="inline-flex items-center gap-0.5 rounded-full border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
                 title="Has quality issues"
               >
                 <AlertTriangle className="size-2.5" aria-hidden="true" />

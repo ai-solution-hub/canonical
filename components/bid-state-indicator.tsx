@@ -4,7 +4,6 @@ import { Check, Circle, Clock, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BID_STATE_LABELS,
-  BID_STATE_COLOURS,
   BID_STATE_PROGRESSION,
   isTerminal,
   type BidState,
@@ -15,42 +14,66 @@ interface BidStateIndicatorProps {
   className?: string;
 }
 
-const COLOUR_CLASSES: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  slate: {
-    bg: 'bg-slate-100 dark:bg-slate-800',
-    text: 'text-slate-700 dark:text-slate-300',
-    border: 'border-slate-300 dark:border-slate-600',
-    dot: 'bg-slate-500',
+const COLOUR_CLASSES: Record<BidState, { bg: string; text: string; border: string; dot: string }> = {
+  draft: {
+    bg: 'bg-bid-draft-bg',
+    text: 'text-bid-draft',
+    border: 'border-bid-draft-border',
+    dot: 'bg-bid-draft-dot',
   },
-  blue: {
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    text: 'text-blue-700 dark:text-blue-300',
-    border: 'border-blue-300 dark:border-blue-600',
-    dot: 'bg-blue-500',
+  questions_extracted: {
+    bg: 'bg-bid-discovery-bg',
+    text: 'text-bid-discovery',
+    border: 'border-bid-discovery-border',
+    dot: 'bg-bid-discovery-dot',
   },
-  amber: {
-    bg: 'bg-amber-100 dark:bg-amber-900/30',
-    text: 'text-amber-700 dark:text-amber-300',
-    border: 'border-amber-300 dark:border-amber-600',
-    dot: 'bg-amber-500',
+  matching: {
+    bg: 'bg-bid-discovery-bg',
+    text: 'text-bid-discovery',
+    border: 'border-bid-discovery-border',
+    dot: 'bg-bid-discovery-dot',
   },
-  green: {
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-300',
-    border: 'border-green-300 dark:border-green-600',
-    dot: 'bg-green-500',
+  drafting: {
+    bg: 'bg-bid-active-bg',
+    text: 'text-bid-active',
+    border: 'border-bid-active-border',
+    dot: 'bg-bid-active-dot',
   },
-  emerald: {
-    bg: 'bg-emerald-100 dark:bg-emerald-900/30',
-    text: 'text-emerald-700 dark:text-emerald-300',
-    border: 'border-emerald-300 dark:border-emerald-600',
-    dot: 'bg-emerald-500',
+  in_review: {
+    bg: 'bg-bid-active-bg',
+    text: 'text-bid-active',
+    border: 'border-bid-active-border',
+    dot: 'bg-bid-active-dot',
   },
-  red: {
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    text: 'text-red-700 dark:text-red-300',
-    border: 'border-red-300 dark:border-red-600',
-    dot: 'bg-red-500',
+  ready_for_export: {
+    bg: 'bg-bid-review-bg',
+    text: 'text-bid-review',
+    border: 'border-bid-review-border',
+    dot: 'bg-bid-review-dot',
+  },
+  submitted: {
+    bg: 'bg-bid-submitted-bg',
+    text: 'text-bid-submitted',
+    border: 'border-bid-submitted-border',
+    dot: 'bg-bid-submitted-dot',
+  },
+  won: {
+    bg: 'bg-bid-won-bg',
+    text: 'text-bid-won',
+    border: 'border-bid-won-border',
+    dot: 'bg-bid-won',
+  },
+  lost: {
+    bg: 'bg-bid-lost-bg',
+    text: 'text-bid-lost',
+    border: 'border-bid-lost-border',
+    dot: 'bg-bid-lost',
+  },
+  withdrawn: {
+    bg: 'bg-bid-withdrawn-bg',
+    text: 'text-bid-withdrawn',
+    border: 'border-bid-withdrawn-border',
+    dot: 'bg-bid-withdrawn',
   },
 };
 
@@ -58,8 +81,7 @@ const COLOUR_CLASSES: Record<string, { bg: string; text: string; border: string;
  * Badge showing the current bid state with colour + text (WCAG 2.1 AA).
  */
 export function BidStateBadge({ state, className }: BidStateIndicatorProps) {
-  const colourKey = BID_STATE_COLOURS[state];
-  const colours = COLOUR_CLASSES[colourKey] ?? COLOUR_CLASSES.slate;
+  const colours = COLOUR_CLASSES[state];
   const label = BID_STATE_LABELS[state];
 
   return (
@@ -141,9 +163,9 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
             <div
               className={cn(
                 'flex size-5 items-center justify-center rounded-full border',
-                state === 'won' && 'border-emerald-500 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-                state === 'lost' && 'border-red-500 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-                state === 'withdrawn' && 'border-slate-400 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+                state === 'won' && 'border-bid-won-border bg-bid-won-bg text-bid-won',
+                state === 'lost' && 'border-bid-lost-border bg-bid-lost-bg text-bid-lost',
+                state === 'withdrawn' && 'border-bid-withdrawn-border bg-bid-withdrawn-bg text-bid-withdrawn',
               )}
               aria-current="step"
             >

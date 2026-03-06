@@ -93,26 +93,26 @@ export function CoverageSummaryCards({ summary }: CoverageSummaryCardsProps) {
         icon={BarChart3}
         label="Total Items"
         value={stats.totalItems.toLocaleString('en-GB')}
-        colourClass="bg-blue-600"
+        colourClass="bg-primary"
       />
       <StatCard
         icon={CheckCircle}
         label="Fresh"
         value={Math.round(stats.weightedFreshPct)}
         suffix="%"
-        colourClass="bg-emerald-600"
+        colourClass="bg-freshness-fresh"
       />
       <StatCard
         icon={AlertTriangle}
         label="Content Gaps"
         value={stats.totalGaps}
-        colourClass="bg-amber-600"
+        colourClass="bg-freshness-aging"
       />
       <StatCard
         icon={XCircle}
         label="Expired Items"
         value={stats.totalExpired}
-        colourClass="bg-red-600"
+        colourClass="bg-freshness-expired"
       />
     </div>
   );

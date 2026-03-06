@@ -45,35 +45,35 @@ const STATUS_CONFIG: Record<
     label: 'Review Pending',
     description: 'This item is awaiting governance review after a change',
     className:
-      'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50',
+      'text-governance-pending bg-governance-pending-bg border-governance-pending-border',
   },
   approved: {
     icon: ShieldCheck,
     label: 'Approved',
     description: 'This item has been reviewed and approved',
     className:
-      'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800/50',
+      'text-governance-approved bg-governance-approved-bg border-governance-approved-border',
   },
   changes_requested: {
     icon: ShieldAlert,
     label: 'Changes Requested',
     description: 'A reviewer has requested changes to this item',
     className:
-      'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800/50',
+      'text-governance-changes bg-governance-changes-bg border-governance-changes-border',
   },
   reverted: {
     icon: ShieldX,
     label: 'Reverted',
     description: 'This item was reverted by a reviewer',
     className:
-      'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800/50',
+      'text-governance-reverted bg-governance-reverted-bg border-governance-reverted-border',
   },
   draft: {
     icon: FileEdit,
     label: 'Draft',
     description: 'This item is a draft — hidden from search and matching',
     className:
-      'text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-950/30 border-slate-200 dark:border-slate-800/50',
+      'text-governance-draft bg-governance-draft-bg border-governance-draft-border',
   },
 };
 

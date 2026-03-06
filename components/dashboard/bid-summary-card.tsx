@@ -13,16 +13,14 @@ function urgencyConfig(urgency: DeadlineUrgency) {
     case 'overdue':
       return {
         badge: 'Overdue',
-        badgeClass:
-          'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-        textClass: 'text-red-600 dark:text-red-400',
+        badgeClass: 'bg-bid-lost-bg text-bid-lost',
+        textClass: 'text-status-error',
       };
     case 'urgent':
       return {
         badge: 'Due soon',
-        badgeClass:
-          'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-        textClass: 'text-amber-600 dark:text-amber-400',
+        badgeClass: 'bg-bid-active-bg text-bid-active',
+        textClass: 'text-status-warning',
       };
     case 'approaching':
       return { badge: null, badgeClass: '', textClass: '' };

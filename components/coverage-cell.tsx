@@ -84,22 +84,22 @@ export function CoverageCell({ data, formatSubtopic }: CoverageCellProps) {
         <FreshnessIndicator
           label="Fresh"
           count={data.fresh_count}
-          colourClass="bg-emerald-500"
+          colourClass="bg-freshness-fresh"
         />
         <FreshnessIndicator
           label="Aging"
           count={data.aging_count}
-          colourClass="bg-amber-500"
+          colourClass="bg-freshness-aging"
         />
         <FreshnessIndicator
           label="Stale"
           count={data.stale_count}
-          colourClass="bg-orange-500"
+          colourClass="bg-freshness-stale"
         />
         <FreshnessIndicator
           label="Expired"
           count={data.expired_count}
-          colourClass="bg-red-500"
+          colourClass="bg-freshness-expired"
         />
       </div>
     </Link>

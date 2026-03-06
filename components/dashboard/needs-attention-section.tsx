@@ -37,7 +37,7 @@ export function NeedsAttentionSection({
       {totalAttention === 0 ? (
         <div className="rounded-lg border border-border bg-card p-6 text-center">
           <CheckCircle2
-            className="mx-auto mb-2 size-8 text-green-600 dark:text-green-400"
+            className="mx-auto mb-2 size-8 text-quality-good"
             aria-hidden="true"
           />
           <p className="text-sm font-medium text-foreground">

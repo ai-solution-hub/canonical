@@ -205,7 +205,7 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
           phase === 'error' && 'border-destructive/50 hover:border-destructive cursor-pointer',
           dragging && 'border-primary bg-primary/5',
           (phase === 'uploading' || phase === 'extracting') && 'border-primary/50 cursor-default',
-          phase === 'complete' && 'border-green-500/50 cursor-default',
+          phase === 'complete' && 'border-template-confirmed/50 cursor-default',
         )}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
@@ -267,7 +267,7 @@ export function TenderUpload({ bidId, onUploadComplete }: TenderUploadProps) {
         {/* Complete state */}
         {phase === 'complete' && extractionResult && (
           <>
-            <CheckCircle className="size-8 text-green-600 dark:text-green-400" aria-hidden="true" />
+            <CheckCircle className="size-8 text-template-confirmed" aria-hidden="true" />
             <div>
               <p className="text-sm font-medium">
                 Extraction complete

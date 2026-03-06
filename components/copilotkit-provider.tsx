@@ -43,7 +43,7 @@ class CopilotKitErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
         <>
           <div
             role="alert"
-            className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+            className="rounded-md border border-status-warning bg-quality-moderate-bg p-3 text-sm text-status-warning"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
@@ -51,7 +51,7 @@ class CopilotKitErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
               <button
                 type="button"
                 onClick={() => this.setState({ hasError: false, error: null })}
-                className="ml-auto rounded px-2 py-0.5 text-xs underline hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:hover:bg-amber-900"
+                className="ml-auto rounded px-2 py-0.5 text-xs underline hover:bg-freshness-aging-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-warning focus-visible:ring-offset-2"
               >
                 Try again
               </button>
@@ -77,7 +77,7 @@ function UnavailableBanner() {
   return (
     <div
       role="status"
-      className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+      className="rounded-md border border-status-warning bg-quality-moderate-bg p-3 text-sm text-status-warning"
     >
       <div className="flex items-center gap-2">
         <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
@@ -85,7 +85,7 @@ function UnavailableBanner() {
         <button
           type="button"
           onClick={() => setDismissed(true)}
-          className="ml-auto rounded p-0.5 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:hover:bg-amber-900"
+          className="ml-auto rounded p-0.5 hover:bg-freshness-aging-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-warning focus-visible:ring-offset-2"
           aria-label="Dismiss"
         >
           <X className="size-4" aria-hidden="true" />

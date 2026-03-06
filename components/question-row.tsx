@@ -51,27 +51,27 @@ const STATUS_CONFIG: Record<QuestionStatus, StatusConfig> = {
   not_started: {
     label: 'Not Started',
     icon: Circle,
-    className: 'text-slate-500 dark:text-slate-400',
+    className: 'text-confidence-none',
   },
   ai_drafted: {
     label: 'AI Drafted',
     icon: CircleDot,
-    className: 'text-blue-600 dark:text-blue-400',
+    className: 'text-confidence-needs-sme',
   },
   in_progress: {
     label: 'In Progress',
     icon: CircleDot,
-    className: 'text-amber-600 dark:text-amber-400',
+    className: 'text-status-warning',
   },
   needs_review: {
     label: 'Needs Review',
     icon: AlertCircle,
-    className: 'text-amber-600 dark:text-amber-400',
+    className: 'text-status-warning',
   },
   complete: {
     label: 'Complete',
     icon: CheckCircle2,
-    className: 'text-green-600 dark:text-green-400',
+    className: 'text-status-success',
   },
 };
 

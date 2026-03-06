@@ -530,8 +530,8 @@ export function ItemDetailClient({
 
           {/* Editing banner */}
           {isEditing && (
-            <div className="mb-4 flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-50 px-4 py-2 text-sm dark:bg-amber-950/30">
-              <span className="font-medium text-amber-800 dark:text-amber-300">
+            <div className="mb-4 flex items-center justify-between rounded-md border border-status-warning/30 bg-quality-moderate-bg px-4 py-2 text-sm">
+              <span className="font-medium text-status-warning">
                 Editing{editDirty ? ' \u2014 unsaved changes' : ''}
               </span>
               <div className="flex gap-2">
@@ -724,8 +724,8 @@ export function ItemDetailClient({
                   className={cn(
                     'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                     item.governance_review_status === 'draft'
-                      ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400'
-                      : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-950 dark:text-green-400',
+                      ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
+                      : 'border-status-success bg-freshness-fresh-bg text-status-success hover:bg-freshness-fresh-bg',
                   )}
                 >
                   {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}

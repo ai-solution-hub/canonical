@@ -33,13 +33,13 @@ interface CoverageDomainSectionProps {
 // ---------------------------------------------------------------------------
 
 const COLOUR_MAP: Record<string, string> = {
-  security: 'bg-blue-600',
-  compliance: 'bg-violet-600',
-  implementation: 'bg-emerald-600',
-  support: 'bg-cyan-600',
-  corporate: 'bg-slate-600',
-  product: 'bg-orange-500',
-  methodology: 'bg-rose-600',
+  security: 'bg-[var(--domain-security-text)]',
+  compliance: 'bg-[var(--domain-compliance-text)]',
+  implementation: 'bg-[var(--domain-implementation-text)]',
+  support: 'bg-[var(--domain-support-text)]',
+  corporate: 'bg-[var(--domain-corporate-text)]',
+  product: 'bg-[var(--domain-product-text)]',
+  methodology: 'bg-[var(--domain-methodology-text)]',
 };
 
 function getDomainDotColour(colourKey: string): string {
@@ -111,7 +111,7 @@ export function CoverageDomainSection({
 
         {/* Gap count badge */}
         {gapCount > 0 && (
-          <Badge variant="outline" className="ml-auto text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-600">
+          <Badge variant="outline" className="ml-auto text-quality-severity-warning border-quality-severity-warning/40">
             {gapCount} {gapCount === 1 ? 'gap' : 'gaps'}
           </Badge>
         )}

@@ -106,7 +106,7 @@ export function CostEstimateDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Coins className="size-5 text-amber-500" aria-hidden="true" />
+            <Coins className="size-5 text-status-warning" aria-hidden="true" />
             Cost Estimate
           </DialogTitle>
           <DialogDescription>
@@ -164,11 +164,11 @@ export function CostEstimateDialog({
             </dl>
 
             {/* Cost range */}
-            <div className="rounded-md border bg-amber-50 p-4 dark:bg-amber-950/20">
+            <div className="rounded-md border bg-quality-moderate-bg p-4">
               <p className="text-sm font-medium text-foreground">
                 Estimated Cost (USD)
               </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
+              <p className="mt-1 text-2xl font-bold tabular-nums text-status-warning">
                 {formatCost(estimate.estimated_cost_min)}
                 {' '}&ndash;{' '}
                 {formatCost(estimate.estimated_cost_max)}

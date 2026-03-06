@@ -181,7 +181,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
           phase === 'error' && 'border-destructive/50 hover:border-destructive cursor-pointer',
           dragging && 'border-primary bg-primary/5',
           phase === 'uploading' && 'border-primary/50 cursor-default',
-          phase === 'complete' && 'border-green-500/50 cursor-default',
+          phase === 'complete' && 'border-template-confirmed/50 cursor-default',
           selectedFile && phase === 'idle' && 'border-primary/30',
         )}
         onDragEnter={handleDragEnter}
@@ -241,7 +241,7 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
         {/* Complete state */}
         {phase === 'complete' && uploadedTemplate && (
           <>
-            <CheckCircle className="size-8 text-green-600 dark:text-green-400" aria-hidden="true" />
+            <CheckCircle className="size-8 text-template-confirmed" aria-hidden="true" />
             <div>
               <p className="text-sm font-medium">Template uploaded</p>
               <p className="mt-1 text-xs text-muted-foreground">{uploadedTemplate.name}</p>

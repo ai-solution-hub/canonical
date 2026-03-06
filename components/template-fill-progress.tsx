@@ -85,8 +85,8 @@ export function TemplateFillProgress({
 
   if (status === 'completed') {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-green-500/50 p-6 text-center">
-        <CheckCircle className="size-8 text-green-600 dark:text-green-400" aria-hidden="true" />
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-template-confirmed/50 p-6 text-center">
+        <CheckCircle className="size-8 text-template-confirmed" aria-hidden="true" />
         <p className="text-sm font-medium">Template filled successfully</p>
       </div>
     );

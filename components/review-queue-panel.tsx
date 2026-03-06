@@ -101,7 +101,7 @@ export function ReviewQueuePanel({
                 )}
                 {!isFlagged && item.verified_at && (
                   <Check
-                    className="ml-auto size-3.5 text-[var(--success,hsl(142_71%_45%))]"
+                    className="ml-auto size-3.5 text-success"
                     aria-label="Verified"
                   />
                 )}

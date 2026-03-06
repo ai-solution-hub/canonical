@@ -25,7 +25,7 @@ export function AttentionCard({
       className="group flex items-start gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
     >
       <Icon
-        className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
+        className="mt-0.5 size-5 shrink-0 text-status-warning"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">

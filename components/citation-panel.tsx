@@ -111,7 +111,7 @@ export function CitationPanel({
                       {isOrphaned && (
                         <Badge
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 border-amber-500/50 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                          className="text-[10px] px-1.5 py-0 border-status-warning bg-quality-moderate-bg text-status-warning"
                         >
                           <AlertTriangle className="size-2.5 mr-0.5" aria-hidden="true" />
                           Source removed

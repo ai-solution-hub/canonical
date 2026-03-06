@@ -110,13 +110,13 @@ export function getConfidenceDisplay(confidence: number | null): {
   if (confidence >= 0.8) {
     return {
       label: `High (${percentage}%)`,
-      colourClass: 'text-[var(--success,hsl(142_71%_45%))]',
+      colourClass: 'text-success',
     };
   }
   if (confidence >= 0.5) {
     return {
       label: `Medium (${percentage}%)`,
-      colourClass: 'text-[var(--warning,hsl(38_92%_50%))]',
+      colourClass: 'text-status-warning',
     };
   }
   return { label: `Low (${percentage}%)`, colourClass: 'text-destructive' };

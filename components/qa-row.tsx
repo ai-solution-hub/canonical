@@ -52,11 +52,11 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
   const freshness = item.freshness as string | null;
   const freshnessColour =
     freshness === 'fresh'
-      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+      ? 'bg-freshness-fresh-bg text-freshness-fresh'
       : freshness === 'aging'
-        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+        ? 'bg-freshness-aging-bg text-freshness-aging'
         : freshness === 'stale'
-          ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+          ? 'bg-freshness-stale-bg text-freshness-stale'
           : 'bg-muted text-muted-foreground';
 
   return (

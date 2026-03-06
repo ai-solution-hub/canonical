@@ -25,25 +25,25 @@ const FRESHNESS_CONFIG: Record<
     label: 'Fresh',
     shortLabel: 'Fresh',
     icon: CheckCircle2,
-    colourClass: 'text-emerald-600 dark:text-emerald-400',
+    colourClass: 'text-freshness-fresh',
   },
   aging: {
     label: 'Aging',
     shortLabel: 'Aging',
     icon: Clock,
-    colourClass: 'text-amber-600 dark:text-amber-400',
+    colourClass: 'text-freshness-aging',
   },
   stale: {
     label: 'Stale',
     shortLabel: 'Stale',
     icon: AlertTriangle,
-    colourClass: 'text-orange-600 dark:text-orange-400',
+    colourClass: 'text-freshness-stale',
   },
   expired: {
     label: 'Expired',
     shortLabel: 'Expired',
     icon: XCircle,
-    colourClass: 'text-red-600 dark:text-red-400',
+    colourClass: 'text-freshness-expired',
   },
 };
 

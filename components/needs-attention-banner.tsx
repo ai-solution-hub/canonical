@@ -70,7 +70,7 @@ export function NeedsAttentionBanner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'relative rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30',
+        'relative rounded-xl border border-governance-pending-border bg-governance-pending-bg p-4',
         className,
       )}
       role="alert"
@@ -86,16 +86,16 @@ export function NeedsAttentionBanner({ className }: { className?: string }) {
       </Button>
 
       <div className="flex items-start gap-3">
-        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" />
+        <AlertTriangle className="mt-0.5 size-5 shrink-0 text-status-warning" />
         <div className="flex-1 space-y-2">
-          <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+          <h3 className="text-sm font-semibold text-governance-pending">
             Items Need Attention
           </h3>
           <div className="flex flex-wrap gap-4 text-sm">
             {counts.reviewQueueCount > 0 && (
               <Link
                 href="/review"
-                className="flex items-center gap-1.5 text-amber-800 underline-offset-2 hover:underline dark:text-amber-300"
+                className="flex items-center gap-1.5 text-governance-pending underline-offset-2 hover:underline"
               >
                 <Eye className="size-3.5" />
                 <span>
@@ -107,7 +107,7 @@ export function NeedsAttentionBanner({ className }: { className?: string }) {
             {counts.governanceReviewCount > 0 && (
               <Link
                 href="/review?status=all"
-                className="flex items-center gap-1.5 text-amber-800 underline-offset-2 hover:underline dark:text-amber-300"
+                className="flex items-center gap-1.5 text-governance-pending underline-offset-2 hover:underline"
               >
                 <ShieldAlert className="size-3.5" />
                 <span>

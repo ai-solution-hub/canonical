@@ -63,7 +63,7 @@ export function TemplateCompletionSummary({
     <div className="space-y-4 rounded-lg border p-6">
       <div className="flex items-start gap-3">
         <CheckCircle
-          className="mt-0.5 size-5 shrink-0 text-green-600 dark:text-green-400"
+          className="mt-0.5 size-5 shrink-0 text-template-confirmed"
           aria-hidden="true"
         />
         <div className="flex-1">
@@ -75,19 +75,19 @@ export function TemplateCompletionSummary({
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 rounded-lg bg-muted/50 p-4">
         <div className="text-center">
-          <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+          <p className="text-2xl font-bold text-template-confirmed">
             {completion.fields_filled}
           </p>
           <p className="text-xs text-muted-foreground">Fields filled</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+          <p className="text-2xl font-bold text-template-manual">
             {completion.fields_skipped}
           </p>
           <p className="text-xs text-muted-foreground">Skipped</p>
         </div>
         <div className="text-center">
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+          <p className="text-2xl font-bold text-template-unmapped">
             {completion.fields_failed}
           </p>
           <p className="text-xs text-muted-foreground">Failed</p>
@@ -96,9 +96,9 @@ export function TemplateCompletionSummary({
 
       {/* Word limit truncation warning */}
       {truncatedCount != null && truncatedCount > 0 && (
-        <div className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 dark:bg-amber-900/20" role="status">
-          <Scissors className="size-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-          <span className="text-xs text-amber-700 dark:text-amber-300">
+        <div className="flex items-center gap-2 rounded-md bg-template-manual-bg px-3 py-2" role="status">
+          <Scissors className="size-4 text-template-manual" aria-hidden="true" />
+          <span className="text-xs text-template-manual">
             {truncatedCount} field(s) were truncated to fit their word limits.
             Review the completed document to ensure key content was preserved.
           </span>

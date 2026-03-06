@@ -39,21 +39,21 @@ const OUTCOME_OPTIONS: {
     label: 'Won',
     description: 'Bid was successful',
     icon: Trophy,
-    colourClass: 'text-green-600 dark:text-green-400',
+    colourClass: 'text-bid-won',
   },
   {
     value: 'lost',
     label: 'Lost',
     description: 'Bid was unsuccessful',
     icon: XCircle,
-    colourClass: 'text-red-600 dark:text-red-400',
+    colourClass: 'text-bid-lost',
   },
   {
     value: 'withdrawn',
     label: 'Withdrawn',
     description: 'Bid was withdrawn before decision',
     icon: MinusCircle,
-    colourClass: 'text-amber-600 dark:text-amber-400',
+    colourClass: 'text-bid-withdrawn',
   },
 ];
 

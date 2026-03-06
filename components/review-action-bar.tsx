@@ -88,7 +88,7 @@ export function ReviewActionBar({
 
   return (
     <div
-      className={`sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border border-border bg-card/95 p-3 shadow-[0_-2px_10px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:gap-3 ${className}`}
+      className={`sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border border-border bg-card/95 p-3 shadow-[0_-2px_10px_oklch(0.18_0.014_48/0.08)] backdrop-blur-sm sm:gap-3 ${className}`}
       role="toolbar"
       aria-label="Review actions"
     >
@@ -140,7 +140,7 @@ export function ReviewActionBar({
           variant="outline"
           onClick={handleAction('flag')}
           disabled={isActioning}
-          className={`min-h-[44px] gap-1.5 border-amber-500/50 text-amber-600 transition-colors hover:bg-amber-50 hover:text-amber-700 dark:border-amber-500/30 dark:text-amber-400 dark:hover:bg-amber-950 dark:hover:text-amber-300 ${flashAction === 'flag' ? flashClass : ''}`}
+          className={`min-h-[44px] gap-1.5 border-status-warning/50 text-status-warning transition-colors hover:bg-governance-pending-bg hover:text-status-warning ${flashAction === 'flag' ? flashClass : ''}`}
           aria-label="Flag for review (keyboard shortcut: F)"
         >
           <Flag className="size-4" aria-hidden="true" />

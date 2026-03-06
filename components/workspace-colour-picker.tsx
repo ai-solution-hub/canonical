@@ -6,18 +6,18 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 export const WORKSPACE_COLOURS = [
-  { name: 'Indigo', hex: '#6366f1' },
-  { name: 'Blue', hex: '#3b82f6' },
-  { name: 'Cyan', hex: '#06b6d4' },
-  { name: 'Emerald', hex: '#10b981' },
-  { name: 'Lime', hex: '#84cc16' },
-  { name: 'Amber', hex: '#f59e0b' },
-  { name: 'Orange', hex: '#f97316' },
-  { name: 'Red', hex: '#ef4444' },
-  { name: 'Pink', hex: '#ec4899' },
-  { name: 'Purple', hex: '#a855f7' },
-  { name: 'Slate', hex: '#64748b' },
-  { name: 'Stone', hex: '#78716c' },
+  { name: 'Amber', hex: '#d4880f' },
+  { name: 'Copper', hex: '#c27840' },
+  { name: 'Terracotta', hex: '#c4604a' },
+  { name: 'Teal', hex: '#2b9e82' },
+  { name: 'Sage', hex: '#5a8a6c' },
+  { name: 'Ocean', hex: '#3b82b6' },
+  { name: 'Indigo', hex: '#5b6abf' },
+  { name: 'Plum', hex: '#8b5cc0' },
+  { name: 'Rose', hex: '#c25670' },
+  { name: 'Slate', hex: '#7a756c' },
+  { name: 'Charcoal', hex: '#5c5750' },
+  { name: 'Stone', hex: '#a8a49c' },
 ] as const;
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;

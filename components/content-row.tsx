@@ -86,7 +86,7 @@ export function ContentRow({
               className="shrink-0"
             />
             {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
             )}
@@ -98,7 +98,7 @@ export function ContentRow({
             )}
             {hasQualityFlag && (
               <AlertTriangle
-                className="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+                className="size-3 shrink-0 text-quality-severity-warning"
                 aria-label="Has quality issues"
               />
             )}
@@ -196,7 +196,7 @@ export function ContentRow({
             className="shrink-0"
           />
           {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-            <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+            <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
               {getLayerLabel(item.metadata.layer as string)}
             </Badge>
           )}
@@ -208,7 +208,7 @@ export function ContentRow({
           )}
           {hasQualityFlag && (
             <AlertTriangle
-              className="size-3 shrink-0 text-amber-600 dark:text-amber-400"
+              className="size-3 shrink-0 text-quality-severity-warning"
               aria-label="Has quality issues"
             />
           )}
