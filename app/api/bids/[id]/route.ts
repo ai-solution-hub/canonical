@@ -270,6 +270,13 @@ export async function DELETE(
       console.error('Storage cleanup failed (non-fatal):', storageErr);
     }
 
+    // Remove content_item_workspaces junction rows first — FK is NO ACTION
+    // so these would block the workspace delete if any content is linked
+    await supabase
+      .from('content_item_workspaces')
+      .delete()
+      .eq('workspace_id', id);
+
     const { error } = await supabase
       .from('workspaces')
       .delete()
