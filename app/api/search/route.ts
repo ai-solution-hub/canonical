@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const raw = await request.json();
     const parsed = parseBody(SearchBodySchema, raw);
     if (!parsed.success) return parsed.response;
-    const { query, threshold, limit } = parsed.data;
+    const { query, threshold, limit, layer } = parsed.data;
 
     // 1. Generate embedding via OpenAI
     let embedding: number[];
@@ -67,9 +67,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Post-filter by content layer if specified
+    const allResults = results ?? [];
+    const filtered = layer
+      ? allResults.filter((r) => {
+          const meta = r.metadata as Record<string, unknown> | null;
+          return meta && meta['layer'] === layer;
+        })
+      : allResults;
+
     return NextResponse.json({
-      results: results ?? [],
-      count: results?.length ?? 0,
+      results: filtered,
+      count: filtered.length,
     });
   } catch (err) {
     return NextResponse.json(

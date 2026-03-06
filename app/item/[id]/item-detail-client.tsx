@@ -29,6 +29,7 @@ import { Thumbnail } from '@/components/thumbnail';
 import { ContentTabs } from '@/components/content-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
 import { RelatedItems } from '@/components/related-items';
+import { RelatedByTags } from '@/components/related-by-tags';
 import { VersionHistory } from '@/components/version-history';
 import { ContentTypeHeader } from '@/components/content-type-header';
 import { VerificationBadge } from '@/components/verification-badge';
@@ -59,6 +60,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { validateEditableField } from '@/lib/validation';
 import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';
@@ -1290,6 +1292,45 @@ export function ItemDetailClient({
             </section>
           )}
 
+          {/* Draft toggle (editors only, when draft_status feature enabled) */}
+          {isFeatureEnabled('draft_status') && canEdit && (
+            <section className="mb-6 border-t border-border pt-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Status
+                </h3>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const isDraft = item.governance_review_status === 'draft';
+                    const newStatus = isDraft ? null : 'draft';
+                    setItem((prev) => ({ ...prev, governance_review_status: newStatus }));
+                    try {
+                      const supabase = createClient();
+                      const { error } = await supabase
+                        .from('content_items')
+                        .update({ governance_review_status: newStatus })
+                        .eq('id', item.id);
+                      if (error) throw error;
+                      toast.success(isDraft ? 'Published' : 'Marked as draft');
+                    } catch {
+                      setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
+                      toast.error('Failed to update status');
+                    }
+                  }}
+                  className={cn(
+                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                    item.governance_review_status === 'draft'
+                      ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-400'
+                      : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700 dark:bg-green-950 dark:text-green-400',
+                  )}
+                >
+                  {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* OrganiseSection (Item 6) — replaces separate keywords/workspaces/tags */}
           <OrganiseSection
             itemId={item.id}
@@ -1331,6 +1372,14 @@ export function ItemDetailClient({
 
       {/* Related content */}
       <RelatedItems relatedItems={relatedItems} />
+
+      {/* Related by shared tags */}
+      {(item.user_tags?.length ?? 0) > 0 && (
+        <RelatedByTags
+          itemId={item.id}
+          tags={(item.user_tags as string[]) ?? []}
+        />
+      )}
     </>
   );
 

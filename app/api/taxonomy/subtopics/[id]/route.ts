@@ -4,6 +4,9 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TaxonomySubtopicUpdateSchema } from '@/lib/validation/schemas';
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * PATCH /api/taxonomy/subtopics/:id
  *
@@ -19,6 +22,13 @@ export async function PATCH(
     const { supabase } = auth;
 
     const { id } = await params;
+
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json(
+        { error: 'Invalid subtopic ID — must be a valid UUID' },
+        { status: 400 },
+      );
+    }
 
     const raw = await request.json();
     const parsed = parseBody(TaxonomySubtopicUpdateSchema, raw);

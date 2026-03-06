@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { Plus, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,15 @@ import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace-
 import { WorkspaceCreateDialog } from '@/components/workspace-create-dialog';
 import { WorkspaceDetailSheet } from '@/components/workspace-detail-sheet';
 import { useUserRole } from '@/hooks/use-user-role';
+import { cn } from '@/lib/utils';
 import type { Workspace } from '@/types/content';
+
+const TYPE_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'project', label: 'Projects' },
+  { value: 'bid', label: 'Bids' },
+  { value: 'kb_section', label: 'KB Sections' },
+] as const;
 
 interface WorkspacesContentProps {
   initialWorkspaces: Workspace[];
@@ -42,9 +50,14 @@ export function WorkspacesContent({
     null,
   );
   const [showArchived, setShowArchived] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
 
-  const activeWorkspaces = workspaces.filter((p) => !p.is_archived);
-  const archivedWorkspaces = workspaces.filter((p) => p.is_archived);
+  const filteredWorkspaces = useMemo(
+    () => typeFilter === 'all' ? workspaces : workspaces.filter((w) => w.type === typeFilter),
+    [workspaces, typeFilter],
+  );
+  const activeWorkspaces = filteredWorkspaces.filter((p) => !p.is_archived);
+  const archivedWorkspaces = filteredWorkspaces.filter((p) => p.is_archived);
 
   const handleCreated = useCallback((newWorkspace: Workspace) => {
     const enriched: WorkspaceWithCounts = {
@@ -145,6 +158,27 @@ export function WorkspacesContent({
             New Workspace
           </Button>
         )}
+      </div>
+
+      {/* Type filter */}
+      <div className="mt-4 flex gap-1" role="tablist" aria-label="Filter workspaces by type">
+        {TYPE_FILTERS.map(({ value, label }) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === value}
+            onClick={() => setTypeFilter(value)}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              typeFilter === value
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Active workspaces */}

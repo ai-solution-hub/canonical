@@ -82,12 +82,12 @@ export const CLIENT_CONFIG = {
       description: 'Rename, merge, and delete tags across the knowledge base',
     },
     coverage_dashboard: {
-      enabled: false,
+      enabled: true,
       label: 'Coverage Dashboard',
       description: 'Visualise tag and layer coverage across content',
     },
     content_layers: {
-      enabled: false,
+      enabled: true,
       label: 'Content Layers',
       description: 'Metadata-driven content depth layers (sales_brief → bid_detail → company_reference → research)',
     },

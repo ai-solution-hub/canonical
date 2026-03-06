@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
@@ -37,6 +37,16 @@ export default function TemplateCompletionPage() {
   const [fillJobId, setFillJobId] = useState<string | null>(null);
   const [latestCompletion, setLatestCompletion] = useState<TemplateCompletion | null>(null);
   const [fillResult, setFillResult] = useState<FillResult | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Clear polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Load existing templates and bid questions
   useEffect(() => {
@@ -132,12 +142,14 @@ export default function TemplateCompletionPage() {
 
           if (job.status === 'completed') {
             clearInterval(poll);
+            pollIntervalRef.current = null;
             await loadTemplateDetail(selectedTemplate.id);
             toast.success(
               `Analysis complete: ${job.result?.fields_found ?? 0} fields found`,
             );
           } else if (job.status === 'failed') {
             clearInterval(poll);
+            pollIntervalRef.current = null;
             toast.error(job.error_message ?? 'Analysis failed');
             await loadTemplateDetail(selectedTemplate.id);
           }
@@ -145,6 +157,7 @@ export default function TemplateCompletionPage() {
           // Polling errors are non-fatal — keep retrying
         }
       }, 2000);
+      pollIntervalRef.current = poll;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Analysis failed';
       toast.error(msg);

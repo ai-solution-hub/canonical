@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, History, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { BidResponseVersion } from '@/types/bid';
@@ -214,7 +215,7 @@ export function ResponseVersionHistory({
                                 'prose prose-sm max-h-64 max-w-none overflow-y-auto rounded bg-muted/50 p-3 text-sm',
                                 'dark:prose-invert',
                               )}
-                              dangerouslySetInnerHTML={{ __html: v.response_text }}
+                              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(v.response_text) }}
                             />
                           ) : (
                             <p className="text-sm italic text-muted-foreground">

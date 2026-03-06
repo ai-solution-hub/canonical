@@ -159,6 +159,7 @@ export interface Workspace {
   description: string | null;
   color: string;
   icon: string;
+  type: string;
   is_archived: boolean;
   created_at: string;
   updated_at: string;

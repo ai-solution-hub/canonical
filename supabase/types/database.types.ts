@@ -1198,6 +1198,29 @@ export type Database = {
         }[]
       }
       get_content_gaps: { Args: never; Returns: Json }
+      get_coverage_matrix: {
+        Args: { p_layer?: string }
+        Returns: {
+          aging_count: number
+          domain_name: string
+          expired_count: number
+          fresh_count: number
+          item_count: number
+          stale_count: number
+          subtopic_name: string
+        }[]
+      }
+      get_coverage_summary: {
+        Args: never
+        Returns: {
+          domain_colour: string
+          domain_name: string
+          expired_count: number
+          fresh_pct: number
+          gap_count: number
+          total_items: number
+        }[]
+      }
       get_domain_subtopic_counts: {
         Args: never
         Returns: {

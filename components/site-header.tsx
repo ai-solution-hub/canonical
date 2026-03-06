@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, BookOpen, FolderOpen, Briefcase, Library, Menu, Settings, ShieldCheck } from 'lucide-react';
+import { Search, FolderOpen, Library, Menu, Settings, ShieldCheck, BarChart3 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,12 +19,11 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { cn, getModifierKey } from '@/lib/utils';
 
 const NAV_LINKS = [
-  { href: '/browse', label: 'Browse', icon: null },
-  { href: '/library', label: 'Q&A Library', icon: Library },
-  { href: '/search', label: 'Search', icon: Search },
-  { href: '/workspaces', label: 'Workspaces', icon: FolderOpen },
-  { href: '/bid', label: 'Bids', icon: Briefcase },
-  { href: '/digest', label: 'Digest', icon: BookOpen },
+  { href: '/browse', label: 'Browse', icon: null, requiresEdit: false },
+  { href: '/library', label: 'Q&A Library', icon: Library, requiresEdit: false },
+  { href: '/coverage', label: 'Coverage', icon: BarChart3, requiresEdit: false },
+  { href: '/workspaces', label: 'Workspaces', icon: FolderOpen, requiresEdit: false },
+  { href: '/review', label: 'Review', icon: ShieldCheck, requiresEdit: true },
 ] as const;
 
 const SETTINGS_LINK = { href: '/settings', label: 'Settings', icon: Settings };
@@ -70,34 +69,25 @@ export function SiteHeader() {
         </Link>
 
         <div className="hidden items-center gap-1 sm:flex">
-          {NAV_LINKS.map(({ href, label, icon: Icon }) => {
+          {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
+            if (requiresEdit && !roleLoading && !canEdit) return null;
             const isActive = pathname === href || pathname?.startsWith(href + '/');
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
-                className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
+                  requiresEdit && roleLoading && 'pointer-events-none opacity-50',
+                )}
+                tabIndex={requiresEdit && roleLoading ? -1 : undefined}
               >
                 {Icon && <Icon className="size-3.5" />}
                 {label}
               </Link>
             );
           })}
-          {(roleLoading || canEdit) && (
-            <Link
-              href="/review"
-              aria-current={pathname === '/review' || pathname?.startsWith('/review/') ? 'page' : undefined}
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
-                roleLoading && 'pointer-events-none opacity-50',
-              )}
-              tabIndex={roleLoading ? -1 : undefined}
-            >
-              <ShieldCheck className="size-3.5" />
-              Review
-            </Link>
-          )}
         </div>
 
         <form
@@ -164,7 +154,8 @@ export function SiteHeader() {
             >
               Home
             </Link>
-            {NAV_LINKS.map(({ href, label, icon: Icon }) => {
+            {NAV_LINKS.map(({ href, label, icon: Icon, requiresEdit }) => {
+              if (requiresEdit && !roleLoading && !canEdit) return null;
               const isActive = pathname === href || pathname?.startsWith(href + '/');
               return (
                 <Link
@@ -177,31 +168,15 @@ export function SiteHeader() {
                     isActive
                       ? 'bg-accent text-foreground'
                       : 'text-muted-foreground',
+                    requiresEdit && roleLoading && 'pointer-events-none opacity-50',
                   )}
+                  tabIndex={requiresEdit && roleLoading ? -1 : undefined}
                 >
                   {Icon && <Icon className="size-4" />}
                   {label}
                 </Link>
               );
             })}
-            {(roleLoading || canEdit) && (
-              <Link
-                href="/review"
-                onClick={() => setMobileMenuOpen(false)}
-                aria-current={pathname === '/review' || pathname?.startsWith('/review/') ? 'page' : undefined}
-                className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                  pathname === '/review' || pathname?.startsWith('/review/')
-                    ? 'bg-accent text-foreground'
-                    : 'text-muted-foreground',
-                  roleLoading && 'pointer-events-none opacity-50',
-                )}
-                tabIndex={roleLoading ? -1 : undefined}
-              >
-                <ShieldCheck className="size-4" />
-                Review
-              </Link>
-            )}
             <Separator className="my-1" />
             <NotificationBell mobile />
             <Link

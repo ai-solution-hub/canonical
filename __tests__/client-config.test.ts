@@ -70,9 +70,9 @@ describe('isFeatureEnabled', () => {
     expect(isFeatureEnabled('bid_management')).toBe(true);
   });
 
-  it('returns false for disabled features', () => {
-    expect(isFeatureEnabled('coverage_dashboard')).toBe(false);
-    expect(isFeatureEnabled('content_layers')).toBe(false);
+  it('returns true for coverage_dashboard and content_layers (enabled Session 59)', () => {
+    expect(isFeatureEnabled('coverage_dashboard')).toBe(true);
+    expect(isFeatureEnabled('content_layers')).toBe(true);
   });
 });
 

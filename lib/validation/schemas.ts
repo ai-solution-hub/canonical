@@ -64,6 +64,7 @@ export const SearchBodySchema = z.object({
   query: z.string().trim().min(1, 'Query is required').max(2000),
   threshold: z.number().min(0).max(1).default(0.35),
   limit: z.number().int().min(1).max(100).default(20),
+  layer: z.string().max(50).optional(),
 });
 
 /** POST /api/embed */
