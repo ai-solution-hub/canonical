@@ -8,66 +8,17 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestRequest, createTestParams } from '../helpers/mock-next';
-import type { MockSupabaseClient } from '../helpers/mock-supabase';
+import { createMockSupabaseClient, configureRole as configureRoleHelper } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
-// vi.hoisted()
+// Shared mock client — lazy references in vi.mock() avoid hoisting issues
 // ---------------------------------------------------------------------------
 
-const { mockSupabase } = vi.hoisted(() => {
-  const createChain = () => {
-    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    const chainableMethods = [
-      'select', 'insert', 'update', 'upsert', 'delete',
-      'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-      'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
-    ];
-    for (const m of chainableMethods) {
-      chain[m] = vi.fn().mockReturnValue(chain);
-    }
-    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.csv = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
-    );
-    return chain;
-  };
-
-  const chain = createChain();
-  return {
-    mockSupabase: {
-      from: vi.fn().mockReturnValue(chain),
-      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'test-user-id', email: 'test@example.com' } },
-          error: null,
-        }),
-        admin: {
-          listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
-          createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-          updateUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-          deleteUser: vi.fn().mockResolvedValue({ data: null, error: null }),
-        },
-      },
-      storage: {
-        from: vi.fn().mockReturnValue({
-          upload: vi.fn().mockResolvedValue({ data: { path: 'test' }, error: null }),
-          download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
-          remove: vi.fn().mockResolvedValue({ data: [], error: null }),
-          list: vi.fn().mockResolvedValue({ data: [], error: null }),
-          getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
-        }),
-      },
-      _chain: chain,
-    } as unknown as MockSupabaseClient,
-  };
-});
+const mockSupabase = createMockSupabaseClient();
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockResolvedValue(mockSupabase),
-  createServiceClient: vi.fn().mockReturnValue(mockSupabase),
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
 }));
 
 vi.mock('next/headers', () => ({
@@ -95,10 +46,7 @@ import { PATCH } from '@/app/api/items/[id]/route';
 const VALID_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 
 function configureRole(role: 'admin' | 'editor' | 'viewer') {
-  mockSupabase._chain.single.mockResolvedValueOnce({
-    data: { role },
-    error: null,
-  });
+  configureRoleHelper(mockSupabase, role);
 }
 
 function configureItemFetch(overrides: Record<string, unknown> = {}) {

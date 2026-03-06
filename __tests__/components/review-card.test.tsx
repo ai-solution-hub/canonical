@@ -1,13 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
 // Mock taxonomy context (used by DomainBadge inside ReviewCard)
 vi.mock('@/contexts/taxonomy-context', () => ({
-  useTaxonomy: () => ({
-    getDomainColourKey: () => 'corporate',
-    formatDomainName: (d: string) => d,
-  }),
+  useTaxonomy: () => mockTaxonomyContext(),
 }));
 
 // Mock ContentRenderer to avoid react-markdown complexity in jsdom

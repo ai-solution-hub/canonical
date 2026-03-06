@@ -1,69 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  createMockSupabaseClient,
   configureRole,
   configureUnauthenticated,
 } from '../helpers/mock-supabase';
-import type { MockSupabaseClient } from '../helpers/mock-supabase';
 import { createTestRequest, createTestParams } from '../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
-// vi.hoisted() runs before vi.mock() factories — safe to reference in mocks
+// Shared mock client — lazy references in vi.mock() avoid hoisting issues
 // ---------------------------------------------------------------------------
 
-const { mockSupabase } = vi.hoisted(() => {
-  const createChain = () => {
-    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    const chainableMethods = [
-      'select', 'insert', 'update', 'upsert', 'delete',
-      'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-      'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
-    ];
-    for (const m of chainableMethods) {
-      chain[m] = vi.fn().mockReturnValue(chain);
-    }
-    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.csv = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
-    );
-    return chain;
-  };
-
-  const chain = createChain();
-  return {
-    mockSupabase: {
-      from: vi.fn().mockReturnValue(chain),
-      rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-      auth: {
-        getUser: vi.fn().mockResolvedValue({
-          data: { user: { id: 'test-user-id', email: 'test@example.com' } },
-          error: null,
-        }),
-        admin: {
-          listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
-          createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-          updateUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-          deleteUser: vi.fn().mockResolvedValue({ data: null, error: null }),
-        },
-      },
-      storage: {
-        from: vi.fn().mockReturnValue({
-          upload: vi.fn().mockResolvedValue({ data: { path: 'test' }, error: null }),
-          download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
-          remove: vi.fn().mockResolvedValue({ data: [], error: null }),
-          list: vi.fn().mockResolvedValue({ data: [], error: null }),
-          getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
-        }),
-      },
-      _chain: chain,
-    } as unknown as MockSupabaseClient,
-  };
-});
+const mockSupabase = createMockSupabaseClient();
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockResolvedValue(mockSupabase),
-  createServiceClient: vi.fn().mockReturnValue(mockSupabase),
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
 }));
 
 vi.mock('next/headers', () => ({

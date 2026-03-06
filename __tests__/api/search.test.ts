@@ -1,83 +1,34 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
+  createMockSupabaseClient,
   configureUnauthenticated,
 } from '../helpers/mock-supabase';
-import type { MockSupabaseClient } from '../helpers/mock-supabase';
 import { createTestRequest } from '../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
-// vi.hoisted() runs before vi.mock() factories — safe to reference in mocks
+// Shared mock client — lazy references in vi.mock() avoid hoisting issues
 // ---------------------------------------------------------------------------
 
-const { mockSupabase, mockEmbeddingsCreate, mockOpenAIConstructor, mockCreateClient, mockCookies } = vi.hoisted(() => {
-  const createChain = () => {
-    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
-    const chainableMethods = [
-      'select', 'insert', 'update', 'upsert', 'delete',
-      'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
-      'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
-    ];
-    for (const m of chainableMethods) {
-      chain[m] = vi.fn().mockReturnValue(chain);
-    }
-    chain.single = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.csv = vi.fn().mockResolvedValue({ data: null, error: null });
-    chain.then = vi.fn((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null, count: 0 }),
-    );
-    return chain;
-  };
+const mockSupabase = createMockSupabaseClient();
 
-  const chain = createChain();
-
+// Extra mocks that need hoisting for vi.mock() factory references
+const { mockEmbeddingsCreate, mockOpenAIConstructor, mockCookies } = vi.hoisted(() => {
   const mockEmbeddingsCreate = vi.fn().mockResolvedValue({
     data: [{ embedding: new Array(1024).fill(0) }],
   });
 
-  // Create mockSupabase as a local variable first so it can be referenced
-  // by mockCreateClient below (avoids self-referencing in return object literal)
-  const mockSupabase = {
-    from: vi.fn().mockReturnValue(chain),
-    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: 'test-user-id', email: 'test@example.com' } },
-        error: null,
-      }),
-      admin: {
-        listUsers: vi.fn().mockResolvedValue({ data: { users: [] }, error: null }),
-        createUser: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-        updateUserById: vi.fn().mockResolvedValue({ data: { user: null }, error: null }),
-        deleteUser: vi.fn().mockResolvedValue({ data: null, error: null }),
-      },
-    },
-    storage: {
-      from: vi.fn().mockReturnValue({
-        upload: vi.fn().mockResolvedValue({ data: { path: 'test' }, error: null }),
-        download: vi.fn().mockResolvedValue({ data: new Blob(), error: null }),
-        remove: vi.fn().mockResolvedValue({ data: [], error: null }),
-        list: vi.fn().mockResolvedValue({ data: [], error: null }),
-        getPublicUrl: vi.fn().mockReturnValue({ data: { publicUrl: 'https://example.com/file' } }),
-      }),
-    },
-    _chain: chain,
-  } as unknown as MockSupabaseClient;
-
   return {
-    mockSupabase,
     mockEmbeddingsCreate,
     mockOpenAIConstructor: vi.fn().mockImplementation(function () {
       return { embeddings: { create: mockEmbeddingsCreate } };
     }),
-    mockCreateClient: vi.fn().mockResolvedValue(mockSupabase),
     mockCookies: vi.fn().mockResolvedValue({ getAll: () => [], set: () => {} }),
   };
 });
 
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: mockCreateClient,
-  createServiceClient: vi.fn().mockReturnValue(mockSupabase),
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
 }));
 
 vi.mock('next/headers', () => ({
@@ -107,8 +58,7 @@ describe('POST /api/search', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Re-wire module-level mocks (cleared by clearAllMocks)
-    mockCreateClient.mockResolvedValue(mockSupabase);
+    // Re-wire next/headers mock (cleared by clearAllMocks)
     mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
 
     // Re-establish OpenAI constructor (must use function keyword, not arrow, for `new`)
