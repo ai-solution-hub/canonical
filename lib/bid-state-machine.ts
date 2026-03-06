@@ -17,18 +17,18 @@ export const BID_STATE_LABELS: Record<BidState, string> = {
   withdrawn: 'Withdrawn',
 };
 
-// State colour keys (WCAG 2.1 AA -- never colour alone, always paired with label + icon)
+// Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
 export const BID_STATE_COLOURS: Record<BidState, string> = {
-  draft: 'slate',
-  questions_extracted: 'blue',
-  matching: 'blue',
-  drafting: 'amber',
-  in_review: 'amber',
-  ready_for_export: 'green',
-  submitted: 'green',
-  won: 'emerald',
-  lost: 'red',
-  withdrawn: 'slate',
+  draft: 'bid-draft',
+  questions_extracted: 'bid-discovery',
+  matching: 'bid-discovery',
+  drafting: 'bid-active',
+  in_review: 'bid-active',
+  ready_for_export: 'bid-review',
+  submitted: 'bid-submitted',
+  won: 'bid-won',
+  lost: 'bid-lost',
+  withdrawn: 'bid-withdrawn',
 };
 
 const VALID_TRANSITIONS: Record<BidState, BidState[]> = {

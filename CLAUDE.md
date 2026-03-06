@@ -245,6 +245,94 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
   `bun run test`, `bun build`
 
+## Design Context
+
+### Design System: Warm Meridian
+
+**Philosophy:** `docs/design/warm-meridian-philosophy.md`
+**Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
+**Visual reference:** `docs/design/warm-meridian-identity.pdf`
+
+### Users
+
+Bid managers and knowledge owners at UK SMBs. They work in high-stakes,
+deadline-driven environments where the quality of a bid response can determine
+whether their company wins or loses significant contracts. They need to find
+information quickly, trust that it is current, and produce polished output under
+time pressure. The tool is used daily as a primary workspace, not occasionally.
+
+### Brand Personality
+
+**Calm, precise, trustworthy.** The interface should feel like a well-organised
+reference library staffed by an expert who anticipates what you need before you
+ask. Never flashy, never clever for its own sake — every visual decision serves
+orientation and clarity.
+
+### Emotional Goals
+
+**Confidence and control.** Users should feel they know exactly where everything
+is, trust the data they are reading, and feel in command of a complex process.
+The interface should reduce cognitive load, not add to it.
+
+### Aesthetic Direction
+
+- **Visual tone:** Restrained, architectural, cartographic. The Warm Meridian
+  philosophy is the primary reference — no external comparisons needed
+- **Colour system:** OKLCH throughout. Warm stone foundation (hue 48) with a
+  single amber signal frequency (hue 55) reserved for actionable elements.
+  Status colours use a teal/sand/rose semantic system. Domain colours are
+  low-chroma categorical, never competing with the signal
+- **Typography:** Instrument Sans — structural clarity, not decorative. One
+  family, hierarchy through weight and space. Atkinson Hyperlegible as
+  accessibility override
+- **Spacing:** 4pt grid with generous margins. Space is load-bearing
+  architecture — corridors that make rooms feel like arrivals
+- **Dark mode:** Full support with warm palette shift (not just inversion)
+- **Anti-references:** Generic SaaS dashboards with candy-coloured cards,
+  gamified interfaces, anything that prioritises visual excitement over
+  navigational clarity
+
+### Design Principles
+
+1. **Signal, not noise** — Amber warmth is reserved for moments of agency
+   (buttons, links, focus rings). It never decorates, never fills. If everything
+   is highlighted, nothing is
+2. **Orientation without instruction** — The user should always know where they
+   are and where to go next, without needing labels or arrows to tell them.
+   Spatial structure, tonal temperature shifts, and information density gradients
+   do the work
+3. **Semantic over arbitrary** — Every colour in the system has a defined
+   meaning (freshness, confidence, bid state, governance). Use the semantic
+   token, never a raw Tailwind colour class. One class handles both light and
+   dark modes automatically
+4. **Invisible craft** — The difficulty of the design should be hidden behind
+   the serenity of the result. If a user notices the design, it has failed. If
+   they find everything effortlessly, it has succeeded
+5. **Accessible by default** — WCAG 2.1 AA minimum. Never colour alone for
+   meaning (always icon + text + colour). Dyslexia mode, high contrast mode,
+   large text mode, reduced motion. Accessibility is not a feature — it is the
+   floor
+
+### Token Quick Reference
+
+When adding or modifying UI elements, use these semantic tokens:
+
+| Context | Token prefix | Example |
+|---------|-------------|---------|
+| Freshness states | `freshness-*` | `text-freshness-fresh`, `bg-freshness-aging-bg` |
+| Confidence postures | `confidence-*` | `text-confidence-strong`, `border-confidence-partial-border` |
+| Bid lifecycle | `bid-*` | `text-bid-active`, `bg-bid-won-bg` |
+| Governance status | `governance-*` | `text-governance-approved`, `border-governance-pending-border` |
+| Streaming phases | `phase-*` | `text-phase-drafting`, `bg-phase-done-bg` |
+| Template review | `template-*` | `text-template-confirmed`, `bg-template-unmapped-bg` |
+| Quality scoring | `quality-*` | `text-quality-good`, `bg-quality-moderate-bg` |
+| General status | `status-*` | `text-status-success`, `text-status-warning` |
+| Domain categories | `[var(--domain-*-text)]` | Already semantic in globals.css |
+
+**Rule:** Never use raw Tailwind colour classes (`text-green-600`,
+`bg-amber-50`, etc.) in components. Always use a semantic token. If no token
+exists for your use case, define one in `app/globals.css` first.
+
 ## Key Reference Documents
 
 ### Active Development — consult regularly
