@@ -14,6 +14,7 @@ import {
   Loader2,
   MoreHorizontal,
   Trash2,
+  ChevronDown,
 } from 'lucide-react';
 import { ReadToggleButton } from '@/components/read-toggle-button';
 import { StarButton } from '@/components/star-button';
@@ -287,6 +288,8 @@ export function ItemDetailClient({
   const [isEditing, setIsEditing] = useState(false);
   const [editDirty, setEditDirty] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  const [editStandard, setEditStandard] = useState('');
+  const [editAdvanced, setEditAdvanced] = useState('');
 
   // Tab-level editing state (brief / detail / reference / content)
   const [isSavingTab, setIsSavingTab] = useState(false);
@@ -303,6 +306,8 @@ export function ItemDetailClient({
     title: item.title,
     content: item.content,
   });
+
+  const isQAPair = item.content_type === 'q_a_pair';
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -456,8 +461,10 @@ export function ItemDetailClient({
   const enterEditMode = useCallback(() => {
     setIsEditing(true);
     setEditTitle(title);
+    setEditStandard(item.answer_standard ?? '');
+    setEditAdvanced(item.answer_advanced ?? '');
     setEditDirty(false);
-  }, [title]);
+  }, [title, item.answer_standard, item.answer_advanced]);
 
   const cancelEditMode = useCallback(() => {
     setIsEditing(false);
@@ -477,13 +484,34 @@ export function ItemDetailClient({
         if (!res.ok) throw new Error('Failed to save title');
         setItem((prev) => ({ ...prev, suggested_title: editTitle }));
       }
+      // Save Q&A fields if changed
+      if (isQAPair) {
+        if (editStandard !== (item.answer_standard ?? '')) {
+          const res = await fetch(`/api/items/${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field: 'answer_standard', value: editStandard || null }),
+          });
+          if (!res.ok) throw new Error('Failed to save standard answer');
+          setItem((prev) => ({ ...prev, answer_standard: editStandard || null }));
+        }
+        if (editAdvanced !== (item.answer_advanced ?? '')) {
+          const res = await fetch(`/api/items/${item.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ field: 'answer_advanced', value: editAdvanced || null }),
+          });
+          if (!res.ok) throw new Error('Failed to save advanced answer');
+          setItem((prev) => ({ ...prev, answer_advanced: editAdvanced || null }));
+        }
+      }
       setIsEditing(false);
       setEditDirty(false);
       toast.success('Changes saved');
     } catch {
       toast.error('Failed to save — please try again');
     }
-  }, [editTitle, title, item.id]);
+  }, [editTitle, title, item.id, isQAPair, editStandard, editAdvanced, item.answer_standard, item.answer_advanced]);
 
   // Copy answer handler (Q&A pairs)
   const handleCopyAnswer = useCallback(async (variant?: 'standard' | 'advanced') => {
@@ -550,6 +578,8 @@ export function ItemDetailClient({
         setIsEditing((prev) => {
           if (!prev) {
             setEditTitle(title);
+            setEditStandard(item.answer_standard ?? '');
+            setEditAdvanced(item.answer_advanced ?? '');
             setEditDirty(false);
           }
           return !prev;
@@ -576,7 +606,7 @@ export function ItemDetailClient({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [item.id, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title]);
+  }, [item.id, item.answer_standard, item.answer_advanced, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title]);
 
   const transcriptChapters =
     item.metadata &&
@@ -592,8 +622,53 @@ export function ItemDetailClient({
     [setPanelLayout],
   );
 
-  const isQAPair = item.content_type === 'q_a_pair';
   const hasReaderContent = !!(item.metadata?.reader_html) && !isQAPair;
+
+  // Q&A provenance: which bids use this pair
+  const [usedInWorkspaces, setUsedInWorkspaces] = useState<Array<{ id: string; name: string; type: string }>>([]);
+
+  // Q&A related: other pairs from the same source document
+  const [relatedQA, setRelatedQA] = useState<Array<{ id: string; title: string | null }>>([]);
+
+  useEffect(() => {
+    if (!isQAPair) return;
+    const fetchWorkspaces = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('content_item_workspaces')
+        .select('workspace_id, workspaces:workspace_id(id, name, type)')
+        .eq('content_item_id', item.id);
+      if (data) {
+        /* eslint-disable @typescript-eslint/no-explicit-any */
+        const workspaces = (data as any[])
+          .map((d) => d.workspaces)
+          .filter(Boolean)
+          .filter((w) => w.type === 'bid');
+        /* eslint-enable @typescript-eslint/no-explicit-any */
+        setUsedInWorkspaces(workspaces as Array<{ id: string; name: string; type: string }>);
+      }
+    };
+    fetchWorkspaces();
+  }, [item.id, isQAPair]);
+
+  useEffect(() => {
+    if (!isQAPair) return;
+    const sourceFile = (item.metadata as Record<string, unknown> | null)?.source_file as string | undefined;
+    if (!sourceFile) return;
+    const fetchRelated = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('content_items')
+        .select('id, title')
+        .eq('content_type', 'q_a_pair')
+        .eq('metadata->>source_file', sourceFile)
+        .neq('id', item.id)
+        .order('title')
+        .limit(10);
+      if (data) setRelatedQA(data as Array<{ id: string; title: string | null }>);
+    };
+    fetchRelated();
+  }, [item.id, item.metadata, isQAPair]);
 
   // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
   const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
@@ -762,15 +837,30 @@ export function ItemDetailClient({
               </Button>
             )}
             {isQAPair && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleCopyAnswer()}
-                className="gap-1.5"
-              >
-                <Copy className="size-3.5" />
-                Copy answer
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Copy className="size-3.5" />
+                    Copy answer
+                    <ChevronDown className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {item.answer_standard && (
+                    <DropdownMenuItem onClick={() => handleCopyAnswer('standard')}>
+                      Copy Standard
+                    </DropdownMenuItem>
+                  )}
+                  {item.answer_advanced && (
+                    <DropdownMenuItem onClick={() => handleCopyAnswer('advanced')}>
+                      Copy Advanced
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => handleCopyAnswer()}>
+                    Copy All
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
             <StarButton
               itemId={item.id}
@@ -882,54 +972,76 @@ export function ItemDetailClient({
           {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
           {isQAPair ? (
             <div className="mb-6 space-y-4">
-              {item.answer_standard && (
+              {(item.answer_standard || isEditing) && (
                 <div className="rounded-xl border border-border bg-card">
                   <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                     <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Standard Answer
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => handleCopyAnswer('standard')}
-                    >
-                      <Copy className="size-3" />
-                      Copy
-                    </Button>
+                    {!isEditing && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => handleCopyAnswer('standard')}
+                      >
+                        <Copy className="size-3" />
+                        Copy
+                      </Button>
+                    )}
                   </div>
                   <div className="p-4">
-                    <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_standard}</p>
+                    {isEditing ? (
+                      <textarea
+                        value={editStandard}
+                        onChange={(e) => { setEditStandard(e.target.value); setEditDirty(true); }}
+                        className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder="Standard answer..."
+                      />
+                    ) : (
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_standard}</p>
+                    )}
                   </div>
                 </div>
               )}
-              {item.answer_advanced && (
+              {(item.answer_advanced || isEditing) && (
                 <div className="rounded-xl border border-border bg-card">
                   <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                     <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       Advanced Answer
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => handleCopyAnswer('advanced')}
-                    >
-                      <Copy className="size-3" />
-                      Copy
-                    </Button>
+                    {!isEditing && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => handleCopyAnswer('advanced')}
+                      >
+                        <Copy className="size-3" />
+                        Copy
+                      </Button>
+                    )}
                   </div>
                   <div className="p-4">
-                    <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_advanced}</p>
+                    {isEditing ? (
+                      <textarea
+                        value={editAdvanced}
+                        onChange={(e) => { setEditAdvanced(e.target.value); setEditDirty(true); }}
+                        className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        placeholder="Advanced answer..."
+                      />
+                    ) : (
+                      <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_advanced}</p>
+                    )}
                   </div>
                 </div>
               )}
-              {!item.answer_standard && !item.answer_advanced && item.content && (
+              {!item.answer_standard && !item.answer_advanced && !isEditing && item.content && (
                 <div className="rounded-xl border border-border bg-card p-4">
                   <p className="text-sm leading-relaxed whitespace-pre-line">{item.content}</p>
                 </div>
               )}
-              {!item.answer_standard && !item.answer_advanced && !item.content && (
+              {!item.answer_standard && !item.answer_advanced && !isEditing && !item.content && (
                 <div className="rounded-xl border border-border bg-card p-8 text-center">
                   <p className="text-sm text-muted-foreground">No answer recorded yet.</p>
                 </div>
@@ -937,6 +1049,47 @@ export function ItemDetailClient({
             </div>
           ) : (
             contentTabsElement
+          )}
+
+          {/* Q&A provenance: bids using this pair */}
+          {isQAPair && usedInWorkspaces.length > 0 && (
+            <div className="mb-6 rounded-xl border border-border bg-card p-4">
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Used in {usedInWorkspaces.length} bid{usedInWorkspaces.length !== 1 ? 's' : ''}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {usedInWorkspaces.map((w) => (
+                  <Link
+                    key={w.id}
+                    href={`/bid/${w.id}`}
+                    className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground hover:bg-accent transition-colors"
+                  >
+                    {w.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Q&A related pairs from the same source document */}
+          {isQAPair && relatedQA.length > 0 && (
+            <div className="mb-6 rounded-xl border border-border bg-card p-4">
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Related Q&A pairs (same source)
+              </h3>
+              <ul className="space-y-1">
+                {relatedQA.map((q) => (
+                  <li key={q.id}>
+                    <Link
+                      href={`/item/${q.id}`}
+                      className="block rounded px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
+                    >
+                      {q.title ?? 'Untitled'}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {/* Table of Contents (not shown for Q&A pairs) */}
@@ -990,16 +1143,16 @@ export function ItemDetailClient({
               </section>
             )}
 
-          {/* OrganiseSection (Item 6) — replaces separate keywords/projects/tags */}
+          {/* OrganiseSection (Item 6) — replaces separate keywords/workspaces/tags */}
           <OrganiseSection
             itemId={item.id}
             keywords={(item.ai_keywords as string[]) ?? []}
-            projects={[]}
+            workspaces={[]}
             tags={(item.user_tags as string[]) ?? []}
             canEdit={canEdit}
             onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
             onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
-            onProjectsChanged={() => {}}
+            onWorkspacesChanged={() => {}}
             className="mb-6"
           />
         </article>

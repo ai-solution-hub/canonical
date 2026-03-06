@@ -11,36 +11,36 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import type { Project } from '@/types/content';
+import type { Workspace } from '@/types/content';
 
-interface ProjectSelectorProps {
+interface WorkspaceSelectorProps {
   itemId: string;
   className?: string;
 }
 
-export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
+export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps) {
   const [open, setOpen] = useState(false);
-  const [allProjects, setAllProjects] = useState<Project[]>([]);
-  const [itemProjects, setItemProjects] = useState<Project[]>([]);
+  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
+  const [itemWorkspaces, setItemWorkspaces] = useState<Workspace[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch projects when popover opens
+  // Fetch workspaces when popover opens
   useEffect(() => {
     if (!open) return;
     const fetchData = async () => {
       setLoading(true);
       try {
         const [allRes, itemRes] = await Promise.all([
-          fetch('/api/projects'),
+          fetch('/api/workspaces'),
           fetch(`/api/items/${itemId}/projects`),
         ]);
-        if (allRes.ok) setAllProjects(await allRes.json());
-        if (itemRes.ok) setItemProjects(await itemRes.json());
+        if (allRes.ok) setAllWorkspaces(await allRes.json());
+        if (itemRes.ok) setItemWorkspaces(await itemRes.json());
       } catch {
-        toast.error('Failed to load projects');
+        toast.error('Failed to load workspaces');
       } finally {
         setLoading(false);
       }
@@ -49,40 +49,40 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
   }, [open, itemId]);
 
   const isAssigned = useCallback(
-    (projectId: string) => itemProjects.some((p) => p.id === projectId),
-    [itemProjects],
+    (workspaceId: string) => itemWorkspaces.some((p) => p.id === workspaceId),
+    [itemWorkspaces],
   );
 
   const handleToggle = useCallback(
-    async (project: Project) => {
-      const assigned = isAssigned(project.id);
+    async (workspace: Workspace) => {
+      const assigned = isAssigned(workspace.id);
       const action = assigned ? 'unassign' : 'assign';
 
       // Optimistic update
       if (assigned) {
-        setItemProjects((prev) => prev.filter((p) => p.id !== project.id));
+        setItemWorkspaces((prev) => prev.filter((p) => p.id !== workspace.id));
       } else {
-        setItemProjects((prev) => [...prev, project]);
+        setItemWorkspaces((prev) => [...prev, workspace]);
       }
 
       try {
         const res = await fetch(`/api/items/${itemId}/projects`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_id: project.id, action }),
+          body: JSON.stringify({ project_id: workspace.id, action }),
         });
         if (!res.ok) throw new Error();
-        toast(assigned ? `Removed from ${project.name}` : `Added to ${project.name}`, {
+        toast(assigned ? `Removed from ${workspace.name}` : `Added to ${workspace.name}`, {
           duration: 1500,
         });
       } catch {
         // Rollback
         if (assigned) {
-          setItemProjects((prev) => [...prev, project]);
+          setItemWorkspaces((prev) => [...prev, workspace]);
         } else {
-          setItemProjects((prev) => prev.filter((p) => p.id !== project.id));
+          setItemWorkspaces((prev) => prev.filter((p) => p.id !== workspace.id));
         }
-        toast.error(`Failed to ${action} project`);
+        toast.error(`Failed to ${action} workspace`);
       }
     },
     [itemId, isAssigned],
@@ -99,52 +99,52 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to create project');
+        throw new Error(data.error || 'Failed to create workspace');
       }
-      const newProject: Project = await res.json();
-      setAllProjects((prev) => [...prev, newProject].sort((a, b) => a.name.localeCompare(b.name)));
-      setItemProjects((prev) => [...prev, newProject]);
+      const newWorkspace: Workspace = await res.json();
+      setAllWorkspaces((prev) => [...prev, newWorkspace].sort((a, b) => a.name.localeCompare(b.name)));
+      setItemWorkspaces((prev) => [...prev, newWorkspace]);
       setSearch('');
-      toast(`Created and assigned "${newProject.name}"`, { duration: 2000 });
+      toast(`Created and assigned "${newWorkspace.name}"`, { duration: 2000 });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create project');
+      toast.error(err instanceof Error ? err.message : 'Failed to create workspace');
     } finally {
       setCreating(false);
     }
   }, [search, itemId]);
 
-  const filtered = allProjects.filter((p) =>
+  const filtered = allWorkspaces.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()),
   );
   const showCreateOption =
     search.trim() &&
-    !allProjects.some(
+    !allWorkspaces.some(
       (p) => p.name.toLowerCase() === search.trim().toLowerCase(),
     );
 
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Projects
+        Workspaces
       </h2>
 
-      {/* Assigned project badges */}
-      {itemProjects.length > 0 && (
+      {/* Assigned workspace badges */}
+      {itemWorkspaces.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {itemProjects.map((project) => (
+          {itemWorkspaces.map((workspace) => (
             <span
-              key={project.id}
+              key={workspace.id}
               className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium"
             >
               <span
                 className="size-2 shrink-0 rounded-full"
-                style={{ backgroundColor: project.color }}
+                style={{ backgroundColor: workspace.color }}
               />
-              {project.name}
+              {workspace.name}
               <button
-                onClick={() => handleToggle(project)}
+                onClick={() => handleToggle(workspace)}
                 className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-foreground/10"
-                aria-label={`Remove from ${project.name}`}
+                aria-label={`Remove from ${workspace.name}`}
               >
                 <X className="size-3" />
               </button>
@@ -161,14 +161,14 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
             className="h-7 w-fit gap-1.5 border-dashed text-xs text-muted-foreground"
           >
             <FolderOpen className="size-3.5" />
-            {itemProjects.length === 0 ? 'Add to project' : 'Manage projects'}
+            {itemWorkspaces.length === 0 ? 'Add to workspace' : 'Manage workspaces'}
             <ChevronsUpDown className="size-3 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-2">
           <Input
             ref={inputRef}
-            placeholder="Search or create project..."
+            placeholder="Search or create workspace..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -186,13 +186,13 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
               </p>
             ) : (
               <>
-                {filtered.map((project) => {
-                  const assigned = isAssigned(project.id);
+                {filtered.map((workspace) => {
+                  const assigned = isAssigned(workspace.id);
                   return (
                     <button
-                      key={project.id}
+                      key={workspace.id}
                       type="button"
-                      onClick={() => handleToggle(project)}
+                      onClick={() => handleToggle(workspace)}
                       className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm transition-colors hover:bg-accent"
                     >
                       <Check
@@ -203,9 +203,9 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
                       />
                       <span
                         className="size-2.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: project.color }}
+                        style={{ backgroundColor: workspace.color }}
                       />
-                      <span className="truncate">{project.name}</span>
+                      <span className="truncate">{workspace.name}</span>
                     </button>
                   );
                 })}
@@ -224,7 +224,7 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
                 )}
                 {filtered.length === 0 && !showCreateOption && (
                   <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    No projects found
+                    No workspaces found
                   </p>
                 )}
               </>
@@ -237,7 +237,7 @@ export function ProjectSelector({ itemId, className }: ProjectSelectorProps) {
 }
 
 /** Small coloured badge for cards/rows */
-export function ProjectBadge({
+export function WorkspaceBadge({
   name,
   color,
 }: {

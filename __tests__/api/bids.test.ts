@@ -230,7 +230,7 @@ describe('POST /api/bids', () => {
     expect(body.id).toBe(VALID_UUID);
     expect(body.name).toBe('Test Bid');
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('projects');
+    expect(mockSupabase.from).toHaveBeenCalledWith('workspaces');
     expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'New Bid',
@@ -558,7 +558,7 @@ describe('DELETE /api/bids/[id]', () => {
 
     expect(res.status).toBe(204);
 
-    expect(mockSupabase.from).toHaveBeenCalledWith('projects');
+    expect(mockSupabase.from).toHaveBeenCalledWith('workspaces');
     expect(mockSupabase._chain.delete).toHaveBeenCalled();
     expect(mockSupabase._chain.eq).toHaveBeenCalledWith('id', VALID_UUID);
   });

@@ -130,7 +130,7 @@ export async function POST(
 
     // Verify bid exists and is not in a terminal state
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, status, domain_metadata')
       .eq('id', bidId)
       .eq('type', 'bid')
@@ -245,7 +245,7 @@ export async function GET(
 
     // Verify bid exists
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id')
       .eq('id', bidId)
       .eq('type', 'bid')

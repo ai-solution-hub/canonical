@@ -93,10 +93,10 @@ function resetMocks() {
 
 /**
  * Helper: configure mocks for a successful export scenario.
- * Sets up bid project lookup and questions with responses.
+ * Sets up bid workspace lookup and questions with responses.
  */
 function configureBidWithQuestions(bidName = 'Test Bid') {
-  // First .single(): bid project lookup
+  // First .single(): bid workspace lookup
   mockSupabase._chain.single.mockResolvedValueOnce({
     data: {
       id: BID_UUID,

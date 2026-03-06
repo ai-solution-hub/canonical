@@ -34,7 +34,7 @@ export async function GET(
 
     // Fetch the bid (project with type = 'bid')
     const { data: bid, error } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select(
         'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
       )
@@ -104,7 +104,7 @@ export async function PATCH(
 
     // Fetch current bid to get existing domain_metadata
     const { data: current, error: fetchError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, name, description, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -142,18 +142,18 @@ export async function PATCH(
     };
 
     // Build project-level updates
-    const projectUpdates: Record<string, unknown> = {
+    const workspaceUpdates: Record<string, unknown> = {
       domain_metadata: updatedMetadata,
       updated_by: user.id,
       updated_at: new Date().toISOString(),
     };
-    if (name !== undefined) projectUpdates.name = name;
-    if (description !== undefined) projectUpdates.description = description;
-    if (status !== undefined) projectUpdates.status = status;
+    if (name !== undefined) workspaceUpdates.name = name;
+    if (description !== undefined) workspaceUpdates.description = description;
+    if (status !== undefined) workspaceUpdates.status = status;
 
     const { data: updated, error: updateError } = await supabase
-      .from('projects')
-      .update(projectUpdates)
+      .from('workspaces')
+      .update(workspaceUpdates)
       .eq('id', id)
       .eq('type', 'bid')
       .select(
@@ -211,7 +211,7 @@ export async function DELETE(
 
     // Verify bid exists before cleanup
     const { data: bid, error: fetchError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -271,7 +271,7 @@ export async function DELETE(
     }
 
     const { error } = await supabase
-      .from('projects')
+      .from('workspaces')
       .delete()
       .eq('id', id)
       .eq('type', 'bid');

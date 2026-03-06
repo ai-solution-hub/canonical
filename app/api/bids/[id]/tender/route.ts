@@ -98,7 +98,7 @@ export async function POST(
 
     // Verify bid exists
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -170,7 +170,7 @@ export async function POST(
       : [...existingDocIds, storagePath];
 
     const { error: updateError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .update({
         domain_metadata: {
           ...currentMetadata,

@@ -11,6 +11,7 @@ import { ContentTypeIcon } from '@/components/content-type-icon';
 import { AlertTriangle, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { highlightTerms } from '@/lib/highlight';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
 interface ContentRowProps {
@@ -18,6 +19,7 @@ interface ContentRowProps {
   isActive?: boolean;
   isRead?: boolean;
   hasQualityFlag?: boolean;
+  highlightQuery?: string;
 }
 
 function isSearchResult(
@@ -31,9 +33,14 @@ export function ContentRow({
   isActive = false,
   isRead,
   hasQualityFlag,
+  highlightQuery,
 }: ContentRowProps) {
   const title = getDisplayTitle(item);
   const isQAPair = item.content_type === 'q_a_pair';
+
+  /** Conditionally highlight text when a query is provided */
+  const renderText = (text: string) =>
+    highlightQuery ? highlightTerms(text, highlightQuery) : text;
 
   // Answer snippet for Q&A rows
   const answerSnippet = isQAPair
@@ -68,7 +75,7 @@ export function ContentRow({
               )}
             >
               <span className="text-muted-foreground">Q:&nbsp;</span>
-              {title}
+              {renderText(title)}
             </span>
             <DomainBadge
               domain={item.primary_domain ?? ''}
@@ -91,11 +98,11 @@ export function ContentRow({
             )}
           >
             {isSearchResult(item) && item.snippet ? (
-              `\u2026${item.snippet}\u2026`
+              renderText(`\u2026${item.snippet}\u2026`)
             ) : answerSnippet ? (
               <span className="flex items-center gap-1">
                 <span className="font-medium">A:</span>
-                <span className="truncate">{answerSnippet}</span>
+                <span className="truncate">{renderText(answerSnippet)}</span>
               </span>
             ) : item.source_document ? (
               <span className="flex items-center gap-1">
@@ -170,7 +177,7 @@ export function ContentRow({
               isRead === false ? 'font-semibold' : 'font-normal',
             )}
           >
-            {title}
+            {renderText(title)}
           </span>
           <DomainBadge
             domain={item.primary_domain ?? ''}
@@ -193,7 +200,7 @@ export function ContentRow({
           )}
         >
           {isSearchResult(item) && item.snippet ? (
-            `\u2026${item.snippet}\u2026`
+            renderText(`\u2026${item.snippet}\u2026`)
           ) : (
             <span className="flex items-center gap-1">
               <ContentTypeIcon contentType={item.content_type} size="size-3" />

@@ -13,6 +13,7 @@ interface ContentListProps {
   multiSelectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (itemId: string) => void;
+  highlightQuery?: string;
 }
 
 export function ContentList({
@@ -23,6 +24,7 @@ export function ContentList({
   multiSelectMode,
   selectedIds,
   onToggleSelect,
+  highlightQuery,
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -122,6 +124,7 @@ export function ContentList({
                   isActive={virtualItem.index === activeIndex}
                   isRead={readItemIds ? readItemIds.has(item.id) : undefined}
                   hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
+                  highlightQuery={highlightQuery}
                 />
               </div>
             </div>

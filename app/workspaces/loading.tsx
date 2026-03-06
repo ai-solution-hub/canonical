@@ -1,4 +1,4 @@
-export default function ProjectsLoading() {
+export default function WorkspacesLoading() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header: title + button */}
@@ -13,7 +13,7 @@ export default function ProjectsLoading() {
       {/* Section heading */}
       <div className="mt-6 mb-4 h-4 w-44 animate-pulse rounded bg-accent" />
 
-      {/* Project cards grid */}
+      {/* Workspace cards grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <div

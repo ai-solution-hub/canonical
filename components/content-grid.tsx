@@ -24,6 +24,7 @@ interface ContentGridProps {
   selectedIds?: Set<string>;
   onToggleSelect?: (itemId: string) => void;
   hideThumbnails?: boolean;
+  highlightQuery?: string;
 }
 
 export function ContentGrid({
@@ -35,6 +36,7 @@ export function ContentGrid({
   selectedIds,
   onToggleSelect,
   hideThumbnails,
+  highlightQuery,
 }: ContentGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
@@ -222,6 +224,7 @@ export function ContentGrid({
                 isRead={readItemIds ? readItemIds.has(item.id) : undefined}
                 hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                 hideThumbnail={hideThumbnails}
+                highlightQuery={highlightQuery}
               />
             </div>
           );
@@ -329,6 +332,7 @@ export function ContentGrid({
                       }
                       hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                       hideThumbnail={hideThumbnails}
+                      highlightQuery={highlightQuery}
                     />
                   </div>
                   );

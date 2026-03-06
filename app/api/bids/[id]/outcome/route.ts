@@ -38,7 +38,7 @@ export async function POST(
 
     // Fetch the bid
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -76,7 +76,7 @@ export async function POST(
     };
 
     const { error: updateError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .update({
         status: outcome,
         domain_metadata: updatedMetadata,

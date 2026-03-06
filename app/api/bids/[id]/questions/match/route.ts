@@ -57,7 +57,7 @@ export async function POST(
 
     // Verify bid exists
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -210,7 +210,7 @@ export async function POST(
 
       if (unmatchedCount === null || unmatchedCount === 0) {
         await supabase
-          .from('projects')
+          .from('workspaces')
           .update({
             status: 'drafting',
             updated_by: user.id,

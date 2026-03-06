@@ -4,104 +4,104 @@ import { useState, useCallback } from 'react';
 import { Plus, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { ProjectCard, type ProjectWithCounts } from '@/components/project-card';
-import { ProjectCreateDialog } from '@/components/project-create-dialog';
-import { ProjectDetailSheet } from '@/components/project-detail-sheet';
+import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace-card';
+import { WorkspaceCreateDialog } from '@/components/workspace-create-dialog';
+import { WorkspaceDetailSheet } from '@/components/workspace-detail-sheet';
 import { useUserRole } from '@/hooks/use-user-role';
-import type { Project } from '@/types/content';
+import type { Workspace } from '@/types/content';
 
-interface ProjectsContentProps {
-  initialProjects: Project[];
+interface WorkspacesContentProps {
+  initialWorkspaces: Workspace[];
   initialCounts: Record<
     string,
     { item_count: number; last_activity: string | null }
   >;
 }
 
-function enrichProjects(
-  projects: Project[],
+function enrichWorkspaces(
+  workspaces: Workspace[],
   counts: Record<string, { item_count: number; last_activity: string | null }>,
-): ProjectWithCounts[] {
-  return projects.map((p) => ({
+): WorkspaceWithCounts[] {
+  return workspaces.map((p) => ({
     ...p,
     item_count: counts[p.id]?.item_count ?? 0,
     last_activity: counts[p.id]?.last_activity ?? null,
   }));
 }
 
-export function ProjectsContent({
-  initialProjects,
+export function WorkspacesContent({
+  initialWorkspaces,
   initialCounts,
-}: ProjectsContentProps) {
+}: WorkspacesContentProps) {
   const { canEdit, canAdmin } = useUserRole();
-  const [projects, setProjects] = useState<ProjectWithCounts[]>(() =>
-    enrichProjects(initialProjects, initialCounts),
+  const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>(() =>
+    enrichWorkspaces(initialWorkspaces, initialCounts),
   );
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [editProject, setEditProject] = useState<ProjectWithCounts | null>(
+  const [editWorkspace, setEditWorkspace] = useState<WorkspaceWithCounts | null>(
     null,
   );
   const [showArchived, setShowArchived] = useState(false);
 
-  const activeProjects = projects.filter((p) => !p.is_archived);
-  const archivedProjects = projects.filter((p) => p.is_archived);
+  const activeWorkspaces = workspaces.filter((p) => !p.is_archived);
+  const archivedWorkspaces = workspaces.filter((p) => p.is_archived);
 
-  const handleCreated = useCallback((newProject: Project) => {
-    const enriched: ProjectWithCounts = {
-      ...newProject,
+  const handleCreated = useCallback((newWorkspace: Workspace) => {
+    const enriched: WorkspaceWithCounts = {
+      ...newWorkspace,
       item_count: 0,
       last_activity: null,
     };
-    setProjects((prev) =>
+    setWorkspaces((prev) =>
       [...prev, enriched].sort((a, b) => a.name.localeCompare(b.name)),
     );
   }, []);
 
-  const handleUpdated = useCallback((updated: ProjectWithCounts) => {
-    setProjects((prev) =>
+  const handleUpdated = useCallback((updated: WorkspaceWithCounts) => {
+    setWorkspaces((prev) =>
       prev
         .map((p) => (p.id === updated.id ? updated : p))
         .sort((a, b) => a.name.localeCompare(b.name)),
     );
-    setEditProject((prev) =>
+    setEditWorkspace((prev) =>
       prev?.id === updated.id ? updated : prev,
     );
   }, []);
 
   const handleArchiveToggle = useCallback(
-    async (project: ProjectWithCounts) => {
-      const newArchived = !project.is_archived;
+    async (workspace: WorkspaceWithCounts) => {
+      const newArchived = !workspace.is_archived;
       const label = newArchived ? 'Archived' : 'Unarchived';
 
       // Optimistic update
-      setProjects((prev) =>
+      setWorkspaces((prev) =>
         prev.map((p) =>
-          p.id === project.id ? { ...p, is_archived: newArchived } : p,
+          p.id === workspace.id ? { ...p, is_archived: newArchived } : p,
         ),
       );
 
       try {
-        const res = await fetch(`/api/projects/${project.id}`, {
+        const res = await fetch(`/api/workspaces/${workspace.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_archived: newArchived }),
         });
         if (!res.ok) throw new Error();
 
-        toast(`${label} "${project.name}"`, {
+        toast(`${label} "${workspace.name}"`, {
           duration: 3000,
           action: {
             label: 'Undo',
             onClick: async () => {
               // Revert
-              setProjects((prev) =>
+              setWorkspaces((prev) =>
                 prev.map((p) =>
-                  p.id === project.id
+                  p.id === workspace.id
                     ? { ...p, is_archived: !newArchived }
                     : p,
                 ),
               );
-              await fetch(`/api/projects/${project.id}`, {
+              await fetch(`/api/workspaces/${workspace.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_archived: !newArchived }),
@@ -111,19 +111,19 @@ export function ProjectsContent({
         });
       } catch {
         // Rollback
-        setProjects((prev) =>
+        setWorkspaces((prev) =>
           prev.map((p) =>
-            p.id === project.id ? { ...p, is_archived: !newArchived } : p,
+            p.id === workspace.id ? { ...p, is_archived: !newArchived } : p,
           ),
         );
-        toast.error(`Failed to ${label.toLowerCase()} project`);
+        toast.error(`Failed to ${label.toLowerCase()} workspace`);
       }
     },
     [],
   );
 
-  const handleDeleted = useCallback((projectId: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== projectId));
+  const handleDeleted = useCallback((workspaceId: string) => {
+    setWorkspaces((prev) => prev.filter((p) => p.id !== workspaceId));
   }, []);
 
   return (
@@ -131,9 +131,9 @@ export function ProjectsContent({
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-fluid-2xl font-bold tracking-tight">Projects</h1>
+          <h1 className="text-fluid-2xl font-bold tracking-tight">Workspaces</h1>
           <p className="mt-1 text-muted-foreground">
-            Manage your project collections.
+            Manage your workspace collections.
           </p>
         </div>
         {canEdit && (
@@ -142,22 +142,22 @@ export function ProjectsContent({
             className="gap-1.5"
           >
             <Plus className="size-4" />
-            New Project
+            New Workspace
           </Button>
         )}
       </div>
 
-      {/* Active projects */}
+      {/* Active workspaces */}
       <section className="mt-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          Active Projects ({activeProjects.length})
+          Active Workspaces ({activeWorkspaces.length})
         </h2>
 
-        {activeProjects.length === 0 ? (
+        {activeWorkspaces.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
             <FolderOpen className="mb-3 size-10 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">
-              No projects yet. Create your first project to start organising
+              No workspaces yet. Create your first workspace to start organising
               content.
             </p>
             {canEdit && (
@@ -167,17 +167,17 @@ export function ProjectsContent({
                 onClick={() => setShowCreateDialog(true)}
               >
                 <Plus className="size-4" />
-                Create Project
+                Create Workspace
               </Button>
             )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {activeProjects.map((project) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                onEdit={setEditProject}
+            {activeWorkspaces.map((workspace) => (
+              <WorkspaceCard
+                key={workspace.id}
+                workspace={workspace}
+                onEdit={setEditWorkspace}
                 onArchiveToggle={handleArchiveToggle}
                 readOnly={!canEdit}
               />
@@ -186,14 +186,14 @@ export function ProjectsContent({
         )}
       </section>
 
-      {/* Archived projects */}
-      {archivedProjects.length > 0 && (
+      {/* Archived workspaces */}
+      {archivedWorkspaces.length > 0 && (
         <section className="mt-8">
           <button
             type="button"
             onClick={() => setShowArchived((prev) => !prev)}
             aria-expanded={showArchived}
-            aria-controls="archived-projects"
+            aria-controls="archived-workspaces"
             className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           >
             {showArchived ? (
@@ -201,16 +201,16 @@ export function ProjectsContent({
             ) : (
               <ChevronRight className="size-4" />
             )}
-            Archived Projects ({archivedProjects.length})
+            Archived Workspaces ({archivedWorkspaces.length})
           </button>
 
           {showArchived && (
-            <div id="archived-projects" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {archivedProjects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  onEdit={setEditProject}
+            <div id="archived-workspaces" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {archivedWorkspaces.map((workspace) => (
+                <WorkspaceCard
+                  key={workspace.id}
+                  workspace={workspace}
+                  onEdit={setEditWorkspace}
                   onArchiveToggle={handleArchiveToggle}
                   readOnly={!canEdit}
                 />
@@ -221,18 +221,18 @@ export function ProjectsContent({
       )}
 
       {/* Create dialog */}
-      <ProjectCreateDialog
+      <WorkspaceCreateDialog
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         onCreated={handleCreated}
       />
 
       {/* Detail sheet */}
-      <ProjectDetailSheet
-        project={editProject}
-        open={!!editProject}
+      <WorkspaceDetailSheet
+        workspace={editWorkspace}
+        open={!!editWorkspace}
         onOpenChange={(v) => {
-          if (!v) setEditProject(null);
+          if (!v) setEditWorkspace(null);
         }}
         onUpdated={handleUpdated}
         onArchiveToggle={handleArchiveToggle}

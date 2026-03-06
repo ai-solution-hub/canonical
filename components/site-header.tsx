@@ -22,7 +22,7 @@ const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: null },
   { href: '/library', label: 'Q&A Library', icon: Library },
   { href: '/search', label: 'Search', icon: Search },
-  { href: '/projects', label: 'Projects', icon: FolderOpen },
+  { href: '/workspaces', label: 'Workspaces', icon: FolderOpen },
   { href: '/bid', label: 'Bids', icon: Briefcase },
   { href: '/digest', label: 'Digest', icon: BookOpen },
 ] as const;

@@ -27,7 +27,7 @@ export type FillStatus = typeof FILL_STATUSES[number];
 // ──────────────────────────────────────────
 
 export const TemplateUploadBodySchema = z.object({
-  project_id: z.string().uuid('Invalid project ID'),
+  project_id: z.string().uuid('Invalid workspace ID'),
   name: z.string().min(1, 'Template name is required').max(200),
   description: z.string().max(1000).optional(),
 });

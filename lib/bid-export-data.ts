@@ -46,9 +46,9 @@ export async function fetchBidExportData(
     );
   }
 
-  // Fetch bid project
+  // Fetch bid workspace
   const { data: bid, error: bidError } = await supabase
-    .from('projects')
+    .from('workspaces')
     .select('id, name, type, status, domain_metadata')
     .eq('id', bidId)
     .eq('type', 'bid')

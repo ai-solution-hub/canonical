@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     );
 
     let query = supabase
-      .from('projects')
+      .from('workspaces')
       .select(
         'id, name, description, status, domain_metadata, is_archived, created_by, created_at, updated_at, updated_by',
         { count: 'exact' },
@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status);
     }
 
-    const { data: projects, error, count } = await query;
+    const { data: workspaces, error, count } = await query;
 
     if (error) {
       console.error('Failed to fetch bids:', error);
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Enrich each bid with question statistics (batch to avoid N+1)
-    const bidIds = (projects ?? []).map((p) => p.id);
+    const bidIds = (workspaces ?? []).map((p) => p.id);
     const statsMap = new Map<string, Record<string, unknown>>();
 
     if (bidIds.length > 0) {
@@ -90,9 +90,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const bids = (projects ?? []).map((project) => ({
-      ...project,
-      question_stats: statsMap.get(project.id) ?? null,
+    const bids = (workspaces ?? []).map((workspace) => ({
+      ...workspace,
+      question_stats: statsMap.get(workspace.id) ?? null,
     }));
 
     return NextResponse.json({
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     };
 
     const { data, error } = await supabase
-      .from('projects')
+      .from('workspaces')
       .insert({
         name,
         description: description ?? null,

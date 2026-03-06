@@ -236,20 +236,20 @@ export function BrowseContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [filters.keywords]);
 
-  // Resolve project filter to matching content_item IDs
-  const resolveProjectIds = useCallback(async (): Promise<string[] | null> => {
-    if (!filters.project) return null;
+  // Resolve workspace filter to matching content_item IDs
+  const resolveWorkspaceIds = useCallback(async (): Promise<string[] | null> => {
+    if (!filters.workspace) return null;
     const { data, error } = await supabase
-      .from('content_item_projects')
+      .from('content_item_workspaces')
       .select('content_item_id')
-      .eq('project_id', filters.project);
+      .eq('workspace_id', filters.workspace);
     if (error) {
-      console.error('Project filter failed:', error);
+      console.error('Workspace filter failed:', error);
       return null;
     }
     return (data ?? []).map((row: { content_item_id: string }) => row.content_item_id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [filters.project]);
+  }, [filters.workspace]);
 
   // Resolve quality issues filter to matching content_item IDs
   const resolveQualityIssueIds = useCallback(async (): Promise<string[] | null> => {
@@ -290,7 +290,7 @@ export function BrowseContent() {
 
       if (filters.content_type?.length) {
         query = query.in('content_type', filters.content_type);
-      } else {
+      } else if (!filters.include_qa) {
         // Default: exclude Q&A pairs (they live in /library)
         // content_type is NOT NULL so .neq() is safe here
         query = query.neq('content_type', 'q_a_pair');
@@ -420,7 +420,7 @@ export function BrowseContent() {
       // Resolve keyword + project + quality issue filters via server-side lookups
       const [keywordIds, projectIds, qualityIds] = await Promise.all([
         resolveKeywordIds(),
-        resolveProjectIds(),
+        resolveWorkspaceIds(),
         resolveQualityIssueIds(),
       ]);
       if (
@@ -464,7 +464,7 @@ export function BrowseContent() {
     };
 
     fetchData();
-  }, [buildQuery, resolveKeywordIds, resolveProjectIds, resolveQualityIssueIds, filters.sort]);
+  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, filters.sort]);
 
   // Load more using cursor
   const handleLoadMore = useCallback(async () => {
@@ -474,7 +474,7 @@ export function BrowseContent() {
 
     const [keywordIds, projectIds, qualityIds] = await Promise.all([
       resolveKeywordIds(),
-      resolveProjectIds(),
+      resolveWorkspaceIds(),
       resolveQualityIssueIds(),
     ]);
     const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds);
@@ -503,7 +503,7 @@ export function BrowseContent() {
     cursor,
     buildQuery,
     resolveKeywordIds,
-    resolveProjectIds,
+    resolveWorkspaceIds,
     resolveQualityIssueIds,
     filters.sort,
   ]);

@@ -48,7 +48,7 @@ export async function POST(
 
     // Verify bid exists and is in an appropriate state
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')
@@ -249,7 +249,7 @@ export async function POST(
       // If all non-no_content questions have been processed, transition
       if (undraftedCount === null || undraftedCount === 0) {
         await supabase
-          .from('projects')
+          .from('workspaces')
           .update({
             status: 'in_review',
             updated_by: user.id,

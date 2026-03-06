@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { ProjectCreateBodySchema } from '@/lib/validation/schemas';
+import { WorkspaceCreateBodySchema } from '@/lib/validation/schemas';
 
-/** GET /api/projects — list projects (active only by default, ?include_archived=true for all) */
+/** GET /api/workspaces — list workspaces (active only by default, ?include_archived=true for all) */
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const includeArchived =
       request.nextUrl.searchParams.get('include_archived') === 'true';
 
-    let query = supabase.from('projects').select('id, name, description, color, icon, type, is_archived, created_at, created_by, updated_at, updated_by').order('name');
+    let query = supabase.from('workspaces').select('id, name, description, color, icon, type, is_archived, created_at, created_by, updated_at, updated_by').order('name');
     if (!includeArchived) {
       query = query.eq('is_archived', false);
     }
@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('Failed to fetch projects:', error);
+      console.error('Failed to fetch workspaces:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch projects' },
+        { error: 'Failed to fetch workspaces' },
         { status: 500 },
       );
     }
@@ -32,13 +32,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch projects') },
+      { error: safeErrorMessage(err, 'Failed to fetch workspaces') },
       { status: 500 },
     );
   }
 }
 
-/** POST /api/projects — create a project */
+/** POST /api/workspaces — create a workspace */
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -46,13 +46,13 @@ export async function POST(request: NextRequest) {
     const { user, supabase } = auth;
 
     const raw = await request.json();
-    const parsed = parseBody(ProjectCreateBodySchema, raw);
+    const parsed = parseBody(WorkspaceCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
     const { name, description, color, icon } = parsed.data;
 
     const { data, error } = await supabase
-      .from('projects')
+      .from('workspaces')
       .insert({
         name,
         description: description ?? null,
@@ -66,13 +66,13 @@ export async function POST(request: NextRequest) {
     if (error) {
       if (error.code === '23505') {
         return NextResponse.json(
-          { error: `A project named "${name}" already exists` },
+          { error: `A workspace named "${name}" already exists` },
           { status: 409 },
         );
       }
-      console.error('Failed to create project:', error);
+      console.error('Failed to create workspace:', error);
       return NextResponse.json(
-        { error: 'Failed to create project' },
+        { error: 'Failed to create workspace' },
         { status: 500 },
       );
     }
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to create project') },
+      { error: safeErrorMessage(err, 'Failed to create workspace') },
       { status: 500 },
     );
   }

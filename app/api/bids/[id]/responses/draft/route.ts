@@ -47,7 +47,7 @@ export async function POST(
 
     // Verify bid exists and is in an appropriate state
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id, status, domain_metadata')
       .eq('id', id)
       .eq('type', 'bid')

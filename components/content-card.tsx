@@ -15,6 +15,7 @@ import { GovernanceBadge } from '@/components/governance-badge';
 import { AlertTriangle, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { highlightTerms } from '@/lib/highlight';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
 /** Content types that use compact card layout (no thumbnail, 4px left border only) */
@@ -34,6 +35,7 @@ interface ContentCardProps {
   isRead?: boolean;
   hasQualityFlag?: boolean;
   hideThumbnail?: boolean;
+  highlightQuery?: string;
 }
 
 function isSearchResult(
@@ -42,9 +44,13 @@ function isSearchResult(
   return 'similarity' in item;
 }
 
-export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: ContentCardProps) {
+export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
+
+  /** Conditionally highlight text when a query is provided */
+  const renderText = (text: string) =>
+    highlightQuery ? highlightTerms(text, highlightQuery) : text;
   const colourKey = item.primary_domain
     ? getDomainColourKey(item.primary_domain)
     : 'meta';
@@ -106,7 +112,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
             <PriorityBadge priority={item.priority} />
             <span className="line-clamp-2">
               <span className="text-muted-foreground">Q:&nbsp;</span>
-              {title}
+              {renderText(title)}
             </span>
           </h3>
 
@@ -114,7 +120,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           {answerPreview && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
               <span className="font-medium text-muted-foreground">A:&nbsp;</span>
-              {answerPreview}
+              {renderText(answerPreview)}
             </p>
           )}
 
@@ -226,7 +232,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           {/* Title */}
           <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
             <PriorityBadge priority={item.priority} />
-            <span className="line-clamp-2">{title}</span>
+            <span className="line-clamp-2">{renderText(title)}</span>
           </h3>
 
           {/* Summary text */}
@@ -234,12 +240,12 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
           {isSearchResult(item) && item.snippet ? (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
               <span className="italic text-muted-foreground/70">&hellip;</span>
-              {item.snippet}
+              {renderText(item.snippet)}
               <span className="italic text-muted-foreground/70">&hellip;</span>
             </p>
           ) : item.brief || item.ai_summary ? (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-              {item.brief || item.ai_summary}
+              {renderText(item.brief || item.ai_summary || '')}
             </p>
           ) : null}
 
@@ -356,18 +362,18 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail }: Con
       <div className="flex flex-1 flex-col gap-2 p-3">
         <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
           <PriorityBadge priority={item.priority} />
-          <span className="line-clamp-2">{title}</span>
+          <span className="line-clamp-2">{renderText(title)}</span>
         </h3>
         {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
         {isSearchResult(item) && item.snippet ? (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
             <span className="italic text-muted-foreground/70">&hellip;</span>
-            {item.snippet}
+            {renderText(item.snippet)}
             <span className="italic text-muted-foreground/70">&hellip;</span>
           </p>
         ) : item.brief || item.ai_summary ? (
           <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {item.brief || item.ai_summary}
+            {renderText(item.brief || item.ai_summary || '')}
           </p>
         ) : null}
         <div className="mt-auto flex flex-col gap-1.5 pt-1">

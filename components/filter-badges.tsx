@@ -124,12 +124,12 @@ export function FilterBadges() {
     }
   }
 
-  if (filters.project) {
+  if (filters.workspace) {
     badges.push({
-      id: 'project',
-      label: 'Project',
-      value: filters.project.slice(0, 8) + '…',
-      onRemove: () => removeFilter('project'),
+      id: 'workspace',
+      label: 'Workspace',
+      value: filters.workspace.slice(0, 8) + '…',
+      onRemove: () => removeFilter('workspace'),
     });
   }
 
@@ -159,6 +159,15 @@ export function FilterBadges() {
       label: 'Filter',
       value: 'Quality issues',
       onRemove: () => removeFilter('quality_issues'),
+    });
+  }
+
+  if (filters.include_qa) {
+    badges.push({
+      id: 'include_qa',
+      label: 'Filter',
+      value: 'Including Q&A pairs',
+      onRemove: () => removeFilter('include_qa'),
     });
   }
 

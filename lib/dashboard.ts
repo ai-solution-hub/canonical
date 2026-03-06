@@ -110,7 +110,7 @@ export async function fetchDashboardData(
 
     // 4: Active bids
     supabase
-      .from('projects')
+      .from('workspaces')
       .select(
         'id, name, domain_metadata, is_archived, created_at, updated_at',
       )
@@ -208,12 +208,12 @@ export async function fetchDashboardData(
   // --- Extract active bids with question stats ---
   let active_bids: ActiveBidSummary[] = [];
   if (results[4].status === 'fulfilled') {
-    const { data: projects, error } = results[4].value;
+    const { data: workspaces, error } = results[4].value;
     if (error) {
       errors.push('active_bids query failed');
-    } else if (projects && projects.length > 0) {
+    } else if (workspaces && workspaces.length > 0) {
       // Fetch question stats batch
-      const bidIds = projects.map((p) => p.id);
+      const bidIds = workspaces.map((p) => p.id);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: batchStats } = await (supabase.rpc as any)(
         'get_bid_question_stats_batch',
@@ -227,14 +227,14 @@ export async function fetchDashboardData(
         }
       }
 
-      active_bids = projects.map((project) => {
-        const meta = project.domain_metadata as Record<string, unknown> | null;
-        const stats = statsMap.get(project.id);
+      active_bids = workspaces.map((workspace) => {
+        const meta = workspace.domain_metadata as Record<string, unknown> | null;
+        const stats = statsMap.get(workspace.id);
         const deadline = (meta?.deadline as string) ?? null;
 
         return {
-          id: project.id,
-          name: project.name ?? 'Untitled Bid',
+          id: workspace.id,
+          name: workspace.name ?? 'Untitled Bid',
           buyer: (meta?.buyer as string) ?? null,
           status: (meta?.status as string) ?? 'draft',
           deadline,

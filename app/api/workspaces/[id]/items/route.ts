@@ -5,7 +5,7 @@ import { safeErrorMessage } from '@/lib/error';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** GET /api/projects/[id]/items — recent items assigned to a project */
+/** GET /api/workspaces/[id]/items — recent items assigned to a workspace */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -18,7 +18,7 @@ export async function GET(
     const { id } = await params;
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
-        { error: 'Invalid project ID — must be a valid UUID' },
+        { error: 'Invalid workspace ID — must be a valid UUID' },
         { status: 400 },
       );
     }
@@ -29,7 +29,7 @@ export async function GET(
     );
 
     const { data, error } = await supabase
-      .from('content_item_projects')
+      .from('content_item_workspaces')
       .select(
         `
         assigned_at,
@@ -38,14 +38,14 @@ export async function GET(
         )
       `,
       )
-      .eq('project_id', id)
+      .eq('workspace_id', id)
       .order('assigned_at', { ascending: false })
       .limit(limit);
 
     if (error) {
-      console.error('Failed to fetch project items:', error);
+      console.error('Failed to fetch workspace items:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch project items' },
+        { error: 'Failed to fetch workspace items' },
         { status: 500 },
       );
     }
@@ -64,7 +64,7 @@ export async function GET(
     return NextResponse.json(items);
   } catch (err) {
     return NextResponse.json(
-      { error: safeErrorMessage(err, 'Failed to fetch project items') },
+      { error: safeErrorMessage(err, 'Failed to fetch workspace items') },
       { status: 500 },
     );
   }

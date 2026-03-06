@@ -114,7 +114,7 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
 
         # Update bid status in domain_metadata
         bid = (
-            supabase.from_("projects")
+            supabase.from_("workspaces")
             .select("domain_metadata")
             .eq("id", bid_id)
             .single()
@@ -122,7 +122,7 @@ def extract_docx_questions(supabase: Client, payload: dict) -> dict:
         )
         metadata = bid.data["domain_metadata"] or {}
         metadata["status"] = "questions_extracted"
-        supabase.from_("projects").update(
+        supabase.from_("workspaces").update(
             {
                 "domain_metadata": metadata,
             }

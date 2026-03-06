@@ -226,9 +226,9 @@ export const ItemUpdateBodySchema = z.object({
   }
 });
 
-/** POST /api/projects */
-export const ProjectCreateBodySchema = z.object({
-  name: z.string().trim().min(1, 'Project name is required').max(200),
+/** POST /api/workspaces */
+export const WorkspaceCreateBodySchema = z.object({
+  name: z.string().trim().min(1, 'Workspace name is required').max(200),
   description: z.string().max(2000).optional(),
   color: z
     .string()
@@ -237,8 +237,8 @@ export const ProjectCreateBodySchema = z.object({
   icon: z.string().max(50).optional(),
 });
 
-/** PATCH /api/projects/[id] */
-export const ProjectUpdateBodySchema = z.object({
+/** PATCH /api/workspaces/[id] */
+export const WorkspaceUpdateBodySchema = z.object({
   name: z.string().trim().min(1).max(200).optional(),
   description: z.string().max(2000).nullable().optional(),
   color: z
@@ -249,9 +249,9 @@ export const ProjectUpdateBodySchema = z.object({
   is_archived: z.boolean().optional(),
 });
 
-/** POST /api/items/[id]/projects */
-export const ItemProjectBodySchema = z.object({
-  project_id: z.string().uuid('project_id must be a valid UUID'),
+/** POST /api/items/[id]/workspaces */
+export const ItemWorkspaceBodySchema = z.object({
+  workspace_id: z.string().uuid('workspace_id must be a valid UUID'),
   action: z.enum(['assign', 'unassign']),
 });
 
@@ -496,7 +496,7 @@ export const KBIntegrationBodySchema = z.object({
   })),
 });
 
-/** Runtime validation for projects.domain_metadata when type='bid' */
+/** Runtime validation for workspaces.domain_metadata when type='bid' */
 export const BidMetadataSchema = z.object({
   buyer: z.string(),
   status: z.enum([
@@ -516,7 +516,7 @@ export const BidMetadataSchema = z.object({
   outcome_recorded_by: z.string().uuid().optional(),
 }).passthrough();
 
-/** Parse and validate domain_metadata for bid projects */
+/** Parse and validate domain_metadata for bid workspaces */
 export function parseBidMetadata(raw: unknown): z.infer<typeof BidMetadataSchema> | null {
   const result = BidMetadataSchema.safeParse(raw);
   if (!result.success) {

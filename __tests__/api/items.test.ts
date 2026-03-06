@@ -635,7 +635,7 @@ describe('DELETE /api/items/[id]', () => {
     expect(fromCalls).toContain('ingestion_quality_log');
     expect(fromCalls).toContain('read_marks');
     expect(fromCalls).toContain('content_history');
-    expect(fromCalls).toContain('content_item_projects');
+    expect(fromCalls).toContain('content_item_workspaces');
     expect(fromCalls).toContain('content_items');
   });
 

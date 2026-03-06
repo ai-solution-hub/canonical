@@ -152,8 +152,8 @@ export interface SearchResult extends Omit<ContentListItem, 'user_tags'> {
   user_tags?: ContentListItem['user_tags'];
 }
 
-/** Project (from projects table) */
-export interface Project {
+/** Workspace (from workspaces table) */
+export interface Workspace {
   id: string;
   name: string;
   description: string | null;
@@ -176,11 +176,12 @@ export interface BrowseFilters {
   keywords?: string[];
   starred?: boolean;
   priority?: string[];
-  project?: string; // project UUID
+  workspace?: string; // workspace UUID
   user_tags?: string[]; // user tag strings
   freshness?: string[]; // multi-select: fresh, aging, stale, expired
   quality_issues?: boolean; // filter to items with open quality flags
   include_drafts?: boolean; // include draft items (excluded by default)
+  include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)
   sort?: 'captured_date' | 'classification_confidence' | 'primary_domain';
   order?: 'asc' | 'desc';
 }

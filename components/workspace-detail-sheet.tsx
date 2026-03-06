@@ -33,12 +33,12 @@ import {
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { ProjectColourPicker } from '@/components/project-colour-picker';
-import { ProjectIconPicker } from '@/components/project-icon-picker';
+import { WorkspaceColourPicker } from '@/components/workspace-colour-picker';
+import { WorkspaceIconPicker } from '@/components/workspace-icon-picker';
 import { formatDate, formatContentType } from '@/lib/format';
-import type { ProjectWithCounts } from '@/components/project-card';
+import type { WorkspaceWithCounts } from '@/components/workspace-card';
 
-interface ProjectItem {
+interface WorkspaceItem {
   id: string;
   suggested_title: string | null;
   content_type: string | null;
@@ -46,19 +46,19 @@ interface ProjectItem {
   assigned_at: string;
 }
 
-interface ProjectDetailSheetProps {
-  project: ProjectWithCounts | null;
+interface WorkspaceDetailSheetProps {
+  workspace: WorkspaceWithCounts | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdated: (project: ProjectWithCounts) => void;
-  onArchiveToggle: (project: ProjectWithCounts) => void;
-  onDeleted: (projectId: string) => void;
+  onUpdated: (workspace: WorkspaceWithCounts) => void;
+  onArchiveToggle: (workspace: WorkspaceWithCounts) => void;
+  onDeleted: (workspaceId: string) => void;
   readOnly?: boolean;
   isAdmin?: boolean;
 }
 
-export function ProjectDetailSheet({
-  project,
+export function WorkspaceDetailSheet({
+  workspace,
   open,
   onOpenChange,
   onUpdated,
@@ -66,12 +66,12 @@ export function ProjectDetailSheet({
   onDeleted,
   readOnly = false,
   isAdmin = false,
-}: ProjectDetailSheetProps) {
+}: WorkspaceDetailSheetProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#6366f1');
   const [icon, setIcon] = useState('folder');
-  const [items, setItems] = useState<ProjectItem[]>([]);
+  const [items, setItems] = useState<WorkspaceItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -81,127 +81,127 @@ export function ProjectDetailSheet({
   nameRef.current = name;
   descRef.current = description;
 
-  // Sync local state when project changes
+  // Sync local state when workspace changes
   useEffect(() => {
-    if (project) {
-      setName(project.name);
-      setDescription(project.description ?? '');
-      setColor(project.color);
-      setIcon(project.icon);
+    if (workspace) {
+      setName(workspace.name);
+      setDescription(workspace.description ?? '');
+      setColor(workspace.color);
+      setIcon(workspace.icon);
     }
-  }, [project]);
+  }, [workspace]);
 
   // Fetch recent items when sheet opens
   useEffect(() => {
-    if (!open || !project) return;
+    if (!open || !workspace) return;
     setLoadingItems(true);
-    fetch(`/api/projects/${project.id}/items?limit=10`)
+    fetch(`/api/workspaces/${workspace.id}/items?limit=10`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => setItems(data))
       .catch(() => setItems([]))
       .finally(() => setLoadingItems(false));
-  }, [open, project]);
+  }, [open, workspace]);
 
-  const patchProject = useCallback(
+  const patchWorkspace = useCallback(
     async (updates: Record<string, unknown>) => {
-      if (!project) return;
+      if (!workspace) return;
       try {
-        const res = await fetch(`/api/projects/${project.id}`, {
+        const res = await fetch(`/api/workspaces/${workspace.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updates),
         });
         if (res.status === 409) {
-          toast.error('A project with that name already exists');
+          toast.error('A workspace with that name already exists');
           // Revert name
-          setName(project.name);
+          setName(workspace.name);
           return;
         }
         if (!res.ok) throw new Error();
         const updated = await res.json();
-        toast('Project updated', { duration: 1500 });
+        toast('Workspace updated', { duration: 1500 });
         onUpdated({
-          ...project,
+          ...workspace,
           ...updated,
-          item_count: project.item_count,
-          last_activity: project.last_activity,
+          item_count: workspace.item_count,
+          last_activity: workspace.last_activity,
         });
       } catch {
-        toast.error('Failed to update project');
+        toast.error('Failed to update workspace');
       }
     },
-    [project, onUpdated],
+    [workspace, onUpdated],
   );
 
   const handleNameBlur = useCallback(() => {
     const trimmed = nameRef.current.trim();
     if (!trimmed) {
-      toast.error('Project name cannot be empty');
-      if (project) setName(project.name);
+      toast.error('Workspace name cannot be empty');
+      if (workspace) setName(workspace.name);
       return;
     }
-    if (project && trimmed !== project.name) {
-      patchProject({ name: trimmed });
+    if (workspace && trimmed !== workspace.name) {
+      patchWorkspace({ name: trimmed });
     }
-  }, [project, patchProject]);
+  }, [workspace, patchWorkspace]);
 
   const handleDescriptionBlur = useCallback(() => {
     const trimmed = descRef.current.trim();
-    const prev = project?.description?.trim() ?? '';
+    const prev = workspace?.description?.trim() ?? '';
     if (trimmed !== prev) {
-      patchProject({ description: trimmed || null });
+      patchWorkspace({ description: trimmed || null });
     }
-  }, [project, patchProject]);
+  }, [workspace, patchWorkspace]);
 
   const handleColourChange = useCallback(
     (hex: string) => {
       setColor(hex);
-      patchProject({ color: hex });
+      patchWorkspace({ color: hex });
     },
-    [patchProject],
+    [patchWorkspace],
   );
 
   const handleIconChange = useCallback(
     (newIcon: string) => {
       setIcon(newIcon);
-      patchProject({ icon: newIcon });
+      patchWorkspace({ icon: newIcon });
     },
-    [patchProject],
+    [patchWorkspace],
   );
 
   const handleArchive = useCallback(() => {
-    if (!project) return;
-    onArchiveToggle(project);
+    if (!workspace) return;
+    onArchiveToggle(workspace);
     onOpenChange(false);
-  }, [project, onArchiveToggle, onOpenChange]);
+  }, [workspace, onArchiveToggle, onOpenChange]);
 
   const handleDelete = useCallback(async () => {
-    if (!project) return;
+    if (!workspace) return;
     setDeleting(true);
     try {
       const res = await fetch(
-        `/api/projects/${project.id}?permanent=true`,
+        `/api/workspaces/${workspace.id}?permanent=true`,
         { method: 'DELETE' },
       );
       if (res.status === 409) {
         toast.error(
-          'Cannot delete a project with assigned items. Remove all items first.',
+          'Cannot delete a workspace with assigned items. Remove all items first.',
         );
         return;
       }
       if (!res.ok) throw new Error();
-      toast(`Deleted "${project.name}"`, { duration: 2000 });
+      toast(`Deleted "${workspace.name}"`, { duration: 2000 });
       setShowDeleteConfirm(false);
       onOpenChange(false);
-      onDeleted(project.id);
+      onDeleted(workspace.id);
     } catch {
-      toast.error('Failed to delete project');
+      toast.error('Failed to delete workspace');
     } finally {
       setDeleting(false);
     }
-  }, [project, onOpenChange, onDeleted]);
+  }, [workspace, onOpenChange, onDeleted]);
 
-  if (!project) return null;
+  if (!workspace) return null;
 
   return (
     <>
@@ -211,9 +211,9 @@ export function ProjectDetailSheet({
           className="w-full overflow-y-auto sm:max-w-md"
         >
           <SheetHeader>
-            <SheetTitle>Edit Project</SheetTitle>
+            <SheetTitle>Edit Workspace</SheetTitle>
             <SheetDescription>
-              Update project details or manage items.
+              Update workspace details or manage items.
             </SheetDescription>
           </SheetHeader>
 
@@ -252,7 +252,7 @@ export function ProjectDetailSheet({
             {!readOnly && (
               <div className="space-y-1.5">
                 <Label>Colour</Label>
-                <ProjectColourPicker
+                <WorkspaceColourPicker
                   value={color}
                   onChange={handleColourChange}
                 />
@@ -263,7 +263,7 @@ export function ProjectDetailSheet({
             {!readOnly && (
               <div className="space-y-1.5">
                 <Label>Icon</Label>
-                <ProjectIconPicker value={icon} onChange={handleIconChange} />
+                <WorkspaceIconPicker value={icon} onChange={handleIconChange} />
               </div>
             )}
 
@@ -273,9 +273,9 @@ export function ProjectDetailSheet({
             <div className="space-y-2">
               <h3 className="text-sm font-medium">
                 Recent Items
-                {project.item_count > 0 && (
+                {workspace.item_count > 0 && (
                   <span className="ml-1 text-muted-foreground">
-                    ({items.length} of {project.item_count})
+                    ({items.length} of {workspace.item_count})
                   </span>
                 )}
               </h3>
@@ -284,7 +284,7 @@ export function ProjectDetailSheet({
                 <p className="text-xs text-muted-foreground">Loading...</p>
               ) : items.length === 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  No content items assigned to this project yet.
+                  No content items assigned to this workspace yet.
                 </p>
               ) : (
                 <ul className="space-y-1">
@@ -313,13 +313,13 @@ export function ProjectDetailSheet({
                 </ul>
               )}
 
-              {project.item_count > 0 && (
+              {workspace.item_count > 0 && (
                 <Link
-                  href={`/browse?project=${project.id}`}
+                  href={`/browse?workspace=${workspace.id}`}
                   onClick={() => onOpenChange(false)}
                   className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
-                  View all {project.item_count} items in Browse
+                  View all {workspace.item_count} items in Browse
                   <ExternalLink className="size-3" />
                 </Link>
               )}
@@ -329,7 +329,7 @@ export function ProjectDetailSheet({
 
             {/* Metadata */}
             <p className="text-xs text-muted-foreground">
-              Created: {formatDate(project.created_at)}
+              Created: {formatDate(workspace.created_at)}
             </p>
 
             {/* Actions — hidden for read-only users */}
@@ -340,9 +340,9 @@ export function ProjectDetailSheet({
                   size="sm"
                   onClick={handleArchive}
                 >
-                  {project.is_archived
-                    ? 'Unarchive Project'
-                    : 'Archive Project'}
+                  {workspace.is_archived
+                    ? 'Unarchive Workspace'
+                    : 'Archive Workspace'}
                 </Button>
 
                 {isAdmin && (
@@ -353,16 +353,16 @@ export function ProjectDetailSheet({
                           <Button
                             variant="destructive"
                             size="sm"
-                            disabled={project.item_count > 0}
+                            disabled={workspace.item_count > 0}
                             onClick={() => setShowDeleteConfirm(true)}
                           >
-                            Delete Project
+                            Delete Workspace
                           </Button>
                         </span>
                       </TooltipTrigger>
-                      {project.item_count > 0 && (
+                      {workspace.item_count > 0 && (
                         <TooltipContent>
-                          Remove all items from this project before deleting.
+                          Remove all items from this workspace before deleting.
                         </TooltipContent>
                       )}
                     </Tooltip>
@@ -382,10 +382,10 @@ export function ProjectDetailSheet({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete &ldquo;{project.name}&rdquo;?
+              Delete &ldquo;{workspace.name}&rdquo;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. The project will be permanently
+              This action cannot be undone. The workspace will be permanently
               removed.
             </AlertDialogDescription>
           </AlertDialogHeader>

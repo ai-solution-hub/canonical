@@ -14,21 +14,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ProjectColourPicker } from '@/components/project-colour-picker';
-import { ProjectIconPicker } from '@/components/project-icon-picker';
-import type { Project } from '@/types/content';
+import { WorkspaceColourPicker } from '@/components/workspace-colour-picker';
+import { WorkspaceIconPicker } from '@/components/workspace-icon-picker';
+import type { Workspace } from '@/types/content';
 
-interface ProjectCreateDialogProps {
+interface WorkspaceCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: (project: Project) => void;
+  onCreated: (workspace: Workspace) => void;
 }
 
-export function ProjectCreateDialog({
+export function WorkspaceCreateDialog({
   open,
   onOpenChange,
   onCreated,
-}: ProjectCreateDialogProps) {
+}: WorkspaceCreateDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState('#6366f1');
@@ -48,7 +48,7 @@ export function ProjectCreateDialog({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setNameError('Project name is required');
+      setNameError('Workspace name is required');
       return;
     }
 
@@ -56,7 +56,7 @@ export function ProjectCreateDialog({
     setNameError('');
 
     try {
-      const res = await fetch('/api/projects', {
+      const res = await fetch('/api/workspaces', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,23 +68,23 @@ export function ProjectCreateDialog({
       });
 
       if (res.status === 409) {
-        setNameError('A project with this name already exists');
+        setNameError('A workspace with this name already exists');
         return;
       }
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.error || 'Failed to create project');
+        throw new Error(data?.error || 'Failed to create workspace');
       }
 
-      const project: Project = await res.json();
-      toast(`Created "${project.name}"`, { duration: 2000 });
+      const workspace: Workspace = await res.json();
+      toast(`Created "${workspace.name}"`, { duration: 2000 });
       resetForm();
       onOpenChange(false);
-      onCreated(project);
+      onCreated(workspace);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to create project',
+        err instanceof Error ? err.message : 'Failed to create workspace',
       );
     } finally {
       setSubmitting(false);
@@ -101,24 +101,24 @@ export function ProjectCreateDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
+          <DialogTitle>New Workspace</DialogTitle>
           <DialogDescription>
-            Create a project to organise related content items.
+            Create a workspace to organise related content items.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Name */}
           <div className="space-y-1.5">
-            <Label htmlFor="project-name">Name</Label>
+            <Label htmlFor="workspace-name">Name</Label>
             <Input
-              id="project-name"
+              id="workspace-name"
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
                 if (nameError) setNameError('');
               }}
-              placeholder="Project name"
+              placeholder="Workspace name"
               maxLength={200}
               autoFocus
             />
@@ -129,9 +129,9 @@ export function ProjectCreateDialog({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <Label htmlFor="project-desc">Description</Label>
+            <Label htmlFor="workspace-desc">Description</Label>
             <Textarea
-              id="project-desc"
+              id="workspace-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional description"
@@ -143,13 +143,13 @@ export function ProjectCreateDialog({
           {/* Colour */}
           <div className="space-y-1.5">
             <Label>Colour</Label>
-            <ProjectColourPicker value={color} onChange={setColor} />
+            <WorkspaceColourPicker value={color} onChange={setColor} />
           </div>
 
           {/* Icon */}
           <div className="space-y-1.5">
             <Label>Icon</Label>
-            <ProjectIconPicker value={icon} onChange={setIcon} />
+            <WorkspaceIconPicker value={icon} onChange={setIcon} />
           </div>
 
           <DialogFooter>
@@ -164,7 +164,7 @@ export function ProjectCreateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating...' : 'Create Project'}
+              {submitting ? 'Creating...' : 'Create Workspace'}
             </Button>
           </DialogFooter>
         </form>

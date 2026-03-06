@@ -37,7 +37,11 @@ interface LibraryFilters {
   source_file?: string;
   variant?: 'all' | 'standard_only' | 'advanced_only' | 'both' | 'neither';
   search?: string;
+  freshness?: 'fresh' | 'aging' | 'stale' | 'expired';
+  verified?: 'verified' | 'unverified';
 }
+
+type GroupBy = 'none' | 'source' | 'domain';
 
 // ---------------------------------------------------------------------------
 // Hook: useLibraryFilters (URL search params)
@@ -55,8 +59,30 @@ function useLibraryFilters() {
       variant:
         (searchParams.get('variant') as LibraryFilters['variant']) || undefined,
       search: searchParams.get('q') || undefined,
+      freshness:
+        (searchParams.get('freshness') as LibraryFilters['freshness']) || undefined,
+      verified:
+        (searchParams.get('verified') as LibraryFilters['verified']) || undefined,
     }),
     [searchParams],
+  );
+
+  const groupBy: GroupBy = useMemo(
+    () => (searchParams.get('group') as GroupBy) || 'none',
+    [searchParams],
+  );
+
+  const setGroupBy = useCallback(
+    (value: GroupBy) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (value === 'none') {
+        params.delete('group');
+      } else {
+        params.set('group', value);
+      }
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [searchParams, router, pathname],
   );
 
   const setFilters = useCallback(
@@ -79,9 +105,16 @@ function useLibraryFilters() {
     router.replace(pathname, { scroll: false });
   }, [router, pathname]);
 
-  const activeCount = [filters.domain, filters.source_file, filters.variant, filters.search].filter(Boolean).length;
+  const activeCount = [
+    filters.domain,
+    filters.source_file,
+    filters.variant,
+    filters.search,
+    filters.freshness,
+    filters.verified,
+  ].filter(Boolean).length;
 
-  return { filters, setFilters, clearFilters, activeCount };
+  return { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy };
 }
 
 // ---------------------------------------------------------------------------
@@ -248,12 +281,86 @@ function QARow({ item }: { item: ContentListItem }) {
 }
 
 // ---------------------------------------------------------------------------
+// CollapsibleGroup — expandable section for grouped Q&A pairs
+// ---------------------------------------------------------------------------
+
+function CollapsibleGroup({
+  label,
+  count,
+  children,
+}: {
+  label: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="rounded-lg border border-border/60 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-2 bg-muted/50 px-4 py-2.5 text-left border-l-4 border-primary/40 hover:bg-muted/80 transition-colors"
+      >
+        <span className="shrink-0 text-muted-foreground">
+          {expanded ? (
+            <ChevronDown className="size-4" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+        </span>
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <Badge variant="secondary" className="ml-auto tabular-nums text-xs">
+          {count}
+        </Badge>
+      </button>
+      {expanded && (
+        <div className="space-y-2 p-3">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// groupItems — group ContentListItems by source or domain
+// ---------------------------------------------------------------------------
+
+function groupItems(
+  items: ContentListItem[],
+  groupBy: GroupBy,
+): Map<string, ContentListItem[]> {
+  const groups = new Map<string, ContentListItem[]>();
+
+  for (const item of items) {
+    let key: string;
+    if (groupBy === 'source') {
+      const metadata = item.metadata as Record<string, unknown> | null;
+      key = (metadata?.source_file as string) || 'No source';
+    } else {
+      key = item.primary_domain || 'Unclassified';
+    }
+
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      groups.set(key, [item]);
+    }
+  }
+
+  return groups;
+}
+
+// ---------------------------------------------------------------------------
 // LibraryContent
 // ---------------------------------------------------------------------------
 
 export function LibraryContent() {
   const supabase = createClient();
-  const { filters, setFilters, clearFilters, activeCount } = useLibraryFilters();
+  const { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy } = useLibraryFilters();
   const { domains } = useTaxonomy();
 
   const [items, setItems] = useState<ContentListItem[]>([]);
@@ -291,6 +398,16 @@ export function LibraryContent() {
         query = query.is('answer_standard', null).is('answer_advanced', null);
       }
 
+      if (filters.freshness) {
+        query = query.eq('freshness', filters.freshness);
+      }
+
+      if (filters.verified === 'verified') {
+        query = query.not('verified_at', 'is', null);
+      } else if (filters.verified === 'unverified') {
+        query = query.is('verified_at', null);
+      }
+
       if (filters.search) {
         query = query.or(
           `title.ilike.%${filters.search}%,content.ilike.%${filters.search}%`,
@@ -312,7 +429,7 @@ export function LibraryContent() {
 
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.domain, filters.source_file, filters.variant, filters.search]);
+  }, [filters.domain, filters.source_file, filters.variant, filters.search, filters.freshness, filters.verified]);
 
   // Fetch distinct source files for filter dropdown
   useEffect(() => {
@@ -432,6 +549,54 @@ export function LibraryContent() {
             </SelectContent>
           </Select>
 
+          <Select
+            value={filters.freshness ?? 'all'}
+            onValueChange={(v) =>
+              setFilters({ freshness: v === 'all' ? undefined : (v as LibraryFilters['freshness']) })
+            }
+          >
+            <SelectTrigger className="h-9 w-[130px] text-xs">
+              <SelectValue placeholder="All freshness" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All freshness</SelectItem>
+              <SelectItem value="fresh">Fresh</SelectItem>
+              <SelectItem value="aging">Ageing</SelectItem>
+              <SelectItem value="stale">Stale</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={filters.verified ?? 'all'}
+            onValueChange={(v) =>
+              setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
+            }
+          >
+            <SelectTrigger className="h-9 w-[130px] text-xs">
+              <SelectValue placeholder="All status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="unverified">Unverified</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select
+            value={groupBy}
+            onValueChange={(v) => setGroupBy(v as GroupBy)}
+          >
+            <SelectTrigger className="h-9 w-[160px] text-xs">
+              <SelectValue placeholder="No grouping" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No grouping</SelectItem>
+              <SelectItem value="source">By source document</SelectItem>
+              <SelectItem value="domain">By domain</SelectItem>
+            </SelectContent>
+          </Select>
+
           {activeCount > 0 && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs">
               Clear filters
@@ -465,6 +630,14 @@ export function LibraryContent() {
                 Clear filters
               </Button>
             )}
+          </div>
+        ) : groupBy !== 'none' ? (
+          <div className="space-y-3">
+            {Array.from(groupItems(items, groupBy).entries()).map(([groupName, groupedItems]) => (
+              <CollapsibleGroup key={groupName} label={groupName} count={groupedItems.length}>
+                {groupedItems.map((item) => <QARow key={item.id} item={item} />)}
+              </CollapsibleGroup>
+            ))}
           </div>
         ) : (
           items.map((item) => <QARow key={item.id} item={item} />)

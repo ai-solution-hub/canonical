@@ -101,7 +101,7 @@ describe('CommandPalette', () => {
       expect(screen.getByText('Browse')).toBeInTheDocument();
       expect(screen.getByText('Search')).toBeInTheDocument();
       expect(screen.getByText('Review')).toBeInTheDocument();
-      expect(screen.getByText('Projects')).toBeInTheDocument();
+      expect(screen.getByText('Workspaces')).toBeInTheDocument();
       expect(screen.getByText('Bids')).toBeInTheDocument();
     });
   });

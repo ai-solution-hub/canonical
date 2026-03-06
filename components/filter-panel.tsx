@@ -30,7 +30,7 @@ import { ContentTypeFilter } from '@/components/content-type-filter';
 import { PlatformFilter } from '@/components/platform-filter';
 import { AuthorFilter } from '@/components/author-filter';
 import { FreshnessBadge } from '@/components/freshness-badge';
-import type { Project } from '@/types/content';
+import type { Workspace } from '@/types/content';
 
 interface FilterPanelProps {
   open: boolean;
@@ -60,11 +60,12 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     keywords: filters.keywords?.join(', ') ?? '',
     starred: filters.starred ?? false,
     priorities: filters.priority ?? ([] as string[]),
-    project: filters.project ?? '',
+    project: filters.workspace ?? '',
     user_tags: filters.user_tags ?? ([] as string[]),
     freshness: filters.freshness ?? ([] as string[]),
     quality_issues: filters.quality_issues ?? false,
     include_drafts: filters.include_drafts ?? false,
+    include_qa: filters.include_qa ?? false,
   });
 
   // Filter counts (M8) — cached with a 30-second TTL to avoid re-fetching on every panel open
@@ -87,9 +88,9 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
   const [popularKeywords, setPopularKeywords] = useState<string[]>([]);
   const [keywordsLoaded, setKeywordsLoaded] = useState(false);
 
-  // Projects for filter
-  const [allProjects, setAllProjects] = useState<Project[]>([]);
-  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  // Workspaces for filter
+  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
+  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 
   // User tags for filter
   const [allUserTags, setAllUserTags] = useState<{ tag: string; count: number }[]>([]);
@@ -110,11 +111,12 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       keywords: filters.keywords?.join(', ') ?? '',
       starred: filters.starred ?? false,
       priorities: filters.priority ?? [],
-      project: filters.project ?? '',
+      project: filters.workspace ?? '',
       user_tags: filters.user_tags ?? [],
       freshness: filters.freshness ?? [],
       quality_issues: filters.quality_issues ?? false,
       include_drafts: filters.include_drafts ?? false,
+      include_qa: filters.include_qa ?? false,
     });
   }
 
@@ -198,22 +200,22 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     fetchKeywords();
   }, [open, keywordsLoaded]);
 
-  // Fetch projects when panel opens
+  // Fetch workspaces when panel opens
   useEffect(() => {
-    if (!open || projectsLoaded) return;
-    const fetchProjects = async () => {
+    if (!open || workspacesLoaded) return;
+    const fetchWorkspaces = async () => {
       try {
-        const res = await fetch('/api/projects');
+        const res = await fetch('/api/workspaces');
         if (res.ok) {
-          setAllProjects(await res.json());
+          setAllWorkspaces(await res.json());
         }
       } catch {
         // Non-critical
       }
-      setProjectsLoaded(true);
+      setWorkspacesLoaded(true);
     };
-    fetchProjects();
-  }, [open, projectsLoaded]);
+    fetchWorkspaces();
+  }, [open, workspacesLoaded]);
 
   // Fetch user tags when panel opens
   useEffect(() => {
@@ -321,10 +323,10 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     }));
   }, []);
 
-  const handleProjectChange = useCallback((projectId: string) => {
+  const handleWorkspaceChange = useCallback((workspaceId: string) => {
     setDraft((prev) => ({
       ...prev,
-      project: prev.project === projectId ? '' : projectId,
+      project: prev.project === workspaceId ? '' : workspaceId,
     }));
   }, []);
 
@@ -375,11 +377,12 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       keywords: keywordsArray.length > 0 ? keywordsArray : undefined,
       starred: draft.starred || undefined,
       priority: draft.priorities.length ? draft.priorities : undefined,
-      project: draft.project || undefined,
+      workspace: draft.project || undefined,
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
       quality_issues: draft.quality_issues || undefined,
       include_drafts: draft.include_drafts || undefined,
+      include_qa: draft.include_qa || undefined,
     });
     onOpenChange(false);
   }, [draft, setFilters, onOpenChange]);
@@ -401,6 +404,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       freshness: [],
       quality_issues: false,
       include_drafts: false,
+      include_qa: false,
     });
     setAuthorSearch('');
     clearFilters();
@@ -423,6 +427,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.freshness.length > 0,
     draft.quality_issues,
     draft.include_drafts,
+    draft.include_qa,
   ].filter(Boolean).length;
 
   return (
@@ -564,18 +569,18 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Projects */}
-          {allProjects.length > 0 && (
+          {/* Workspaces */}
+          {allWorkspaces.length > 0 && (
             <>
-              <FilterSection title="Projects">
+              <FilterSection title="Workspaces">
                 <div className="flex flex-wrap gap-2">
-                  {allProjects.map((project) => {
-                    const isActive = draft.project === project.id;
+                  {allWorkspaces.map((workspace) => {
+                    const isActive = draft.project === workspace.id;
                     return (
                       <button
-                        key={project.id}
+                        key={workspace.id}
                         type="button"
-                        onClick={() => handleProjectChange(project.id)}
+                        onClick={() => handleWorkspaceChange(workspace.id)}
                         aria-pressed={isActive}
                         className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
                           isActive
@@ -585,9 +590,9 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                       >
                         <span
                           className="size-2 rounded-full"
-                          style={{ backgroundColor: project.color }}
+                          style={{ backgroundColor: workspace.color }}
                         />
-                        {project.name}
+                        {workspace.name}
                       </button>
                     );
                   })}
@@ -688,6 +693,26 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </label>
             <p className="mt-1 text-xs text-muted-foreground">
               Draft items are hidden from search and matching by default
+            </p>
+          </FilterSection>
+
+          <Separator className="my-3" />
+
+          {/* Include Q&A pairs */}
+          <FilterSection title="Q&A Pairs">
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={draft.include_qa}
+                onChange={(e) =>
+                  setDraft((prev) => ({ ...prev, include_qa: e.target.checked }))
+                }
+                className="size-4 rounded border-border accent-primary"
+              />
+              <span className="text-sm">Include Q&A pairs</span>
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Q&A pairs are shown in the Q&A Library by default
             </p>
           </FilterSection>
 

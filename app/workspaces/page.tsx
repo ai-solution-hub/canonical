@@ -1,36 +1,36 @@
 import { createClient } from '@/lib/supabase/server';
-import { ProjectsContent } from './projects-content';
-import type { Project } from '@/types/content';
+import { WorkspacesContent } from './workspaces-content';
+import type { Workspace } from '@/types/content';
 
-interface ProjectItemCount {
-  project_id: string;
+interface WorkspaceItemCount {
+  workspace_id: string;
   item_count: number;
   last_activity: string | null;
 }
 
-async function getProjects(): Promise<Project[]> {
+async function getWorkspaces(): Promise<Workspace[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from('projects')
+    .from('workspaces')
     .select('*')
     .order('is_archived')
     .order('name');
 
   if (error) {
-    console.error('Failed to fetch projects:', error.message);
+    console.error('Failed to fetch workspaces:', error.message);
     return [];
   }
-  return (data ?? []) as Project[];
+  return (data ?? []) as Workspace[];
 }
 
-async function getProjectItemCounts(): Promise<
+async function getWorkspaceItemCounts(): Promise<
   Record<string, { item_count: number; last_activity: string | null }>
 > {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('get_project_item_counts');
+  const { data, error } = await supabase.rpc('get_workspace_item_counts');
 
   if (error) {
-    console.error('Failed to fetch project item counts:', error.message);
+    console.error('Failed to fetch workspace item counts:', error.message);
     return {};
   }
 
@@ -38,8 +38,8 @@ async function getProjectItemCounts(): Promise<
     string,
     { item_count: number; last_activity: string | null }
   > = {};
-  for (const row of (data ?? []) as ProjectItemCount[]) {
-    counts[row.project_id] = {
+  for (const row of (data ?? []) as WorkspaceItemCount[]) {
+    counts[row.workspace_id] = {
       item_count: Number(row.item_count),
       last_activity: row.last_activity,
     };
@@ -47,15 +47,15 @@ async function getProjectItemCounts(): Promise<
   return counts;
 }
 
-export default async function ProjectsPage() {
-  const [projects, counts] = await Promise.all([
-    getProjects(),
-    getProjectItemCounts(),
+export default async function WorkspacesPage() {
+  const [workspaces, counts] = await Promise.all([
+    getWorkspaces(),
+    getWorkspaceItemCounts(),
   ]);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <ProjectsContent initialProjects={projects} initialCounts={counts} />
+      <WorkspacesContent initialWorkspaces={workspaces} initialCounts={counts} />
     </div>
   );
 }

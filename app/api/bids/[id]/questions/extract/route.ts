@@ -55,7 +55,7 @@ export async function POST(
 
     // Verify bid exists
     const { data: bid, error: bidError } = await supabase
-      .from('projects')
+      .from('workspaces')
       .select('id')
       .eq('id', id)
       .eq('type', 'bid')
@@ -182,7 +182,7 @@ export async function POST(
       questionsInserted = newQuestions.length;
 
       // Update bid status to questions_extracted
-      await supabase.from('projects').update({
+      await supabase.from('workspaces').update({
         status: 'questions_extracted',
       }).eq('id', id);
     }

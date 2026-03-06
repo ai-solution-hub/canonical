@@ -16,7 +16,7 @@ Forked from the IMS (Idea Management System) codebase — a personal knowledge
 management system with semantic search, AI classification, and content ingestion
 pipelines. Personal-use features (LinkedIn, Reddit, YouTube, Gmail integrations,
 Chrome extension, launchd agents) have been stripped. The retained codebase
-provides search, browse, content display, projects, digests, and the Python
+provides search, browse, content display, workspaces, digests, and the Python
 ingestion pipeline as a starting point.
 
 **Team:** Liam (product owner, zero development experience) + Claude Code as
@@ -54,8 +54,8 @@ knowledge-hub/
   app/                        # Next.js 16 App Router (proxy.ts for auth)
     api/search/               #   POST /api/search (hybrid: embedding + keywords)
     api/search/suggestions/   #   GET /api/search/suggestions
-    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, projects)
-    api/projects/             #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
+    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, workspaces)
+    api/workspaces/           #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
     api/bids/                 #   GET/POST + [id]/ (CRUD, questions, responses, tender, outcome, export)
     api/copilotkit/           #   POST (CopilotKit AG-UI runtime endpoint)
     api/embed/                #   POST /api/embed (standalone embedding)
@@ -78,7 +78,8 @@ knowledge-hub/
     item/[id]/                #   /item/:id (detail + inline editing)
     search/                   #   /search (semantic search results)
     digest/                   #   /digest (AI digest generation + history)
-    projects/                 #   /projects (project management)
+    library/                  #   /library (Q&A Library — browse, filter, manage Q&A pairs)
+    workspaces/               #   /workspaces (workspace management)
     review/                   #   /review (content review workflow)
     settings/                 #   /settings (user settings, 4 tabs)
     login/                    #   /login (Supabase Auth)
@@ -92,7 +93,7 @@ knowledge-hub/
                               #   review-shortcuts, search, theme-mode, transcript, user-role)
   lib/                        # Supabase clients, taxonomy, formatting, utils, anthropic,
                               #   ai-parse, auth, roles, error, rate-limit, digest-export,
-                              #   browse-helpers, extraction-schemas, validation/,
+                              #   browse-helpers, extraction-schemas, highlight, validation/,
                               #   bid-drafting, bid-matching, bid-state-machine, bid-export-*,
                               #   citations, copilotkit/, editor-utils, embeddings, freshness,
                               #   quality-check, structured-outputs, pdf-worker
@@ -112,7 +113,7 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 23 migration files
+    migrations/               # 25 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
@@ -154,8 +155,8 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 | # | Table | Purpose |
 |---|-------|---------|
 | 1 | `content_items` | Core KB content with progressive depth, user tracking, freshness |
-| 2 | `projects` | Generic containers (project, bid, kb_section) via `type` column |
-| 3 | `content_item_projects` | Item-to-container junction |
+| 2 | `workspaces` | Generic containers (project, bid, kb_section) via `type` column |
+| 3 | `content_item_workspaces` | Item-to-container junction |
 | 4 | `ingestion_quality_log` | Data quality flags |
 | 5 | `read_marks` | Per-user read tracking (scoped by `user_id`) |
 | 6 | `digests` | AI-generated change digests |
@@ -174,7 +175,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **All authenticated:** SELECT on all tables
-- **Editor + Admin:** INSERT/UPDATE on content, projects, bids, quality log
+- **Editor + Admin:** INSERT/UPDATE on content, workspaces, bids, quality log
 - **Admin only:** DELETE on most tables, manage `user_roles`, configure taxonomy
 - **User-scoped:** `read_marks` filtered by `user_id = auth.uid()`
 - **Immutable:** `content_history` — INSERT only, no UPDATE/DELETE
@@ -186,7 +187,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   q_a_pair, case_study, policy, certification, compliance, methodology,
   capability, product_description
 - `platform` IN: web, email, manual, upload, extraction, other
-- `projects.type` IN: project, bid, kb_section
+- `workspaces.type` IN: project, bid, kb_section
 - `priority` IN: high, medium, low (nullable — null means unset)
 - `freshness` IN: fresh, aging, stale, expired
 - `lifecycle_type` IN: evergreen, date_bound, regulation, bid_discovered

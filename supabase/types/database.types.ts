@@ -74,13 +74,6 @@ export type Database = {
             foreignKeyName: "bid_questions_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "bid_questions_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -279,13 +272,6 @@ export type Database = {
             foreignKeyName: "content_item_projects_project_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_projects_project_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -445,13 +431,6 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_items_source_bid_fkey"
-            columns: ["source_bid"]
-            isOneToOne: false
-            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
@@ -1024,13 +1003,6 @@ export type Database = {
             foreignKeyName: "templates_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "templates_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -1110,97 +1082,6 @@ export type Database = {
       }
     }
     Views: {
-      content_item_projects: {
-        Row: {
-          assigned_at: string | null
-          content_item_id: string | null
-          id: string | null
-          project_id: string | null
-        }
-        Insert: {
-          assigned_at?: string | null
-          content_item_id?: string | null
-          id?: string | null
-          project_id?: string | null
-        }
-        Update: {
-          assigned_at?: string | null
-          content_item_id?: string | null
-          id?: string | null
-          project_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "content_item_projects_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_projects_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_projects_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      projects: {
-        Row: {
-          color: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          domain_metadata: Json | null
-          icon: string | null
-          id: string | null
-          is_archived: boolean | null
-          name: string | null
-          status: string | null
-          type: string | null
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          domain_metadata?: Json | null
-          icon?: string | null
-          id?: string | null
-          is_archived?: boolean | null
-          name?: string | null
-          status?: string | null
-          type?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          domain_metadata?: Json | null
-          icon?: string | null
-          id?: string | null
-          is_archived?: boolean | null
-          name?: string | null
-          status?: string | null
-          type?: string | null
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       quality_issues_pending: {
         Row: {
           content_title: string | null

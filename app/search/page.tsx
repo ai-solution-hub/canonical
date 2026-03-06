@@ -1,18 +1,13 @@
 'use client';
 
-import { Suspense, type ReactNode } from 'react';
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { LayoutGrid, List, RefreshCw, SearchX, Info } from 'lucide-react';
 import { SearchBar } from '@/components/search-bar';
-import { Thumbnail } from '@/components/thumbnail';
-import { DomainBadge } from '@/components/domain-badge';
-import { SimilarityBadge } from '@/components/similarity-badge';
-import { ContentTypeIcon } from '@/components/content-type-icon';
-import { StarButton } from '@/components/star-button';
-import { PriorityBadge } from '@/components/priority-selector';
-import { VerificationBadge } from '@/components/verification-badge';
+import { ContentGrid } from '@/components/content-grid';
+import { ContentList } from '@/components/content-list';
 import {
   Tooltip,
   TooltipContent,
@@ -22,9 +17,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSearch } from '@/hooks/use-search';
 import { useReadMarks } from '@/contexts/read-marks-context';
-import { getDisplayTitle, formatContentType, formatPlatform, formatSmartDate } from '@/lib/format';
-import { cn } from '@/lib/utils';
-import type { SearchResult } from '@/types/content';
 
 type ViewMode = 'grid' | 'list';
 
@@ -90,246 +82,6 @@ function ListSkeleton() {
           <Skeleton className="h-3 w-16 shrink-0" />
         </div>
       ))}
-    </div>
-  );
-}
-
-/**
- * Highlight matching query terms in text by wrapping them in <mark> elements.
- * Returns an array of React nodes (strings and JSX elements).
- */
-function highlightTerms(text: string, query: string): ReactNode[] {
-  if (!query.trim()) return [text];
-
-  // Split query into unique words (min 2 chars to avoid highlighting noise)
-  const terms = query
-    .trim()
-    .split(/\s+/)
-    .filter((t) => t.length >= 2)
-    .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-
-  if (terms.length === 0) return [text];
-
-  // Use a capturing group so split keeps the matched delimiters
-  const pattern = new RegExp(`(${terms.join('|')})`, 'gi');
-  const parts = text.split(pattern);
-
-  // A non-global regex to test whether a part is a matched term
-  const testPattern = new RegExp(`^(?:${terms.join('|')})$`, 'i');
-
-  return parts.map((part, i) => {
-    if (testPattern.test(part)) {
-      return (
-        <mark
-          key={i}
-          className="bg-highlight-mark px-0.5 rounded text-foreground"
-        >
-          {part}
-        </mark>
-      );
-    }
-    return part;
-  });
-}
-
-/** Search result card with query term highlighting on title and summary.
- *  Q&A pair items show answer preview instead of ai_summary, plus source document. */
-function HighlightedSearchCard({
-  item,
-  query,
-  isRead,
-}: {
-  item: SearchResult;
-  query: string;
-  isRead?: boolean;
-}) {
-  const title = getDisplayTitle(item);
-  const isQAPair = item.content_type === 'q_a_pair';
-
-  // For Q&A pairs, show the answer content (from ai_summary) as preview
-  const previewText = isQAPair
-    ? (item.ai_summary ?? null)
-    : (item.ai_summary ?? null);
-
-  return (
-    <Link
-      href={`/item/${item.id}`}
-      prefetch={true}
-      className={cn(
-        'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-        isRead && 'opacity-75',
-      )}
-    >
-      <div className="relative">
-        <Thumbnail
-          src={item.thumbnail_url}
-          alt={title}
-          contentType={item.content_type}
-          domain={item.primary_domain}
-          className="rounded-b-none"
-        />
-        <div className="absolute right-1 top-1 flex items-center gap-1">
-          {isRead === false && (
-            <span
-              className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
-              aria-label="Unread"
-            />
-          )}
-          <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            <StarButton
-              itemId={item.id}
-              starred={item.metadata?.starred === true}
-              size="sm"
-              className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
-            />
-          </span>
-        </div>
-      </div>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
-          <PriorityBadge priority={item.priority} />
-          <span className="line-clamp-2">{highlightTerms(title, query)}</span>
-        </h3>
-        <SimilarityBadge score={item.similarity} />
-        {previewText && (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {isQAPair && (
-              <span className="mr-1 font-medium text-foreground/70">A:</span>
-            )}
-            {highlightTerms(previewText, query)}
-          </p>
-        )}
-        <div className="mt-auto flex flex-col gap-1.5 pt-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <DomainBadge domain={item.primary_domain ?? ''} />
-            {item.verified_at && (
-              <VerificationBadge verified={true} size="sm" />
-            )}
-          </div>
-          {isQAPair && item.source_document && (
-            <span className="truncate text-xs text-muted-foreground">
-              Source: {item.source_document}
-            </span>
-          )}
-          {item.author_name && (
-            <span className="truncate text-xs font-medium text-foreground">
-              {item.author_name}
-            </span>
-          )}
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <ContentTypeIcon contentType={item.content_type} size="size-3" />
-            {[formatContentType(item.content_type), formatPlatform(item.platform)]
-              .filter(Boolean)
-              .join(' \u00B7 ')}
-          </span>
-          <time
-            className="text-xs text-muted-foreground"
-            dateTime={item.captured_date ?? undefined}
-          >
-            {formatSmartDate(item.captured_date)}
-          </time>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-/** Grid of search result cards with query term highlighting */
-function HighlightedGrid({
-  items,
-  query,
-  readItemIds,
-}: {
-  items: SearchResult[];
-  query: string;
-  readItemIds?: Set<string>;
-}) {
-  return (
-    <div
-      role="feed"
-      aria-label="Search results"
-      className="grid gap-4"
-      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
-    >
-      {items.map((item, i) => (
-        <div
-          key={item.id}
-          role="article"
-          aria-setsize={items.length}
-          aria-posinset={i + 1}
-        >
-          <HighlightedSearchCard
-            item={item}
-            query={query}
-            isRead={readItemIds ? readItemIds.has(item.id) : undefined}
-          />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** List of search results with query term highlighting */
-function HighlightedList({
-  items,
-  query,
-  readItemIds,
-}: {
-  items: SearchResult[];
-  query: string;
-  readItemIds?: Set<string>;
-}) {
-  return (
-    <div
-      role="feed"
-      aria-label="Search results"
-      className="rounded-lg border border-border"
-    >
-      {items.map((item, i) => {
-        const title = getDisplayTitle(item);
-        const isRead = readItemIds ? readItemIds.has(item.id) : undefined;
-        return (
-          <Link
-            key={item.id}
-            href={`/item/${item.id}`}
-            prefetch={true}
-            role="article"
-            aria-setsize={items.length}
-            aria-posinset={i + 1}
-            className={cn(
-              'flex items-center gap-3 border-b border-border px-4 py-2 transition-colors last:border-b-0 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-              isRead && 'opacity-75',
-            )}
-          >
-            <Thumbnail
-              src={item.thumbnail_url}
-              alt={title}
-              contentType={item.content_type}
-              domain={item.primary_domain}
-              className="size-10 shrink-0 rounded"
-            />
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {highlightTerms(title, query)}
-                </span>
-                <DomainBadge domain={item.primary_domain ?? ''} />
-              </div>
-              {item.ai_summary && (
-                <p className="truncate text-xs text-muted-foreground">
-                  {highlightTerms(item.ai_summary, query)}
-                </p>
-              )}
-            </div>
-            <time
-              className="shrink-0 text-xs text-muted-foreground"
-              dateTime={item.captured_date ?? undefined}
-            >
-              {formatSmartDate(item.captured_date)}
-            </time>
-          </Link>
-        );
-      })}
     </div>
   );
 }
@@ -497,16 +249,16 @@ function SearchResults() {
           {/* Result items — highlighted when query is present */}
           {count > 0 &&
             (viewMode === 'grid' ? (
-              <HighlightedGrid
+              <ContentGrid
                 items={results}
-                query={query}
                 readItemIds={readMarksLoaded ? readItemIds : undefined}
+                highlightQuery={query}
               />
             ) : (
-              <HighlightedList
+              <ContentList
                 items={results}
-                query={query}
                 readItemIds={readMarksLoaded ? readItemIds : undefined}
+                highlightQuery={query}
               />
             ))}
         </>

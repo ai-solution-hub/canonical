@@ -44,11 +44,12 @@ export function useBrowseFilters() {
         searchParams.get('keywords')?.split(',').filter(Boolean) ?? undefined,
       starred: searchParams.get('starred') === 'true' || undefined,
       priority: priorityRaw?.length ? priorityRaw : undefined,
-      project: searchParams.get('project') ?? undefined,
+      workspace: searchParams.get('workspace') ?? undefined,
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
       quality_issues: searchParams.get('quality_issues') === 'true' || undefined,
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
+      include_qa: searchParams.get('include_qa') === 'true' || undefined,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -66,11 +67,12 @@ export function useBrowseFilters() {
     if (filters.keywords?.length) count++;
     if (filters.starred) count++;
     if (filters.priority?.length) count += filters.priority.length;
-    if (filters.project) count++;
+    if (filters.workspace) count++;
     if (filters.user_tags?.length) count++;
     if (filters.freshness?.length) count += filters.freshness.length;
     if (filters.quality_issues) count++;
     if (filters.include_drafts) count++;
+    if (filters.include_qa) count++;
     return count;
   }, [filters]);
 
@@ -135,9 +137,9 @@ export function useBrowseFilters() {
           params.delete('priority');
         }
       }
-      if ('project' in newFilters) {
-        if (newFilters.project) params.set('project', newFilters.project);
-        else params.delete('project');
+      if ('workspace' in newFilters) {
+        if (newFilters.workspace) params.set('workspace', newFilters.workspace);
+        else params.delete('workspace');
       }
       if ('user_tags' in newFilters) {
         if (newFilters.user_tags?.length) {
@@ -160,6 +162,10 @@ export function useBrowseFilters() {
       if ('include_drafts' in newFilters) {
         if (newFilters.include_drafts) params.set('include_drafts', 'true');
         else params.delete('include_drafts');
+      }
+      if ('include_qa' in newFilters) {
+        if (newFilters.include_qa) params.set('include_qa', 'true');
+        else params.delete('include_qa');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

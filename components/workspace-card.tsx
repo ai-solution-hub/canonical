@@ -3,48 +3,48 @@
 import Link from 'next/link';
 import { Folder, Archive, ArchiveRestore, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ICON_MAP, type ProjectIconName } from '@/components/project-icon-picker';
+import { ICON_MAP, type WorkspaceIconName } from '@/components/workspace-icon-picker';
 import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import type { Project } from '@/types/content';
+import type { Workspace } from '@/types/content';
 
-export interface ProjectWithCounts extends Project {
+export interface WorkspaceWithCounts extends Workspace {
   item_count: number;
   last_activity: string | null;
 }
 
-interface ProjectCardProps {
-  project: ProjectWithCounts;
-  onEdit: (project: ProjectWithCounts) => void;
-  onArchiveToggle: (project: ProjectWithCounts) => void;
+interface WorkspaceCardProps {
+  workspace: WorkspaceWithCounts;
+  onEdit: (workspace: WorkspaceWithCounts) => void;
+  onArchiveToggle: (workspace: WorkspaceWithCounts) => void;
   readOnly?: boolean;
 }
 
-export function ProjectCard({
-  project,
+export function WorkspaceCard({
+  workspace,
   onEdit,
   onArchiveToggle,
   readOnly = false,
-}: ProjectCardProps) {
-  const Icon = ICON_MAP[project.icon as ProjectIconName] ?? Folder;
+}: WorkspaceCardProps) {
+  const Icon = ICON_MAP[workspace.icon as WorkspaceIconName] ?? Folder;
 
   return (
     <div
       role="button"
       tabIndex={0}
-      aria-label={`Edit project: ${project.name}`}
-      onClick={() => onEdit(project)}
+      aria-label={`Edit workspace: ${workspace.name}`}
+      onClick={() => onEdit(workspace)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onEdit(project);
+          onEdit(workspace);
         }
       }}
       className={cn(
         'group relative flex cursor-pointer flex-col rounded-lg border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
-        project.is_archived && 'opacity-70',
+        workspace.is_archived && 'opacity-70',
       )}
-      style={{ borderLeftWidth: '4px', borderLeftColor: project.color }}
+      style={{ borderLeftWidth: '4px', borderLeftColor: workspace.color }}
     >
       <div className="flex flex-1 flex-col gap-2 p-4">
         {/* Header row: icon + name + item count */}
@@ -52,32 +52,32 @@ export function ProjectCard({
           <div className="flex items-center gap-2 min-w-0">
             <Icon
               className="size-4 shrink-0 text-muted-foreground"
-              style={{ color: project.color }}
+              style={{ color: workspace.color }}
             />
             <h3 className="truncate text-base font-semibold leading-tight">
-              {project.name}
+              {workspace.name}
             </h3>
           </div>
           <Link
-            href={`/browse?project=${project.id}`}
+            href={`/browse?workspace=${workspace.id}`}
             onClick={(e) => e.stopPropagation()}
             className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
           >
-            {project.item_count} {project.item_count === 1 ? 'item' : 'items'}
+            {workspace.item_count} {workspace.item_count === 1 ? 'item' : 'items'}
           </Link>
         </div>
 
         {/* Description */}
-        {project.description && (
+        {workspace.description && (
           <p className="line-clamp-2 text-sm text-muted-foreground">
-            {project.description}
+            {workspace.description}
           </p>
         )}
 
         {/* Last activity */}
         <p className="mt-auto pt-1 text-xs text-muted-foreground">
-          {project.last_activity
-            ? `Last activity: ${formatRelativeDate(project.last_activity)}`
+          {workspace.last_activity
+            ? `Last activity: ${formatRelativeDate(workspace.last_activity)}`
             : 'No items yet'}
         </p>
       </div>
@@ -90,7 +90,7 @@ export function ProjectCard({
             size="xs"
             onClick={(e) => {
               e.stopPropagation();
-              onEdit(project);
+              onEdit(workspace);
             }}
             className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
@@ -102,11 +102,11 @@ export function ProjectCard({
             size="xs"
             onClick={(e) => {
               e.stopPropagation();
-              onArchiveToggle(project);
+              onArchiveToggle(workspace);
             }}
             className="gap-1 text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {project.is_archived ? (
+            {workspace.is_archived ? (
               <>
                 <ArchiveRestore className="size-3" />
                 Unarchive

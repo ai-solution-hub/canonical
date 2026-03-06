@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-export const PROJECT_ICONS = [
+export const WORKSPACE_ICONS = [
   'folder',
   'briefcase',
   'lightbulb',
@@ -33,9 +33,9 @@ export const PROJECT_ICONS = [
   'zap',
 ] as const;
 
-export type ProjectIconName = (typeof PROJECT_ICONS)[number];
+export type WorkspaceIconName = (typeof WORKSPACE_ICONS)[number];
 
-export const ICON_MAP: Record<ProjectIconName, LucideIcon> = {
+export const ICON_MAP: Record<WorkspaceIconName, LucideIcon> = {
   folder: Folder,
   briefcase: Briefcase,
   lightbulb: Lightbulb,
@@ -51,19 +51,19 @@ export const ICON_MAP: Record<ProjectIconName, LucideIcon> = {
 };
 
 /** Resolve an icon name string to a lucide-react component */
-export function getProjectIcon(name: string): LucideIcon {
-  return ICON_MAP[name as ProjectIconName] ?? Folder;
+export function getWorkspaceIcon(name: string): LucideIcon {
+  return ICON_MAP[name as WorkspaceIconName] ?? Folder;
 }
 
-interface ProjectIconPickerProps {
+interface WorkspaceIconPickerProps {
   value: string;
   onChange: (icon: string) => void;
 }
 
-export function ProjectIconPicker({
+export function WorkspaceIconPicker({
   value,
   onChange,
-}: ProjectIconPickerProps) {
+}: WorkspaceIconPickerProps) {
   const groupRef = useRef<HTMLDivElement>(null);
 
   const handleKeyDown = useCallback(
@@ -71,15 +71,15 @@ export function ProjectIconPicker({
       if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       e.preventDefault();
 
-      const currentIdx = PROJECT_ICONS.indexOf(value as ProjectIconName);
+      const currentIdx = WORKSPACE_ICONS.indexOf(value as WorkspaceIconName);
       let nextIdx: number;
       if (e.key === 'ArrowRight') {
-        nextIdx = currentIdx < PROJECT_ICONS.length - 1 ? currentIdx + 1 : 0;
+        nextIdx = currentIdx < WORKSPACE_ICONS.length - 1 ? currentIdx + 1 : 0;
       } else {
-        nextIdx = currentIdx > 0 ? currentIdx - 1 : PROJECT_ICONS.length - 1;
+        nextIdx = currentIdx > 0 ? currentIdx - 1 : WORKSPACE_ICONS.length - 1;
       }
 
-      onChange(PROJECT_ICONS[nextIdx]);
+      onChange(WORKSPACE_ICONS[nextIdx]);
 
       // Focus the newly selected button
       requestAnimationFrame(() => {
@@ -100,7 +100,7 @@ export function ProjectIconPicker({
       className="flex flex-wrap gap-2"
       onKeyDown={handleKeyDown}
     >
-      {PROJECT_ICONS.map((iconName, idx) => {
+      {WORKSPACE_ICONS.map((iconName, idx) => {
         const Icon = ICON_MAP[iconName];
         const selected = value === iconName;
         return (

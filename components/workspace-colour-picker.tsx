@@ -5,7 +5,7 @@ import { Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
-export const PROJECT_COLOURS = [
+export const WORKSPACE_COLOURS = [
   { name: 'Indigo', hex: '#6366f1' },
   { name: 'Blue', hex: '#3b82f6' },
   { name: 'Cyan', hex: '#06b6d4' },
@@ -22,21 +22,21 @@ export const PROJECT_COLOURS = [
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-interface ProjectColourPickerProps {
+interface WorkspaceColourPickerProps {
   value: string;
   onChange: (hex: string) => void;
 }
 
-export function ProjectColourPicker({
+export function WorkspaceColourPicker({
   value,
   onChange,
-}: ProjectColourPickerProps) {
+}: WorkspaceColourPickerProps) {
   const [customHex, setCustomHex] = useState(() => {
-    const isPreset = PROJECT_COLOURS.some((c) => c.hex === value);
+    const isPreset = WORKSPACE_COLOURS.some((c) => c.hex === value);
     return isPreset ? '' : value;
   });
 
-  const isPreset = PROJECT_COLOURS.some((c) => c.hex === value);
+  const isPreset = WORKSPACE_COLOURS.some((c) => c.hex === value);
 
   const groupRef = useRef<HTMLDivElement>(null);
 
@@ -45,15 +45,15 @@ export function ProjectColourPicker({
       if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
       e.preventDefault();
 
-      const currentIdx = PROJECT_COLOURS.findIndex((c) => c.hex === value);
+      const currentIdx = WORKSPACE_COLOURS.findIndex((c) => c.hex === value);
       let nextIdx: number;
       if (e.key === 'ArrowRight') {
-        nextIdx = currentIdx < PROJECT_COLOURS.length - 1 ? currentIdx + 1 : 0;
+        nextIdx = currentIdx < WORKSPACE_COLOURS.length - 1 ? currentIdx + 1 : 0;
       } else {
-        nextIdx = currentIdx > 0 ? currentIdx - 1 : PROJECT_COLOURS.length - 1;
+        nextIdx = currentIdx > 0 ? currentIdx - 1 : WORKSPACE_COLOURS.length - 1;
       }
 
-      onChange(PROJECT_COLOURS[nextIdx].hex);
+      onChange(WORKSPACE_COLOURS[nextIdx].hex);
       setCustomHex('');
 
       // Focus the newly selected button
@@ -76,7 +76,7 @@ export function ProjectColourPicker({
         className="flex flex-wrap gap-2"
         onKeyDown={handleKeyDown}
       >
-        {PROJECT_COLOURS.map((colour, idx) => {
+        {WORKSPACE_COLOURS.map((colour, idx) => {
           const selected = value === colour.hex;
           return (
             <button

@@ -3,7 +3,7 @@ import type { Database } from '@/supabase/types/database.types';
 // Database row types
 export type BidQuestionRow = Database['public']['Tables']['bid_questions']['Row'];
 export type BidResponseRow = Database['public']['Tables']['bid_responses']['Row'];
-export type ProjectRow = Database['public']['Tables']['projects']['Row'];
+export type WorkspaceRow = Database['public']['Tables']['workspaces']['Row'];
 
 // ---- State Machine ----
 

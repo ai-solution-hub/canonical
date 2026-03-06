@@ -323,12 +323,12 @@ export async function DELETE(
 
     try {
       await supabase
-        .from('content_item_projects')
+        .from('content_item_workspaces')
         .delete()
         .eq('content_item_id', id);
     } catch (err) {
-      console.error('Failed to delete project associations:', err);
-      deletionErrors.push('content_item_projects');
+      console.error('Failed to delete workspace associations:', err);
+      deletionErrors.push('content_item_workspaces');
     }
 
     // Delete the content item itself

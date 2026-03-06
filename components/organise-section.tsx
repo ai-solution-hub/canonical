@@ -4,22 +4,22 @@ import { useState, useCallback } from 'react';
 import { ChevronDown, ChevronRight, Plus, Tag, FolderOpen, Hash } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { ProjectSelector } from '@/components/project-selector';
+import { WorkspaceSelector } from '@/components/workspace-selector';
 import { UserTagInput } from '@/components/user-tag-input';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
-import type { Project } from '@/types/content';
+import type { Workspace } from '@/types/content';
 
 interface OrganiseSectionProps {
   itemId: string;
   keywords: string[];
   tags: string[];
-  projects: Project[];
+  workspaces: Workspace[];
   canEdit: boolean;
   onKeywordsChanged: (keywords: string[]) => void;
   onTagsChanged: (tags: string[]) => void;
-  onProjectsChanged: (projects: Project[]) => void;
+  onWorkspacesChanged: (workspaces: Workspace[]) => void;
   className?: string;
 }
 
@@ -27,7 +27,7 @@ export function OrganiseSection({
   itemId,
   keywords,
   tags,
-  projects,
+  workspaces,
   canEdit,
   onKeywordsChanged,
   onTagsChanged,
@@ -43,7 +43,7 @@ export function OrganiseSection({
     setExpanded((prev) => !prev);
   }, []);
 
-  const allEmpty = keywords.length === 0 && tags.length === 0 && projects.length === 0;
+  const allEmpty = keywords.length === 0 && tags.length === 0 && workspaces.length === 0;
 
   // When canEdit=false AND all arrays empty: render null
   if (!canEdit && allEmpty) {
@@ -52,15 +52,15 @@ export function OrganiseSection({
 
   const hasKeywords = keywords.length > 0;
   const hasTags = tags.length > 0;
-  const hasProjects = projects.length > 0;
+  const hasWorkspaces = workspaces.length > 0;
 
   // Build the inline "Add" links for empty categories
   const emptyCategories: { label: string; icon: React.ReactNode; key: string }[] = [];
   if (!hasKeywords) {
     emptyCategories.push({ label: 'Add keywords', icon: <Hash className="size-3" />, key: 'keywords' });
   }
-  if (!hasProjects) {
-    emptyCategories.push({ label: 'Add to project', icon: <FolderOpen className="size-3" />, key: 'projects' });
+  if (!hasWorkspaces) {
+    emptyCategories.push({ label: 'Add to workspace', icon: <FolderOpen className="size-3" />, key: 'workspaces' });
   }
   if (!hasTags) {
     emptyCategories.push({ label: 'Add tags', icon: <Tag className="size-3" />, key: 'tags' });
@@ -125,10 +125,10 @@ export function OrganiseSection({
         />
       )}
 
-      {/* Projects — show if populated or expanded */}
-      {(hasProjects || expanded) && (
+      {/* Workspaces — show if populated or expanded */}
+      {(hasWorkspaces || expanded) && (
         <div className="mb-3">
-          <ProjectSelector itemId={itemId} className="" />
+          <WorkspaceSelector itemId={itemId} className="" />
         </div>
       )}
 
