@@ -26,7 +26,7 @@ import { checkResponseQuality, type QualityCheckQuestion } from '@/lib/quality-c
 
 export interface ResponseStructure {
   suggested_headings: string[];
-  word_allocation: Record<string, number>;
+  word_allocation: Array<{ heading: string; words: number }>;
 }
 
 export interface QuestionAnalysis {
@@ -83,8 +83,16 @@ const questionAnalysisSchema = {
           items: { type: 'string' },
         },
         word_allocation: {
-          type: 'object',
-          additionalProperties: { type: 'integer' },
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              heading: { type: 'string' },
+              words: { type: 'integer' },
+            },
+            required: ['heading', 'words'],
+            additionalProperties: false,
+          },
         },
       },
       required: ['suggested_headings', 'word_allocation'],
@@ -144,7 +152,7 @@ ${matchedContent.map((c, i) => `${i + 1}. [${c.content_type}] ${c.title}: ${c.ai
   let analysis: QuestionAnalysis = {
     primary_topic: question.question_text.slice(0, 100),
     content_types_needed: [],
-    response_structure: { suggested_headings: [], word_allocation: {} },
+    response_structure: { suggested_headings: [], word_allocation: [] },
     key_points_to_cover: [],
     tone: 'formal',
   };

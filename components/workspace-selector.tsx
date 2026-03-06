@@ -35,7 +35,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
       try {
         const [allRes, itemRes] = await Promise.all([
           fetch('/api/workspaces'),
-          fetch(`/api/items/${itemId}/projects`),
+          fetch(`/api/items/${itemId}/workspaces`),
         ]);
         if (allRes.ok) setAllWorkspaces(await allRes.json());
         if (itemRes.ok) setItemWorkspaces(await itemRes.json());
@@ -66,10 +66,10 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
       }
 
       try {
-        const res = await fetch(`/api/items/${itemId}/projects`, {
+        const res = await fetch(`/api/items/${itemId}/workspaces`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ project_id: workspace.id, action }),
+          body: JSON.stringify({ workspace_id: workspace.id, action }),
         });
         if (!res.ok) throw new Error();
         toast(assigned ? `Removed from ${workspace.name}` : `Added to ${workspace.name}`, {
@@ -92,7 +92,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
     if (!search.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch(`/api/items/${itemId}/projects`, {
+      const res = await fetch(`/api/items/${itemId}/workspaces`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ create: true, name: search.trim() }),
