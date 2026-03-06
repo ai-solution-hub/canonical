@@ -22,7 +22,7 @@ export function getLayerSchema() {
  * Schema for metadata updates that include layer content.
  * Each layer key maps to an optional string field.
  *
- * Example valid body: { brief: "Updated summary", detail: "More info" }
+ * Example valid body: { sales_brief: "Positioning text", bid_detail: "Factual content" }
  */
 export const MetadataUpdateBodySchema = z.object(
   Object.fromEntries(

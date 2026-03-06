@@ -83,7 +83,7 @@ describe('ContentTabs', () => {
     vi.clearAllMocks();
   });
 
-  it('renders Sales Brief tab when summaryData is provided', () => {
+  it('renders Summary tab when summaryData is provided', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -91,10 +91,10 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Sales Brief')).toBeInTheDocument();
+    expect(screen.getByText('Summary')).toBeInTheDocument();
   });
 
-  it('shows AI summary text in Sales Brief tab', () => {
+  it('shows AI summary text in Summary tab', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -105,7 +105,7 @@ describe('ContentTabs', () => {
     expect(screen.getByText('This is the executive summary.')).toBeInTheDocument();
   });
 
-  it('renders Bid Detail tab when detailed summary exists', () => {
+  it('renders Detailed tab when detailed summary exists', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -113,7 +113,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Bid Detail')).toBeInTheDocument();
+    expect(screen.getByText('Detailed')).toBeInTheDocument();
   });
 
   it('renders Takeaways tab when takeaways exist', () => {
@@ -127,7 +127,7 @@ describe('ContentTabs', () => {
     expect(screen.getByText('Takeaways')).toBeInTheDocument();
   });
 
-  it('renders Full Text tab when content is provided', () => {
+  it('renders Content tab when content is provided', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -136,7 +136,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Full Text')).toBeInTheDocument();
+    expect(screen.getByText('Content')).toBeInTheDocument();
   });
 
   it('renders "Full Answer" for Q&A pairs instead of "Full Text"', () => {
@@ -151,7 +151,7 @@ describe('ContentTabs', () => {
     expect(screen.getByText('Full Answer')).toBeInTheDocument();
   });
 
-  it('renders Reference tab when reference is provided', () => {
+  it('renders Technical tab when reference is provided', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -160,7 +160,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Reference')).toBeInTheDocument();
+    expect(screen.getByText('Technical')).toBeInTheDocument();
   });
 
   it('shows human-authored brief content when brief is provided', () => {

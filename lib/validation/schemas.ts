@@ -192,6 +192,8 @@ export const ItemUpdateBodySchema = z.object({
     'brief',
     'detail',
     'reference',
+    'answer_standard',
+    'answer_advanced',
   ]),
   value: z.union([
     z.string().max(500_000),
@@ -212,7 +214,7 @@ export const ItemUpdateBodySchema = z.object({
     });
   }
   // Enforce field-specific max lengths
-  const LONG_TEXT_FIELDS = ['content', 'brief', 'detail', 'reference'];
+  const LONG_TEXT_FIELDS = ['content', 'brief', 'detail', 'reference', 'answer_standard', 'answer_advanced'];
   if (typeof data.value === 'string' && !LONG_TEXT_FIELDS.includes(data.field)) {
     if (data.value.length > 5_000) {
       ctx.addIssue({
@@ -279,6 +281,8 @@ export const EDITABLE_FIELDS = new Set([
   'brief',
   'detail',
   'reference',
+  'answer_standard',
+  'answer_advanced',
 ] as const);
 
 export type EditableField =
@@ -297,7 +301,9 @@ export type EditableField =
   | 'content'
   | 'brief'
   | 'detail'
-  | 'reference';
+  | 'reference'
+  | 'answer_standard'
+  | 'answer_advanced';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);

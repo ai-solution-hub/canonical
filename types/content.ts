@@ -31,6 +31,10 @@ export interface ContentListItem {
   brief?: string | null;
   /** Full content text (used for Q&A answer preview on browse cards) */
   content?: string | null;
+  /** Standard/brief answer for Q&A pairs */
+  answer_standard?: string | null;
+  /** Advanced/detailed answer for Q&A pairs */
+  answer_advanced?: string | null;
 }
 
 /** Content list item with read state */
@@ -62,6 +66,10 @@ export interface ContentItemDetail extends ContentListItem {
   detail?: string | null;
   /** Progressive depth: reference/technical detail */
   reference?: string | null;
+  /** Standard/brief answer for Q&A pairs */
+  answer_standard?: string | null;
+  /** Advanced/detailed answer for Q&A pairs */
+  answer_advanced?: string | null;
 }
 
 /** Multi-level summary data stored as JSONB on content_items */
@@ -183,7 +191,8 @@ export const CONTENT_LIST_COLUMNS = `
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
   ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,
-  verified_at, source_document, brief, content
+  verified_at, source_document, brief, content,
+  answer_standard, answer_advanced
 ` as const;
 
 /** Columns selected for detail view */

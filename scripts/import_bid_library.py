@@ -46,22 +46,27 @@ def find_docx_files(directory: str) -> list[str]:
 
 def build_content_record(pair: dict, batch_name: str) -> dict:
     """Convert a classified Q&A pair dict into a Supabase content_items record."""
-    # Build the content field: combine question + answers
-    content_parts = [f"Q: {pair['question_text']}"]
+    # Build the content field: clean answer text for search indexing
+    answer_parts = []
     if pair.get("answer_standard"):
-        content_parts.append(f"Standard: {pair['answer_standard']}")
+        answer_parts.append(pair["answer_standard"])
     if pair.get("answer_advanced"):
-        content_parts.append(f"Advanced: {pair['answer_advanced']}")
-    content = "\n\n".join(content_parts)
+        answer_parts.append(pair["answer_advanced"])
+    content = "\n\n".join(answer_parts) if answer_parts else ""
 
     # Build a concise title from the question (first 120 chars)
     title = pair["question_text"][:120]
     if len(pair["question_text"]) > 120:
         title += "..."
 
+    # Build ai_summary from first 200 chars of answer text
+    ai_summary = content[:200] + "..." if len(content) > 200 else content
+
     record = {
         "title": title,
         "content": content,
+        "answer_standard": pair.get("answer_standard") or None,
+        "answer_advanced": pair.get("answer_advanced") or None,
         "content_type": "q_a_pair",
         "platform": "extraction",
         "source_url": "",
@@ -71,7 +76,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "secondary_domain": pair.get("secondary_domain", ""),
         "secondary_subtopic": pair.get("secondary_subtopic", ""),
         "classification_confidence": pair.get("classification_confidence", 0.0),
-        "ai_summary": f"Q&A pair from {pair.get('source_file', 'unknown')} — {pair.get('section_name', 'general')}",
+        "ai_summary": ai_summary,
         "ai_keywords": [
             pair.get("primary_domain", ""),
             pair.get("section_name", "").lower().replace(" ", "-"),
@@ -81,7 +86,8 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
             "section_name": pair.get("section_name", ""),
             "table_index": pair.get("table_index", 0),
             "row_index": pair.get("row_index", 0),
-            "has_advanced_answer": bool(pair.get("answer_advanced")),
+            "has_standard": bool(pair.get("answer_standard")),
+            "has_advanced": bool(pair.get("answer_advanced")),
             "import_batch": batch_name,
         },
     }

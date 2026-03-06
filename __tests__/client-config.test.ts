@@ -40,11 +40,12 @@ describe('CLIENT_CONFIG', () => {
     }
   });
 
-  it('has layer vocabulary with brief, detail, reference', () => {
+  it('has layer vocabulary with sales_brief, bid_detail, company_reference, research', () => {
     const keys = CLIENT_CONFIG.layer_vocabulary.map((l) => l.key);
-    expect(keys).toContain('brief');
-    expect(keys).toContain('detail');
-    expect(keys).toContain('reference');
+    expect(keys).toContain('sales_brief');
+    expect(keys).toContain('bid_detail');
+    expect(keys).toContain('company_reference');
+    expect(keys).toContain('research');
   });
 
   it('layer vocabulary entries have required fields', () => {
@@ -83,13 +84,17 @@ describe('getLayerSchema', () => {
   const schema = getLayerSchema();
 
   it('accepts valid layer keys', () => {
-    expect(schema.safeParse('brief').success).toBe(true);
-    expect(schema.safeParse('detail').success).toBe(true);
-    expect(schema.safeParse('reference').success).toBe(true);
+    expect(schema.safeParse('sales_brief').success).toBe(true);
+    expect(schema.safeParse('bid_detail').success).toBe(true);
+    expect(schema.safeParse('company_reference').success).toBe(true);
+    expect(schema.safeParse('research').success).toBe(true);
   });
 
   it('rejects invalid layer keys', () => {
     expect(schema.safeParse('invalid').success).toBe(false);
+    expect(schema.safeParse('brief').success).toBe(false);
+    expect(schema.safeParse('detail').success).toBe(false);
+    expect(schema.safeParse('reference').success).toBe(false);
     expect(schema.safeParse('').success).toBe(false);
     expect(schema.safeParse(123).success).toBe(false);
   });
@@ -98,8 +103,8 @@ describe('getLayerSchema', () => {
 describe('MetadataUpdateBodySchema', () => {
   it('accepts valid layer content', () => {
     const result = MetadataUpdateBodySchema.safeParse({
-      brief: 'Executive summary',
-      detail: 'More detail here',
+      sales_brief: 'Positioning text',
+      bid_detail: 'Factual content',
     });
     expect(result.success).toBe(true);
   });
@@ -111,7 +116,7 @@ describe('MetadataUpdateBodySchema', () => {
 
   it('accepts single layer', () => {
     const result = MetadataUpdateBodySchema.safeParse({
-      reference: 'Technical details',
+      company_reference: 'Corporate document',
     });
     expect(result.success).toBe(true);
   });
@@ -119,9 +124,10 @@ describe('MetadataUpdateBodySchema', () => {
 
 describe('getLayerLabel', () => {
   it('returns label for known layer keys', () => {
-    expect(getLayerLabel('brief')).toBe('Brief');
-    expect(getLayerLabel('detail')).toBe('Detail');
-    expect(getLayerLabel('reference')).toBe('Reference');
+    expect(getLayerLabel('sales_brief')).toBe('Sales Brief');
+    expect(getLayerLabel('bid_detail')).toBe('Bid Detail');
+    expect(getLayerLabel('company_reference')).toBe('Company Reference');
+    expect(getLayerLabel('research')).toBe('Research');
   });
 
   it('returns key itself for unknown layer keys', () => {
@@ -132,9 +138,10 @@ describe('getLayerLabel', () => {
 describe('getOrderedLayers', () => {
   it('returns layers in order', () => {
     const layers = getOrderedLayers();
-    expect(layers[0].key).toBe('brief');
-    expect(layers[1].key).toBe('detail');
-    expect(layers[2].key).toBe('reference');
+    expect(layers[0].key).toBe('sales_brief');
+    expect(layers[1].key).toBe('bid_detail');
+    expect(layers[2].key).toBe('company_reference');
+    expect(layers[3].key).toBe('research');
   });
 
   it('returns a new array (not a reference to config)', () => {

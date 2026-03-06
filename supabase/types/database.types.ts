@@ -295,6 +295,8 @@ export type Database = {
         Row: {
           ai_keywords: string[] | null
           ai_summary: string | null
+          answer_advanced: string | null
+          answer_standard: string | null
           author_name: string | null
           brief: string | null
           captured_date: string | null
@@ -342,6 +344,8 @@ export type Database = {
         Insert: {
           ai_keywords?: string[] | null
           ai_summary?: string | null
+          answer_advanced?: string | null
+          answer_standard?: string | null
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null
@@ -389,6 +393,8 @@ export type Database = {
         Update: {
           ai_keywords?: string[] | null
           ai_summary?: string | null
+          answer_advanced?: string | null
+          answer_standard?: string | null
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null

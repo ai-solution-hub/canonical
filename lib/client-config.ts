@@ -89,7 +89,7 @@ export const CLIENT_CONFIG = {
     content_layers: {
       enabled: false,
       label: 'Content Layers',
-      description: 'Metadata-driven content depth layers (brief → detail → reference)',
+      description: 'Metadata-driven content depth layers (sales_brief → bid_detail → company_reference → research)',
     },
     draft_status: {
       enabled: true,
@@ -110,22 +110,28 @@ export const CLIENT_CONFIG = {
 
   layer_vocabulary: [
     {
-      key: 'brief',
-      label: 'Brief',
-      description: 'Executive summary — one paragraph overview',
+      key: 'sales_brief',
+      label: 'Sales Brief',
+      description: 'Positioning and messaging for internal sales',
       order: 1,
     },
     {
-      key: 'detail',
-      label: 'Detail',
-      description: 'Expanded explanation with supporting context',
+      key: 'bid_detail',
+      label: 'Bid Detail',
+      description: 'Factual content for tender responses',
       order: 2,
     },
     {
-      key: 'reference',
-      label: 'Reference',
-      description: 'Technical or source-level detail for deep dives',
+      key: 'company_reference',
+      label: 'Company Reference',
+      description: 'Controlled corporate documents',
       order: 3,
+    },
+    {
+      key: 'research',
+      label: 'Research',
+      description: 'Background material and market intelligence',
+      order: 4,
     },
   ],
 } as const satisfies ClientConfig;

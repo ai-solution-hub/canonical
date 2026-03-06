@@ -414,12 +414,12 @@ export function ContentTabs({
         <TabsList className="w-full justify-start rounded-b-none border-b border-border bg-muted/50 px-1 flex-wrap">
           {hasBrief && (
             <TabsTrigger value="brief" className="min-h-[44px] px-4 text-sm">
-              Sales Brief
+              Summary
             </TabsTrigger>
           )}
           {hasDetail && (
             <TabsTrigger value="detail" className="min-h-[44px] px-4 text-sm">
-              Bid Detail
+              Detailed
             </TabsTrigger>
           )}
           {hasTakeaways && (
@@ -429,7 +429,7 @@ export function ContentTabs({
           )}
           {hasFullText && (
             <TabsTrigger value="fulltext" className="min-h-[44px] px-4 text-sm">
-              {isQAPair ? 'Full Answer' : 'Full Text'}
+              {isQAPair ? 'Full Answer' : 'Content'}
             </TabsTrigger>
           )}
           {hasReaderContent && (
@@ -439,23 +439,23 @@ export function ContentTabs({
           )}
           {hasReference && (
             <TabsTrigger value="reference" className="min-h-[44px] px-4 text-sm">
-              Reference
+              Technical
             </TabsTrigger>
           )}
           {/* Fallback: no content yet — show disabled placeholders */}
           {!hasBrief && !hasFullText && !hasDetail && (
             <>
               <TabsTrigger value="brief" className="min-h-[44px] px-4 text-sm">
-                Sales Brief
+                Summary
               </TabsTrigger>
               <TabsTrigger value="detail" className="min-h-[44px] px-4 text-sm" disabled>
-                Bid Detail
+                Detailed
               </TabsTrigger>
             </>
           )}
         </TabsList>
 
-        {/* --- Sales Brief tab --- */}
+        {/* --- Summary tab --- */}
         {(hasBrief || (!hasBrief && !hasFullText && !hasDetail)) && (
           <TabsContent value="brief" className="p-4">
             {isEditing('brief') ? (
@@ -472,7 +472,7 @@ export function ContentTabs({
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
-                      <EditButton field="brief" label={brief ? 'Edit' : 'Write Sales Brief'} />
+                      <EditButton field="brief" label={brief ? 'Edit' : 'Write Summary'} />
                     </div>
                     <ContentRenderer content={brief!} />
                   </>
@@ -480,11 +480,11 @@ export function ContentTabs({
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <AiBadge />
-                      <EditButton field="brief" label="Write Sales Brief" />
+                      <EditButton field="brief" label="Write Summary" />
                     </div>
                     {!hasBriefHuman && (
                       <p className="mb-3 text-xs text-muted-foreground">
-                        AI-generated — author a Sales Brief to replace
+                        AI-generated — author a Summary to replace
                       </p>
                     )}
                     <p className="text-base leading-relaxed text-foreground">
@@ -495,7 +495,7 @@ export function ContentTabs({
                   // Empty state
                   <div className="flex flex-col items-center gap-3 py-8 text-center">
                     <p className="text-sm text-muted-foreground">
-                      No sales brief yet for this item.
+                      No summary yet for this item.
                     </p>
                     {canEdit && (
                       <Button
@@ -515,7 +515,7 @@ export function ContentTabs({
           </TabsContent>
         )}
 
-        {/* --- Bid Detail tab --- */}
+        {/* --- Detailed tab --- */}
         {hasDetail && (
           <TabsContent value="detail" className="p-4">
             {isEditing('detail') ? (
@@ -540,11 +540,11 @@ export function ContentTabs({
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <AiBadge />
-                      <EditButton field="detail" label="Write Bid Detail" />
+                      <EditButton field="detail" label="Write Detailed" />
                     </div>
                     {!hasDetailHuman && (
                       <p className="mb-3 text-xs text-muted-foreground">
-                        AI-generated — author Bid Detail to replace
+                        AI-generated — author Detailed content to replace
                       </p>
                     )}
                     <ContentRenderer content={summaryData!.detailed} />
