@@ -3,7 +3,6 @@ import {
   CLIENT_CONFIG,
   isFeatureEnabled,
   type FeatureName,
-  type LayerKey,
 } from '@/lib/client-config';
 import {
   getLayerSchema,

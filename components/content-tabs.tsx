@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, CheckCircle2, Loader2, Pencil, X, Check, Bot } from 'lucide-react';
+import { Sparkles, CheckCircle2, Loader2, Pencil, Bot } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';

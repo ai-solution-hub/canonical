@@ -78,8 +78,6 @@ export function SummaryTabs({
   highlights,
   frameable,
   qaMode,
-  isEditing: _isEditing,
-  onDirty: _onDirty,
   className,
 }: SummaryTabsProps) {
   const fullTextLabel = qaMode ? 'Full Answer' : 'Full Text';

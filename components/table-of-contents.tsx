@@ -64,15 +64,10 @@ export function TableOfContents({
 }: TableOfContentsProps) {
   const entries = useMemo(() => parseHeadings(content), [content]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  );
   const observerRef = useRef<IntersectionObserver | null>(null);
-
-  // Determine initial collapsed state based on viewport width
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsCollapsed(window.innerWidth < 768);
-    }
-  }, []);
 
   // Set up IntersectionObserver to track active heading
   useEffect(() => {

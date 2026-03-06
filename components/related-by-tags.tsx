@@ -35,11 +35,10 @@ export function RelatedByTags({
   limit = 5,
 }: RelatedByTagsProps) {
   const [items, setItems] = useState<RelatedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(tags.length > 0);
 
   useEffect(() => {
     if (!tags.length) {
-      setLoading(false);
       return;
     }
 

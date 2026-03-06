@@ -14,12 +14,9 @@ interface QaPairLayoutProps {
 
 export function QaPairLayout({
   question,
-  itemId: _itemId,
   contentTabs,
   sourceDocument,
   verified,
-  canEdit: _canEdit,
-  onEditQuestion: _onEditQuestion,
 }: QaPairLayoutProps) {
   return (
     <div className="flex flex-col gap-4">

@@ -204,7 +204,7 @@ export default function BidSessionPage({
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [contentLibrary.toggle, currentQuestion?.question_text]);
+  }, [contentLibrary, currentQuestion?.question_text]);
 
   // ── Fetch bid and questions ──
   const fetchBidData = useCallback(async () => {

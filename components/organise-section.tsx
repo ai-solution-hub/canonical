@@ -31,10 +31,17 @@ export function OrganiseSection({
   canEdit,
   onKeywordsChanged,
   onTagsChanged,
-  onProjectsChanged,
   className,
 }: OrganiseSectionProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const handleExpand = useCallback(() => {
+    setExpanded(true);
+  }, []);
+
+  const handleToggle = useCallback(() => {
+    setExpanded((prev) => !prev);
+  }, []);
 
   const allEmpty = keywords.length === 0 && tags.length === 0 && projects.length === 0;
 
@@ -58,14 +65,6 @@ export function OrganiseSection({
   if (!hasTags) {
     emptyCategories.push({ label: 'Add tags', icon: <Tag className="size-3" />, key: 'tags' });
   }
-
-  const handleExpand = useCallback(() => {
-    setExpanded(true);
-  }, []);
-
-  const handleToggle = useCallback(() => {
-    setExpanded((prev) => !prev);
-  }, []);
 
   // All empty AND canEdit: show single collapsed row
   if (allEmpty && !expanded) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import Markdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
@@ -83,11 +83,11 @@ export function ContentRenderer({ content, className }: ContentRendererProps) {
   // Memoise markdown detection — only re-evaluate when content changes
   const isMarkdown = useMemo(() => hasMarkdown(content), [content]);
 
-  // Stable ref for heading id deduplication — reset on each render
-  const idCountsRef = useRef(new Map<string, number>());
+  // Heading id deduplication — recreate on each content change
   const headingComponents = useMemo(() => {
-    idCountsRef.current = new Map<string, number>();
-    return createHeadingComponents(idCountsRef.current);
+    const idCounts = new Map<string, number>();
+    return createHeadingComponents(idCounts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- content dep is intentional: reset id counters when content changes
   }, [content]);
 
   if (isMarkdown) {
