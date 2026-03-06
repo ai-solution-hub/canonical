@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from('content_items')
       .select(REVIEW_COLUMNS, { count: 'exact' })
-      .neq('governance_review_status', 'draft');
+      .or('governance_review_status.is.null,governance_review_status.neq.draft');
 
     // Apply verification status filter
     if (status === 'unverified') {

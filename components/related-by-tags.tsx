@@ -51,7 +51,7 @@ export function RelatedByTags({
         .select('id, title, suggested_title, primary_domain, content_type, user_tags')
         .neq('id', itemId)
         .overlaps('user_tags', tags)
-        .neq('governance_review_status', 'draft')
+        .or('governance_review_status.is.null,governance_review_status.neq.draft')
         .limit(50); // Fetch more than needed to sort by overlap
 
       if (error || !data) {

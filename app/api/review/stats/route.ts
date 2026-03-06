@@ -23,16 +23,18 @@ export async function GET() {
 
     // Run the three aggregate queries in parallel
     const [totalResult, verifiedResult, flaggedResult] = await Promise.all([
-      // Total content items
-      supabase
-        .from('content_items')
-        .select('id', { count: 'exact', head: true }),
-
-      // Verified items (verified_at IS NOT NULL)
+      // Total content items (excluding drafts)
       supabase
         .from('content_items')
         .select('id', { count: 'exact', head: true })
-        .not('verified_at', 'is', null),
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
+
+      // Verified items (verified_at IS NOT NULL, excluding drafts)
+      supabase
+        .from('content_items')
+        .select('id', { count: 'exact', head: true })
+        .not('verified_at', 'is', null)
+        .or('governance_review_status.is.null,governance_review_status.neq.draft'),
 
       // Flagged items (open review_needed flags — count distinct item IDs)
       supabase
@@ -59,7 +61,8 @@ export async function GET() {
     // Uses a lightweight query fetching only the columns needed for aggregation.
     const { data: breakdownItems } = await supabase
       .from('content_items')
-      .select('primary_domain, content_type, verified_at, metadata');
+      .select('primary_domain, content_type, verified_at, metadata, governance_review_status')
+      .or('governance_review_status.is.null,governance_review_status.neq.draft');
 
     const by_domain: Record<string, { total: number; verified: number }> = {};
     const by_content_type: Record<string, { total: number; verified: number }> = {};

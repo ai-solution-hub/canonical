@@ -29,7 +29,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun install` | Install Node dependencies |
 | `bun dev` | Start Next.js dev server (Turbopack) |
 | `bun build` | Production build |
-| `bun test` | Run Vitest tests |
+| `bun run test` | Run Vitest tests (NOT `bun test` — see Gotchas) |
 | `bun lint` | ESLint |
 | `pip install -r requirements.txt` | Install Python pipeline dependencies |
 | `python3 scripts/ingest.py <url>` | Ingest a single URL (extract, dedup, classify, embed, store) |
@@ -84,9 +84,10 @@ knowledge-hub/
     login/                    #   /login (Supabase Auth)
     auth/                     #   /auth/callback (OAuth callback)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~95 custom components + reader-cards/ (5) + ui/ (23 shadcn)
-  contexts/                   # React contexts (read-marks-context, taxonomy-context)
-  hooks/                      # 12 hooks (accessibility, browse-filters, display-names,
+  components/                 # ~90 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
+  contexts/                   # React contexts (read-marks, taxonomy, client-features)
+  hooks/                      # 15 hooks (accessibility, browse-filters, citation-orphans,
+                              #   content-library-drawer, display-names, draft-stream,
                               #   keyboard-shortcuts, notifications, progress, reader-preferences,
                               #   review-shortcuts, search, theme-mode, transcript, user-role)
   lib/                        # Supabase clients, taxonomy, formatting, utils, anthropic,
@@ -95,7 +96,7 @@ knowledge-hub/
                               #   bid-drafting, bid-matching, bid-state-machine, bid-export-*,
                               #   citations, copilotkit/, editor-utils, embeddings, freshness,
                               #   quality-check, structured-outputs, pdf-worker
-  types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, css.d)
+  types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
                               #     embed, store, dedup, summarise, pipeline, pipeline_log)
@@ -111,13 +112,13 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 7 DDL migration files
+    migrations/               # 19 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
     continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest test files (17 files)
+  __tests__/                  # Vitest tests (44 files across lib/ (23), components/ (5), hooks/ (3), api/ (13))
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -199,13 +200,11 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 21 unit test files (lib/ functions only)
+- **Location:** `__tests__/` — 44 test files across lib/ (23), components/ (5),
+  hooks/ (3), api/ (13) + 5 helper files
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
-- **Known gap:** Zero component tests, zero API route integration tests, zero
-  hook tests. Strategy and patterns documented in
-  `.planning/specs/testing-strategy-spec.md` — ready to implement in a solo
-  session (177 tests validated but lost to concurrent session conflicts)
+- **Strategy:** Patterns documented in `.planning/specs/testing-strategy-spec.md`
 
 ## Deployment
 
@@ -231,31 +230,44 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   "organisation" not "organization"
 - **WCAG 2.1 AA** — never colour alone for meaning
 - **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
-  `bun test`, `bun build`
+  `bun run test`, `bun build`
 
 ## Key Reference Documents
 
+### Active Development — consult regularly
+
 | Document | Location | Purpose |
 |----------|----------|---------|
-| Codebase mapping (7 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns — consult these for comprehensive context |
-| Master project plan | `.planning/project-plan.md` | Phases, work items, done criteria |
-| Feasibility study | `.planning/feasibility/` | Architecture decisions, gap analysis, fork strategy |
-| ADS v1.0 | `.planning/ads-v1.md` | Canonical requirements |
-| Client documentation | `.planning/client-documentation/` | Bid library .docx and .pdf files for import |
-| Phase 6 specs (3 docs) | `.planning/specs/phase6[abc]-*-spec.md` | Bid infrastructure, AI drafting, CopilotKit workspace |
-| Phase 7 specs (2 docs) | `.planning/specs/phase7[ab]-*-spec.md` | Export generation, template completion |
-| Tool evaluations | `.planning/research/tool-evaluations/` | 13 tool evaluations + SUMMARY.md (Phase 9) |
+| State of the Product | `.planning/state-of-the-product.md` | Accurate reference of actual tech stack, architecture, features |
+| Codebase mapping (8 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns |
+| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
+| Quality checks (9 files) | `.claude/checks/` | Best-practice checks used by `/review` (accessibility, architecture, error handling, image quality, multi-user patterns, package manager, Supabase patterns, testing, UK English) |
+| Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns |
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
-| Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
+
+### Current Roadmap
+
+| Document | Location | Purpose |
+|----------|----------|---------|
+| Spec 1: Client Feature Config | `.planning/specs/spec1-client-feature-configuration.md` | Feature flags, client config, dynamic Zod |
+| Spec 2: Tags & Coverage | `.planning/specs/spec2-tag-management-coverage.md` | Tag admin RPCs, coverage dashboard |
+| Spec 3: Content Layers | `.planning/specs/spec3-content-layers.md` | Client-specific layers, topic linking, draft extension |
+| Spec 4: AI Integration | `.planning/specs/spec4-ai-integration-architecture.md` | AI service layer, background automation, CopilotKit |
+
+### Domain References — consult when working in that area
+
+| Document | Location | Purpose |
+|----------|----------|---------|
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
-| Search evaluation guide | `docs/reference/search-evaluation-guide.md` | How to run search tests |
+| Search evaluation | `docs/reference/search-evaluation-guide.md` + `scripts/search-evaluation.json` | How to run search tests (20 test cases) |
 | Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
-| E2E test flows | `docs/reference/e2e-test-flows.md` | 12 flows covering all pages |
-| E2E test setup | `docs/reference/e2e-test-setup.md` | Test data creation runbook |
-| Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns, 177 validated tests |
-| Search test cases | `scripts/search-evaluation.json` | 20 test cases — re-run after search logic changes |
+| E2E test flows + setup | `docs/reference/e2e-test-flows.md` + `e2e-test-setup.md` | 12 flows, test data creation runbook |
+
+Historical planning documents (project plan, feasibility study, ADS v1.0, Phase
+6-7 specs, tool evaluations) are in `.planning/` — consult for decision context
+when needed.
 
 ## Gotchas
 
@@ -267,8 +279,8 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   (silent no-op). Always verify updates by re-querying
 - **Python background output:** Use `PYTHONUNBUFFERED=1` when running Python
   scripts in background — otherwise output is invisible to monitoring
-- **Supabase CLI not linked:** `config.toml` exists but `supabase link` hasn't
-  been run (needs DB password). Link to project `rovrymhhffssilaftdwd`
+- **Supabase CLI linked:** Project `rovrymhhffssilaftdwd` is linked. Use
+  `/opt/homebrew/bin/supabase db push` to apply local migrations
 - **RLS requires user_roles entry:** New users cannot write until they have a
   `user_roles` row. First admin must be seeded via service_role key
 - **Playwright browser install:** After `pip install playwright`, must also run

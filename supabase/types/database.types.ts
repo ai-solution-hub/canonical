@@ -1217,6 +1217,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
       filter_by_keywords: {
         Args: { search_terms: string[] }
         Returns: string[]
@@ -1236,6 +1237,14 @@ export type Database = {
           similarity: number
           source_domain: string
           title: string
+        }[]
+      }
+      get_all_tag_counts: {
+        Args: never
+        Returns: {
+          count: number
+          source: string
+          tag: string
         }[]
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }
@@ -1303,6 +1312,7 @@ export type Database = {
           id: string
           is_archived: boolean | null
           name: string
+          status: string | null
           type: string
           updated_at: string | null
           updated_by: string | null
@@ -1422,6 +1432,10 @@ export type Database = {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined
       }
+      merge_tags: {
+        Args: { p_source: string; p_target: string; p_type: string }
+        Returns: number
+      }
       recalculate_all_freshness: {
         Args: never
         Returns: {
@@ -1431,6 +1445,10 @@ export type Database = {
           stale_count: number
           total_updated: number
         }[]
+      }
+      rename_tag: {
+        Args: { p_new: string; p_old: string; p_type: string }
+        Returns: number
       }
       run_quality_scan: {
         Args: { p_batch_name?: string }
@@ -1481,6 +1499,13 @@ export type Database = {
           primary_subtopic: string
           similarity: number
           title: string
+        }[]
+      }
+      suggest_tags: {
+        Args: { p_prefix: string; p_type: string }
+        Returns: {
+          count: number
+          tag: string
         }[]
       }
       toggle_star: {
