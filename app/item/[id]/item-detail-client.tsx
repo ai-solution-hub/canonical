@@ -43,7 +43,7 @@ const ImageGallery = dynamic(
 );
 import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
-import { QaPairLayout } from '@/components/qa-pair-layout';
+
 import { TableOfContents } from '@/components/table-of-contents';
 import { OrganiseSection } from '@/components/organise-section';
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
