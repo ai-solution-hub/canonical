@@ -26,12 +26,14 @@ import { ConfidenceDot } from '@/components/confidence-badge';
 import { QuestionList } from '@/components/question-list';
 import { QuestionReview } from '@/components/question-review';
 import { TenderUpload } from '@/components/tender-upload';
+import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { formatDateUK } from '@/lib/format';
 import { canTransition, getAvailableTransitions, BID_STATE_LABELS } from '@/lib/bid-state-machine';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Bid, BidMetadata, BidQuestion, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult, KBCandidate } from '@/types/bid';
+import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 
 type Tab = 'overview' | 'questions' | 'responses' | 'documents';
 
@@ -59,6 +61,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
   const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
   const [showKBReview, setShowKBReview] = useState(false);
   const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
+  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
 
   const fetchBid = useCallback(async () => {
     try {
@@ -136,6 +139,11 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
   function handleUploadComplete(result?: ExtractionResult) {
     fetchBid();
     fetchQuestions();
+    // Check for extracted metadata
+    const resultAny = result as unknown as Record<string, unknown>;
+    if (resultAny?.extracted_metadata) {
+      setExtractedMetadata(resultAny.extracted_metadata as TenderExtractedMetadata);
+    }
     if (result && result.sections.length > 0) {
       // Flatten sections into individual question entries for QuestionReview
       const flattened = result.sections.flatMap((section) =>
@@ -368,6 +376,20 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           </div>
         )}
       </div>
+
+      {/* Extracted metadata prompt */}
+      {extractedMetadata && (
+        <div className="mt-4">
+          <TenderMetadataPrompt
+            metadata={extractedMetadata}
+            bidId={id}
+            onUpdated={() => {
+              setExtractedMetadata(null);
+              fetchBid();
+            }}
+          />
+        </div>
+      )}
 
       {/* State stepper */}
       <div className="mt-4">

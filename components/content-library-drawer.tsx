@@ -28,6 +28,8 @@ interface ContentLibraryDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   questionText?: string;
+  /** Callback when user clicks "Insert" on a result. Null if no editor available. */
+  onInsert?: ((html: string, sourceId: string, sourceTitle: string) => void) | null;
 }
 
 type ContentTypeFilter = 'all' | 'q_a_pair';
@@ -41,6 +43,7 @@ export function ContentLibraryDrawer({
   open,
   onOpenChange,
   questionText,
+  onInsert,
 }: ContentLibraryDrawerProps) {
   const { results, isLoading, error, search } = useSearch();
   const [query, setQuery] = useState('');
@@ -319,6 +322,7 @@ export function ContentLibraryDrawer({
                         key={result.id}
                         result={result}
                         onCopy={handleCopy}
+                        onInsert={onInsert}
                       />
                     ))}
                   </div>
@@ -331,6 +335,7 @@ export function ContentLibraryDrawer({
                       key={result.id}
                       result={result}
                       onCopy={handleCopy}
+                      onInsert={onInsert}
                     />
                   ))}
                 </div>
@@ -354,6 +359,7 @@ export function ContentLibraryDrawer({
                   key={result.id}
                   result={result}
                   onCopy={handleCopy}
+                  onInsert={onInsert}
                 />
               ))}
             </div>

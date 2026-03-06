@@ -57,3 +57,15 @@ export interface BidResponseMetadata {
   quality_data?: QualityData;
   ai_metadata?: AIMetadata;
 }
+
+// ── Tender Metadata Extraction ──────────────────────────
+
+/** Metadata extracted from a tender document by Claude */
+export interface TenderExtractedMetadata {
+  buyer_name: string | null;
+  deadline: string | null;
+  reference_number: string | null;
+  estimated_value: string | null;
+  title: string | null;
+  confidence: number;
+}

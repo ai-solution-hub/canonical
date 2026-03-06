@@ -8,7 +8,9 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
-import { extractPDFQuestions, extractDOCXQuestions } from '@/lib/structured-outputs';
+import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/structured-outputs';
+import mammoth from 'mammoth';
+import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 
 export const maxDuration = 120;
 
@@ -185,6 +187,26 @@ export async function POST(
       }).eq('id', id);
     }
 
+    // Best-effort tender metadata extraction (non-critical)
+    let extracted_metadata: TenderExtractedMetadata | undefined;
+    try {
+      if (format === 'docx') {
+        const docxBuffer = Buffer.from(await fileData.arrayBuffer());
+        const { value: html } = await mammoth.convertToHtml({ buffer: docxBuffer });
+        if (html && html.trim().length > 0) {
+          const result = await extractTenderMetadata(html, 'html');
+          if (result) extracted_metadata = result;
+        }
+      } else if (format === 'pdf') {
+        const pdfArrayBuffer = await fileData.arrayBuffer();
+        const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
+        const result = await extractTenderMetadata(pdfBase64, 'pdf_base64');
+        if (result) extracted_metadata = result;
+      }
+    } catch (metaErr) {
+      console.warn('Metadata extraction failed (non-critical):', metaErr);
+    }
+
     // Fetch the saved questions to return with IDs
     const { data: savedQuestions } = await supabase
       .from('bid_questions')
@@ -203,6 +225,7 @@ export async function POST(
       duplicates_skipped: duplicatesSkipped,
       questions_inserted: questionsInserted,
       questions: savedQuestions ?? [],
+      ...(extracted_metadata ? { extracted_metadata } : {}),
     });
   } catch (err) {
     return NextResponse.json(

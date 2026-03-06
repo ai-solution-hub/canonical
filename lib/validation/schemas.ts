@@ -441,6 +441,21 @@ export const ResponseUpdateBodySchema = z.object({
   response_text_advanced: z.string().max(100000).nullable().optional(),
   review_status: z.enum(['draft', 'ai_drafted', 'edited', 'approved', 'needs_review']).optional(),
   change_reason: z.string().max(500).optional(),
+  source_content_ids: z.array(z.string().uuid()).max(100).optional(),
+});
+
+/** Zod schema for AI-extracted tender metadata (runtime validation) */
+export const TenderExtractedMetadataSchema = z.object({
+  buyer_name: z.string().nullable(),
+  deadline: z
+    .string()
+    .datetime({ offset: true })
+    .nullable()
+    .catch(null),
+  reference_number: z.string().nullable(),
+  estimated_value: z.string().nullable(),
+  title: z.string().nullable(),
+  confidence: z.number().min(0).max(1),
 });
 
 /** POST /api/bids/:id/responses/:rId/restore */

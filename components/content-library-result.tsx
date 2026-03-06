@@ -12,6 +12,8 @@ import type { SearchResult } from '@/types/content';
 interface ContentLibraryResultProps {
   result: SearchResult;
   onCopy: (text: string) => void;
+  /** Callback when "Insert" is clicked. Null disables the insert button (e.g., no editor). */
+  onInsert?: ((contentHtml: string, sourceId: string, sourceTitle: string) => void) | null;
 }
 
 function extractQAParts(result: SearchResult): { question: string; answer: string } | null {
@@ -24,7 +26,7 @@ function extractQAParts(result: SearchResult): { question: string; answer: strin
   return { question, answer };
 }
 
-export function ContentLibraryResult({ result, onCopy }: ContentLibraryResultProps) {
+export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibraryResultProps) {
   const title = getDisplayTitle(result);
   const isQAPair = result.content_type === 'q_a_pair';
   const qaParts = extractQAParts(result);
@@ -101,6 +103,16 @@ export function ContentLibraryResult({ result, onCopy }: ContentLibraryResultPro
 
         {/* Actions */}
         <div className="mt-2.5 flex items-center gap-2">
+          {onInsert && (
+            <Button
+              size="sm"
+              variant="default"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => onInsert(qaParts.answer, result.id, title)}
+            >
+              Insert Answer
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -108,7 +120,7 @@ export function ContentLibraryResult({ result, onCopy }: ContentLibraryResultPro
             onClick={handleCopy}
           >
             <Copy className="size-3" aria-hidden="true" />
-            Copy Answer
+            Copy
           </Button>
           <Button
             size="sm"
@@ -158,6 +170,16 @@ export function ContentLibraryResult({ result, onCopy }: ContentLibraryResultPro
 
       {/* Actions */}
       <div className="mt-2.5 flex items-center gap-2">
+        {onInsert && (
+          <Button
+            size="sm"
+            variant="default"
+            className="h-8 gap-1.5 text-xs"
+            onClick={() => onInsert(summary, result.id, title)}
+          >
+            Insert
+          </Button>
+        )}
         {copyText && (
           <Button
             size="sm"

@@ -29,7 +29,9 @@ import { isMacPlatform } from '@/lib/utils';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useDraftStream } from '@/hooks/use-draft-stream';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
+import { insertLibraryContent } from '@/lib/drawer-insert';
 import { toast } from 'sonner';
+import type { Editor } from '@/components/response-editor';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
@@ -114,6 +116,12 @@ export default function BidSessionPage({
 
   // Editor ref for CopilotKit integration
   const editorContentRef = useRef<string>('');
+
+  // Tiptap editor instance ref for Content Library insert
+  const editorInstanceRef = useRef<Editor | null>(null);
+  const onEditorReady = useCallback((editor: Editor) => {
+    editorInstanceRef.current = editor;
+  }, []);
 
   // ── Streaming draft ──
   const stream = useDraftStream(id);
@@ -417,6 +425,59 @@ export default function BidSessionPage({
     }
   }
 
+  // ── Content Library insert ──
+  const handleLibraryInsert = useCallback(
+    async (html: string, sourceId: string, sourceTitle: string) => {
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
+      if (isMobile || !editorInstanceRef.current) {
+        // Mobile / no editor fallback — copy to clipboard
+        try {
+          // Strip HTML tags for plain text clipboard
+          const plainText = html.replace(/<[^>]+>/g, '');
+          await navigator.clipboard.writeText(plainText);
+          toast.success('Copied to clipboard — paste into your response');
+        } catch {
+          toast.error('Failed to copy to clipboard');
+        }
+      } else {
+        const inserted = insertLibraryContent({
+          editor: editorInstanceRef.current,
+          html,
+          sourceId,
+          sourceTitle,
+        });
+        if (inserted) {
+          toast.success(`Inserted content from "${sourceTitle}"`);
+        } else {
+          toast.error('Failed to insert content');
+          return;
+        }
+      }
+
+      // PATCH source_content_ids on the response to track provenance
+      if (response?.id) {
+        try {
+          const existingIds = (response.source_content ?? []).map((s) => s.id);
+          if (!existingIds.includes(sourceId)) {
+            await fetch(`/api/bids/${id}/responses/${response.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                source_content_ids: [...existingIds, sourceId],
+              }),
+            });
+            // Refresh response to pick up new source_content
+            void fetchResponse();
+          }
+        } catch {
+          // Non-blocking — content was already inserted
+        }
+      }
+    },
+    [response, id, fetchResponse],
+  );
+
   // ── Citation click ──
   function handleCitationClick(contentId: string) {
     window.open(`/item/${contentId}`, '_blank');
@@ -635,6 +696,7 @@ export default function BidSessionPage({
                       ? 'Edit your response...'
                       : 'No response yet. Use "Regenerate" to draft an AI response or "Author Manually" to write your own.'
                 }
+                onEditorReady={onEditorReady}
               />
 
               {/* Quality score */}
@@ -672,6 +734,7 @@ export default function BidSessionPage({
             if (!open) contentLibrary.close();
           }}
           questionText={currentQuestion?.question_text}
+          onInsert={handleLibraryInsert}
         />
         <ResponseVersionHistory
           bidId={id}

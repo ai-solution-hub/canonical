@@ -144,7 +144,7 @@ export async function PATCH(
     const parsed = parseBody(ResponseUpdateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { response_text, response_text_advanced, review_status, change_reason } = parsed.data;
+    const { response_text, response_text_advanced, review_status, change_reason, source_content_ids } = parsed.data;
 
     // Verify the response exists and belongs to this bid
     const { data: existing, error: fetchError } = await supabase
@@ -184,6 +184,7 @@ export async function PATCH(
     if (response_text !== undefined) updates.response_text = response_text;
     if (response_text_advanced !== undefined) updates.response_text_advanced = response_text_advanced;
     if (review_status !== undefined) updates.review_status = review_status;
+    if (source_content_ids !== undefined) updates.source_content_ids = source_content_ids;
 
     // Set approved_by when status changes to approved
     if (review_status === 'approved') {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, type Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import CharacterCount from '@tiptap/extension-character-count';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { EditorToolbar } from '@/components/editor-toolbar';
 import { cn } from '@/lib/utils';
 
+export type { Editor };
+
 interface ResponseEditorProps {
   content: string;
   wordLimit?: number | null;
@@ -19,6 +21,8 @@ interface ResponseEditorProps {
   readOnly?: boolean;
   placeholder?: string;
   className?: string;
+  /** Callback to expose the Tiptap editor instance for external use (e.g., content insertion) */
+  onEditorReady?: (editor: Editor) => void;
 }
 
 export function ResponseEditor({
@@ -29,6 +33,7 @@ export function ResponseEditor({
   readOnly = false,
   placeholder = 'Start writing your response...',
   className,
+  onEditorReady,
 }: ResponseEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -48,6 +53,13 @@ export function ResponseEditor({
       onChange(e.getHTML());
     },
   });
+
+  // Expose editor instance to parent
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor);
+    }
+  }, [editor, onEditorReady]);
 
   // Sync editable state (e.g., when streaming locks/unlocks the editor)
   useEffect(() => {

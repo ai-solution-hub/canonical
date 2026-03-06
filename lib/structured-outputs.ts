@@ -1,5 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
+import { TenderExtractedMetadataSchema } from '@/lib/validation/schemas';
+import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 import mammoth from 'mammoth';
 
 /**
@@ -248,6 +250,102 @@ You MUST call the extract_questions tool with your results.`,
   });
 
   return extractToolResult(response);
+}
+
+// ──────────────────────────────────────────
+// Tender Metadata Extraction
+// ──────────────────────────────────────────
+
+/** Tool definition for tender metadata extraction. */
+export const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
+  name: 'extract_tender_metadata',
+  description: 'Extract bid metadata (buyer, deadline, reference, value) from a tender document.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      buyer_name: {
+        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description: 'The buying organisation / contracting authority name',
+      },
+      deadline: {
+        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description: 'Submission deadline in ISO 8601 format (e.g., 2026-04-15T17:00:00Z). Convert from UK date formats (DD/MM/YYYY).',
+      },
+      reference_number: {
+        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description: 'Tender reference number, ITT reference, procurement reference, or contract number',
+      },
+      estimated_value: {
+        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description: 'Contract value or budget (as displayed, e.g., "£500,000" or "£1.2m per annum")',
+      },
+      title: {
+        type: ['string', 'null'] as unknown as Anthropic.Messages.Tool.InputSchema['type'],
+        description: 'The formal tender/contract title from the document cover page or header',
+      },
+      confidence: {
+        type: 'number' as const,
+        description: 'Confidence score 0.0-1.0 for the overall extraction quality',
+      },
+    },
+    required: ['buyer_name', 'deadline', 'reference_number', 'estimated_value', 'title', 'confidence'],
+    additionalProperties: false,
+  },
+};
+
+function validateExtractedMetadata(raw: TenderExtractedMetadata): TenderExtractedMetadata {
+  const parsed = TenderExtractedMetadataSchema.safeParse(raw);
+  if (!parsed.success) {
+    console.warn('Extracted metadata failed validation:', parsed.error.issues);
+    return { buyer_name: null, deadline: null, reference_number: null, estimated_value: null, title: null, confidence: 0 };
+  }
+  return parsed.data;
+}
+
+/**
+ * Extract tender metadata from document content using Claude.
+ * Returns null on failure.
+ */
+export async function extractTenderMetadata(
+  content: string,
+  format: 'html' | 'pdf_base64',
+): Promise<TenderExtractedMetadata | null> {
+  const anthropic = getAnthropicClient();
+
+  const messages: Anthropic.Messages.MessageParam[] = [
+    {
+      role: 'user',
+      content: format === 'pdf_base64'
+        ? [
+            {
+              type: 'document' as const,
+              source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: content },
+            },
+            { type: 'text' as const, text: 'Extract bid metadata from this tender document.' },
+          ]
+        : `Extract bid metadata from this tender document HTML:\n\n${content}`,
+    },
+  ];
+
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-3-5',
+    max_tokens: 1024,
+    system: `You are extracting metadata from a UK tender/procurement document.
+Extract the buying organisation name, submission deadline, reference number, estimated contract value, and formal tender title.
+Convert all dates to ISO 8601 format. UK dates use DD/MM/YYYY.
+If a field cannot be found, return null for that field.
+Set confidence based on how clearly the information is stated in the document.
+You MUST call the extract_tender_metadata tool with your results.`,
+    messages,
+    tools: [TENDER_METADATA_TOOL],
+    tool_choice: { type: 'tool', name: 'extract_tender_metadata' },
+  });
+
+  const toolBlock = response.content.find((b) => b.type === 'tool_use');
+  if (!toolBlock || toolBlock.type !== 'tool_use') {
+    return null;
+  }
+  return validateExtractedMetadata(toolBlock.input as TenderExtractedMetadata);
 }
 
 /**
