@@ -12,7 +12,7 @@ async function getWorkspaces(): Promise<Workspace[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('workspaces')
-    .select('*')
+    .select('id, name, description, type, status, icon, color, is_archived, domain_metadata, created_at, created_by, updated_at, updated_by')
     .order('is_archived')
     .order('name');
 

@@ -19,7 +19,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('notifications')
-      .select('*')
+      .select('id, title, message, type, entity_type, entity_id, user_id, read_at, dismissed_at, expires_at, created_at')
       .eq('user_id', user.id)
       .is('dismissed_at', null)
       .or(`expires_at.is.null,expires_at.gt.${now}`)

@@ -19,7 +19,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('governance_config')
-      .select('*')
+      .select('id, domain, posture, reviewer_id, timeout_days, created_at, created_by, updated_at, updated_by')
       .order('domain', { ascending: true });
 
     if (error) {
