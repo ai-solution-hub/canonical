@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.78.0",
-    "@copilotkit/react-core": "^1.52.1",
-    "@copilotkit/react-ui": "^1.52.1",
-    "@copilotkit/runtime": "^1.52.1",
+    "@copilotkit/react-core": "^1.53.0",
+    "@copilotkit/react-ui": "^1.53.0",
+    "@copilotkit/runtime": "^1.53.0",
     "@fontsource/atkinson-hyperlegible-next": "^5.2.7",
     "@fontsource/opendyslexic": "^5.2.5",
     "@mozilla/readability": "^0.6.0",

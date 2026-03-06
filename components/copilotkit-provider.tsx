@@ -111,16 +111,14 @@ function useCopilotHealthCheck(): HealthStatus {
 
     let cancelled = false;
 
-    fetch('/api/copilotkit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{}',
-    })
+    // Use HEAD request to check if the endpoint is reachable without
+    // triggering a 400 error in the console from an empty POST body.
+    // If HEAD is not allowed (405), the endpoint is still reachable.
+    fetch('/api/copilotkit', { method: 'HEAD' })
       .then((res) => {
         if (cancelled) return;
-        // Any 5xx means CopilotKit is down.
-        // 4xx responses (e.g. 400 bad request) are expected for an empty body
-        // and indicate the endpoint IS reachable and functioning.
+        // 5xx = server error = endpoint down
+        // Any other status (200, 400, 404, 405) = endpoint reachable
         setStatus(res.status >= 500 ? 'unavailable' : 'available');
       })
       .catch(() => {

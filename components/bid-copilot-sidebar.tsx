@@ -31,7 +31,7 @@ export function BidCopilotSidebar({
   return (
     <CopilotSidebar
       defaultOpen={defaultOpen}
-      clickOutsideToClose={false}
+      clickOutsideToClose={true}
       makeSystemMessage={buildBidSystemPrompt(bidName, buyerName)}
       labels={{
         title: 'Bid Assistant',
