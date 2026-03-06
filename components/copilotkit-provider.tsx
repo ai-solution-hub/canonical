@@ -152,25 +152,14 @@ interface CopilotKitProviderProps {
 export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
   const health = useCopilotHealthCheck();
 
-  // While checking, render children without CopilotKit to avoid flash
-  if (health === 'checking') {
-    return <>{children}</>;
-  }
-
-  // Endpoint unreachable — render children with warning banner
-  if (health === 'unavailable') {
-    return (
-      <>
-        <UnavailableBanner />
-        {children}
-      </>
-    );
-  }
-
-  // Endpoint available — wrap with error boundary + CopilotKit
+  // Always wrap children in CopilotKit so hooks (useCopilotReadable,
+  // useCopilotAction, etc.) and CopilotSidebar never mount without a
+  // provider context. The CopilotKit component is lightweight — it only
+  // sets up React context. Actual network calls happen on user interaction.
   return (
     <CopilotKitErrorBoundary>
       <CopilotKit runtimeUrl="/api/copilotkit">
+        {health === 'unavailable' && <UnavailableBanner />}
         {children}
       </CopilotKit>
     </CopilotKitErrorBoundary>

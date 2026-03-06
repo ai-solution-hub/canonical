@@ -77,6 +77,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bid_questions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bid_response_history: {
@@ -239,33 +246,26 @@ export type Database = {
             referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "content_history_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items_overview"
-            referencedColumns: ["id"]
-          },
         ]
       }
-      content_item_projects: {
+      content_item_workspaces: {
         Row: {
           assigned_at: string | null
           content_item_id: string
           id: string
-          project_id: string
+          workspace_id: string
         }
         Insert: {
           assigned_at?: string | null
           content_item_id: string
           id?: string
-          project_id: string
+          workspace_id: string
         }
         Update: {
           assigned_at?: string | null
           content_item_id?: string
           id?: string
-          project_id?: string
+          workspace_id?: string
         }
         Relationships: [
           {
@@ -276,17 +276,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "content_item_projects_content_item_id_fkey"
-            columns: ["content_item_id"]
+            foreignKeyName: "content_item_projects_project_id_fkey"
+            columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "content_items_overview"
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "content_item_projects_project_id_fkey"
-            columns: ["project_id"]
+            columns: ["workspace_id"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -448,17 +448,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "content_items_parent_id_fkey"
-            columns: ["parent_id"]
+            foreignKeyName: "content_items_source_bid_fkey"
+            columns: ["source_bid"]
             isOneToOne: false
-            referencedRelation: "content_items_overview"
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "content_items_source_bid_fkey"
             columns: ["source_bid"]
             isOneToOne: false
-            referencedRelation: "projects"
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -607,13 +607,6 @@ export type Database = {
             referencedRelation: "content_items"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "ingestion_quality_log_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items_overview"
-            referencedColumns: ["id"]
-          },
         ]
       }
       notifications: {
@@ -748,54 +741,6 @@ export type Database = {
         }
         Relationships: []
       }
-      projects: {
-        Row: {
-          color: string | null
-          created_at: string | null
-          created_by: string | null
-          description: string | null
-          domain_metadata: Json | null
-          icon: string | null
-          id: string
-          is_archived: boolean | null
-          name: string
-          status: string | null
-          type: string
-          updated_at: string | null
-          updated_by: string | null
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          domain_metadata?: Json | null
-          icon?: string | null
-          id?: string
-          is_archived?: boolean | null
-          name: string
-          status?: string | null
-          type?: string
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Update: {
-          color?: string | null
-          created_at?: string | null
-          created_by?: string | null
-          description?: string | null
-          domain_metadata?: Json | null
-          icon?: string | null
-          id?: string
-          is_archived?: boolean | null
-          name?: string
-          status?: string | null
-          type?: string
-          updated_at?: string | null
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       read_marks: {
         Row: {
           content_item_id: string
@@ -824,13 +769,6 @@ export type Database = {
             columns: ["content_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "read_marks_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items_overview"
             referencedColumns: ["id"]
           },
         ]
@@ -1089,6 +1027,13 @@ export type Database = {
             referencedRelation: "projects"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
         ]
       }
       user_roles: {
@@ -1115,62 +1060,144 @@ export type Database = {
         }
         Relationships: []
       }
-    }
-    Views: {
-      content_items_overview: {
+      workspaces: {
         Row: {
-          author_name: string | null
-          captured_date: string | null
-          content_type: string | null
+          color: string | null
           created_at: string | null
           created_by: string | null
-          freshness: string | null
-          has_embedding: boolean | null
-          has_thumbnail: boolean | null
-          id: string | null
-          is_classified: boolean | null
-          lifecycle_type: string | null
-          platform: string | null
-          primary_domain: string | null
-          primary_subtopic: string | null
-          source_domain: string | null
-          title: string | null
+          description: string | null
+          domain_metadata: Json | null
+          icon: string | null
+          id: string
+          is_archived: boolean | null
+          name: string
+          status: string | null
+          type: string
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
-          author_name?: string | null
-          captured_date?: string | null
-          content_type?: string | null
+          color?: string | null
           created_at?: string | null
           created_by?: string | null
-          freshness?: string | null
-          has_embedding?: never
-          has_thumbnail?: never
-          id?: string | null
-          is_classified?: never
-          lifecycle_type?: string | null
-          platform?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          source_domain?: string | null
-          title?: string | null
+          description?: string | null
+          domain_metadata?: Json | null
+          icon?: string | null
+          id?: string
+          is_archived?: boolean | null
+          name: string
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
-          author_name?: string | null
-          captured_date?: string | null
-          content_type?: string | null
+          color?: string | null
           created_at?: string | null
           created_by?: string | null
-          freshness?: string | null
-          has_embedding?: never
-          has_thumbnail?: never
+          description?: string | null
+          domain_metadata?: Json | null
+          icon?: string | null
+          id?: string
+          is_archived?: boolean | null
+          name?: string
+          status?: string | null
+          type?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+    }
+    Views: {
+      content_item_projects: {
+        Row: {
+          assigned_at: string | null
+          content_item_id: string | null
+          id: string | null
+          project_id: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          content_item_id?: string | null
           id?: string | null
-          is_classified?: never
-          lifecycle_type?: string | null
-          platform?: string | null
-          primary_domain?: string | null
-          primary_subtopic?: string | null
-          source_domain?: string | null
-          title?: string | null
+          project_id?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          content_item_id?: string | null
+          id?: string | null
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_item_projects_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_item_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_item_projects_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          domain_metadata: Json | null
+          icon: string | null
+          id: string | null
+          is_archived: boolean | null
+          name: string | null
+          status: string | null
+          type: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          domain_metadata?: Json | null
+          icon?: string | null
+          id?: string | null
+          is_archived?: boolean | null
+          name?: string | null
+          status?: string | null
+          type?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          domain_metadata?: Json | null
+          icon?: string | null
+          id?: string | null
+          is_archived?: boolean | null
+          name?: string | null
+          status?: string | null
+          type?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1281,7 +1308,7 @@ export type Database = {
           unmatched_count: number
         }[]
       }
-      get_bid_summary: { Args: { p_project_id: string }; Returns: Json }
+      get_bid_summary: { Args: { bid_workspace_id: string }; Returns: Json }
       get_capture_activity: {
         Args: never
         Returns: {
@@ -1306,7 +1333,7 @@ export type Database = {
           freshness: string
         }[]
       }
-      get_item_projects: {
+      get_item_workspaces: {
         Args: { p_item_id: string }
         Returns: {
           color: string | null
@@ -1325,7 +1352,7 @@ export type Database = {
         }[]
         SetofOptions: {
           from: "*"
-          to: "projects"
+          to: "workspaces"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -1336,15 +1363,6 @@ export type Database = {
         Returns: {
           item_count: number
           keyword: string
-        }[]
-      }
-      get_project_counts: { Args: never; Returns: Json }
-      get_project_item_counts: {
-        Args: never
-        Returns: {
-          item_count: number
-          last_activity: string
-          project_id: string
         }[]
       }
       get_quality_issue_counts: {
@@ -1405,6 +1423,15 @@ export type Database = {
       get_user_role: { Args: never; Returns: string }
       get_user_tag_counts: { Args: never; Returns: Json }
       get_verification_stats: { Args: never; Returns: Json }
+      get_workspace_counts: { Args: never; Returns: Json }
+      get_workspace_item_counts: {
+        Args: never
+        Returns: {
+          item_count: number
+          last_activity: string
+          workspace_id: string
+        }[]
+      }
       hybrid_search: {
         Args: {
           limit_count?: number
