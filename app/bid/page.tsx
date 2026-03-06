@@ -23,7 +23,8 @@ export default function BidsPage() {
       if (!response.ok) throw new Error('Failed to fetch bids');
       const data = await response.json();
       setBids(data.bids ?? []);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load bids:', err);
       toast.error('Failed to load bids');
     } finally {
       setLoading(false);

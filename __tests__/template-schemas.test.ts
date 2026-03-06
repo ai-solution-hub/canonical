@@ -18,19 +18,19 @@ import {
 describe('TemplateUploadBodySchema', () => {
   it('validates a valid upload body', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: '550e8400-e29b-41d4-a716-446655440000',
+      workspace_id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'LA Tender Response Template',
     });
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.name).toBe('LA Tender Response Template');
-      expect(result.data.project_id).toBe('550e8400-e29b-41d4-a716-446655440000');
+      expect(result.data.workspace_id).toBe('550e8400-e29b-41d4-a716-446655440000');
     }
   });
 
   it('validates with optional description', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: '550e8400-e29b-41d4-a716-446655440000',
+      workspace_id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Template',
       description: 'A test template for the LA tender questionnaire.',
     });
@@ -40,16 +40,16 @@ describe('TemplateUploadBodySchema', () => {
     }
   });
 
-  it('rejects missing project_id', () => {
+  it('rejects missing workspace_id', () => {
     const result = TemplateUploadBodySchema.safeParse({
       name: 'Template',
     });
     expect(result.success).toBe(false);
   });
 
-  it('rejects invalid project_id (not a UUID)', () => {
+  it('rejects invalid workspace_id (not a UUID)', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: 'not-a-uuid',
+      workspace_id: 'not-a-uuid',
       name: 'Template',
     });
     expect(result.success).toBe(false);
@@ -57,7 +57,7 @@ describe('TemplateUploadBodySchema', () => {
 
   it('rejects empty template name', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: '550e8400-e29b-41d4-a716-446655440000',
+      workspace_id: '550e8400-e29b-41d4-a716-446655440000',
       name: '',
     });
     expect(result.success).toBe(false);
@@ -65,7 +65,7 @@ describe('TemplateUploadBodySchema', () => {
 
   it('rejects template name exceeding 200 characters', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: '550e8400-e29b-41d4-a716-446655440000',
+      workspace_id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'A'.repeat(201),
     });
     expect(result.success).toBe(false);
@@ -73,7 +73,7 @@ describe('TemplateUploadBodySchema', () => {
 
   it('rejects description exceeding 1000 characters', () => {
     const result = TemplateUploadBodySchema.safeParse({
-      project_id: '550e8400-e29b-41d4-a716-446655440000',
+      workspace_id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Template',
       description: 'X'.repeat(1001),
     });

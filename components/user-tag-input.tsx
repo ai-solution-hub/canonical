@@ -40,7 +40,8 @@ export function UserTagInput({
           body: JSON.stringify({ field: 'user_tags', value: newTags }),
         });
         if (!res.ok) throw new Error();
-      } catch {
+      } catch (err) {
+        console.error('Failed to update tags:', err);
         // Rollback
         setTags(previousTags);
         onTagsChanged?.(previousTags);

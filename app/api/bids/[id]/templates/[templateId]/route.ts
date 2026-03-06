@@ -126,10 +126,7 @@ export async function GET(
     }));
 
     // Fetch summary via RPC
-    // Type assertion: get_template_summary is a newly-added function not yet
-    // in the auto-generated Supabase types.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: summaryRows } = await (supabase.rpc as any)(
+    const { data: summaryRows } = await supabase.rpc(
       'get_template_summary',
       { p_template_id: templateId },
     );

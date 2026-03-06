@@ -22,8 +22,7 @@ export async function GET() {
     const { allowed } = checkRateLimit(`tags:list:${user.id}`, 30, 60_000);
     if (!allowed) return rateLimitResponse();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC added in migration, types not yet regenerated
-    const { data, error } = await (supabase.rpc as any)('get_all_tag_counts');
+    const { data, error } = await supabase.rpc('get_all_tag_counts');
 
     if (error) {
       return NextResponse.json(
@@ -60,8 +59,7 @@ export async function DELETE(request: NextRequest) {
 
     const { tag, type } = parsed.data;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC added in migration, types not yet regenerated
-    const { data, error } = await (supabase.rpc as any)('delete_tag', {
+    const { data, error } = await supabase.rpc('delete_tag', {
       p_tag: tag,
       p_type: type,
     });

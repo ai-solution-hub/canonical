@@ -122,7 +122,8 @@ export function WorkspacesContent({
             },
           },
         });
-      } catch {
+      } catch (err) {
+        console.error(`Failed to ${label.toLowerCase()} workspace:`, err);
         // Rollback
         setWorkspaces((prev) =>
           prev.map((p) =>

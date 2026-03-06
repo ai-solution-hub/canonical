@@ -61,7 +61,7 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { validateEditableField } from '@/lib/validation';
+import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
 import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { Badge } from '@/components/ui/badge';
@@ -164,7 +164,8 @@ function AiProcessingIndicators({
         classified_at: new Date().toISOString(),
       }));
       toast.success('Classification complete');
-    } catch {
+    } catch (err) {
+      console.error('Failed to classify content:', err);
       toast.error('Failed to classify content');
     } finally {
       setClassifying(false);
@@ -190,7 +191,8 @@ function AiProcessingIndicators({
         summary_data: data.summary_data ?? prev.summary_data,
       }));
       toast.success('Summary generated');
-    } catch {
+    } catch (err) {
+      console.error('Failed to generate summary:', err);
       toast.error('Failed to generate summary');
     } finally {
       setSummarising(false);
@@ -281,11 +283,12 @@ export function ItemDetailClient({
   } = useReaderPreferences();
   const showSplitReader = readerOpen && !isDetached;
 
-  // Editable field states
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
-  const [saveAnnouncement, setSaveAnnouncement] = useState('');
+  // Editable field states (extracted hook)
+  const inlineEdit = useInlineFieldEdit({
+    itemId: item.id,
+    onItemUpdate: (updater) => setItem((prev) => updater(prev as unknown as Record<string, unknown>) as unknown as ItemData),
+  });
+  const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
 
 
   // Unified edit mode state
@@ -350,7 +353,8 @@ export function ItemDetailClient({
         },
       }));
       toast.success('Visual analysis complete');
-    } catch {
+    } catch (err) {
+      console.error('Failed to perform visual analysis:', err);
       toast.error('Failed to perform visual analysis');
     } finally {
       setIsAnalysing(false);
@@ -358,54 +362,11 @@ export function ItemDetailClient({
   }, [item.id]);
 
   const startEdit = (field: string) => {
-    setEditingField(field);
-    setEditValue(String((item as unknown as Record<string, unknown>)[field] ?? ''));
+    inlineEdit.startEdit(field, (item as unknown as Record<string, unknown>)[field]);
   };
 
-  const cancelEdit = () => {
-    setEditingField(null);
-    setEditValue('');
-  };
-
-  const saveEdit = async (field: string, value: unknown) => {
-    if (!validateEditableField(field)) {
-      console.error(`Field "${field}" is not editable`);
-      toast.error('This field cannot be edited');
-      return;
-    }
-
-    const previousValue = (item as unknown as Record<string, unknown>)[field];
-
-    // Optimistic update
-    setItem((prev) => ({ ...prev, [field]: value }));
-    setEditingField(null);
-
-    try {
-      const res = await fetch(`/api/items/${item.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field, value }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Update failed');
-      }
-
-      setSaveSuccess(field);
-      setSaveAnnouncement('Title saved');
-      setTimeout(() => {
-        setSaveSuccess(null);
-        setSaveAnnouncement('');
-      }, 1500);
-    } catch {
-      // Rollback
-      setItem((prev) => ({ ...prev, [field]: previousValue }));
-      setSaveAnnouncement('Save failed');
-      setTimeout(() => setSaveAnnouncement(''), 1500);
-      toast.error('Failed to save — please try again');
-    }
-  };
+  const cancelEdit = inlineEdit.cancelEdit;
+  const saveEdit = inlineEdit.saveEdit;
 
   const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
 
@@ -433,7 +394,8 @@ export function ItemDetailClient({
         p_starred: newStarred,
       });
       toast(newStarred ? 'Starred' : 'Unstarred', { duration: 1500 });
-    } catch {
+    } catch (err) {
+      console.error('Failed to toggle star:', err);
       // Rollback
       setItem((prev) => ({
         ...prev,
@@ -456,7 +418,8 @@ export function ItemDetailClient({
       });
       if (!res.ok) throw new Error();
       toast(next ? `Priority: ${next}` : 'Priority cleared', { duration: 1500 });
-    } catch {
+    } catch (err) {
+      console.error('Failed to cycle priority:', err);
       setItem((prev) => ({ ...prev, priority: item.priority }));
     }
   }, [item.id, item.priority]);
@@ -512,7 +475,8 @@ export function ItemDetailClient({
       setIsEditing(false);
       setEditDirty(false);
       toast.success('Changes saved');
-    } catch {
+    } catch (err) {
+      console.error('Failed to save edits:', err);
       toast.error('Failed to save — please try again');
     }
   }, [editTitle, title, item.id, isQAPair, editStandard, editAdvanced, item.answer_standard, item.answer_advanced]);
@@ -719,7 +683,8 @@ export function ItemDetailClient({
         });
         if (!res.ok) throw new Error();
         toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
-      } catch {
+      } catch (err) {
+        console.error('Failed to update layer:', err);
         // Rollback
         setItem((prev) => ({ ...prev, metadata: prevMetadata }));
         toast.error('Failed to update layer');
@@ -741,7 +706,7 @@ export function ItemDetailClient({
         editValue,
         isSaving: isSavingTab,
         onStartEdit: (field: TabField) => startEdit(field),
-        onEditValueChange: setEditValue,
+        onEditValueChange: inlineEdit.setEditValue,
         onSaveEdit: async (field: string) => {
           setIsSavingTab(true);
           try {
@@ -1313,7 +1278,8 @@ export function ItemDetailClient({
                         .eq('id', item.id);
                       if (error) throw error;
                       toast.success(isDraft ? 'Published' : 'Marked as draft');
-                    } catch {
+                    } catch (err) {
+                      console.error('Failed to update governance review status:', err);
                       setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
                       toast.error('Failed to update status');
                     }

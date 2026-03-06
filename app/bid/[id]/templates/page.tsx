@@ -66,7 +66,8 @@ export default function TemplateCompletionPage() {
           const data = await questionsRes.json();
           setBidQuestions(data.questions ?? []);
         }
-      } catch {
+      } catch (err) {
+        console.error('Failed to load template data:', err);
         toast.error('Failed to load template data');
       } finally {
         setLoading(false);
@@ -98,7 +99,8 @@ export default function TemplateCompletionPage() {
         } else {
           setStep('review');
         }
-      } catch {
+      } catch (err) {
+        console.error('Failed to load template details:', err);
         toast.error('Failed to load template details');
       }
     },
@@ -153,7 +155,8 @@ export default function TemplateCompletionPage() {
             toast.error(job.error_message ?? 'Analysis failed');
             await loadTemplateDetail(selectedTemplate.id);
           }
-        } catch {
+        } catch (err) {
+          console.error('Failed to poll analysis status:', err);
           // Polling errors are non-fatal — keep retrying
         }
       }, 2000);
@@ -289,7 +292,8 @@ export default function TemplateCompletionPage() {
       if (!res.ok) throw new Error('Failed to get download link');
       const { download_url } = await res.json();
       window.open(download_url, '_blank');
-    } catch {
+    } catch (err) {
+      console.error('Failed to download completed template:', err);
       toast.error('Failed to download completed template');
     }
   }, [bidId, selectedTemplate, latestCompletion]);
@@ -303,7 +307,8 @@ export default function TemplateCompletionPage() {
       if (!res.ok) throw new Error('Failed to get download link');
       const { download_url } = await res.json();
       window.open(download_url, '_blank');
-    } catch {
+    } catch (err) {
+      console.error('Failed to download original template:', err);
       toast.error('Failed to download original template');
     }
   }, [bidId, selectedTemplate]);

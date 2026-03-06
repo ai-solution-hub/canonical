@@ -35,8 +35,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC added in migration, types not yet regenerated
-    const { data, error } = await (supabase.rpc as any)('rename_tag', {
+    const { data, error } = await supabase.rpc('rename_tag', {
       p_old: oldTag,
       p_new: newTag,
       p_type: type,

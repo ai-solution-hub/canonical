@@ -77,7 +77,8 @@ export function PrioritySelector({
           ? PRIORITY_CONFIG[newPriority].label
           : 'Cleared';
         toast(`Priority: ${label}`, { duration: 1500 });
-      } catch {
+      } catch (err) {
+        console.error('Failed to update priority:', err);
         // Rollback
         setPriority(previousPriority);
         onChanged?.(previousPriority);

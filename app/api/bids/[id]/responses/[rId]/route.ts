@@ -218,10 +218,8 @@ export async function PATCH(
     }
 
     // Set change_reason session variable for the trigger to capture.
-    // set_config is a built-in PostgreSQL function not in the generated types.
     if (change_reason) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase.rpc as any)('set_config', {
+      await supabase.rpc('set_config', {
         setting: 'app.change_reason',
         value: change_reason,
         is_local: true,

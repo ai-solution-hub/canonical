@@ -39,7 +39,8 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
         ]);
         if (allRes.ok) setAllWorkspaces(await allRes.json());
         if (itemRes.ok) setItemWorkspaces(await itemRes.json());
-      } catch {
+      } catch (err) {
+        console.error('Failed to load workspaces:', err);
         toast.error('Failed to load workspaces');
       } finally {
         setLoading(false);
@@ -75,7 +76,8 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
         toast(assigned ? `Removed from ${workspace.name}` : `Added to ${workspace.name}`, {
           duration: 1500,
         });
-      } catch {
+      } catch (err) {
+        console.error(`Failed to ${action} workspace:`, err);
         // Rollback
         if (assigned) {
           setItemWorkspaces((prev) => [...prev, workspace]);

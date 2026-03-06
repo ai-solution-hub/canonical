@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { getModifierKey } from '@/lib/utils';
 
 const MAX_RECENT_SEARCHES = 10;
 const STORAGE_KEY = 'kb-recent-searches';
@@ -303,7 +304,7 @@ export function SearchBar({
             className="h-9 pl-9 pr-16"
           />
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            <span className="text-xs">&#8984;</span>K
+            <span className="text-xs">{getModifierKey()}</span>K
           </kbd>
         </div>
       </form>

@@ -348,7 +348,8 @@ export function ReviewContent() {
         setLastAction(null);
 
         toast.success(`Undone: ${undoAction.itemTitle}`);
-      } catch {
+      } catch (err) {
+        console.error('Failed to undo review action:', err);
         toast.error('Failed to undo. Please try again.');
       }
     },
@@ -416,7 +417,8 @@ export function ReviewContent() {
         body: JSON.stringify({ item_id: currentItem.id, action: 'verify' }),
       });
       if (!res.ok) throw new Error('Verify failed');
-    } catch {
+    } catch (err) {
+      console.error('Failed to verify item:', err);
       toast.error('Action failed. Check your connection and try again.');
       // Rollback the counter but not the index
       setProgress((prev) => ({
@@ -485,7 +487,8 @@ export function ReviewContent() {
           body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error('Flag failed');
-      } catch {
+      } catch (err) {
+        console.error('Failed to flag item:', err);
         toast.error('Action failed. Check your connection and try again.');
         setProgress((prev) => ({
           ...prev,

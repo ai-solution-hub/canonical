@@ -61,7 +61,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     keywords: filters.keywords?.join(', ') ?? '',
     starred: filters.starred ?? false,
     priorities: filters.priority ?? ([] as string[]),
-    project: filters.workspace ?? '',
+    workspace: filters.workspace ?? '',
     user_tags: filters.user_tags ?? ([] as string[]),
     freshness: filters.freshness ?? ([] as string[]),
     layer: filters.layer ?? '',
@@ -113,7 +113,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       keywords: filters.keywords?.join(', ') ?? '',
       starred: filters.starred ?? false,
       priorities: filters.priority ?? [],
-      project: filters.workspace ?? '',
+      workspace: filters.workspace ?? '',
       user_tags: filters.user_tags ?? [],
       freshness: filters.freshness ?? [],
       layer: filters.layer ?? '',
@@ -329,7 +329,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
   const handleWorkspaceChange = useCallback((workspaceId: string) => {
     setDraft((prev) => ({
       ...prev,
-      project: prev.project === workspaceId ? '' : workspaceId,
+      workspace: prev.workspace === workspaceId ? '' : workspaceId,
     }));
   }, []);
 
@@ -387,7 +387,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       keywords: keywordsArray.length > 0 ? keywordsArray : undefined,
       starred: draft.starred || undefined,
       priority: draft.priorities.length ? draft.priorities : undefined,
-      workspace: draft.project || undefined,
+      workspace: draft.workspace || undefined,
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
       layer: draft.layer || undefined,
@@ -410,7 +410,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       keywords: '',
       starred: false,
       priorities: [],
-      project: '',
+      workspace: '',
       user_tags: [],
       freshness: [],
       layer: '',
@@ -434,7 +434,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.keywords,
     draft.starred,
     draft.priorities.length > 0,
-    draft.project,
+    draft.workspace,
     draft.user_tags.length > 0,
     draft.freshness.length > 0,
     draft.layer,
@@ -588,7 +588,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               <FilterSection title="Workspaces">
                 <div className="flex flex-wrap gap-2">
                   {allWorkspaces.map((workspace) => {
-                    const isActive = draft.project === workspace.id;
+                    const isActive = draft.workspace === workspace.id;
                     return (
                       <button
                         key={workspace.id}

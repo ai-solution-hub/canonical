@@ -87,7 +87,7 @@ export async function POST(
       });
     }
 
-    // Fetch bid questions for this project
+    // Fetch bid questions for this workspace
     const { data: questions, error: questionsError } = await supabase
       .from('bid_questions')
       .select('id, question_text')

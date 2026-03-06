@@ -277,7 +277,8 @@ export default function BidSessionPage({
       const data: BidResponse = await res.json();
       setResponse(data);
       setEditorContent(data.response_text ?? '');
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch response:', err);
       setResponse(null);
       setEditorContent('');
     } finally {

@@ -112,7 +112,8 @@ export function MetadataSidebar({
         const data = await res.json();
         toast.error(data.error ?? 'Failed to resolve flag');
       }
-    } catch {
+    } catch (err) {
+      console.error('Failed to resolve quality flag:', err);
       toast.error('Failed to resolve quality flag');
     }
   }, []);

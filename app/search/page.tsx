@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { LayoutGrid, List, RefreshCw, SearchX, Info } from 'lucide-react';
 import { SearchBar } from '@/components/search-bar';
@@ -16,21 +16,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSearch } from '@/hooks/use-search';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
-
-type ViewMode = 'grid' | 'list';
-
-const VIEW_MODE_KEY = 'kb-search-view-mode';
-
-function getStoredViewMode(): ViewMode {
-  if (typeof window === 'undefined') return 'grid';
-  try {
-    const stored = localStorage.getItem(VIEW_MODE_KEY);
-    return stored === 'list' ? 'list' : 'grid';
-  } catch {
-    return 'grid';
-  }
-}
 
 /** Skeleton placeholder for grid view while results load */
 function GridSkeleton() {
@@ -102,22 +89,7 @@ function SearchResults() {
     }
   }, [results, checkReadStatus]);
 
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-
-  // Initialise view mode from localStorage after mount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrating client-only localStorage value after mount to avoid SSR mismatch
-    setViewMode(getStoredViewMode());
-  }, []);
-
-  const handleViewChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    try {
-      localStorage.setItem(VIEW_MODE_KEY, mode);
-    } catch {
-      // localStorage unavailable — ignore
-    }
-  }, []);
+  const { viewMode, setViewMode: handleViewChange } = useViewMode('kb-search-view-mode');
 
   // Trigger search when query changes
   useEffect(() => {

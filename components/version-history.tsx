@@ -105,7 +105,8 @@ export function VersionHistory({
       const data = await res.json();
       setVersions(data.versions ?? []);
       setTotal(data.total ?? 0);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load version history:', err);
       toast.error('Failed to load version history');
     } finally {
       setLoading(false);
@@ -133,7 +134,8 @@ export function VersionHistory({
       if (!res.ok) throw new Error('Failed to fetch version');
       const data = await res.json();
       setVersionDetail(data);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load version detail:', err);
       toast.error('Failed to load version detail');
       setExpandedVersion(null);
     } finally {

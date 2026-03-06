@@ -77,7 +77,8 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       const data = await response.json();
       setBid(data);
       setStats(data.question_stats ?? null);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load bid:', err);
       toast.error('Failed to load bid');
     } finally {
       setLoading(false);
@@ -91,7 +92,8 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
       const data = await response.json();
       setQuestions(data.questions ?? []);
       if (data.stats) setStats(data.stats);
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch bid questions:', err);
       // Non-critical, questions tab still shows empty
     }
   }, [id]);

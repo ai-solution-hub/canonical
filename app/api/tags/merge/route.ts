@@ -37,8 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC added in migration, types not yet regenerated
-    const { data, error } = await (supabase.rpc as any)('merge_tags', {
+    const { data, error } = await supabase.rpc('merge_tags', {
       p_source: source,
       p_target: target,
       p_type: type,

@@ -192,7 +192,8 @@ function KeywordsRow({
           body: JSON.stringify({ field: 'ai_keywords', value: updated }),
         });
         if (!res.ok) throw new Error();
-      } catch {
+      } catch (err) {
+        console.error('Failed to remove keyword:', err);
         // Rollback handled by parent
         onKeywordsChanged(keywords);
       }
@@ -218,7 +219,8 @@ function KeywordsRow({
             body: JSON.stringify({ field: 'ai_keywords', value: updated }),
           });
           if (!res.ok) throw new Error();
-        } catch {
+        } catch (err) {
+          console.error('Failed to add keyword:', err);
           onKeywordsChanged(keywords);
         }
       }

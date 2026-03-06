@@ -58,10 +58,7 @@ export async function GET(request: NextRequest) {
     const statsMap = new Map<string, Record<string, unknown>>();
 
     if (bidIds.length > 0) {
-      // Type assertion: get_bid_question_stats_batch exists in the database
-      // but has not been captured in the auto-generated Supabase types yet.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: batchStats, error: batchError } = await (supabase.rpc as any)(
+      const { data: batchStats, error: batchError } = await supabase.rpc(
         'get_bid_question_stats_batch',
         { p_project_ids: bidIds },
       );

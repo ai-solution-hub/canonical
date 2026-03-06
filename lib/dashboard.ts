@@ -214,13 +214,16 @@ export async function fetchDashboardData(
     } else if (workspaces && workspaces.length > 0) {
       // Fetch question stats batch
       const bidIds = workspaces.map((p) => p.id);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: batchStats } = await (supabase.rpc as any)(
+      const { data: batchStats } = await supabase.rpc(
         'get_bid_question_stats_batch',
         { p_project_ids: bidIds },
       );
 
-      const statsMap = new Map<string, Record<string, number>>();
+      const statsMap = new Map<string, {
+        total_questions: number;
+        drafted_count: number;
+        complete_count: number;
+      }>();
       if (batchStats) {
         for (const row of batchStats) {
           statsMap.set(row.project_id, row);

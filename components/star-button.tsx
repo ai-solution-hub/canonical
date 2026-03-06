@@ -54,7 +54,8 @@ export function StarButton({
           onToggle?.(!newStarred);
           console.error('Failed to toggle star:', error.message);
         }
-      } catch {
+      } catch (err) {
+        console.error('Failed to toggle star:', err);
         // Rollback
         setStarred(!newStarred);
         onToggle?.(!newStarred);

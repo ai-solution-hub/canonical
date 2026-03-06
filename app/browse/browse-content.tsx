@@ -10,7 +10,7 @@ import { ContentGrid } from '@/components/content-grid';
 import { ContentList } from '@/components/content-list';
 import { FilterPanel } from '@/components/filter-panel';
 import { FilterBadges } from '@/components/filter-badges';
-import { FilterBar, type ViewMode, type SortOption } from '@/components/filter-bar';
+import { FilterBar, type SortOption } from '@/components/filter-bar';
 import { BulkActions } from '@/components/bulk-actions';
 import { LoadingSkeleton, EmptyState } from '@/components/browse-states';
 import dynamic from 'next/dynamic';
@@ -22,6 +22,7 @@ const FileUploadDialog = dynamic(
 import { Button } from '@/components/ui/button';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
@@ -80,12 +81,7 @@ export function BrowseContent() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('kb-browse-view') as ViewMode) || 'grid';
-    }
-    return 'grid';
-  });
+  const { viewMode, setViewMode } = useViewMode('kb-browse-view');
   const [hideThumbnails, setHideThumbnails] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('kb-hide-thumbnails') === 'true';
@@ -148,12 +144,6 @@ export function BrowseContent() {
   });
 
   const sortOption = getSortOptionFromFilters(filters.sort, filters.order);
-
-  // Persist view mode
-  const handleViewChange = useCallback((mode: ViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('kb-browse-view', mode);
-  }, []);
 
   const handleSortChange = useCallback(
     (value: SortOption) => {
@@ -608,7 +598,7 @@ export function BrowseContent() {
             sortOption={sortOption}
             onSortChange={handleSortChange}
             viewMode={viewMode}
-            onViewChange={handleViewChange}
+            onViewChange={setViewMode}
             hideThumbnails={hideThumbnails}
             onToggleThumbnails={handleToggleThumbnails}
             activeFilterCount={activeFilterCount}

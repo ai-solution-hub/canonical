@@ -75,7 +75,8 @@ export function ResponseVersionHistory({
       if (!res.ok) throw new Error('Failed to fetch history');
       const data = await res.json();
       setVersions(data.versions ?? []);
-    } catch {
+    } catch (err) {
+      console.error('Failed to load response version history:', err);
       toast.error('Failed to load version history');
     } finally {
       setLoading(false);

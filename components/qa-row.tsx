@@ -1,0 +1,213 @@
+'use client';
+
+import { useState, useCallback } from 'react';
+import Link from 'next/link';
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Check,
+  ExternalLink,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import type { ContentListItem } from '@/types/content';
+
+// ---------------------------------------------------------------------------
+// Props
+// ---------------------------------------------------------------------------
+
+export interface QARowProps {
+  item: ContentListItem;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
+}
+
+// ---------------------------------------------------------------------------
+// QARow Component
+// ---------------------------------------------------------------------------
+
+export function QARow({ item, selected, onToggleSelect }: QARowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const metadata = item.metadata as Record<string, unknown> | null;
+  const hasStandard = !!item.answer_standard;
+  const hasAdvanced = !!item.answer_advanced;
+  const sourceFile = metadata?.source_file as string | undefined;
+
+  const handleCopy = useCallback(
+    async (text: string, label: string) => {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(label);
+      toast.success(`${label} copied`);
+      setTimeout(() => setCopiedField(null), 2000);
+    },
+    [],
+  );
+
+  const freshness = item.freshness as string | null;
+  const freshnessColour =
+    freshness === 'fresh'
+      ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+      : freshness === 'aging'
+        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+        : freshness === 'stale'
+          ? 'bg-red-500/10 text-red-700 dark:text-red-400'
+          : 'bg-muted text-muted-foreground';
+
+  return (
+    <div
+      data-qa-row
+      tabIndex={0}
+      className={cn(
+        'rounded-lg border border-border bg-card transition-colors hover:border-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        selected && 'ring-2 ring-primary/30 border-primary/40',
+      )}
+    >
+      {/* Row header — always visible */}
+      <div className="flex w-full items-start gap-3 p-4">
+        {/* Checkbox */}
+        {onToggleSelect && (
+          <div
+            className="mt-0.5 shrink-0 flex items-center justify-center min-w-[44px] min-h-[44px] -m-2.5"
+            role="presentation"
+          >
+            <Checkbox
+              checked={!!selected}
+              onCheckedChange={() => onToggleSelect(item.id)}
+              aria-label={`Select "${item.title}"`}
+              className="cursor-pointer"
+            />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex flex-1 items-start gap-3 text-left min-w-0"
+          aria-expanded={expanded}
+        >
+        <span className="mt-0.5 shrink-0 text-muted-foreground">
+          {expanded ? (
+            <ChevronDown className="size-4" />
+          ) : (
+            <ChevronRight className="size-4" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-foreground leading-snug">
+            {item.title}
+          </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {item.primary_domain && (
+              <span>
+                {item.primary_domain}
+                {item.primary_subtopic ? ` > ${item.primary_subtopic}` : ''}
+              </span>
+            )}
+            {sourceFile && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span className="truncate max-w-[200px]">{sourceFile}</span>
+              </>
+            )}
+            {freshness && (
+              <>
+                <span aria-hidden="true">·</span>
+                <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', freshnessColour)}>
+                  {freshness}
+                </Badge>
+              </>
+            )}
+            {hasStandard && hasAdvanced && (
+              <>
+                <span aria-hidden="true">·</span>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                  Standard + Advanced
+                </Badge>
+              </>
+            )}
+          </div>
+        </div>
+        </button>
+        <Link
+          href={`/item/${item.id}`}
+          className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
+          aria-label="Open detail view"
+        >
+          <ExternalLink className="size-3.5" />
+        </Link>
+      </div>
+
+      {/* Expanded answer content */}
+      {expanded && (
+        <div className="border-t border-border px-4 pb-4 pt-3 pl-11">
+          {hasStandard && (
+            <div className="mb-3">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Standard
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 text-xs"
+                  onClick={() => handleCopy(item.answer_standard!, 'Standard answer')}
+                >
+                  {copiedField === 'Standard answer' ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                  Copy
+                </Button>
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                {item.answer_standard}
+              </p>
+            </div>
+          )}
+          {hasAdvanced && (
+            <div className={hasStandard ? 'mt-4 border-t border-border/50 pt-3' : ''}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Advanced
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 text-xs"
+                  onClick={() => handleCopy(item.answer_advanced!, 'Advanced answer')}
+                >
+                  {copiedField === 'Advanced answer' ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Copy className="size-3" />
+                  )}
+                  Copy
+                </Button>
+              </div>
+              <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                {item.answer_advanced}
+              </p>
+            </div>
+          )}
+          {!hasStandard && !hasAdvanced && item.content && (
+            <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+              {item.content}
+            </p>
+          )}
+          {!hasStandard && !hasAdvanced && !item.content && (
+            <p className="text-sm italic text-muted-foreground">
+              No answer recorded yet.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

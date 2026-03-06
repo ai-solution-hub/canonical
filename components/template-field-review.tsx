@@ -187,7 +187,8 @@ export function TemplateFieldReview({
       try {
         await onMappingUpdate(field.id, field.question_id, 'confirmed');
         toast.success('Mapping confirmed');
-      } catch {
+      } catch (err) {
+        console.error('Failed to confirm mapping:', err);
         toast.error('Failed to confirm mapping');
       } finally {
         setLoading(null);
@@ -202,7 +203,8 @@ export function TemplateFieldReview({
       try {
         await onMappingUpdate(field.id, null, 'rejected');
         toast.success('Field rejected');
-      } catch {
+      } catch (err) {
+        console.error('Failed to reject field:', err);
         toast.error('Failed to reject field');
       } finally {
         setLoading(null);
@@ -218,7 +220,8 @@ export function TemplateFieldReview({
         await onMappingUpdate(fieldId, questionId, 'manual');
         setActiveFieldId(null);
         toast.success('Manual mapping set');
-      } catch {
+      } catch (err) {
+        console.error('Failed to set mapping:', err);
         toast.error('Failed to set mapping');
       } finally {
         setLoading(null);

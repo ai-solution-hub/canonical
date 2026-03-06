@@ -126,7 +126,8 @@ export function WorkspaceDetailSheet({
           item_count: workspace.item_count,
           last_activity: workspace.last_activity,
         });
-      } catch {
+      } catch (err) {
+        console.error('Failed to update workspace:', err);
         toast.error('Failed to update workspace');
       }
     },
@@ -194,7 +195,8 @@ export function WorkspaceDetailSheet({
       setShowDeleteConfirm(false);
       onOpenChange(false);
       onDeleted(workspace.id);
-    } catch {
+    } catch (err) {
+      console.error('Failed to delete workspace:', err);
       toast.error('Failed to delete workspace');
     } finally {
       setDeleting(false);

@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
 
     const { prefix, type } = validated.data;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RPC added in migration, types not yet regenerated
-    const { data, error } = await (supabase.rpc as any)('suggest_tags', {
+    const { data, error } = await supabase.rpc('suggest_tags', {
       p_prefix: prefix,
       p_type: type,
     });

@@ -32,7 +32,7 @@ export async function GET(
       );
     }
 
-    // Fetch the bid (project with type = 'bid')
+    // Fetch the bid (workspace with type = 'bid')
     const { data: bid, error } = await supabase
       .from('workspaces')
       .select(
@@ -141,7 +141,7 @@ export async function PATCH(
       ...metadataUpdates,
     };
 
-    // Build project-level updates
+    // Build workspace-level updates
     const workspaceUpdates: Record<string, unknown> = {
       domain_metadata: updatedMetadata,
       updated_by: user.id,

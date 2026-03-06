@@ -1449,6 +1449,10 @@ export type Database = {
           title: string
         }[]
       }
+      set_config: {
+        Args: { is_local: boolean; setting: string; value: string }
+        Returns: string
+      }
       suggest_tags: {
         Args: { p_prefix: string; p_type: string }
         Returns: {
@@ -1592,3 +1596,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

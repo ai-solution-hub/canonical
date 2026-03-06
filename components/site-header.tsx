@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Search, FolderOpen, Library, Menu, Settings, ShieldCheck, BarChart3 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { SearchBar } from '@/components/search-bar';
 import {
   Sheet,
   SheetContent,
@@ -16,7 +16,7 @@ import { ThemeSettings } from '@/components/theme-settings';
 import { NotificationBell } from '@/components/notification-bell';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
-import { cn, getModifierKey } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
   { href: '/browse', label: 'Browse', icon: null, requiresEdit: false },
@@ -31,18 +31,8 @@ const SETTINGS_LINK = { href: '/settings', label: 'Settings', icon: Settings };
 export function SiteHeader() {
   const router = useRouter();
   const pathname = usePathname();
-  const [query, setQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { canEdit, loading: roleLoading } = useUserRole();
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = query.trim();
-    if (trimmed) {
-      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-      setQuery('');
-    }
-  }
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
@@ -90,23 +80,9 @@ export function SiteHeader() {
           })}
         </div>
 
-        <form
-          onSubmit={handleSearch}
-          className="relative mx-auto hidden w-full max-w-md sm:block"
-        >
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search knowledge base..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="h-9 pl-9 pr-16"
-            aria-label="Search knowledge base"
-          />
-          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            <span className="text-xs">{getModifierKey()}</span>K
-          </kbd>
-        </form>
+        <div className="mx-auto hidden w-full max-w-md sm:block">
+          <SearchBar variant="compact" />
+        </div>
 
         <div className="flex items-center gap-1">
           <Button
