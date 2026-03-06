@@ -290,6 +290,10 @@ export function BrowseContent() {
 
       if (filters.content_type?.length) {
         query = query.in('content_type', filters.content_type);
+      } else {
+        // Default: exclude Q&A pairs (they live in /library)
+        // content_type is NOT NULL so .neq() is safe here
+        query = query.neq('content_type', 'q_a_pair');
       }
 
       if (filters.platform?.length) {

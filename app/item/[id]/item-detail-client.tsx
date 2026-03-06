@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import {
@@ -107,6 +108,8 @@ export interface ItemData {
   brief?: string | null;
   detail?: string | null;
   reference?: string | null;
+  answer_standard?: string | null;
+  answer_advanced?: string | null;
   [key: string]: unknown;
 }
 
@@ -483,15 +486,22 @@ export function ItemDetailClient({
   }, [editTitle, title, item.id]);
 
   // Copy answer handler (Q&A pairs)
-  const handleCopyAnswer = useCallback(async () => {
-    const text = item.content ?? '';
+  const handleCopyAnswer = useCallback(async (variant?: 'standard' | 'advanced') => {
+    let text: string;
+    if (variant === 'standard') {
+      text = item.answer_standard ?? item.content ?? '';
+    } else if (variant === 'advanced') {
+      text = item.answer_advanced ?? item.content ?? '';
+    } else {
+      text = item.content ?? '';
+    }
     try {
       await navigator.clipboard.writeText(text);
-      toast.success('Answer copied to clipboard');
+      toast.success(variant ? `${variant.charAt(0).toUpperCase() + variant.slice(1)} answer copied` : 'Answer copied');
     } catch {
       toast.error('Failed to copy answer');
     }
-  }, [item.content]);
+  }, [item.content, item.answer_standard, item.answer_advanced]);
 
   // Helper: get active tab content for TableOfContents
   const getActiveTabContent = useCallback((): string => {
@@ -583,7 +593,7 @@ export function ItemDetailClient({
   );
 
   const isQAPair = item.content_type === 'q_a_pair';
-  const hasReaderContent = !!(item.metadata?.reader_html) || isQAPair;
+  const hasReaderContent = !!(item.metadata?.reader_html) && !isQAPair;
 
   // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
   const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
@@ -653,17 +663,35 @@ export function ItemDetailClient({
       </div>
 
       {/* Breadcrumb navigation */}
-      <BreadcrumbNav
-        domain={item.primary_domain as string | null}
-        title={title}
-        className="mb-4"
-      />
+      {isQAPair ? (
+        <nav aria-label="Breadcrumb" className="mb-4">
+          <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <li>
+              <Link href="/library" className="hover:text-foreground transition-colors">
+                Q&A Library
+              </Link>
+            </li>
+            {item.primary_domain && (
+              <>
+                <li aria-hidden="true">/</li>
+                <li>{item.primary_domain}</li>
+              </>
+            )}
+          </ol>
+        </nav>
+      ) : (
+        <BreadcrumbNav
+          domain={item.primary_domain as string | null}
+          title={title}
+          className="mb-4"
+        />
+      )}
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
         <article className="min-w-0 flex-1">
-          {/* Thumbnail */}
-          {item.thumbnail_url ? (
+          {/* Thumbnail (not shown for Q&A pairs) */}
+          {item.thumbnail_url && !isQAPair ? (
             <Thumbnail
               src={item.thumbnail_url as string | null}
               alt={title}
@@ -737,7 +765,7 @@ export function ItemDetailClient({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleCopyAnswer}
+                onClick={() => handleCopyAnswer()}
                 className="gap-1.5"
               >
                 <Copy className="size-3.5" />
@@ -843,31 +871,78 @@ export function ItemDetailClient({
             authorName={item.author_name}
           />
 
-          {/* AI processing indicators (classify / summarise) */}
-          {canEdit && item.content && (
+          {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
+          {canEdit && item.content && !isQAPair && (
             <AiProcessingIndicators
               item={item}
               onItemUpdated={setItem}
             />
           )}
 
-          {/* Content tabs — Q&A pair variant wraps in QaPairLayout */}
+          {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
           {isQAPair ? (
-            <QaPairLayout
-              question={item.suggested_title ?? item.title ?? ''}
-              itemId={item.id}
-              sourceDocument={(item.metadata as Record<string, unknown>)?.source_document as string ?? null}
-              verified={!!item.verified_at}
-              canEdit={canEdit}
-              onEditQuestion={enterEditMode}
-              contentTabs={contentTabsElement}
-            />
+            <div className="mb-6 space-y-4">
+              {item.answer_standard && (
+                <div className="rounded-xl border border-border bg-card">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Standard Answer
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => handleCopyAnswer('standard')}
+                    >
+                      <Copy className="size-3" />
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_standard}</p>
+                  </div>
+                </div>
+              )}
+              {item.answer_advanced && (
+                <div className="rounded-xl border border-border bg-card">
+                  <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Advanced Answer
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => handleCopyAnswer('advanced')}
+                    >
+                      <Copy className="size-3" />
+                      Copy
+                    </Button>
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_advanced}</p>
+                  </div>
+                </div>
+              )}
+              {!item.answer_standard && !item.answer_advanced && item.content && (
+                <div className="rounded-xl border border-border bg-card p-4">
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{item.content}</p>
+                </div>
+              )}
+              {!item.answer_standard && !item.answer_advanced && !item.content && (
+                <div className="rounded-xl border border-border bg-card p-8 text-center">
+                  <p className="text-sm text-muted-foreground">No answer recorded yet.</p>
+                </div>
+              )}
+            </div>
           ) : (
             contentTabsElement
           )}
 
-          {/* Table of Contents (Item 5) */}
-          <TableOfContents content={getActiveTabContent()} className="mb-6" />
+          {/* Table of Contents (not shown for Q&A pairs) */}
+          {!isQAPair && (
+            <TableOfContents content={getActiveTabContent()} className="mb-6" />
+          )}
 
           {/* Vision analysis (PDF items) */}
           {visionAnalysis && (
