@@ -188,8 +188,10 @@ function QARow({
 
   return (
     <div
+      data-qa-row
+      tabIndex={0}
       className={cn(
-        'rounded-lg border border-border bg-card transition-colors hover:border-border/80',
+        'rounded-lg border border-border bg-card transition-colors hover:border-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'ring-2 ring-primary/30 border-primary/40',
       )}
     >
@@ -1014,7 +1016,25 @@ export function LibraryContent() {
       </div>
 
       {/* Q&A List */}
-      <div className="mt-6 space-y-2">
+      <div
+        className="mt-6 space-y-2"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          const rows = Array.from(
+            e.currentTarget.querySelectorAll<HTMLElement>('[data-qa-row]'),
+          );
+          if (rows.length === 0) return;
+          const idx = rows.indexOf(document.activeElement as HTMLElement);
+          let next: number;
+          if (e.key === 'ArrowDown') {
+            next = idx < rows.length - 1 ? idx + 1 : 0;
+          } else {
+            next = idx > 0 ? idx - 1 : rows.length - 1;
+          }
+          rows[next].focus();
+          e.preventDefault();
+        }}
+      >
         {/* Bulk action toolbar */}
         <BulkActionToolbar
           selectedCount={selectedIds.size}
