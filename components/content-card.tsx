@@ -93,7 +93,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
           <div className="flex items-center gap-1.5">
             <ContentTypeIcon contentType={item.content_type} size="size-5" />
             <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
@@ -223,7 +223,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
           <div className="flex items-center gap-1.5">
             <ContentTypeIcon contentType={item.content_type} size="size-5" />
             <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
@@ -395,7 +395,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
         <div className="mt-auto flex flex-col gap-1.5 pt-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>

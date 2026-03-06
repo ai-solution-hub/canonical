@@ -47,6 +47,7 @@ export function useBrowseFilters() {
       workspace: searchParams.get('workspace') ?? undefined,
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
+      layer: searchParams.get('layer') ?? undefined,
       quality_issues: searchParams.get('quality_issues') === 'true' || undefined,
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
       include_qa: searchParams.get('include_qa') === 'true' || undefined,
@@ -70,6 +71,7 @@ export function useBrowseFilters() {
     if (filters.workspace) count++;
     if (filters.user_tags?.length) count++;
     if (filters.freshness?.length) count += filters.freshness.length;
+    if (filters.layer) count++;
     if (filters.quality_issues) count++;
     if (filters.include_drafts) count++;
     if (filters.include_qa) count++;
@@ -154,6 +156,10 @@ export function useBrowseFilters() {
         } else {
           params.delete('freshness');
         }
+      }
+      if ('layer' in newFilters) {
+        if (newFilters.layer) params.set('layer', newFilters.layer);
+        else params.delete('layer');
       }
       if ('quality_issues' in newFilters) {
         if (newFilters.quality_issues) params.set('quality_issues', 'true');

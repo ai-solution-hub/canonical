@@ -30,6 +30,7 @@ import { ContentTypeFilter } from '@/components/content-type-filter';
 import { PlatformFilter } from '@/components/platform-filter';
 import { AuthorFilter } from '@/components/author-filter';
 import { FreshnessBadge } from '@/components/freshness-badge';
+import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
 import type { Workspace } from '@/types/content';
 
 interface FilterPanelProps {
@@ -63,6 +64,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     project: filters.workspace ?? '',
     user_tags: filters.user_tags ?? ([] as string[]),
     freshness: filters.freshness ?? ([] as string[]),
+    layer: filters.layer ?? '',
     quality_issues: filters.quality_issues ?? false,
     include_drafts: filters.include_drafts ?? false,
     include_qa: filters.include_qa ?? false,
@@ -114,6 +116,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       project: filters.workspace ?? '',
       user_tags: filters.user_tags ?? [],
       freshness: filters.freshness ?? [],
+      layer: filters.layer ?? '',
       quality_issues: filters.quality_issues ?? false,
       include_drafts: filters.include_drafts ?? false,
       include_qa: filters.include_qa ?? false,
@@ -342,6 +345,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     });
   }, []);
 
+  const handleLayerToggle = useCallback((layerKey: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      layer: prev.layer === layerKey ? '' : layerKey,
+    }));
+  }, []);
+
   const handleUserTagToggle = useCallback((tag: string) => {
     setDraft((prev) => {
       const isSelected = prev.user_tags.includes(tag);
@@ -380,6 +390,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       workspace: draft.project || undefined,
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
+      layer: draft.layer || undefined,
       quality_issues: draft.quality_issues || undefined,
       include_drafts: draft.include_drafts || undefined,
       include_qa: draft.include_qa || undefined,
@@ -402,6 +413,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
       project: '',
       user_tags: [],
       freshness: [],
+      layer: '',
       quality_issues: false,
       include_drafts: false,
       include_qa: false,
@@ -425,6 +437,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     draft.project,
     draft.user_tags.length > 0,
     draft.freshness.length > 0,
+    draft.layer,
     draft.quality_issues,
     draft.include_drafts,
     draft.include_qa,
@@ -658,6 +671,39 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               })}
             </div>
           </FilterSection>
+
+          {isFeatureEnabled('content_layers') && (
+            <>
+              <Separator className="my-3" />
+
+              {/* Content Layer */}
+              <FilterSection title="Content Layer">
+                <div className="flex flex-wrap gap-2">
+                  {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
+                    const isActive = draft.layer === layer.key;
+                    return (
+                      <button
+                        key={layer.key}
+                        type="button"
+                        onClick={() => handleLayerToggle(layer.key)}
+                        aria-pressed={isActive}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-muted text-foreground hover:bg-accent'
+                        }`}
+                      >
+                        {layer.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Filter by content depth layer
+                </p>
+              </FilterSection>
+            </>
+          )}
 
           <Separator className="my-3" />
 

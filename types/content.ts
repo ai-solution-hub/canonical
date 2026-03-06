@@ -179,6 +179,7 @@ export interface BrowseFilters {
   workspace?: string; // workspace UUID
   user_tags?: string[]; // user tag strings
   freshness?: string[]; // multi-select: fresh, aging, stale, expired
+  layer?: string; // single layer filter from CLIENT_CONFIG vocabulary
   quality_issues?: boolean; // filter to items with open quality flags
   include_drafts?: boolean; // include draft items (excluded by default)
   include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)

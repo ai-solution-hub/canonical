@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { formatSubtopic } from '@/lib/taxonomy-format';
 import { formatContentType, formatPlatform, formatDateUK } from '@/lib/format';
+import { getLayerLabel } from '@/lib/validation/layer-schemas';
 
 interface FilterBadgeItem {
   id: string;
@@ -142,6 +143,15 @@ export function FilterBadges() {
         onRemove: () => removeFilterValue('user_tags', tag),
       });
     }
+  }
+
+  if (filters.layer) {
+    badges.push({
+      id: 'layer',
+      label: 'Layer',
+      value: getLayerLabel(filters.layer),
+      onRemove: () => removeFilter('layer'),
+    });
   }
 
   if (filters.starred) {

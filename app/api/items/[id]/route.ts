@@ -76,7 +76,7 @@ export async function PATCH(
     // Fetch current state before update (for version history)
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
-      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags')
+      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced')
       .eq('id', id)
       .single();
 
@@ -95,10 +95,24 @@ export async function PATCH(
       value,
     );
 
+    // For Q&A answer fields, auto-rebuild the content field from Standard + Advanced
+    const updateData: Record<string, unknown> = { [field]: value, updated_by: user.id };
+    if (
+      (field === 'answer_standard' || field === 'answer_advanced') &&
+      currentItem.content_type === 'q_a_pair'
+    ) {
+      const standard = field === 'answer_standard' ? value : currentItem.answer_standard;
+      const advanced = field === 'answer_advanced' ? value : currentItem.answer_advanced;
+      const parts: string[] = [];
+      if (standard) parts.push(String(standard));
+      if (advanced) parts.push(String(advanced));
+      updateData.content = parts.join('\n\n') || null;
+    }
+
     // Perform the update
     const { error } = await supabase
       .from('content_items')
-      .update({ [field]: value, updated_by: user.id })
+      .update(updateData)
       .eq('id', id);
 
     if (error) {

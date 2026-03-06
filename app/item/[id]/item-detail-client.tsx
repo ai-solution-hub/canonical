@@ -60,6 +60,9 @@ import {
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { validateEditableField } from '@/lib/validation';
+import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
+import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 import type {
@@ -111,7 +114,6 @@ export interface ItemData {
   reference?: string | null;
   answer_standard?: string | null;
   answer_advanced?: string | null;
-  [key: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,7 +357,7 @@ export function ItemDetailClient({
 
   const startEdit = (field: string) => {
     setEditingField(field);
-    setEditValue(String(item[field] ?? ''));
+    setEditValue(String((item as unknown as Record<string, unknown>)[field] ?? ''));
   };
 
   const cancelEdit = () => {
@@ -370,7 +372,7 @@ export function ItemDetailClient({
       return;
     }
 
-    const previousValue = item[field];
+    const previousValue = (item as unknown as Record<string, unknown>)[field];
 
     // Optimistic update
     setItem((prev) => ({ ...prev, [field]: value }));
@@ -670,6 +672,60 @@ export function ItemDetailClient({
     fetchRelated();
   }, [item.id, item.metadata, isQAPair]);
 
+  // Layer switcher: items sharing the same topic_id
+  const [topicLayers, setTopicLayers] = useState<
+    Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>
+  >([]);
+
+  useEffect(() => {
+    if (!isFeatureEnabled('content_layers')) return;
+    const fetchLayers = async () => {
+      try {
+        const res = await fetch(`/api/items/${item.id}/layers`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.layers?.length > 0) {
+          setTopicLayers(
+            data.layers as Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>,
+          );
+        }
+      } catch {
+        // Non-critical — fail silently
+      }
+    };
+    fetchLayers();
+  }, [item.id]);
+
+  // Inline layer editing handler
+  const handleLayerChange = useCallback(
+    async (newLayer: string | null) => {
+      const prevMetadata = item.metadata;
+      // Optimistic update
+      setItem((prev) => ({
+        ...prev,
+        metadata: {
+          ...prev.metadata,
+          ...(newLayer ? { layer: newLayer } : {}),
+          ...(!newLayer ? (() => { const m = { ...prev.metadata }; delete m.layer; return m; })() : {}),
+        },
+      }));
+      try {
+        const res = await fetch(`/api/items/${item.id}/metadata`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ layer: newLayer }),
+        });
+        if (!res.ok) throw new Error();
+        toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
+      } catch {
+        // Rollback
+        setItem((prev) => ({ ...prev, metadata: prevMetadata }));
+        toast.error('Failed to update layer');
+      }
+    },
+    [item.id, item.metadata],
+  );
+
   // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
   const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
   type TabField = (typeof tabFields)[number];
@@ -760,6 +816,39 @@ export function ItemDetailClient({
           title={title}
           className="mb-4"
         />
+      )}
+
+      {/* Layer switcher — shows linked items sharing the same topic_id */}
+      {isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
+        <nav aria-label="Content layers" className="mb-4">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Layers:</span>
+            {topicLayers.map((layerItem) => {
+              const isCurrent = layerItem.id === item.id;
+              const label = layerItem.layer
+                ? getLayerLabel(layerItem.layer)
+                : layerItem.title ?? 'Untitled';
+              return isCurrent ? (
+                <Badge
+                  key={layerItem.id}
+                  variant="default"
+                  className="text-xs"
+                >
+                  {label}
+                </Badge>
+              ) : (
+                <Link key={layerItem.id} href={`/item/${layerItem.id}`}>
+                  <Badge
+                    variant="outline"
+                    className="text-xs cursor-pointer hover:bg-accent transition-colors"
+                  >
+                    {label}
+                  </Badge>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       )}
 
       <div className="flex flex-col gap-8 lg:flex-row">
@@ -1142,6 +1231,64 @@ export function ItemDetailClient({
                 />
               </section>
             )}
+
+          {/* Content Layer selector */}
+          {isFeatureEnabled('content_layers') && canEdit && (
+            <section className="mb-6 border-t border-border pt-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Content Layer
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleLayerChange(null)}
+                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                    !item.metadata?.layer
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-muted text-foreground hover:bg-accent'
+                  }`}
+                >
+                  No layer
+                </button>
+                {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
+                  const isActive = item.metadata?.layer === layer.key;
+                  return (
+                    <button
+                      key={layer.key}
+                      type="button"
+                      onClick={() => handleLayerChange(layer.key)}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        isActive
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-muted text-foreground hover:bg-accent'
+                      }`}
+                    >
+                      {layer.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {!!item.metadata?.layer && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {CLIENT_CONFIG.layer_vocabulary.find(
+                    (l) => l.key === (item.metadata?.layer as string),
+                  )?.description}
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* Read-only layer badge (for viewers) */}
+          {isFeatureEnabled('content_layers') && !canEdit && !!item.metadata?.layer && (
+            <section className="mb-6 border-t border-border pt-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Content Layer
+              </h3>
+              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
+                {getLayerLabel(item.metadata.layer as string)}
+              </Badge>
+            </section>
+          )}
 
           {/* OrganiseSection (Item 6) — replaces separate keywords/workspaces/tags */}
           <OrganiseSection

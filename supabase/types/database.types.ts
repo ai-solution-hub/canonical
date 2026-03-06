@@ -1284,6 +1284,17 @@ export type Database = {
         }[]
       }
       get_topic_deep_dive: { Args: { p_keyword: string }; Returns: Json }
+      get_topic_layers: {
+        Args: { p_topic_id: string }
+        Returns: {
+          content_type: string
+          id: string
+          layer: string
+          metadata: Json
+          primary_domain: string
+          title: string
+        }[]
+      }
       get_trend_analysis: {
         Args: { p_days?: number; p_min_count?: number }
         Returns: {

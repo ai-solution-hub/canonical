@@ -85,7 +85,7 @@ export function ContentRow({
               domain={item.primary_domain ?? ''}
               className="shrink-0"
             />
-            {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
               <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
                 {getLayerLabel(item.metadata.layer as string)}
               </Badge>
@@ -195,7 +195,7 @@ export function ContentRow({
             domain={item.primary_domain ?? ''}
             className="shrink-0"
           />
-          {isFeatureEnabled('content_layers') && item.metadata?.layer && (
+          {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
             <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
               {getLayerLabel(item.metadata.layer as string)}
             </Badge>

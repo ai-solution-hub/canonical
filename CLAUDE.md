@@ -54,7 +54,7 @@ knowledge-hub/
   app/                        # Next.js 16 App Router (proxy.ts for auth)
     api/search/               #   POST /api/search (hybrid: embedding + keywords)
     api/search/suggestions/   #   GET /api/search/suggestions
-    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, workspaces)
+    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, workspaces, layers, metadata)
     api/workspaces/           #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
     api/bids/                 #   GET/POST + [id]/ (CRUD, questions, responses, tender, outcome, export)
     api/copilotkit/           #   POST (CopilotKit AG-UI runtime endpoint)
@@ -73,6 +73,11 @@ knowledge-hub/
     api/users/display-names/  #   GET (UUID→display name resolution)
     api/upload/               #   POST (file upload)
     api/extract/              #   POST (content extraction)
+    api/tags/                 #   GET/POST + rename, merge, suggest
+    api/taxonomy/             #   domains + subtopics CRUD, reorder
+    api/dashboard/            #   GET /api/dashboard (dashboard stats)
+    api/quality/              #   GET + summary (quality metrics)
+    api/jobs/[id]/status/     #   GET (background job status)
     bid/                      #   /bid (bid workspace + [id] detail/session pages)
     browse/                   #   /browse (grid/list, filters, pagination)
     item/[id]/                #   /item/:id (detail + inline editing)
@@ -85,7 +90,7 @@ knowledge-hub/
     login/                    #   /login (Supabase Auth)
     auth/                     #   /auth/callback (OAuth callback)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~90 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
+  components/                 # ~118 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
   contexts/                   # React contexts (read-marks, taxonomy, client-features)
   hooks/                      # 15 hooks (accessibility, browse-filters, citation-orphans,
                               #   content-library-drawer, display-names, draft-stream,
@@ -96,7 +101,10 @@ knowledge-hub/
                               #   browse-helpers, extraction-schemas, highlight, validation/,
                               #   bid-drafting, bid-matching, bid-state-machine, bid-export-*,
                               #   citations, copilotkit/, editor-utils, embeddings, freshness,
-                              #   quality-check, structured-outputs, pdf-worker
+                              #   quality-check, structured-outputs, pdf-worker, client-config,
+                              #   cost-estimation, dashboard, docx-utils, drawer-insert,
+                              #   change-summary, template-auto-map, user-helpers,
+                              #   taxonomy-format, taxonomy-server, anthropic-files
   types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
@@ -113,7 +121,7 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 25 migration files
+    migrations/               # 27 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
@@ -251,14 +259,12 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 
-### Current Roadmap
+### Remaining Roadmap
 
-| Document | Location | Purpose |
-|----------|----------|---------|
-| Spec 1: Client Feature Config | `.planning/specs/spec1-client-feature-configuration.md` | Feature flags, client config, dynamic Zod |
-| Spec 2: Tags & Coverage | `.planning/specs/spec2-tag-management-coverage.md` | Tag admin RPCs, coverage dashboard |
-| Spec 3: Content Layers | `.planning/specs/spec3-content-layers.md` | Client-specific layers, topic linking, draft extension |
-| Spec 4: AI Integration | `.planning/specs/spec4-ai-integration-architecture.md` | AI service layer, background automation, CopilotKit |
+| Item | Location | Status |
+|------|----------|--------|
+| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Tags done; `/coverage` page not built |
+| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Not started — Liam covering interactively |
 
 ### Domain References — consult when working in that area
 
