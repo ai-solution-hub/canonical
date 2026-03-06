@@ -112,13 +112,13 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 19 migration files
+    migrations/               # 23 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
                               #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
     continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest tests (44 files across lib/ (23), components/ (5), hooks/ (3), api/ (13))
+  __tests__/                  # Vitest tests (58 files across lib/ (23+4), components/ (5+2), hooks/ (3+3), api/ (13+5) + 5 helper files)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -200,11 +200,15 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 44 test files across lib/ (23), components/ (5),
-  hooks/ (3), api/ (13) + 5 helper files
+- **Location:** `__tests__/` — 58 test files (1026 tests) across lib/ (27),
+  components/ (7), hooks/ (6), api/ (18) + 5 helper files
+- **Mock pattern:** Shared `createMockSupabaseClient()` in
+  `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
-- **Strategy:** Patterns documented in `.planning/specs/testing-strategy-spec.md`
+- **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
+  `.planning/specs/testing-expansion-spec.md` (Waves 1-3 done, Wave 4 E2E
+  remaining)
 
 ## Deployment
 
