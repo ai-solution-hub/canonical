@@ -442,7 +442,8 @@ export function BidCopilotActions() {
               }
 
               respond?.({ success: true, message: 'Response submitted for review.' });
-            } catch {
+            } catch (err) {
+              console.error('CopilotKit submitForReview action failed:', err);
               respond?.({ error: 'Submit for review failed.' });
             }
           }}

@@ -235,7 +235,8 @@ export function TemplateFieldReview({
     try {
       await onAutoMap();
       toast.success('Auto-mapping complete');
-    } catch {
+    } catch (err) {
+      console.error('Auto-mapping failed:', err);
       toast.error('Auto-mapping failed');
     } finally {
       setAutoMapping(false);
@@ -247,7 +248,8 @@ export function TemplateFieldReview({
     try {
       await onBulkAccept();
       toast.success('All unreviewed mappings accepted');
-    } catch {
+    } catch (err) {
+      console.error('Bulk accept failed:', err);
       toast.error('Bulk accept failed');
     } finally {
       setLoading(null);
@@ -261,7 +263,8 @@ export function TemplateFieldReview({
       await onBulkReject(Array.from(selectedIds));
       setSelectedIds(new Set());
       toast.success(`${selectedIds.size} field(s) rejected`);
-    } catch {
+    } catch (err) {
+      console.error('Bulk reject failed:', err);
       toast.error('Bulk reject failed');
     } finally {
       setLoading(null);

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { safeErrorMessage } from '@/lib/error';
 
 interface GalleryImage {
   url: string;
@@ -93,8 +94,9 @@ export function ImageGallery({
       toast.success(
         `Extracted ${data.total_uploaded} image${data.total_uploaded === 1 ? '' : 's'} from PDF`,
       );
-    } catch {
-      toast.error('Failed to extract images');
+    } catch (err) {
+      console.error('Failed to extract images:', err);
+      toast.error(safeErrorMessage(err, 'Failed to extract images'));
     } finally {
       setIsExtracting(false);
     }

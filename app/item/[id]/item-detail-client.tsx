@@ -4,21 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import {
-  ExternalLink,
-  FileText,
-  BookOpen,
-  Copy,
-  Pencil,
-  Eye,
-  Loader2,
-  MoreHorizontal,
-  Trash2,
-  ChevronDown,
-} from 'lucide-react';
-import { ReadToggleButton } from '@/components/read-toggle-button';
-import { StarButton } from '@/components/star-button';
-import { PrioritySelector, type Priority } from '@/components/priority-selector';
+import { Loader2 } from 'lucide-react';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTranscript } from '@/hooks/use-transcript';
 import { useReaderPreferences } from '@/hooks/use-reader-preferences';
@@ -35,10 +21,6 @@ import { ContentTypeHeader } from '@/components/content-type-header';
 import { VerificationBadge } from '@/components/verification-badge';
 import dynamic from 'next/dynamic';
 
-const PdfViewer = dynamic(
-  () => import('@/components/pdf-viewer').then((mod) => mod.PdfViewer),
-  { ssr: false, loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" /> },
-);
 const ImageGallery = dynamic(
   () => import('@/components/image-gallery').then((mod) => mod.ImageGallery),
   { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-lg bg-accent" /> },
@@ -49,29 +31,33 @@ import { ReaderPanel } from '@/components/reader-panel';
 import { TableOfContents } from '@/components/table-of-contents';
 import { OrganiseSection } from '@/components/organise-section';
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
-import { DeleteContentDialog } from '@/components/delete-content-dialog';
 import { useUserRole } from '@/hooks/use-user-role';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '@/components/ui/dropdown-menu';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
-import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
+import { isFeatureEnabled } from '@/lib/client-config';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+
+// Extracted hooks
+import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
+import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
+import { useQAProvenance } from '@/hooks/use-qa-provenance';
+import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
+
+// Extracted sub-components
+import { ItemActionBar } from '@/components/item-action-bar';
+import { QAAnswerDisplay } from '@/components/qa-answer-display';
+import { ContentLayerSelector } from '@/components/content-layer-selector';
 
 import type {
   ContentListItem,
   SummaryData,
   TranscriptChapter,
 } from '@/types/content';
+import type { Priority } from '@/components/priority-selector';
 import type { Layout } from 'react-resizable-panels';
 
 export interface ItemData {
@@ -290,24 +276,6 @@ export function ItemDetailClient({
   });
   const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
 
-
-  // Unified edit mode state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editDirty, setEditDirty] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editStandard, setEditStandard] = useState('');
-  const [editAdvanced, setEditAdvanced] = useState('');
-
-  // Tab-level editing state (brief / detail / reference / content)
-  const [isSavingTab, setIsSavingTab] = useState(false);
-
-
-  // Vision analysis state
-  const [isAnalysing, setIsAnalysing] = useState(false);
-  const visionAnalysis = item.metadata?.vision_analysis as
-    | { analysis: string; analysed_at: string; model: string; tokens_used: number }
-    | undefined;
-
   const title = getDisplayTitle({
     suggested_title: item.suggested_title,
     title: item.title,
@@ -315,6 +283,56 @@ export function ItemDetailClient({
   });
 
   const isQAPair = item.content_type === 'q_a_pair';
+
+  // Extracted hook: Q&A edit mode
+  const {
+    isEditing,
+    setIsEditing,
+    editDirty,
+    setEditDirty,
+    editTitle,
+    setEditTitle,
+    editStandard,
+    setEditStandard,
+    editAdvanced,
+    setEditAdvanced,
+    isSavingTab,
+    setIsSavingTab,
+    enterEditMode,
+    cancelEditMode,
+    handleSaveAll,
+  } = useQAEditMode({
+    itemId: item.id,
+    title,
+    answerStandard: item.answer_standard,
+    answerAdvanced: item.answer_advanced,
+    isQAPair,
+    onFieldSaved: useCallback((field: string, value: string | null) => {
+      setItem((prev) => ({ ...prev, [field]: value }));
+    }, []),
+  });
+
+  // Extracted hook: Vision analysis
+  const { isAnalysing, handleVisionAnalysis } = useVisionAnalysis({
+    itemId: item.id,
+    onAnalysisComplete: useCallback((result: VisionAnalysisResult) => {
+      setItem((prev) => ({
+        ...prev,
+        metadata: { ...prev.metadata, vision_analysis: result },
+      }));
+    }, []),
+  });
+  const visionAnalysis = item.metadata?.vision_analysis as VisionAnalysisResult | undefined;
+
+  // Extracted hook: Q&A provenance (workspaces, related Q&A, topic layers, layer change)
+  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } = useQAProvenance({
+    itemId: item.id,
+    isQAPair,
+    metadata: item.metadata,
+    onMetadataUpdate: useCallback((updater: (prev: Record<string, unknown> | null) => Record<string, unknown> | null) => {
+      setItem((prev) => ({ ...prev, metadata: updater(prev.metadata) }));
+    }, []),
+  });
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -325,41 +343,6 @@ export function ItemDetailClient({
       toast.error('Failed to copy link');
     }
   }, []);
-
-  const handleVisionAnalysis = useCallback(async () => {
-    setIsAnalysing(true);
-    try {
-      const res = await fetch(`/api/items/${item.id}/vision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Vision analysis failed');
-        return;
-      }
-      // Update local item state with the analysis
-      setItem((prev) => ({
-        ...prev,
-        metadata: {
-          ...prev.metadata,
-          vision_analysis: {
-            analysis: data.analysis,
-            analysed_at: new Date().toISOString(),
-            model: data.model,
-            tokens_used: data.tokens_used,
-          },
-        },
-      }));
-      toast.success('Visual analysis complete');
-    } catch (err) {
-      console.error('Failed to perform visual analysis:', err);
-      toast.error('Failed to perform visual analysis');
-    } finally {
-      setIsAnalysing(false);
-    }
-  }, [item.id]);
 
   const startEdit = (field: string) => {
     inlineEdit.startEdit(field, (item as unknown as Record<string, unknown>)[field]);
@@ -423,63 +406,6 @@ export function ItemDetailClient({
       setItem((prev) => ({ ...prev, priority: item.priority }));
     }
   }, [item.id, item.priority]);
-
-  // Unified edit mode: enter/exit
-  const enterEditMode = useCallback(() => {
-    setIsEditing(true);
-    setEditTitle(title);
-    setEditStandard(item.answer_standard ?? '');
-    setEditAdvanced(item.answer_advanced ?? '');
-    setEditDirty(false);
-  }, [title, item.answer_standard, item.answer_advanced]);
-
-  const cancelEditMode = useCallback(() => {
-    setIsEditing(false);
-    setEditDirty(false);
-    setEditTitle('');
-  }, []);
-
-  const handleSaveAll = useCallback(async () => {
-    try {
-      // Save title if changed
-      if (editTitle && editTitle !== title) {
-        const res = await fetch(`/api/items/${item.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ field: 'suggested_title', value: editTitle }),
-        });
-        if (!res.ok) throw new Error('Failed to save title');
-        setItem((prev) => ({ ...prev, suggested_title: editTitle }));
-      }
-      // Save Q&A fields if changed
-      if (isQAPair) {
-        if (editStandard !== (item.answer_standard ?? '')) {
-          const res = await fetch(`/api/items/${item.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ field: 'answer_standard', value: editStandard || null }),
-          });
-          if (!res.ok) throw new Error('Failed to save standard answer');
-          setItem((prev) => ({ ...prev, answer_standard: editStandard || null }));
-        }
-        if (editAdvanced !== (item.answer_advanced ?? '')) {
-          const res = await fetch(`/api/items/${item.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ field: 'answer_advanced', value: editAdvanced || null }),
-          });
-          if (!res.ok) throw new Error('Failed to save advanced answer');
-          setItem((prev) => ({ ...prev, answer_advanced: editAdvanced || null }));
-        }
-      }
-      setIsEditing(false);
-      setEditDirty(false);
-      toast.success('Changes saved');
-    } catch (err) {
-      console.error('Failed to save edits:', err);
-      toast.error('Failed to save — please try again');
-    }
-  }, [editTitle, title, item.id, isQAPair, editStandard, editAdvanced, item.answer_standard, item.answer_advanced]);
 
   // Copy answer handler (Q&A pairs)
   const handleCopyAnswer = useCallback(async (variant?: 'standard' | 'advanced') => {
@@ -574,7 +500,7 @@ export function ItemDetailClient({
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [item.id, item.answer_standard, item.answer_advanced, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title]);
+  }, [item.id, item.answer_standard, item.answer_advanced, toggleRead, router, handleStarToggle, handlePriorityCycle, toggleReader, readerOpen, toggleDetached, canEdit, title, setIsEditing, setEditTitle, setEditStandard, setEditAdvanced, setEditDirty]);
 
   const transcriptChapters =
     item.metadata &&
@@ -591,107 +517,6 @@ export function ItemDetailClient({
   );
 
   const hasReaderContent = !!(item.metadata?.reader_html) && !isQAPair;
-
-  // Q&A provenance: which bids use this pair
-  const [usedInWorkspaces, setUsedInWorkspaces] = useState<Array<{ id: string; name: string; type: string }>>([]);
-
-  // Q&A related: other pairs from the same source document
-  const [relatedQA, setRelatedQA] = useState<Array<{ id: string; title: string | null }>>([]);
-
-  useEffect(() => {
-    if (!isQAPair) return;
-    const fetchWorkspaces = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('content_item_workspaces')
-        .select('workspace_id, workspaces:workspace_id(id, name, type)')
-        .eq('content_item_id', item.id);
-      if (data) {
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        const workspaces = (data as any[])
-          .map((d) => d.workspaces)
-          .filter(Boolean)
-          .filter((w) => w.type === 'bid');
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        setUsedInWorkspaces(workspaces as Array<{ id: string; name: string; type: string }>);
-      }
-    };
-    fetchWorkspaces();
-  }, [item.id, isQAPair]);
-
-  useEffect(() => {
-    if (!isQAPair) return;
-    const sourceFile = (item.metadata as Record<string, unknown> | null)?.source_file as string | undefined;
-    if (!sourceFile) return;
-    const fetchRelated = async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('content_items')
-        .select('id, title')
-        .eq('content_type', 'q_a_pair')
-        .eq('metadata->>source_file', sourceFile)
-        .neq('id', item.id)
-        .order('title')
-        .limit(10);
-      if (data) setRelatedQA(data as Array<{ id: string; title: string | null }>);
-    };
-    fetchRelated();
-  }, [item.id, item.metadata, isQAPair]);
-
-  // Layer switcher: items sharing the same topic_id
-  const [topicLayers, setTopicLayers] = useState<
-    Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>
-  >([]);
-
-  useEffect(() => {
-    if (!isFeatureEnabled('content_layers')) return;
-    const fetchLayers = async () => {
-      try {
-        const res = await fetch(`/api/items/${item.id}/layers`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.layers?.length > 0) {
-          setTopicLayers(
-            data.layers as Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>,
-          );
-        }
-      } catch {
-        // Non-critical — fail silently
-      }
-    };
-    fetchLayers();
-  }, [item.id]);
-
-  // Inline layer editing handler
-  const handleLayerChange = useCallback(
-    async (newLayer: string | null) => {
-      const prevMetadata = item.metadata;
-      // Optimistic update
-      setItem((prev) => ({
-        ...prev,
-        metadata: {
-          ...prev.metadata,
-          ...(newLayer ? { layer: newLayer } : {}),
-          ...(!newLayer ? (() => { const m = { ...prev.metadata }; delete m.layer; return m; })() : {}),
-        },
-      }));
-      try {
-        const res = await fetch(`/api/items/${item.id}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layer: newLayer }),
-        });
-        if (!res.ok) throw new Error();
-        toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
-      } catch (err) {
-        console.error('Failed to update layer:', err);
-        // Rollback
-        setItem((prev) => ({ ...prev, metadata: prevMetadata }));
-        toast.error('Failed to update layer');
-      }
-    },
-    [item.id, item.metadata],
-  );
 
   // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
   const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
@@ -878,135 +703,26 @@ export function ItemDetailClient({
             </div>
           )}
 
-          {/* Action bar (Item 7) */}
-          <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 bg-background py-2 sm:static sm:z-auto">
-            <ReadToggleButton itemId={item.id as string} />
-            {canEdit && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={isEditing ? cancelEditMode : enterEditMode}
-                className="gap-1.5"
-              >
-                <Pencil className="size-3.5" />
-                {isEditing ? 'Cancel edit' : 'Edit'}
-              </Button>
-            )}
-            {isQAPair && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
-                    <Copy className="size-3.5" />
-                    Copy answer
-                    <ChevronDown className="size-3" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {item.answer_standard && (
-                    <DropdownMenuItem onClick={() => handleCopyAnswer('standard')}>
-                      Copy Standard
-                    </DropdownMenuItem>
-                  )}
-                  {item.answer_advanced && (
-                    <DropdownMenuItem onClick={() => handleCopyAnswer('advanced')}>
-                      Copy Advanced
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => handleCopyAnswer()}>
-                    Copy All
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-            <StarButton
-              itemId={item.id}
-              starred={item.metadata?.starred === true}
-              size="md"
-            />
-            <PrioritySelector
-              itemId={item.id}
-              priority={(item.priority as Priority) ?? null}
-              size="md"
-              onChanged={(p) => setItem((prev) => ({ ...prev, priority: p }))}
-            />
-
-            {/* Overflow menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="size-9 p-0" aria-label="More actions">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {hasReaderContent && (
-                  <DropdownMenuItem onClick={toggleReader}>
-                    <BookOpen className="size-4" />
-                    {readerOpen ? 'Close Reader' : 'Open Reader'}
-                  </DropdownMenuItem>
-                )}
-                {item.source_url && (
-                  <DropdownMenuItem onClick={() => window.open(item.source_url as string, '_blank')}>
-                    <ExternalLink className="size-4" />
-                    Open original
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onClick={handleCopyLink}>
-                  <Copy className="size-4" />
-                  {copied ? 'Copied!' : 'Copy link'}
-                </DropdownMenuItem>
-                {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-                  <DropdownMenuItem onClick={() => {
-                    /* PDF viewer is dynamic, trigger it via the existing PdfViewer */
-                    const btn = document.querySelector<HTMLButtonElement>('[data-pdf-trigger]');
-                    btn?.click();
-                  }}>
-                    <FileText className="size-4" />
-                    View PDF
-                  </DropdownMenuItem>
-                )}
-                {item.content_type === 'pdf' && (
-                  <DropdownMenuItem onClick={handleVisionAnalysis} disabled={isAnalysing}>
-                    <Eye className="size-4" />
-                    {isAnalysing ? 'Analysing\u2026' : 'Visual Analysis'}
-                  </DropdownMenuItem>
-                )}
-                {canAdmin && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onClick={() => {
-                        const btn = document.querySelector<HTMLButtonElement>('[data-delete-trigger]');
-                        btn?.click();
-                      }}
-                    >
-                      <Trash2 className="size-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Hidden triggers for dynamic components */}
-            {item.content_type === 'pdf' && (item.source_url || item.file_path) && (
-              <div className="hidden">
-                <PdfViewer
-                  sourceUrl={item.source_url ?? undefined}
-                  filePath={item.file_path ?? undefined}
-                  title={title}
-                />
-              </div>
-            )}
-            {canAdmin && (
-              <div className="hidden">
-                <DeleteContentDialog
-                  itemId={item.id}
-                  itemTitle={title}
-                />
-              </div>
-            )}
-          </div>
+          {/* Action bar */}
+          <ItemActionBar
+            item={item}
+            canEdit={canEdit}
+            canAdmin={canAdmin}
+            isEditing={isEditing}
+            isQAPair={isQAPair}
+            isAnalysing={isAnalysing}
+            copied={copied}
+            hasReaderContent={hasReaderContent}
+            title={title}
+            readerOpen={readerOpen}
+            enterEditMode={enterEditMode}
+            cancelEditMode={cancelEditMode}
+            handleCopyLink={handleCopyLink}
+            handleCopyAnswer={handleCopyAnswer}
+            handleVisionAnalysis={handleVisionAnalysis}
+            toggleReader={toggleReader}
+            setItem={setItem}
+          />
 
           {/* Content-type specific header */}
           <ContentTypeHeader
@@ -1027,82 +743,16 @@ export function ItemDetailClient({
 
           {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
           {isQAPair ? (
-            <div className="mb-6 space-y-4">
-              {(item.answer_standard || isEditing) && (
-                <div className="rounded-xl border border-border bg-card">
-                  <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Standard Answer
-                    </span>
-                    {!isEditing && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 text-xs"
-                        onClick={() => handleCopyAnswer('standard')}
-                      >
-                        <Copy className="size-3" />
-                        Copy
-                      </Button>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    {isEditing ? (
-                      <textarea
-                        value={editStandard}
-                        onChange={(e) => { setEditStandard(e.target.value); setEditDirty(true); }}
-                        className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        placeholder="Standard answer..."
-                      />
-                    ) : (
-                      <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_standard}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {(item.answer_advanced || isEditing) && (
-                <div className="rounded-xl border border-border bg-card">
-                  <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Advanced Answer
-                    </span>
-                    {!isEditing && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 gap-1.5 text-xs"
-                        onClick={() => handleCopyAnswer('advanced')}
-                      >
-                        <Copy className="size-3" />
-                        Copy
-                      </Button>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    {isEditing ? (
-                      <textarea
-                        value={editAdvanced}
-                        onChange={(e) => { setEditAdvanced(e.target.value); setEditDirty(true); }}
-                        className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        placeholder="Advanced answer..."
-                      />
-                    ) : (
-                      <p className="text-sm leading-relaxed whitespace-pre-line">{item.answer_advanced}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              {!item.answer_standard && !item.answer_advanced && !isEditing && item.content && (
-                <div className="rounded-xl border border-border bg-card p-4">
-                  <p className="text-sm leading-relaxed whitespace-pre-line">{item.content}</p>
-                </div>
-              )}
-              {!item.answer_standard && !item.answer_advanced && !isEditing && !item.content && (
-                <div className="rounded-xl border border-border bg-card p-8 text-center">
-                  <p className="text-sm text-muted-foreground">No answer recorded yet.</p>
-                </div>
-              )}
-            </div>
+            <QAAnswerDisplay
+              item={item}
+              isEditing={isEditing}
+              editStandard={editStandard}
+              editAdvanced={editAdvanced}
+              setEditStandard={setEditStandard}
+              setEditAdvanced={setEditAdvanced}
+              setEditDirty={setEditDirty}
+              handleCopyAnswer={handleCopyAnswer}
+            />
           ) : (
             contentTabsElement
           )}
@@ -1200,62 +850,11 @@ export function ItemDetailClient({
             )}
 
           {/* Content Layer selector */}
-          {isFeatureEnabled('content_layers') && canEdit && (
-            <section className="mb-6 border-t border-border pt-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Content Layer
-              </h3>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleLayerChange(null)}
-                  className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                    !item.metadata?.layer
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-muted text-foreground hover:bg-accent'
-                  }`}
-                >
-                  No layer
-                </button>
-                {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
-                  const isActive = item.metadata?.layer === layer.key;
-                  return (
-                    <button
-                      key={layer.key}
-                      type="button"
-                      onClick={() => handleLayerChange(layer.key)}
-                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-                        isActive
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-border bg-muted text-foreground hover:bg-accent'
-                      }`}
-                    >
-                      {layer.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {!!item.metadata?.layer && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {CLIENT_CONFIG.layer_vocabulary.find(
-                    (l) => l.key === (item.metadata?.layer as string),
-                  )?.description}
-                </p>
-              )}
-            </section>
-          )}
-
-          {/* Read-only layer badge (for viewers) */}
-          {isFeatureEnabled('content_layers') && !canEdit && !!item.metadata?.layer && (
-            <section className="mb-6 border-t border-border pt-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Content Layer
-              </h3>
-              <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:border-blue-700 dark:text-blue-400">
-                {getLayerLabel(item.metadata.layer as string)}
-              </Badge>
-            </section>
-          )}
+          <ContentLayerSelector
+            item={item}
+            canEdit={canEdit}
+            handleLayerChange={handleLayerChange}
+          />
 
           {/* Draft toggle (editors only, when draft_status feature enabled) */}
           {isFeatureEnabled('draft_status') && canEdit && (

@@ -127,6 +127,7 @@ export function useLibraryBulkActions({
       setBulkOperating(true);
       setBulkProgress({ current: 0, total: ids.length, label });
       let successCount = 0;
+      let errorCount = 0;
 
       for (let i = 0; i < ids.length; i++) {
         const item = items.find((it) => it.id === ids[i]);
@@ -135,8 +136,10 @@ export function useLibraryBulkActions({
         try {
           const ok = await operation(ids[i], item);
           if (ok) successCount++;
-        } catch {
-          // continue processing remaining items
+          else errorCount++;
+        } catch (err) {
+          errorCount++;
+          console.error(`Bulk operation "${label}" failed for item ${ids[i]}:`, err);
         }
 
         setBulkProgress({ current: i + 1, total: ids.length, label });
@@ -146,6 +149,10 @@ export function useLibraryBulkActions({
       setBulkProgress({ current: 0, total: 0, label: '' });
       setSelectedIds(new Set());
       onRefetch();
+
+      if (errorCount > 0) {
+        toast.error(`${errorCount} item${errorCount !== 1 ? 's' : ''} failed during ${label.toLowerCase()}`);
+      }
 
       return successCount;
     },

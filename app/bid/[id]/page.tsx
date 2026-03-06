@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Building2,
@@ -28,236 +27,55 @@ import { QuestionReview } from '@/components/question-review';
 import { TenderUpload } from '@/components/tender-upload';
 import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useBidActions } from '@/hooks/use-bid-actions';
 import { formatDateUK } from '@/lib/format';
-import { canTransition, getAvailableTransitions, BID_STATE_LABELS } from '@/lib/bid-state-machine';
+import { BID_STATE_LABELS } from '@/lib/bid-state-machine';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-import type { Bid, BidMetadata, BidQuestion, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult, KBCandidate } from '@/types/bid';
-import type { TenderExtractedMetadata } from '@/types/bid-metadata';
-
-type Tab = 'overview' | 'questions' | 'responses' | 'documents';
+import type { Bid, BidMetadata, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult } from '@/types/bid';
 
 export default function BidDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const router = useRouter();
   const { canEdit, role } = useUserRole();
-  const [bid, setBid] = useState<Bid | null>(null);
-  const [questions, setQuestions] = useState<BidQuestion[]>([]);
-  const [stats, setStats] = useState<BidQuestionStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [transitioning, setTransitioning] = useState(false);
-  const [showQuestionReview, setShowQuestionReview] = useState(false);
-  const [extractedQuestions, setExtractedQuestions] = useState<Array<{
-    section_name: string;
-    section_sequence: number;
-    question_sequence: number;
-    question_text: string;
-    word_limit: number | null;
-    category: string;
-  }>>([]);
-  const [showCostEstimate, setShowCostEstimate] = useState(false);
-  const [draftingAll, setDraftingAll] = useState(false);
-  const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
-  const [showKBReview, setShowKBReview] = useState(false);
-  const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
-  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
-
-  const fetchBid = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/bids/${id}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          toast.error('Bid not found');
-          router.push('/bid');
-          return;
-        }
-        throw new Error('Failed to fetch bid');
-      }
-      const data = await response.json();
-      setBid(data);
-      setStats(data.question_stats ?? null);
-    } catch (err) {
-      console.error('Failed to load bid:', err);
-      toast.error('Failed to load bid');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, router]);
-
-  const fetchQuestions = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/bids/${id}/questions`);
-      if (!response.ok) return;
-      const data = await response.json();
-      setQuestions(data.questions ?? []);
-      if (data.stats) setStats(data.stats);
-    } catch (err) {
-      console.error('Failed to fetch bid questions:', err);
-      // Non-critical, questions tab still shows empty
-    }
-  }, [id]);
-
-  useEffect(() => {
-    fetchBid();
-    fetchQuestions();
-  }, [fetchBid, fetchQuestions]);
-
-  async function handleStatusTransition(newStatus: BidState) {
-    if (!bid) return;
-    const currentStatus = (bid.status ?? (bid.domain_metadata as BidMetadata).status) as BidState;
-    if (!canTransition(currentStatus, newStatus)) {
-      toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
-      return;
-    }
-
-    setTransitioning(true);
-    try {
-      const body: Record<string, string> = { status: newStatus };
-      if (newStatus === 'submitted') {
-        body.submission_date = new Date().toISOString();
-      }
-
-      const response = await fetch(`/api/bids/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to update status');
-      }
-
-      toast.success(`Bid moved to ${BID_STATE_LABELS[newStatus]}`);
-      fetchBid();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update status');
-    } finally {
-      setTransitioning(false);
-    }
-  }
-
-  function handleUploadComplete(result?: ExtractionResult) {
-    fetchBid();
-    fetchQuestions();
-    // Check for extracted metadata
-    const resultAny = result as unknown as Record<string, unknown>;
-    if (resultAny?.extracted_metadata) {
-      setExtractedMetadata(resultAny.extracted_metadata as TenderExtractedMetadata);
-    }
-    if (result && result.sections.length > 0) {
-      // Flatten sections into individual question entries for QuestionReview
-      const flattened = result.sections.flatMap((section) =>
-        section.questions.map((q) => ({
-          section_name: section.section_name,
-          section_sequence: section.section_sequence,
-          question_sequence: q.question_sequence,
-          question_text: q.question_text,
-          word_limit: q.word_limit,
-          category: q.category,
-        })),
-      );
-      setExtractedQuestions(flattened);
-      setShowQuestionReview(true);
-      setActiveTab('questions');
-    }
-  }
-
-  function handleQuestionReviewConfirmed() {
-    setShowQuestionReview(false);
-    setExtractedQuestions([]);
-    fetchQuestions();
-    fetchBid();
-  }
-
-  function handleQuestionReviewCancelled() {
-    setShowQuestionReview(false);
-    setExtractedQuestions([]);
-  }
-
-  async function handleDelete() {
-    if (!confirm('Are you sure you want to delete this bid? This cannot be undone.')) return;
-
-    try {
-      const response = await fetch(`/api/bids/${id}`, { method: 'DELETE' });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to delete bid');
-      }
-      toast.success('Bid deleted');
-      router.push('/bid');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete bid');
-    }
-  }
-
-  async function handleMatchQuestions() {
-    try {
-      const response = await fetch(`/api/bids/${id}/questions/match`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to match questions');
-      }
-
-      const result = await response.json();
-      toast.success(`Matched ${result.matched} questions against KB`);
-      fetchBid();
-      fetchQuestions();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to match questions');
-    }
-  }
-
-  async function handleDraftAll() {
-    setDraftingAll(true);
-    try {
-      const response = await fetch(`/api/bids/${id}/responses/draft-all`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skip_existing: true }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to draft responses');
-      }
-
-      const result = await response.json();
-      const { drafted, skipped, failed } = result;
-
-      if (failed > 0) {
-        toast.warning(`Drafted ${drafted} responses, ${failed} failed, ${skipped} skipped`);
-      } else {
-        toast.success(`Drafted ${drafted} responses (${skipped} skipped)`);
-      }
-
-      if (result.total_cost > 0) {
-        toast.info(`Total cost: $${result.total_cost.toFixed(4)}`);
-      }
-
-      fetchBid();
-      fetchQuestions();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to draft responses');
-    } finally {
-      setDraftingAll(false);
-    }
-  }
-
-  function handleOutcomeRecorded(outcome: string, candidates: KBCandidate[]) {
-    setShowOutcomeDialog(false);
-    fetchBid();
-    if (candidates.length > 0) {
-      setKBCandidates(candidates);
-      setShowKBReview(true);
-    }
-  }
+  const {
+    bid,
+    questions,
+    stats,
+    loading,
+    activeTab,
+    setActiveTab,
+    transitioning,
+    showQuestionReview,
+    extractedQuestions,
+    showCostEstimate,
+    setShowCostEstimate,
+    draftingAll,
+    showOutcomeDialog,
+    setShowOutcomeDialog,
+    showKBReview,
+    setShowKBReview,
+    kbCandidates,
+    extractedMetadata,
+    handleStatusTransition,
+    handleUploadComplete,
+    handleQuestionReviewConfirmed,
+    handleQuestionReviewCancelled,
+    handleDelete,
+    handleMatchQuestions,
+    handleDraftAll,
+    handleOutcomeRecorded,
+    clearExtractedMetadata,
+    handleKBIntegrationComplete,
+    fetchBid,
+    fetchQuestions,
+    metadata,
+    bidStatus,
+    totalQuestions,
+    completedCount,
+    progressPercent,
+    isSubmitted,
+    regularTransitions,
+    tabs,
+  } = useBidActions({ id });
 
   if (loading) {
     return (
@@ -267,26 +85,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  if (!bid) return null;
-
-  const metadata = bid.domain_metadata as BidMetadata;
-  const bidStatus = (bid.status ?? metadata.status) as BidState;
-  const totalQuestions = stats?.total_questions ?? 0;
-  const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
-  const progressPercent = totalQuestions > 0 ? Math.round((completedCount / totalQuestions) * 100) : 0;
-  const availableTransitions = getAvailableTransitions(bidStatus);
-  const outcomeTransitions = ['won', 'lost', 'withdrawn'] as const;
-  const isSubmitted = bidStatus === 'submitted';
-  const regularTransitions = availableTransitions.filter(
-    t => !isSubmitted || !outcomeTransitions.includes(t as typeof outcomeTransitions[number]),
-  );
-
-  const tabs: { id: Tab; label: string; count?: number }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'questions', label: 'Questions', count: totalQuestions },
-    { id: 'responses', label: 'Responses' },
-    { id: 'documents', label: 'Documents', count: metadata.tender_document_ids?.length ?? 0 },
-  ];
+  if (!bid || !bidStatus) return null;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -307,19 +106,19 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
             <BidStateBadge state={bidStatus} />
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            {metadata.buyer && (
+            {metadata?.buyer && (
               <span className="inline-flex items-center gap-1.5">
                 <Building2 className="size-3.5" aria-hidden="true" />
                 {metadata.buyer}
               </span>
             )}
-            {metadata.deadline && (
+            {metadata?.deadline && (
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="size-3.5" aria-hidden="true" />
                 {formatDateUK(metadata.deadline)}
               </span>
             )}
-            {metadata.reference_number && (
+            {metadata?.reference_number && (
               <span className="inline-flex items-center gap-1.5">
                 <Hash className="size-3.5" aria-hidden="true" />
                 {metadata.reference_number}
@@ -385,10 +184,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <TenderMetadataPrompt
             metadata={extractedMetadata}
             bidId={id}
-            onUpdated={() => {
-              setExtractedMetadata(null);
-              fetchBid();
-            }}
+            onUpdated={clearExtractedMetadata}
           />
         </div>
       )}
@@ -505,14 +301,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         bidId={id}
         bidName={bid.name}
         candidates={kbCandidates}
-        onIntegrationComplete={(result) => {
-          setShowKBReview(false);
-          setKBCandidates([]);
-          fetchBid();
-          toast.success(
-            `KB integration complete: ${result.created} created, ${result.updated} updated`,
-          );
-        }}
+        onIntegrationComplete={handleKBIntegrationComplete}
       />
     </div>
   );

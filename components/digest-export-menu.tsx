@@ -23,6 +23,7 @@ import {
   downloadDigestDocx,
   digestTypeLabel,
 } from '@/lib/digest-export';
+import { safeErrorMessage } from '@/lib/error';
 import type { Digest } from '@/types/digest';
 
 interface DigestExportMenuProps {
@@ -37,8 +38,9 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
       const md = digestToMarkdown(digest);
       await navigator.clipboard.writeText(md);
       toast.success('Copied as Markdown');
-    } catch {
-      toast.error('Failed to copy to clipboard');
+    } catch (err) {
+      console.error('Failed to copy digest as Markdown:', err);
+      toast.error(safeErrorMessage(err, 'Failed to copy to clipboard'));
     }
   }
 
@@ -47,8 +49,9 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
     try {
       await downloadDigestDocx(digest);
       toast.success('DOCX downloaded');
-    } catch {
-      toast.error('Failed to generate DOCX');
+    } catch (err) {
+      console.error('Failed to generate DOCX:', err);
+      toast.error(safeErrorMessage(err, 'Failed to generate DOCX'));
     } finally {
       setDownloadingDocx(false);
     }

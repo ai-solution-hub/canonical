@@ -471,8 +471,9 @@ export default function BidSessionPage({
             // Refresh response to pick up new source_content
             void fetchResponse();
           }
-        } catch {
-          // Non-blocking — content was already inserted
+        } catch (err) {
+          // Non-blocking — content was already inserted, but log for audit trail
+          console.error('Failed to update source_content_ids for provenance tracking:', err);
         }
       }
     },

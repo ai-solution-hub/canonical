@@ -112,8 +112,9 @@ export function BidContextProvider({
         reviewedCount: 0, // Not tracked separately yet
         acceptedCount: stats?.complete_count ?? 0,
       });
-    } catch {
-      // Non-critical for CopilotKit context
+    } catch (err) {
+      // Non-critical — CopilotKit context degrades gracefully without bid data
+      console.warn('BidContextProvider: failed to fetch bid summary:', err);
     }
   }, [bidId]);
 
@@ -137,8 +138,9 @@ export function BidContextProvider({
       );
 
       setQuestions(mapped);
-    } catch {
-      // Non-critical
+    } catch (err) {
+      // Non-critical — CopilotKit context degrades gracefully without question data
+      console.warn('BidContextProvider: failed to fetch questions:', err);
     }
   }, [bidId]);
 
@@ -192,7 +194,9 @@ export function BidContextProvider({
           data.source_content?.map((s: { id: string }) => s.id) ?? [],
         qualityScore: data.quality_check?.overall_score ?? null,
       });
-    } catch {
+    } catch (err) {
+      // Non-critical — CopilotKit context degrades gracefully without response data
+      console.warn('BidContextProvider: failed to fetch active response:', err);
       setActiveResponse(null);
     }
   }, [activeQuestionId, bidId, questions]);
