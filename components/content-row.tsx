@@ -16,6 +16,7 @@ import { highlightTerms } from '@/lib/highlight';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { Badge } from '@/components/ui/badge';
+import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
 interface ContentRowProps {
@@ -39,8 +40,12 @@ export function ContentRow({
   hasQualityFlag,
   highlightQuery,
 }: ContentRowProps) {
+  const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const isQAPair = item.content_type === 'q_a_pair';
+  const colourKey = item.primary_domain
+    ? getDomainColourKey(item.primary_domain)
+    : 'meta';
 
   /** Conditionally highlight text when a query is provided */
   const renderText = (text: string) =>
@@ -61,7 +66,11 @@ export function ContentRow({
           'group flex min-w-0 flex-1 items-center gap-3 border-b border-border px-4 py-2 transition-colors duration-100 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
           isActive && 'bg-accent/50',
         )}
-        style={{ height: '64px' }}
+        style={{
+          height: '64px',
+          borderLeftWidth: '4px',
+          borderLeftColor: `var(--domain-${colourKey}-text)`,
+        }}
       >
         <ThumbnailSmall
           src={item.thumbnail_url}
@@ -172,7 +181,11 @@ export function ContentRow({
         'group flex min-w-0 flex-1 items-center gap-3 border-b border-border px-4 py-2 transition-colors duration-100 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         isActive && 'bg-accent/50',
       )}
-      style={{ height: '64px' }}
+      style={{
+        height: '64px',
+        borderLeftWidth: '4px',
+        borderLeftColor: `var(--domain-${colourKey}-text)`,
+      }}
     >
       <ThumbnailSmall
         src={item.thumbnail_url}

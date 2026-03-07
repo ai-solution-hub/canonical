@@ -273,10 +273,11 @@ export function GovernanceSection() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border" role="list">
             {configs.map((config) => (
               <div
                 key={config.id}
+                role="listitem"
                 className="flex items-center justify-between px-4 py-3"
               >
                 <div>

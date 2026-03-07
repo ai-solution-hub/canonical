@@ -26,6 +26,7 @@ export function CoverageGapCell({
         'flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3',
         'min-h-[5.5rem]',
       )}
+      aria-label={`${formatSubtopic(subtopicName)} — no content`}
     >
       <span className="text-xs font-medium text-muted-foreground/70">
         {formatSubtopic(subtopicName)}

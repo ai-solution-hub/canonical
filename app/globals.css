@@ -41,6 +41,7 @@
   --accent-foreground: oklch(0.25 0.016 48);
 
   --destructive: oklch(0.55 0.20 20);
+  --destructive-foreground: oklch(0.99 0.003 48);
 
   --border: oklch(0.90 0.012 48);
   --input: oklch(0.90 0.012 48);
@@ -237,6 +238,9 @@
   --theme-heading-glow: none;
   --theme-shadow: none;
   --theme-border-width: 1px;
+
+  /* Component shadows */
+  --shadow-review-bar: 0 -2px 10px oklch(0.18 0.014 48 / 0.08);
 }
 
 .dark {
@@ -262,6 +266,7 @@
   --accent-foreground: oklch(0.95 0.010 48);
 
   --destructive: oklch(0.55 0.20 20);
+  --destructive-foreground: oklch(0.99 0.003 48);
 
   --border: oklch(0.30 0.014 48);
   --input: oklch(0.30 0.014 48);
@@ -441,6 +446,9 @@
   /* Verified (dark) */
   --color-verified: oklch(0.70 0.13 160);
   --color-verified-bg: oklch(0.25 0.06 160);
+
+  /* Component shadows (dark) */
+  --shadow-review-bar: 0 -2px 10px oklch(0.10 0.014 48 / 0.15);
 }
 
 /* Register theme values for Tailwind v4 */
@@ -460,6 +468,7 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -685,4 +694,61 @@ p + p {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+}
+
+/* ===== CopilotKit Sidebar — Warm Meridian Overrides ===== */
+.bid-copilot-sidebar {
+  font-family: var(--font-sans);
+}
+
+.bid-copilot-sidebar [data-copilotkit-sidebar] {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.bid-copilot-sidebar [data-copilotkit-sidebar] header {
+  color: var(--foreground);
+}
+
+/* Message bubbles */
+.bid-copilot-sidebar [data-copilotkit-sidebar] [data-role='assistant'] {
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.bid-copilot-sidebar [data-copilotkit-sidebar] [data-role='user'] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* Input area */
+.bid-copilot-sidebar [data-copilotkit-sidebar] textarea,
+.bid-copilot-sidebar [data-copilotkit-sidebar] input[type='text'] {
+  background: var(--background);
+  color: var(--foreground);
+  border-color: var(--input);
+}
+
+.bid-copilot-sidebar [data-copilotkit-sidebar] textarea::placeholder,
+.bid-copilot-sidebar [data-copilotkit-sidebar] input[type='text']::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* Send / action buttons */
+.bid-copilot-sidebar [data-copilotkit-sidebar] button[type='submit'],
+.bid-copilot-sidebar [data-copilotkit-sidebar] button[aria-label='Send'] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.bid-copilot-sidebar [data-copilotkit-sidebar] button[type='submit']:hover,
+.bid-copilot-sidebar [data-copilotkit-sidebar] button[aria-label='Send']:hover {
+  opacity: 0.9;
+}
+
+/* Muted/secondary text */
+.bid-copilot-sidebar [data-copilotkit-sidebar] [class*='text-gray'],
+.bid-copilot-sidebar [data-copilotkit-sidebar] [class*='text-slate'] {
+  color: var(--muted-foreground);
 }

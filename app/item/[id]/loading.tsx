@@ -1,6 +1,6 @@
 export default function ItemDetailLoading() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Back button skeleton */}
       <div className="mb-6 h-9 w-20 animate-pulse rounded-md bg-accent" />
 

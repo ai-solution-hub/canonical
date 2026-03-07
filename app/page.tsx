@@ -134,7 +134,7 @@ export default function HomePage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Compact search bar */}
       <section className="mb-2 text-center">
-        <h1 className="mb-4 text-xl font-bold tracking-tight sm:text-2xl">
+        <h1 className="mb-4 text-fluid-2xl font-bold tracking-tight">
           Knowledge Hub
         </h1>
         <Suspense fallback={<SearchSkeleton />}>

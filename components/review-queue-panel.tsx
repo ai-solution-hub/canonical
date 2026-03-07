@@ -95,7 +95,7 @@ export function ReviewQueuePanel({
                 )}
                 {isFlagged && (
                   <Flag
-                    className="ml-auto size-3.5 text-destructive"
+                    className="ml-auto size-3.5 text-status-warning"
                     aria-label="Flagged for review"
                   />
                 )}

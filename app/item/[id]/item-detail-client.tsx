@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { Pencil } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
@@ -531,7 +532,8 @@ export function ItemDetailClient({
           {/* Editing banner */}
           {isEditing && (
             <div className="mb-4 flex items-center justify-between rounded-md border border-status-warning/30 bg-quality-moderate-bg px-4 py-2 text-sm">
-              <span className="font-medium text-status-warning">
+              <span className="flex items-center gap-1.5 font-medium text-status-warning">
+                <Pencil className="size-3.5 shrink-0" aria-hidden="true" />
                 Editing{editDirty ? ' \u2014 unsaved changes' : ''}
               </span>
               <div className="flex gap-2">

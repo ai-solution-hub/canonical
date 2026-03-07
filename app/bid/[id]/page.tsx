@@ -162,12 +162,12 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               bidName={bid.name}
               hasQuestions={totalQuestions > 0}
             />
-            <a href={`/bid/${id}/session`}>
-              <Button variant="default" size="sm">
+            <Button asChild variant="default" size="sm">
+              <Link href={`/bid/${id}/session`}>
                 <FileText className="mr-1.5 size-4" aria-hidden="true" />
                 Open Session
-              </Button>
-            </a>
+              </Link>
+            </Button>
             {role === 'admin' && (
               <Button variant="ghost" size="icon-sm" onClick={handleDelete} title="Delete bid">
                 <Trash2 className="size-4 text-destructive" aria-hidden="true" />
@@ -267,12 +267,11 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
             <p className="mt-3 text-sm text-muted-foreground">
               Draft and review responses in the AI-powered workspace.
             </p>
-            <a
-              href={`/bid/${id}/session`}
-              className="mt-4 inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              Open Drafting Session
-            </a>
+            <Button asChild className="mt-4">
+              <Link href={`/bid/${id}/session`}>
+                Open Drafting Session
+              </Link>
+            </Button>
           </div>
         )}
         {activeTab === 'documents' && (

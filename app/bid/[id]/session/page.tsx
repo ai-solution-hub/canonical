@@ -33,24 +33,20 @@ import type { Editor } from '@/components/response-editor';
 /** Syncs the active question and editor ref from useStreamCoordination into BidContext for CopilotKit */
 function BidContextSync({
   questionId,
-  editorRefSource,
+  editorInstance,
 }: {
   questionId: string | null;
-  editorRefSource: React.RefObject<import('@tiptap/react').Editor | null>;
+  editorInstance: import('@tiptap/react').Editor | null;
 }) {
   const { setActiveQuestionId, editorRef } = useBidContext();
   useEffect(() => {
     setActiveQuestionId(questionId);
   }, [questionId, setActiveQuestionId]);
   useEffect(() => {
-    // Sync the editor instance from the session page ref into the BidContext ref
-    const interval = setInterval(() => {
-      if (editorRefSource.current !== editorRef.current) {
-        editorRef.current = editorRefSource.current;
-      }
-    }, 500);
-    return () => clearInterval(interval);
-  }, [editorRefSource, editorRef]);
+    // Sync the editor instance into the BidContext ref whenever it changes.
+    // Uses a state-driven prop instead of polling a ref on an interval.
+    editorRef.current = editorInstance;
+  }, [editorInstance, editorRef]);
   return null;
 }
 
@@ -71,10 +67,12 @@ export default function BidSessionPage({
   // Version history panel
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  // Tiptap editor instance ref for Content Library insert
+  // Tiptap editor instance — stored as state so BidContextSync re-renders on change
   const editorInstanceRef = useRef<Editor | null>(null);
+  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
   const onEditorReady = useCallback((editor: Editor) => {
     editorInstanceRef.current = editor;
+    setEditorInstance(editor);
   }, []);
 
   // ── Stream coordination hook ──
@@ -352,7 +350,7 @@ export default function BidSessionPage({
   return (
     <CopilotKitProvider>
       <BidContextProvider bidId={id}>
-        <BidContextSync questionId={currentQuestion?.id ?? null} editorRefSource={editorInstanceRef} />
+        <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstance} />
         <BidCopilotActions />
         <BidCopilotSuggestions />
         <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>

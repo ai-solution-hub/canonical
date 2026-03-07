@@ -21,6 +21,19 @@ import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
+/** Reusable quality flag badge — used in Q&A, compact, and standard card variants */
+function QualityFlagBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
+      title="Has quality issues"
+    >
+      <AlertTriangle className="size-2.5" aria-hidden="true" />
+      <span>Quality</span>
+    </span>
+  );
+}
+
 /** Content types that use compact card layout (no thumbnail, 4px left border only) */
 export const COMPACT_CONTENT_TYPES = new Set([
   'q_a_pair',
@@ -185,15 +198,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
               {item.governance_review_status === 'draft' && (
                 <GovernanceBadge status="draft" compact />
               )}
-              {hasQualityFlag && (
-                <span
-                  className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
-                  title="Has quality issues"
-                >
-                  <AlertTriangle className="size-2.5" aria-hidden="true" />
-                  <span>Quality</span>
-                </span>
-              )}
+              {hasQualityFlag && <QualityFlagBadge />}
             </div>
           </div>
         </div>
@@ -299,15 +304,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
               {item.governance_review_status === 'draft' && (
                 <GovernanceBadge status="draft" compact />
               )}
-              {hasQualityFlag && (
-                <span
-                  className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
-                  title="Has quality issues"
-                >
-                  <AlertTriangle className="size-2.5" aria-hidden="true" />
-                  <span>Quality</span>
-                </span>
-              )}
+              {hasQualityFlag && <QualityFlagBadge />}
             </div>
           </div>
         </div>

@@ -205,6 +205,9 @@ export function ContentLibraryDrawer({
             variant={typeFilter === 'all' ? 'default' : 'secondary'}
             className="cursor-pointer text-xs"
             onClick={() => setTypeFilter('all')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter('all'); } }}
           >
             All types
           </Badge>
@@ -212,6 +215,9 @@ export function ContentLibraryDrawer({
             variant={typeFilter === 'q_a_pair' ? 'default' : 'secondary'}
             className="cursor-pointer text-xs"
             onClick={() => setTypeFilter('q_a_pair')}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter('q_a_pair'); } }}
           >
             Q&A pairs
           </Badge>

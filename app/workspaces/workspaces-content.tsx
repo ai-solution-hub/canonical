@@ -14,7 +14,6 @@ import type { Workspace } from '@/types/content';
 
 const TYPE_FILTERS = [
   { value: 'all', label: 'All' },
-  { value: 'project', label: 'Projects' },
   { value: 'bid', label: 'Bids' },
   { value: 'kb_section', label: 'KB Sections' },
 ] as const;

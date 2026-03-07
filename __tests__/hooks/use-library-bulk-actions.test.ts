@@ -321,7 +321,7 @@ describe('useLibraryBulkActions', () => {
 
   it('handleBulkAssignConfirm posts to /api/items/:id/workspaces for each selected item', async () => {
     // First call: fetch workspaces for dialog open
-    const workspacesData = [{ id: 'ws-1', name: 'Project X', type: 'project' }];
+    const workspacesData = [{ id: 'ws-1', name: 'KB Section X', type: 'kb_section' }];
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: vi.fn().mockResolvedValue(workspacesData),
@@ -354,7 +354,7 @@ describe('useLibraryBulkActions', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ workspace_id: 'ws-1', action: 'assign' }),
     });
-    expect(toast.success).toHaveBeenCalledWith('Assigned 1 item to "Project X"');
+    expect(toast.success).toHaveBeenCalledWith('Assigned 1 item to "KB Section X"');
     expect(onRefetch).toHaveBeenCalled();
   });
 

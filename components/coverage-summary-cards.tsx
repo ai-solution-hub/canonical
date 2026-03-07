@@ -48,7 +48,7 @@ function StatCard({
             colourClass,
           )}
         >
-          <Icon className="size-5 text-white" />
+          <Icon className="size-5 text-primary-foreground" aria-hidden="true" />
         </div>
         <div className="min-w-0">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>

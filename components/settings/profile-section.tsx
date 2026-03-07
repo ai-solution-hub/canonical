@@ -119,7 +119,7 @@ export function ProfileSection() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label>Role</Label>
+            <p className="text-sm font-medium leading-none">Role</p>
             <div>
               <Badge variant={roleBadgeVariant(role ?? 'viewer')}>
                 {roleLabel(role ?? 'viewer')}

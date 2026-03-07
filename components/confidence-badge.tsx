@@ -17,26 +17,30 @@ const ICON_MAP = {
   'file-question': FileQuestion,
 } as const;
 
-const COLOUR_CLASSES: Record<ConfidencePosture, { bg: string; text: string; border: string }> = {
+const COLOUR_CLASSES: Record<ConfidencePosture, { bg: string; text: string; border: string; dot: string }> = {
   strong_match: {
     bg: 'bg-confidence-strong-bg',
     text: 'text-confidence-strong',
     border: 'border-confidence-strong-border',
+    dot: 'bg-confidence-strong',
   },
   partial_match: {
     bg: 'bg-confidence-partial-bg',
     text: 'text-confidence-partial',
     border: 'border-confidence-partial-border',
+    dot: 'bg-confidence-partial',
   },
   needs_sme: {
     bg: 'bg-confidence-needs-sme-bg',
     text: 'text-confidence-needs-sme',
     border: 'border-confidence-needs-sme-border',
+    dot: 'bg-confidence-needs-sme',
   },
   no_content: {
     bg: 'bg-confidence-none-bg',
     text: 'text-confidence-none',
     border: 'border-confidence-none-border',
+    dot: 'bg-confidence-none',
   },
 };
 
@@ -106,7 +110,7 @@ export function ConfidenceDot({
 
   return (
     <span className={cn('inline-flex items-center gap-1 text-xs', className)}>
-      <span className={cn('size-2 rounded-full', colours.bg)} aria-hidden="true" />
+      <span className={cn('size-2 rounded-full', colours.dot)} aria-hidden="true" />
       <span className="text-muted-foreground">
         {config.label}: {count}
       </span>

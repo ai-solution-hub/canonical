@@ -24,6 +24,7 @@ import { ContentTypeFilter } from '@/components/content-type-filter';
 import { PlatformFilter } from '@/components/platform-filter';
 import { AuthorFilter } from '@/components/author-filter';
 import { FreshnessBadge } from '@/components/freshness-badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
 
 interface FilterPanelProps {
@@ -155,7 +156,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                   htmlFor="filter-date-from"
                   className="text-xs text-muted-foreground"
                 >
-                  From (DD/MM/YYYY)
+                  From
                 </label>
                 <Input
                   id="filter-date-from"
@@ -166,13 +167,14 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                   }
                   className="h-8 text-sm"
                 />
+                <p className="text-xs text-muted-foreground">Format: DD/MM/YYYY</p>
               </div>
               <div className="flex flex-col gap-1">
                 <label
                   htmlFor="filter-date-to"
                   className="text-xs text-muted-foreground"
                 >
-                  To (DD/MM/YYYY)
+                  To
                 </label>
                 <Input
                   id="filter-date-to"
@@ -183,6 +185,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                   }
                   className="h-8 text-sm"
                 />
+                <p className="text-xs text-muted-foreground">Format: DD/MM/YYYY</p>
               </div>
             </div>
           </FilterSection>
@@ -347,14 +350,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Quality Issues */}
           <FilterSection title="Quality">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
+            <label htmlFor="filter-quality" className="flex cursor-pointer items-center gap-2">
+              <Checkbox
+                id="filter-quality"
                 checked={draft.quality_issues}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, quality_issues: e.target.checked }))
+                onCheckedChange={(checked) =>
+                  setDraft((prev) => ({ ...prev, quality_issues: checked === true }))
                 }
-                className="size-4 rounded border-border accent-primary"
               />
               <span className="text-sm">Has quality issues</span>
             </label>
@@ -364,14 +366,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Include Drafts */}
           <FilterSection title="Drafts">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
+            <label htmlFor="filter-drafts" className="flex cursor-pointer items-center gap-2">
+              <Checkbox
+                id="filter-drafts"
                 checked={draft.include_drafts}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, include_drafts: e.target.checked }))
+                onCheckedChange={(checked) =>
+                  setDraft((prev) => ({ ...prev, include_drafts: checked === true }))
                 }
-                className="size-4 rounded border-border accent-primary"
               />
               <span className="text-sm">Include draft items</span>
             </label>
@@ -384,14 +385,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Include Q&A pairs */}
           <FilterSection title="Q&A Pairs">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
+            <label htmlFor="filter-qa" className="flex cursor-pointer items-center gap-2">
+              <Checkbox
+                id="filter-qa"
                 checked={draft.include_qa}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, include_qa: e.target.checked }))
+                onCheckedChange={(checked) =>
+                  setDraft((prev) => ({ ...prev, include_qa: checked === true }))
                 }
-                className="size-4 rounded border-border accent-primary"
               />
               <span className="text-sm">Include Q&A pairs</span>
             </label>
@@ -404,14 +404,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           {/* Starred */}
           <FilterSection title="Starred">
-            <label className="flex cursor-pointer items-center gap-2">
-              <input
-                type="checkbox"
+            <label htmlFor="filter-starred" className="flex cursor-pointer items-center gap-2">
+              <Checkbox
+                id="filter-starred"
                 checked={draft.starred}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, starred: e.target.checked }))
+                onCheckedChange={(checked) =>
+                  setDraft((prev) => ({ ...prev, starred: checked === true }))
                 }
-                className="size-4 rounded border-border accent-primary"
               />
               <span className="text-sm">Show starred items only</span>
             </label>

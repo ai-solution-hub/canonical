@@ -23,6 +23,7 @@ export function AttentionCard({
     <Link
       href={href}
       className="group flex items-start gap-3 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-accent/50"
+      aria-label={`${count} ${label} — ${actionLabel}`}
     >
       <Icon
         className="mt-0.5 size-5 shrink-0 text-status-warning"

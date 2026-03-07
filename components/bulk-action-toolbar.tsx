@@ -158,7 +158,7 @@ export function BulkActionToolbar({
       {/* Progress bar */}
       {bulkOperating && (
         <div className="mt-3 space-y-1.5">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
             <Loader2 className="size-3.5 animate-spin" />
             <span>
               {bulkProgress.label} {bulkProgress.current}/{bulkProgress.total}...

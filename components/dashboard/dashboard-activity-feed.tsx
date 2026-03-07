@@ -25,7 +25,7 @@ export function DashboardActivityFeed({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" role="feed">
       {activities.map((activity) => {
         const Icon = activity.type === 'rollback' ? RotateCcw : Pencil;
         const userName = activity.user_id
@@ -36,10 +36,11 @@ export function DashboardActivityFeed({
           <Link
             key={activity.id}
             href={`/item/${activity.entity_id}`}
+            role="article"
             className="group flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/50"
           >
             <Icon
-              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+              className={`mt-0.5 size-4 shrink-0 ${activity.type === 'rollback' ? 'text-status-warning' : 'text-muted-foreground'}`}
               aria-hidden="true"
             />
             <div className="min-w-0 flex-1">

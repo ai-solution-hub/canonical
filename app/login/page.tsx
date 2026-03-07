@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [magicLinkEmail, setMagicLinkEmail] = useState('');
   const [magicLinkSending, setMagicLinkSending] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export default function LoginPage() {
     const supabase = createClient();
 
     const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: magicLinkEmail,
+      email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
                 <Label htmlFor="password">Password</Label>
                 <button
                   type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="rounded-sm text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={async () => {
                     if (!email) {
                       setError('Enter your email first, then click Forgot password');
@@ -116,7 +116,7 @@ export default function LoginPage() {
                       setError(resetError.message);
                     } else {
                       setError(null);
-                      alert('Password reset email sent. Check your inbox.');
+                      toast.success('Password reset email sent. Check your inbox.');
                     }
                   }}
                 >
@@ -165,8 +165,8 @@ export default function LoginPage() {
                 id="magic-link-email"
                 type="email"
                 placeholder="you@example.com"
-                value={magicLinkEmail}
-                onChange={(e) => setMagicLinkEmail(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
                 className="flex-1"

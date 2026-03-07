@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { PanelRightClose, PanelRightOpen, CheckCircle2, Sparkles } from 'lucide-react';
 import { ReviewCard } from '@/components/review-card';
 import { ReviewActionBar } from '@/components/review-action-bar';
 import { ReviewProgressBar } from '@/components/review-progress-bar';
@@ -135,8 +135,8 @@ export function ReviewContent() {
         )}
 
         <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-16 text-center">
-          <div className="mb-4 text-4xl" role="img" aria-label="Checkmark">
-            {allVerified ? '\u2705' : '\u2728'}
+          <div className="mb-4 text-muted-foreground" aria-hidden="true">
+            {allVerified ? <CheckCircle2 className="size-10" /> : <Sparkles className="size-10" />}
           </div>
           {allVerified ? (
             <>
@@ -359,9 +359,9 @@ export function ReviewContent() {
     >
       <Panel
         id="review-main"
-        defaultSize={showQueuePanel ? '75%' : '100%'}
-        minSize="60%"
-        className="overflow-y-auto"
+        defaultSize={showQueuePanel ? 75 : 100}
+        minSize={60}
+        className="overflow-y-auto overscroll-contain"
       >
         {reviewMainContent}
       </Panel>
@@ -371,9 +371,9 @@ export function ReviewContent() {
           <PanelResizeHandle className="hidden w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30 md:block" />
           <Panel
             id="review-queue"
-            defaultSize="25%"
-            minSize="20%"
-            maxSize="35%"
+            defaultSize={25}
+            minSize={20}
+            maxSize={35}
             className="hidden overflow-hidden md:block"
           >
             <ReviewQueuePanel

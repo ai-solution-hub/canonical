@@ -179,7 +179,7 @@ export function CoverageContent() {
             disabled={isLoading}
             className="gap-1.5"
           >
-            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
             Refresh
           </Button>
         </div>

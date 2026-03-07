@@ -9,9 +9,20 @@ interface QuickStatsStripProps {
   unreadNotificationCount: number;
 }
 
+const FRESHNESS_DOT_CLASS: Record<string, string> = {
+  Fresh: 'bg-freshness-fresh',
+  Aging: 'bg-freshness-aging',
+  Stale: 'bg-freshness-stale',
+  Expired: 'bg-freshness-expired',
+};
+
 function StatItem({ label, value }: { label: string; value: number }) {
+  const dotClass = FRESHNESS_DOT_CLASS[label];
   return (
-    <div className="flex items-baseline gap-1.5">
+    <div className="flex items-center gap-1.5">
+      {dotClass && (
+        <span className={`size-2 rounded-full ${dotClass}`} aria-hidden="true" />
+      )}
       <span className="text-sm font-semibold text-foreground">{value}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
     </div>
