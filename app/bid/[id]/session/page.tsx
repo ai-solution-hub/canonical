@@ -134,11 +134,11 @@ export default function BidSessionPage({
       <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <AlertCircle
-            className="size-10 text-destructive"
+            className="size-10 text-muted-foreground/50"
             aria-hidden="true"
           />
-          <h2 className="mt-4 text-lg font-semibold">
-            Failed to load session
+          <h2 className="mt-4 text-lg font-semibold text-foreground">
+            Couldn&apos;t load the session
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           <Button

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import Link from 'next/link';
+import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function ItemError({
@@ -15,12 +17,22 @@ export default function ItemError({
   }, [error]);
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 p-12 text-center">
-      <h2 className="text-lg font-semibold">Failed to load item</h2>
-      <p className="text-sm text-muted-foreground">
-        Something went wrong. Please try again.
+    <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-24 text-center">
+      <FileText className="mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
+      <h2 className="mb-2 text-lg font-semibold text-foreground">
+        Couldn&apos;t load this item
+      </h2>
+      <p className="mb-6 text-sm text-muted-foreground">
+        The item may have been moved or is temporarily unavailable.
       </p>
-      <Button onClick={reset}>Try again</Button>
+      <div className="flex gap-3">
+        <Button onClick={reset} variant="outline">
+          Try again
+        </Button>
+        <Button asChild variant="ghost">
+          <Link href="/browse">Back to Browse</Link>
+        </Button>
+      </div>
     </div>
   );
 }

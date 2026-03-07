@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, HelpCircle, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,7 +127,8 @@ export function QuestionList({
   if (questions.length === 0 && !canEdit) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
-        <p className="text-sm text-muted-foreground">No questions have been added yet.</p>
+        <HelpCircle className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <p className="mt-3 text-sm text-muted-foreground">No questions have been added yet.</p>
       </div>
     );
   }
@@ -227,8 +228,9 @@ export function QuestionList({
 
       {/* Empty state for editors */}
       {questions.length === 0 && canEdit && (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-12 text-center">
+          <Upload className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <p className="mt-3 text-sm text-muted-foreground">
             No questions yet. Upload a tender document or add questions manually.
           </p>
         </div>

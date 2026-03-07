@@ -152,12 +152,15 @@ export function ActivityFeed({
     return (
       <div
         className={cn(
-          'flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground',
+          'flex flex-col items-center justify-center gap-2 py-12 text-center',
           className,
         )}
       >
-        <Activity className="size-8" />
-        <p className="text-sm">No activity recorded yet</p>
+        <Activity className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <p className="text-sm font-medium text-foreground">No activity yet</p>
+        <p className="text-xs text-muted-foreground">
+          Activity will appear here as changes are made to the knowledge base.
+        </p>
       </div>
     );
   }

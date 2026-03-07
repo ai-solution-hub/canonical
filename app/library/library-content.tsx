@@ -8,6 +8,7 @@ import {
   Tag,
   FolderPlus,
   SlidersHorizontal,
+  BookOpen,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -435,11 +436,18 @@ export function LibraryContent() {
           ))
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
-            <Filter className="size-8 text-muted-foreground/50" />
+            {activeCount > 0 ? (
+              <Filter className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            ) : (
+              <BookOpen className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            )}
+            <h3 className="text-base font-medium text-foreground">
+              {activeCount > 0 ? 'No matching Q&A pairs' : 'No Q&A pairs yet'}
+            </h3>
             <p className="text-sm text-muted-foreground">
               {activeCount > 0
-                ? 'No Q&A pairs match your filters.'
-                : 'No Q&A pairs in the library yet.'}
+                ? 'Try adjusting your filters to see more results.'
+                : 'Import Q&A pairs from client documents to build your library.'}
             </p>
             {activeCount > 0 && (
               <Button variant="outline" size="sm" onClick={clearFilters}>

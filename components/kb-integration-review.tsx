@@ -389,9 +389,11 @@ export function KBIntegrationReview({
           })}
 
           {candidates.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No responses available for integration.
-            </p>
+            <div className="flex flex-col items-center gap-2 py-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No responses available for integration. Draft responses first to integrate them into the knowledge base.
+              </p>
+            </div>
           )}
         </div>
 

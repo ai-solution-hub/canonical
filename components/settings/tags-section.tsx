@@ -210,9 +210,12 @@ export function TagsSection() {
 
       {/* Tag list */}
       {filteredTags.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          {searchQuery ? 'No tags matching your search' : 'No tags found'}
-        </p>
+        <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+          <Tags className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">
+            {searchQuery ? 'No tags matching your search.' : 'No tags found. Tags are created when you tag content items.'}
+          </p>
+        </div>
       ) : (
         <div className="divide-y divide-border rounded-md border">
           {filteredTags.map((t) => (

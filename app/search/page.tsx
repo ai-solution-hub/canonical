@@ -117,15 +117,15 @@ function SearchResults() {
 
       {/* Error state */}
       {error && !isLoading && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
-          <p className="flex-1 text-sm text-destructive">{error}</p>
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <p className="flex-1 text-sm text-muted-foreground">{error}</p>
           <Button
             variant="outline"
             size="sm"
             onClick={handleRetry}
             className="shrink-0"
           >
-            <RefreshCw className="size-3.5" />
+            <RefreshCw className="size-3.5" aria-hidden="true" />
             Retry
           </Button>
         </div>

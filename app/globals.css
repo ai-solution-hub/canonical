@@ -696,6 +696,12 @@ p + p {
   }
 }
 
+/* ===== Step transition animation (login flow) ===== */
+@keyframes step-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ===== CopilotKit Sidebar — Warm Meridian Overrides ===== */
 .bid-copilot-sidebar {
   font-family: var(--font-sans);

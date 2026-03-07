@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plus } from 'lucide-react';
+import { Plus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BidListCard } from '@/components/bid-list-card';
 import type { ActiveBidSummary } from '@/lib/dashboard';
@@ -53,13 +53,14 @@ export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
 
       {bids.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-6 text-center">
-          <p className="text-sm text-muted-foreground">No active bids</p>
+          <Briefcase className="mx-auto size-8 text-muted-foreground/50" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-foreground">No active bids</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Create a new bid to get started.
+            Create a new bid to start managing tender responses.
           </p>
           <Button asChild size="sm" className="mt-3 gap-1.5">
             <Link href="/bid">
-              <Plus className="size-3.5" />
+              <Plus className="size-3.5" aria-hidden="true" />
               New Bid
             </Link>
           </Button>

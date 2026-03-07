@@ -1,5 +1,6 @@
 'use client';
 
+import { Archive, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
@@ -81,18 +82,26 @@ export function EmptyState({ hasFilters }: { hasFilters: boolean }) {
   const { clearFilters } = useBrowseFilters();
 
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-16 text-center">
+      {hasFilters ? (
+        <SearchX className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      ) : (
+        <Archive className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      )}
+      <h3 className="mt-4 text-base font-medium text-foreground">
+        {hasFilters ? 'No items match your filters' : 'No content yet'}
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
         {hasFilters
-          ? 'No items match your current filters.'
-          : 'No content items found.'}
+          ? 'Try adjusting or clearing your filters to see more results.'
+          : 'Content added to the knowledge base will appear here.'}
       </p>
       {hasFilters && (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
           onClick={clearFilters}
-          className="mt-3"
+          className="mt-4"
         >
           Clear all filters
         </Button>

@@ -203,9 +203,10 @@ export function ImageGallery({
         !isExtracting &&
         images.length === 0 &&
         extractedAt && (
-          <p className="text-sm text-muted-foreground">
-            No extractable images found in this PDF.
-          </p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <ImageIcon className="size-4 shrink-0" aria-hidden="true" />
+            <span>No extractable images found in this PDF.</span>
+          </div>
         )}
 
       {/* Image grid */}

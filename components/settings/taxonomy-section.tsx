@@ -46,9 +46,12 @@ export function TaxonomySection() {
 
       {t.domains.length === 0 ? (
         <Card>
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-            <Tags className="size-8" />
-            <p className="text-sm">No domains configured yet.</p>
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+            <Tags className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">No domains configured yet</p>
+            <p className="text-xs text-muted-foreground">
+              Add domains and subtopics to organise your knowledge base.
+            </p>
           </div>
         </Card>
       ) : (

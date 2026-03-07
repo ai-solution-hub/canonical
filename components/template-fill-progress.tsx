@@ -67,11 +67,11 @@ export function TemplateFillProgress({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-destructive/50 p-6 text-center">
-        <AlertTriangle className="size-8 text-destructive" aria-hidden="true" />
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-6 text-center">
+        <AlertTriangle className="size-8 text-muted-foreground/50" aria-hidden="true" />
         <div>
-          <p className="text-sm font-medium text-destructive">Fill failed</p>
-          <p className="mt-1 text-xs text-destructive/80">{error}</p>
+          <p className="text-sm font-medium text-foreground">Template fill didn&apos;t complete</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         </div>
         {onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry}>

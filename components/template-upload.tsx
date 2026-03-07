@@ -273,10 +273,10 @@ export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps)
         {/* Error state */}
         {phase === 'error' && (
           <>
-            <AlertTriangle className="size-8 text-destructive" aria-hidden="true" />
+            <AlertTriangle className="size-8 text-muted-foreground/50" aria-hidden="true" />
             <div>
-              <p className="text-sm font-medium text-destructive">Upload failed</p>
-              {error && <p className="mt-1 text-xs text-destructive/80">{error}</p>}
+              <p className="text-sm font-medium text-foreground">Upload didn&apos;t complete</p>
+              {error && <p className="mt-1 text-xs text-muted-foreground">{error}</p>}
               <p className="mt-2 text-xs text-muted-foreground">
                 Click to try again, or drag and drop a new file.
               </p>

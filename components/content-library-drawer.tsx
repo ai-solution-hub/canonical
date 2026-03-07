@@ -265,7 +265,8 @@ export function ContentLibraryDrawer({
           {/* Error */}
           {error && !isLoading && (
             <div className="flex flex-col items-center rounded-lg border border-dashed border-border py-8 text-center">
-              <p className="text-sm text-destructive">{error}</p>
+              <Search className="size-6 text-muted-foreground/50" aria-hidden="true" />
+              <p className="mt-2 text-sm text-muted-foreground">{error}</p>
               <Button
                 variant="outline"
                 size="sm"

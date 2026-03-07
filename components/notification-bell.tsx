@@ -223,10 +223,13 @@ function NotificationPanel({
 
       {/* Empty state */}
       {!loading && notifications.length === 0 && (
-        <div className="flex flex-col items-center justify-center px-4 py-8">
-          <BellOff className="size-8 text-muted-foreground/50" />
-          <p className="mt-2 text-sm text-muted-foreground">
-            No notifications
+        <div className="flex flex-col items-center justify-center px-4 py-8 text-center">
+          <BellOff className="size-8 text-muted-foreground/50" aria-hidden="true" />
+          <p className="mt-3 text-sm font-medium text-foreground">
+            All clear
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            No new notifications to review.
           </p>
         </div>
       )}

@@ -632,8 +632,8 @@ export function TemplateFieldReview({
             ))}
             {filteredFields.length === 0 && (
               <tr>
-                <td colSpan={onBulkReject ? 8 : 7} className="px-3 py-8 text-center text-muted-foreground">
-                  No fields match the current filter.
+                <td colSpan={onBulkReject ? 8 : 7} className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  No fields match the current filter. Try adjusting your selection.
                 </td>
               </tr>
             )}

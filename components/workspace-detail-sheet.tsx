@@ -285,8 +285,8 @@ export function WorkspaceDetailSheet({
               {loadingItems ? (
                 <p className="text-xs text-muted-foreground">Loading...</p>
               ) : items.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No content items assigned to this workspace yet.
+                <p className="py-4 text-center text-xs text-muted-foreground">
+                  No content items assigned to this workspace yet. Add items from the Browse page.
                 </p>
               ) : (
                 <ul className="space-y-1">

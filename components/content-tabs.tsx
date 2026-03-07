@@ -495,6 +495,7 @@ export function ContentTabs({
                 ) : (
                   // Empty state
                   <div className="flex flex-col items-center gap-3 py-8 text-center">
+                    <Sparkles className="size-6 text-muted-foreground/50" aria-hidden="true" />
                     <p className="text-sm text-muted-foreground">
                       No summary yet for this item.
                     </p>

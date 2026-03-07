@@ -158,8 +158,8 @@ export function DomainCard({
       {isExpanded && (
         <div className="border-t border-border bg-muted/30 px-4 py-3">
           {subtopics.length === 0 ? (
-            <p className="py-2 text-center text-xs text-muted-foreground">
-              No subtopics yet
+            <p className="py-4 text-center text-xs text-muted-foreground">
+              No subtopics yet. Add subtopics to organise content within this domain.
             </p>
           ) : (
             <div className="flex flex-col gap-1">

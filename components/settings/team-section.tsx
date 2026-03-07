@@ -299,9 +299,12 @@ export function TeamSection() {
 
       <Card>
         {users.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-            <Users className="size-8" />
-            <p className="text-sm">No team members found</p>
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+            <Users className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">No team members found</p>
+            <p className="text-xs text-muted-foreground">
+              Invite team members to collaborate on your knowledge base.
+            </p>
           </div>
         ) : (
           <>

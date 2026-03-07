@@ -25,8 +25,8 @@ interface KBSearchResultsProps {
 export function KBSearchResults({ results }: KBSearchResultsProps) {
   if (results.length === 0) {
     return (
-      <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-        No matching content found in the knowledge base.
+      <div className="rounded-md border border-border bg-muted/30 px-3 py-3 text-center text-sm text-muted-foreground">
+        No matching content found in the knowledge base. Try different search terms.
       </div>
     );
   }

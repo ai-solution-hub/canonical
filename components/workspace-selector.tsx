@@ -226,7 +226,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
                 )}
                 {filtered.length === 0 && !showCreateOption && (
                   <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    No workspaces found
+                    No workspaces found. Try a different name.
                   </p>
                 )}
               </>

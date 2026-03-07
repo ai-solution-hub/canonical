@@ -265,11 +265,11 @@ export function GovernanceSection() {
 
       <Card>
         {configs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-12 text-muted-foreground">
-            <ShieldCheck className="size-8" />
-            <p className="text-sm">
-              No governance configuration yet. All domains use &quot;Open&quot;
-              posture by default.
+          <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+            <ShieldCheck className="size-8 text-muted-foreground/50" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">No governance rules configured</p>
+            <p className="text-xs text-muted-foreground">
+              All domains use the &quot;Open&quot; posture by default. Add rules to enforce freshness and ownership.
             </p>
           </div>
         ) : (

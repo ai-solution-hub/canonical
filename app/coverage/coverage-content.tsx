@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, LayoutGrid } from 'lucide-react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -56,10 +57,11 @@ function CoverageError({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card px-6 py-12">
-      <p className="text-sm text-destructive">{message}</p>
+    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card px-6 py-12 text-center">
+      <LayoutGrid className="size-8 text-muted-foreground/50" aria-hidden="true" />
+      <p className="text-sm text-muted-foreground">{message}</p>
       <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
-        <RefreshCw className="size-3.5" />
+        <RefreshCw className="size-3.5" aria-hidden="true" />
         Retry
       </Button>
     </div>
@@ -72,13 +74,17 @@ function CoverageError({
 
 function CoverageEmpty() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-6 py-12">
-      <p className="text-sm font-medium text-muted-foreground">
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-16 text-center">
+      <LayoutGrid className="size-10 text-muted-foreground/50" aria-hidden="true" />
+      <h3 className="mt-4 text-base font-medium text-foreground">
         No taxonomy configured
-      </p>
-      <p className="text-xs text-muted-foreground/70">
+      </h3>
+      <p className="mt-1 text-sm text-muted-foreground">
         Configure domains and subtopics in Settings to see coverage data.
       </p>
+      <Button asChild variant="outline" size="sm" className="mt-4">
+        <Link href="/settings">Go to Settings</Link>
+      </Button>
     </div>
   );
 }

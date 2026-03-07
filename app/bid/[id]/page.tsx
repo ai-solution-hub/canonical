@@ -355,9 +355,10 @@ function OverviewTab({
             </p>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-muted-foreground">
-            No questions extracted yet. Upload a tender document to get started.
-          </p>
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Upload className="size-4 shrink-0" aria-hidden="true" />
+            <span>No questions extracted yet. Upload a tender document to get started.</span>
+          </div>
         )}
       </div>
 
