@@ -7,6 +7,8 @@ import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchDashboardData } from '@/lib/dashboard';
+import { fetchReorientData } from '@/lib/reorient';
+import { ReorientSection } from '@/components/dashboard/reorient-section';
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -28,7 +30,13 @@ async function getDashboardData() {
   const isAdmin = roleData?.role === 'admin';
   const role = roleData?.role ?? 'viewer';
 
-  return fetchDashboardData(supabase, user.id, isAdmin, role);
+  // Fetch dashboard and reorient data in parallel
+  const [dashboard, reorient] = await Promise.all([
+    fetchDashboardData(supabase, user.id, isAdmin, role),
+    fetchReorientData(supabase, user.id, isAdmin, role).catch(() => null),
+  ]);
+
+  return { dashboard, reorient };
 }
 
 // ---------------------------------------------------------------------------
@@ -85,9 +93,9 @@ function ActivitySkeleton() {
 // ---------------------------------------------------------------------------
 
 async function DashboardContent() {
-  const data = await getDashboardData();
+  const result = await getDashboardData();
 
-  if (!data) {
+  if (!result) {
     return (
       <div className="py-12 text-center">
         <p className="text-sm text-muted-foreground">
@@ -97,10 +105,19 @@ async function DashboardContent() {
     );
   }
 
+  const { dashboard: data, reorient } = result;
+
   return (
     <>
+      {/* Reorient Me — personalised briefing */}
+      {reorient && (
+        <div className="mt-6">
+          <ReorientSection data={reorient} />
+        </div>
+      )}
+
       {/* Two-column layout: Needs Attention + Active Bids */}
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NeedsAttentionSection {...data.needs_attention} userRole={data.user_role} />
         <ActiveBidsSection bids={data.active_bids} />
       </div>

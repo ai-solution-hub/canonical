@@ -21,8 +21,7 @@ import { ResponseVersionHistory } from '@/components/response-version-history';
 import { BidContextProvider, useBidContext } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
-import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
-import { CopilotKitProvider } from '@/components/copilotkit-provider';
+import { BidCopilotPageContext } from '@/components/bid-copilot-page-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useModifierKey } from '@/hooks/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
@@ -181,9 +180,7 @@ export default function BidSessionPage({
     );
   }
 
-  const metadata = bid.domain_metadata;
   const bidName = bid.name;
-  const buyerName = metadata?.buyer ?? undefined;
 
   // ── Main session layout ──
   const sessionContent = (
@@ -348,35 +345,32 @@ export default function BidSessionPage({
   );
 
   return (
-    <CopilotKitProvider>
-      <BidContextProvider bidId={id}>
-        <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstance} />
-        <BidCopilotActions />
-        <BidCopilotSuggestions />
-        <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
-          {sessionContent}
-        </BidCopilotSidebar>
-        <ContentLibraryDrawer
-          open={contentLibrary.isOpen}
-          onOpenChange={(open) => {
-            if (!open) contentLibrary.close();
-          }}
-          questionText={currentQuestion?.question_text}
-          onInsert={handleLibraryInsert}
-        />
-        <ResponseVersionHistory
-          bidId={id}
-          responseId={response?.id ?? null}
-          currentVersion={response?.version ?? 1}
-          open={historyOpen}
-          onOpenChange={setHistoryOpen}
-          onRestored={() => {
-            void fetchResponse();
-            void fetchBidData();
-          }}
-        />
-      </BidContextProvider>
-    </CopilotKitProvider>
+    <BidContextProvider bidId={id}>
+      <BidCopilotPageContext />
+      <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstance} />
+      <BidCopilotActions />
+      <BidCopilotSuggestions />
+      {sessionContent}
+      <ContentLibraryDrawer
+        open={contentLibrary.isOpen}
+        onOpenChange={(open) => {
+          if (!open) contentLibrary.close();
+        }}
+        questionText={currentQuestion?.question_text}
+        onInsert={handleLibraryInsert}
+      />
+      <ResponseVersionHistory
+        bidId={id}
+        responseId={response?.id ?? null}
+        currentVersion={response?.version ?? 1}
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        onRestored={() => {
+          void fetchResponse();
+          void fetchBidData();
+        }}
+      />
+    </BidContextProvider>
   );
 }
 

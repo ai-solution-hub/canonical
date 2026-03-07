@@ -6,7 +6,7 @@ import { Activity, AlertTriangle, Pencil, RotateCcw } from 'lucide-react';
 import { isToday, isYesterday, parseISO, startOfWeek } from 'date-fns';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
-import type { ActivityItem } from '@/lib/dashboard';
+import type { ActivityItem, GroupedActivityItem } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -218,7 +218,7 @@ function getActivityIconClass(type: string): string {
 // ---------------------------------------------------------------------------
 
 interface DashboardActivityFeedProps {
-  activities: ActivityItem[];
+  activities: ActivityItem[] | GroupedActivityItem[];
 }
 
 export function DashboardActivityFeed({
@@ -230,7 +230,26 @@ export function DashboardActivityFeed({
   const displayNames = useDisplayNames(userIds);
 
   const timeGroups = useMemo(() => {
-    const grouped = groupActivities(activities);
+    // Detect pre-grouped data from the RPC (has event_count field)
+    const isPreGrouped = activities.length > 0 && 'event_count' in activities[0];
+
+    let grouped: GroupedActivity[];
+    if (isPreGrouped) {
+      grouped = (activities as GroupedActivityItem[]).map((item) => ({
+        key: `${item.type}::${item.id}`,
+        representative: item,
+        ids: [item.id],
+        count: item.event_count,
+        displayText: cleanSummary(item.type, item.summary),
+        type: item.type,
+        earliestAt: item.earliest_at,
+        latestAt: item.latest_at ?? item.created_at,
+        userIds: item.user_id ? [item.user_id] : [],
+      }));
+    } else {
+      grouped = groupActivities(activities as ActivityItem[]);
+    }
+
     return groupByTime(grouped);
   }, [activities]);
 

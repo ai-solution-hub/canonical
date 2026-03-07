@@ -21,7 +21,7 @@ export interface DashboardData {
     expired: number;
   };
   unread_notification_count: number;
-  recent_activity: ActivityItem[];
+  recent_activity: ActivityItem[] | GroupedActivityItem[];
   user_role: string;
   errors: string[];
 }
@@ -46,6 +46,12 @@ export interface ActivityItem {
   summary: string;
   user_id: string | null;
   created_at: string | null;
+}
+
+export interface GroupedActivityItem extends ActivityItem {
+  latest_at: string | null;
+  earliest_at: string | null;
+  event_count: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,23 +131,11 @@ export async function fetchDashboardData(
       .eq('user_id', userId)
       .is('dismissed_at', null),
 
-    // 6: Recent activity (content_history)
-    supabase
-      .from('content_history')
-      .select(
-        'id, content_item_id, version, change_summary, change_type, created_by, created_at',
-      )
-      .order('created_at', { ascending: false })
-      .limit(15),
-
-    // 7: Quality flags for admin activity feed
-    isAdmin
-      ? supabase
-          .from('ingestion_quality_log')
-          .select('id, content_item_id, flag_type, severity, created_at')
-          .order('created_at', { ascending: false })
-          .limit(15)
-      : Promise.resolve({ data: null, error: null }),
+    // 6: Recent activity (grouped RPC — replaces separate content_history + quality_log queries)
+    supabase.rpc('get_grouped_activity_feed', {
+      p_limit: 10,
+      p_is_admin: isAdmin,
+    }),
   ]);
 
   // --- Extract governance review count ---
@@ -279,64 +273,38 @@ export async function fetchDashboardData(
     errors.push('unread_notification_count query failed');
   }
 
-  // --- Extract recent activity ---
-  let recent_activity: ActivityItem[] = [];
+  // --- Extract recent activity (grouped RPC) ---
+  let recent_activity: GroupedActivityItem[] = [];
   if (results[6].status === 'fulfilled') {
     const { data, error } = results[6].value;
     if (error) {
       errors.push('recent_activity query failed');
     } else if (data) {
-      recent_activity = data
-        .filter((entry) => {
-          // Non-admin: only show edit and rollback events
-          if (!isAdmin && entry.change_type === 'quality_flag') return false;
-          return true;
-        })
-        .slice(0, 10)
-        .map((entry) => ({
-          id: entry.id,
-          type: entry.change_type === 'rollback' ? 'rollback' : 'edit',
-          entity_type: 'content_item',
-          entity_id: entry.content_item_id,
-          summary: entry.change_summary ?? `Version ${entry.version}`,
-          user_id: entry.created_by,
-          created_at: entry.created_at,
-        }));
+      recent_activity = (data as Array<{
+        id: string;
+        type: string;
+        entity_type: string;
+        entity_id: string;
+        summary: string;
+        user_id: string | null;
+        latest_at: string | null;
+        earliest_at: string | null;
+        event_count: number;
+      }>).map((row) => ({
+        id: row.id,
+        type: row.type,
+        entity_type: row.entity_type,
+        entity_id: row.entity_id,
+        summary: row.summary,
+        user_id: row.user_id,
+        created_at: row.latest_at,
+        latest_at: row.latest_at,
+        earliest_at: row.earliest_at,
+        event_count: row.event_count,
+      }));
     }
   } else {
     errors.push('recent_activity query failed');
-  }
-
-  // --- Merge quality flags into activity for admins (result index 7) ---
-  if (isAdmin && results[7].status === 'fulfilled') {
-    const r7 = results[7].value as {
-      data: Array<{
-        id: string;
-        content_item_id: string;
-        flag_type: string;
-        severity: string;
-        created_at: string;
-      }> | null;
-      error: unknown;
-    };
-    if (r7.data) {
-      const qualityEvents: ActivityItem[] = r7.data.map((entry) => ({
-        id: entry.id,
-        type: 'quality_flag',
-        entity_type: 'content_item',
-        entity_id: entry.content_item_id,
-        summary: `${entry.severity}: ${entry.flag_type.replace(/_/g, ' ')}`,
-        user_id: null,
-        created_at: entry.created_at,
-      }));
-      recent_activity = [...recent_activity, ...qualityEvents]
-        .sort((a, b) => {
-          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-          return bTime - aTime;
-        })
-        .slice(0, 10);
-    }
   }
 
   return {

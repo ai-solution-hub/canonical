@@ -9,6 +9,11 @@ import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provi
 import { ReadMarksProvider } from '@/contexts/read-marks-context';
 import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
+import { CopilotPageContextProvider } from '@/contexts/copilot-page-context';
+import { CopilotKitProvider } from '@/components/copilotkit-provider';
+import { GlobalCopilotSidebar } from '@/components/global-copilot-sidebar';
+import { GlobalCopilotReadable } from '@/components/global-copilot-readable';
+import { SharedCopilotActions } from '@/components/shared-copilot-actions';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
@@ -43,19 +48,27 @@ export default async function RootLayout({
           <TaxonomyProvider>
           <ReadMarksProvider>
             <TooltipProvider>
-              <a href="#main-content" className="skip-link">
-                Skip to main content
-              </a>
-              <SiteHeader />
-              <main id="main-content">{children}</main>
-              <CommandPalette />
-              <KeyboardShortcutsProvider />
-              <Toaster
-                position="bottom-right"
-                toastOptions={{
-                  className: 'font-sans',
-                }}
-              />
+              <CopilotKitProvider>
+                <CopilotPageContextProvider>
+                  <GlobalCopilotReadable />
+                  <SharedCopilotActions />
+                  <a href="#main-content" className="skip-link">
+                    Skip to main content
+                  </a>
+                  <SiteHeader />
+                  <GlobalCopilotSidebar>
+                    <main id="main-content">{children}</main>
+                  </GlobalCopilotSidebar>
+                  <CommandPalette />
+                  <KeyboardShortcutsProvider />
+                  <Toaster
+                    position="bottom-right"
+                    toastOptions={{
+                      className: 'font-sans',
+                    }}
+                  />
+                </CopilotPageContextProvider>
+              </CopilotKitProvider>
             </TooltipProvider>
           </ReadMarksProvider>
           </TaxonomyProvider>

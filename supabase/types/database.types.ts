@@ -1237,6 +1237,20 @@ export type Database = {
           freshness: string
         }[]
       }
+      get_grouped_activity_feed: {
+        Args: { p_is_admin?: boolean; p_limit?: number }
+        Returns: {
+          earliest_at: string
+          entity_id: string
+          entity_type: string
+          event_count: number
+          id: string
+          latest_at: string
+          summary: string
+          type: string
+          user_id: string
+        }[]
+      }
       get_item_workspaces: {
         Args: { p_item_id: string }
         Returns: {
@@ -1596,4 +1610,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
