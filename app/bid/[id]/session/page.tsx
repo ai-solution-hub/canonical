@@ -18,7 +18,7 @@ import { ResponseActions } from '@/components/response-actions';
 import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
 import { ContentLibraryDrawer } from '@/components/content-library-drawer';
 import { ResponseVersionHistory } from '@/components/response-version-history';
-import { BidContextProvider } from '@/components/bid-context-provider';
+import { BidContextProvider, useBidContext } from '@/components/bid-context-provider';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
@@ -29,6 +29,24 @@ import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
 import type { Editor } from '@/components/response-editor';
+
+/** Syncs the active question and editor ref from useStreamCoordination into BidContext for CopilotKit */
+function BidContextSync({
+  questionId,
+  editorInstance,
+}: {
+  questionId: string | null;
+  editorInstance: import('@tiptap/react').Editor | null;
+}) {
+  const { setActiveQuestionId, editorRef } = useBidContext();
+  useEffect(() => {
+    setActiveQuestionId(questionId);
+  }, [questionId, setActiveQuestionId]);
+  useEffect(() => {
+    editorRef.current = editorInstance;
+  }, [editorInstance, editorRef]);
+  return null;
+}
 
 export default function BidSessionPage({
   params,
@@ -328,6 +346,7 @@ export default function BidSessionPage({
   return (
     <CopilotKitProvider>
       <BidContextProvider bidId={id}>
+        <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstanceRef.current} />
         <BidCopilotActions />
         <BidCopilotSuggestions />
         <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
