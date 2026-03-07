@@ -33,7 +33,10 @@ export function ContentEditor({
 }: ContentEditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+        underline: false,
+      }),
       CharacterCount.configure({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
       }),

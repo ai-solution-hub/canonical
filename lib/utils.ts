@@ -18,3 +18,4 @@ export function isMacPlatform(): boolean {
 export function getModifierKey(): string {
   return isMacPlatform() ? '\u2318' : 'Ctrl';
 }
+

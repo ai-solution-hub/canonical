@@ -37,7 +37,10 @@ export function ResponseEditor({
 }: ResponseEditorProps) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        link: false,
+        underline: false,
+      }),
       CharacterCount.configure({
         wordCounter: (text) => text.split(/\s+/).filter(Boolean).length,
         limit: wordLimit ? wordLimit * 6 : undefined,

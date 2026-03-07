@@ -207,7 +207,7 @@ export function ReviewContent() {
 
   // Main review content (shared between panel and non-panel layouts)
   const reviewMainContent = (
-    <div className="flex min-h-[calc(100vh-4rem)] flex-col px-4 py-8 sm:px-6">
+    <div className="flex min-h-full flex-col px-4 py-8 sm:px-6">
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
 
@@ -355,12 +355,13 @@ export function ReviewContent() {
   return (
     <PanelGroup
       orientation="horizontal"
-      className="min-h-[calc(100vh-4rem)]"
+      className="h-[calc(100vh-3.5rem)] overflow-hidden"
     >
       <Panel
         id="review-main"
         defaultSize={showQueuePanel ? '75%' : '100%'}
         minSize="60%"
+        className="overflow-y-auto"
       >
         {reviewMainContent}
       </Panel>
@@ -373,7 +374,7 @@ export function ReviewContent() {
             defaultSize="25%"
             minSize="20%"
             maxSize="35%"
-            className="hidden md:block"
+            className="hidden overflow-hidden md:block"
           >
             <ReviewQueuePanel
               items={sortedQueue}

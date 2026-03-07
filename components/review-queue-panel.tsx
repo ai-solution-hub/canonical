@@ -62,7 +62,7 @@ export function ReviewQueuePanel({
       </div>
 
       {/* Queue list */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overscroll-contain">
         {items.map((item, index) => {
           const isCurrent = index === currentIndex;
           const isFlagged = item.governance_review_status === 'pending';

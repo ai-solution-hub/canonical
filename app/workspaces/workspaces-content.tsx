@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export function WorkspacesContent({
   initialWorkspaces,
   initialCounts,
 }: WorkspacesContentProps) {
+  const router = useRouter();
   const { canEdit, canAdmin } = useUserRole();
   const [workspaces, setWorkspaces] = useState<WorkspaceWithCounts[]>(() =>
     enrichWorkspaces(initialWorkspaces, initialCounts),
@@ -212,7 +214,13 @@ export function WorkspacesContent({
               <WorkspaceCard
                 key={workspace.id}
                 workspace={workspace}
-                onEdit={setEditWorkspace}
+                onEdit={(ws) => {
+                  if (ws.type === 'bid') {
+                    router.push(`/bid/${ws.id}`);
+                  } else {
+                    setEditWorkspace(ws);
+                  }
+                }}
                 onArchiveToggle={handleArchiveToggle}
                 readOnly={!canEdit}
               />
@@ -245,7 +253,13 @@ export function WorkspacesContent({
                 <WorkspaceCard
                   key={workspace.id}
                   workspace={workspace}
-                  onEdit={setEditWorkspace}
+                  onEdit={(ws) => {
+                  if (ws.type === 'bid') {
+                    router.push(`/bid/${ws.id}`);
+                  } else {
+                    setEditWorkspace(ws);
+                  }
+                }}
                   onArchiveToggle={handleArchiveToggle}
                   readOnly={!canEdit}
                 />

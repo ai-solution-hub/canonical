@@ -55,10 +55,7 @@ export function SearchBar({
   useEffect(() => {
     if (autoFocus && window.matchMedia('(pointer: fine)').matches) {
       inputRef.current?.focus();
-      // Clear flag after autoFocus so subsequent focus events show dropdown
-      requestAnimationFrame(() => {
-        isAutoFocusing.current = false;
-      });
+      // isAutoFocusing stays true until user clicks into the input
     } else {
       isAutoFocusing.current = false;
     }
@@ -254,13 +251,17 @@ export function SearchBar({
               placeholder={placeholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onMouseDown={() => { isAutoFocusing.current = false; }}
               onFocus={() => {
                 if (isAutoFocusing.current) return;
                 loadRecent();
                 loadSuggestions();
                 setShowRecent(true);
               }}
-              onKeyDown={handleKeyDown}
+              onKeyDown={(e) => {
+                isAutoFocusing.current = false;
+                handleKeyDown(e);
+              }}
               role="combobox"
               aria-expanded={dropdownVisible}
               aria-controls={listboxId}

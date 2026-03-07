@@ -63,6 +63,18 @@ export async function POST(request: NextRequest) {
           { status: 500 },
         );
       }
+
+      // Resolve any open review_needed flags — verification overrides flags
+      await supabase
+        .from('ingestion_quality_log')
+        .update({
+          resolved: true,
+          resolved_at: new Date().toISOString(),
+          resolved_by: user.id,
+        })
+        .eq('content_item_id', item_id)
+        .eq('flag_type', 'review_needed')
+        .eq('resolved', false);
     } else if (action === 'flag') {
       const { error } = await supabase
         .from('ingestion_quality_log')
@@ -81,6 +93,16 @@ export async function POST(request: NextRequest) {
           { status: 500 },
         );
       }
+
+      // Clear verified status — flagging returns item to needs-attention state
+      await supabase
+        .from('content_items')
+        .update({
+          verified_at: null,
+          verified_by: null,
+          updated_by: user.id,
+        })
+        .eq('id', item_id);
     } else if (action === 'unverify') {
       const { error } = await supabase
         .from('content_items')

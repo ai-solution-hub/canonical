@@ -513,7 +513,7 @@ export function ItemDetailClient({
                 className="text-xl font-bold"
               />
             ) : (
-              <h1 className="text-fluid-xl font-bold leading-tight">{title}</h1>
+              <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
             )}
             {/* Inline badges */}
             {(item.verified_at || item.source_document) && (

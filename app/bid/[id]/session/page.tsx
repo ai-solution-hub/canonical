@@ -24,7 +24,7 @@ import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotSidebar } from '@/components/bid-copilot-sidebar';
 import { CopilotKitProvider } from '@/components/copilotkit-provider';
 import { useUserRole } from '@/hooks/use-user-role';
-import { isMacPlatform } from '@/lib/utils';
+import { useModifierKey } from '@/hooks/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
@@ -37,6 +37,9 @@ export default function BidSessionPage({
 }) {
   const { id } = use(params);
   const { canEdit } = useUserRole();
+
+  // Platform modifier key (SSR-safe)
+  const modKey = useModifierKey();
 
   // Content Library Drawer
   const contentLibrary = useContentLibraryDrawer();
@@ -260,7 +263,7 @@ export default function BidSessionPage({
                     size="sm"
                     onClick={() => contentLibrary.open(currentQuestion?.question_text)}
                     className="shrink-0 gap-1.5"
-                    title={`Content Library (${isMacPlatform() ? '⌘' : 'Ctrl+'}L)`}
+                    title={`Content Library (${modKey}L)`}
                   >
                     <Library className="size-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Library</span>

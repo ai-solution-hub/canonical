@@ -342,7 +342,7 @@ exists for your use case, define one in `app/globals.css` first.
 | State of the Product | `.planning/state-of-the-product.md` | Accurate reference of actual tech stack, architecture, features |
 | Codebase mapping (8 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
-| Quality checks (9 files) | `.claude/checks/` | Best-practice checks used by `/review` (accessibility, architecture, error handling, image quality, multi-user patterns, package manager, Supabase patterns, testing, UK English) |
+| Quality checks (10 files) | `.claude/checks/` | Best-practice checks used by `/review` (accessibility, architecture, design system, error handling, image quality, multi-user patterns, package manager, Supabase patterns, testing, UK English) |
 | Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns |
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, FolderOpen, Library, Menu, Settings, ShieldCheck, BarChart3 } from 'lucide-react';
+import { Search, FolderOpen, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
 import {
@@ -19,7 +19,7 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
-  { href: '/browse', label: 'Browse', icon: null, requiresEdit: false },
+  { href: '/browse', label: 'Browse', icon: LayoutGrid, requiresEdit: false },
   { href: '/library', label: 'Q&A Library', icon: Library, requiresEdit: false },
   { href: '/coverage', label: 'Coverage', icon: BarChart3, requiresEdit: false },
   { href: '/workspaces', label: 'Workspaces', icon: FolderOpen, requiresEdit: false },
@@ -68,7 +68,7 @@ export function SiteHeader() {
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
+                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
                   requiresEdit && roleLoading && 'pointer-events-none opacity-50',
                 )}
                 tabIndex={requiresEdit && roleLoading ? -1 : undefined}
