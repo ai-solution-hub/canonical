@@ -244,6 +244,12 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **WCAG 2.1 AA** — never colour alone for meaning
 - **Package manager: bun** (NOT npm/yarn) — `bun install`, `bun dev`,
   `bun run test`, `bun build`
+- **Nav items earn their place** — each nav item must have a genuinely
+  different interaction model (Browse=filter, Q&A Library=copy-to-bid,
+  Coverage=gap analysis, Bids=pipeline, Review=speed triage). New
+  application types only get nav items if the interaction model is distinct
+- **The KB is the product** — bids are the first application, not the only
+  one. Navigation and IA must lead with the knowledge base
 
 ## Design Context
 
