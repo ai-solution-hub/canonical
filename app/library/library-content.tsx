@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Search,
   Filter,
   Loader2,
   Tag,
   FolderPlus,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { createClient } from '@/lib/supabase/client';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -152,6 +158,18 @@ export function LibraryContent() {
   const standardCount = items.filter((i) => i.answer_standard).length;
   const advancedCount = items.filter((i) => i.answer_advanced).length;
 
+  // Count of active secondary filters (source, variant, verified, grouping)
+  const secondaryFilterCount = useMemo(
+    () =>
+      [
+        filters.source_file,
+        filters.variant,
+        filters.verified,
+        groupBy !== 'none' ? groupBy : undefined,
+      ].filter(Boolean).length,
+    [filters.source_file, filters.variant, filters.verified, groupBy],
+  );
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
@@ -176,7 +194,7 @@ export function LibraryContent() {
         </div>
       </div>
 
-      {/* Search + Filters */}
+      {/* Search + Primary Filters */}
       <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -209,41 +227,6 @@ export function LibraryContent() {
           </Select>
 
           <Select
-            value={filters.source_file ?? '__all__'}
-            onValueChange={(v) => setFilters({ source_file: v === '__all__' ? undefined : v })}
-          >
-            <SelectTrigger className="h-9 w-[200px] text-xs">
-              <SelectValue placeholder="All sources" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">All sources</SelectItem>
-              {sourceFiles.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {f}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filters.variant ?? 'all'}
-            onValueChange={(v) =>
-              setFilters({ variant: v === 'all' ? undefined : (v as LibraryFilters['variant']) })
-            }
-          >
-            <SelectTrigger className="h-9 w-[150px] text-xs">
-              <SelectValue placeholder="All variants" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All variants</SelectItem>
-              <SelectItem value="both">Standard + Advanced</SelectItem>
-              <SelectItem value="standard_only">Standard only</SelectItem>
-              <SelectItem value="advanced_only">Advanced only</SelectItem>
-              <SelectItem value="neither">No answer</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
             value={filters.freshness ?? 'all'}
             onValueChange={(v) =>
               setFilters({ freshness: v === 'all' ? undefined : (v as LibraryFilters['freshness']) })
@@ -261,39 +244,120 @@ export function LibraryContent() {
             </SelectContent>
           </Select>
 
-          <Select
-            value={filters.verified ?? 'all'}
-            onValueChange={(v) =>
-              setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
-            }
-          >
-            <SelectTrigger className="h-9 w-[130px] text-xs">
-              <SelectValue placeholder="All status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All status</SelectItem>
-              <SelectItem value="verified">Verified</SelectItem>
-              <SelectItem value="unverified">Unverified</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Secondary filters popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs">
+                <SlidersHorizontal className="size-3.5" />
+                More filters
+                {secondaryFilterCount > 0 && (
+                  <span className="ml-0.5 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
+                    {secondaryFilterCount}
+                  </span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="min-w-[280px] space-y-4">
+              <h3 className="text-sm font-medium text-foreground">Additional Filters</h3>
 
-          <Select
-            value={groupBy}
-            onValueChange={(v) => setGroupBy(v as GroupBy)}
-          >
-            <SelectTrigger className="h-9 w-[160px] text-xs">
-              <SelectValue placeholder="No grouping" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No grouping</SelectItem>
-              <SelectItem value="source">By source document</SelectItem>
-              <SelectItem value="domain">By domain</SelectItem>
-            </SelectContent>
-          </Select>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Source</label>
+                  <Select
+                    value={filters.source_file ?? '__all__'}
+                    onValueChange={(v) => setFilters({ source_file: v === '__all__' ? undefined : v })}
+                  >
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder="All sources" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All sources</SelectItem>
+                      {sourceFiles.map((f) => (
+                        <SelectItem key={f} value={f}>
+                          {f}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Variant</label>
+                  <Select
+                    value={filters.variant ?? 'all'}
+                    onValueChange={(v) =>
+                      setFilters({ variant: v === 'all' ? undefined : (v as LibraryFilters['variant']) })
+                    }
+                  >
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder="All variants" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All variants</SelectItem>
+                      <SelectItem value="both">Standard + Advanced</SelectItem>
+                      <SelectItem value="standard_only">Standard only</SelectItem>
+                      <SelectItem value="advanced_only">Advanced only</SelectItem>
+                      <SelectItem value="neither">No answer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Verified status</label>
+                  <Select
+                    value={filters.verified ?? 'all'}
+                    onValueChange={(v) =>
+                      setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
+                    }
+                  >
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder="All status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All status</SelectItem>
+                      <SelectItem value="verified">Verified</SelectItem>
+                      <SelectItem value="unverified">Unverified</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Grouping</label>
+                  <Select
+                    value={groupBy}
+                    onValueChange={(v) => setGroupBy(v as GroupBy)}
+                  >
+                    <SelectTrigger className="h-9 w-full text-xs">
+                      <SelectValue placeholder="No grouping" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No grouping</SelectItem>
+                      <SelectItem value="source">By source document</SelectItem>
+                      <SelectItem value="domain">By domain</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {secondaryFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-full text-xs"
+                  onClick={() => {
+                    setFilters({ source_file: undefined, variant: undefined, verified: undefined });
+                    setGroupBy('none');
+                  }}
+                >
+                  Clear filters
+                </Button>
+              )}
+            </PopoverContent>
+          </Popover>
 
           {activeCount > 0 && (
             <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 text-xs">
-              Clear filters
+              Clear all
             </Button>
           )}
         </div>

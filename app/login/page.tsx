@@ -70,7 +70,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/20 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4">
       <div>
         <div className="mb-8 text-center">
           <h1 className="text-fluid-2xl font-bold tracking-tight text-foreground">

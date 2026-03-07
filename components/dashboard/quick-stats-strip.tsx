@@ -34,6 +34,8 @@ export function QuickStatsStrip({
   activeBidCount,
   unreadNotificationCount,
 }: QuickStatsStripProps) {
+  const hasUnhealthyContent = freshness.aging > 0 || freshness.stale > 0 || freshness.expired > 0;
+
   return (
     <section
       aria-label="Content health"
@@ -44,9 +46,15 @@ export function QuickStatsStrip({
       </h2>
       <div className="flex flex-wrap gap-x-6 gap-y-1">
         <StatItem label="Fresh" value={freshness.fresh} />
-        <StatItem label="Aging" value={freshness.aging} />
-        <StatItem label="Stale" value={freshness.stale} />
-        <StatItem label="Expired" value={freshness.expired} />
+        {hasUnhealthyContent ? (
+          <>
+            {freshness.aging > 0 && <StatItem label="Aging" value={freshness.aging} />}
+            {freshness.stale > 0 && <StatItem label="Stale" value={freshness.stale} />}
+            {freshness.expired > 0 && <StatItem label="Expired" value={freshness.expired} />}
+          </>
+        ) : (
+          <span className="text-xs text-muted-foreground self-center">All content is fresh</span>
+        )}
         <div className="hidden h-4 w-px bg-border sm:block" aria-hidden="true" />
         <StatItem
           label={activeBidCount === 1 ? 'Active bid' : 'Active bids'}
