@@ -33,18 +33,24 @@ import type { Editor } from '@/components/response-editor';
 /** Syncs the active question and editor ref from useStreamCoordination into BidContext for CopilotKit */
 function BidContextSync({
   questionId,
-  editorInstance,
+  editorRefSource,
 }: {
   questionId: string | null;
-  editorInstance: import('@tiptap/react').Editor | null;
+  editorRefSource: React.RefObject<import('@tiptap/react').Editor | null>;
 }) {
   const { setActiveQuestionId, editorRef } = useBidContext();
   useEffect(() => {
     setActiveQuestionId(questionId);
   }, [questionId, setActiveQuestionId]);
   useEffect(() => {
-    editorRef.current = editorInstance;
-  }, [editorInstance, editorRef]);
+    // Sync the editor instance from the session page ref into the BidContext ref
+    const interval = setInterval(() => {
+      if (editorRefSource.current !== editorRef.current) {
+        editorRef.current = editorRefSource.current;
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [editorRefSource, editorRef]);
   return null;
 }
 
@@ -346,7 +352,7 @@ export default function BidSessionPage({
   return (
     <CopilotKitProvider>
       <BidContextProvider bidId={id}>
-        <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstanceRef.current} />
+        <BidContextSync questionId={currentQuestion?.id ?? null} editorRefSource={editorInstanceRef} />
         <BidCopilotActions />
         <BidCopilotSuggestions />
         <BidCopilotSidebar bidName={bidName} buyerName={buyerName}>
