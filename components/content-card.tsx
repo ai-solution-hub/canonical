@@ -21,7 +21,15 @@ import { getLayerLabel } from '@/lib/validation/layer-schemas';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
-/** Reusable quality flag badge — used in Q&A, compact, and standard card variants */
+// ---------------------------------------------------------------------------
+// Internal helpers and sub-components
+// ---------------------------------------------------------------------------
+
+function isSearchResult(item: ContentListItem | SearchResult): item is SearchResult {
+  return 'similarity' in item;
+}
+
+/** Reusable quality flag badge */
 function QualityFlagBadge() {
   return (
     <span
@@ -34,16 +42,161 @@ function QualityFlagBadge() {
   );
 }
 
+/** Unread indicator dot */
+function UnreadDot({ isRead }: { isRead?: boolean }) {
+  if (isRead !== false) return null;
+  return (
+    <span
+      className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
+      aria-label="Unread"
+    />
+  );
+}
+
+/** Hover-reveal star toggle */
+function StarToggle({ itemId, metadata, className }: {
+  itemId: string;
+  metadata: Record<string, unknown> | null;
+  className?: string;
+}) {
+  return (
+    <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+      <StarButton itemId={itemId} starred={metadata?.starred === true} size="sm" className={className} />
+    </span>
+  );
+}
+
+/** Layer badge (shown when content_layers feature is enabled) */
+function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) {
+  if (!isFeatureEnabled('content_layers') || !metadata?.layer) return null;
+  return (
+    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
+      {getLayerLabel(metadata.layer as string)}
+    </Badge>
+  );
+}
+
+/** Header row: content type icon, domain badge, layer badge, optional similarity, unread dot, star */
+function CardHeaderRow({ item, isRead }: { item: ContentListItem | SearchResult; isRead?: boolean }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <ContentTypeIcon contentType={item.content_type} size="size-5" />
+      <DomainBadge domain={item.primary_domain ?? ''} />
+      <LayerBadge metadata={item.metadata} />
+      <div className="ml-auto flex items-center gap-1">
+        {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
+        <UnreadDot isRead={isRead} />
+        <StarToggle itemId={item.id} metadata={item.metadata} />
+      </div>
+    </div>
+  );
+}
+
+/** Card title with priority badge and optional Q: prefix */
+function CardTitle({ title, priority, qaPrefix, renderText }: {
+  title: string;
+  priority: string | null;
+  qaPrefix?: boolean;
+  renderText: (text: string) => React.ReactNode;
+}) {
+  return (
+    <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
+      <PriorityBadge priority={priority} />
+      <span className="line-clamp-2">
+        {qaPrefix && <span className="text-muted-foreground">Q:&nbsp;</span>}
+        {renderText(title)}
+      </span>
+    </h3>
+  );
+}
+
+/** Summary or snippet preview text */
+function SummaryPreview({ item, renderText }: {
+  item: ContentListItem | SearchResult;
+  renderText: (text: string) => React.ReactNode;
+}) {
+  if (isSearchResult(item) && item.snippet) {
+    return (
+      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        <span className="italic text-muted-foreground/70">&hellip;</span>
+        {renderText(item.snippet)}
+        <span className="italic text-muted-foreground/70">&hellip;</span>
+      </p>
+    );
+  }
+  if (item.brief || item.ai_summary) {
+    return (
+      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        {renderText(item.brief || item.ai_summary || '')}
+      </p>
+    );
+  }
+  return null;
+}
+
+/** Content type + platform line */
+function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
+  return (
+    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+      <ContentTypeIcon contentType={item.content_type} size="size-3" />
+      {[formatContentType(item.content_type), formatPlatform(item.platform)]
+        .filter(Boolean)
+        .join(' \u00B7 ')}
+    </span>
+  );
+}
+
+/** Status row: date, freshness, governance, quality badges */
+function CardStatusRow({ item, hasQualityFlag, children }: {
+  item: ContentListItem | SearchResult;
+  hasQualityFlag?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <time className="text-xs text-muted-foreground" dateTime={item.captured_date ?? undefined}>
+        {formatSmartDate(item.captured_date)}
+      </time>
+      {children}
+      {item.freshness && item.freshness !== 'fresh' && (
+        <FreshnessBadge freshness={item.freshness} compact />
+      )}
+      {item.governance_review_status === 'pending' && <GovernanceBadge status="pending" compact />}
+      {item.governance_review_status === 'draft' && <GovernanceBadge status="draft" compact />}
+      {hasQualityFlag && <QualityFlagBadge />}
+    </div>
+  );
+}
+
+/** Card footer: badges row, author, content type line, status row (shared by compact + standard) */
+function CardFooter({ item, hasQualityFlag, badgeSlot }: {
+  item: ContentListItem | SearchResult;
+  hasQualityFlag?: boolean;
+  badgeSlot?: React.ReactNode;
+}) {
+  return (
+    <div className="mt-auto flex flex-col gap-1.5 pt-1">
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {badgeSlot}
+        {item.verified_at && <VerificationBadge verified={true} size="sm" />}
+      </div>
+      {item.author_name && (
+        <span className="truncate text-xs font-medium text-foreground">{item.author_name}</span>
+      )}
+      <ContentTypeLine item={item} />
+      <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public exports
+// ---------------------------------------------------------------------------
+
 /** Content types that use compact card layout (no thumbnail, 4px left border only) */
 export const COMPACT_CONTENT_TYPES = new Set([
-  'q_a_pair',
-  'policy',
-  'certification',
-  'compliance',
-  'methodology',
-  'capability',
-  'product_description',
-  'case_study',
+  'q_a_pair', 'policy', 'certification', 'compliance',
+  'methodology', 'capability', 'product_description', 'case_study',
 ]);
 
 interface ContentCardProps {
@@ -54,123 +207,54 @@ interface ContentCardProps {
   highlightQuery?: string;
 }
 
-function isSearchResult(
-  item: ContentListItem | SearchResult,
-): item is SearchResult {
-  return 'similarity' in item;
-}
-
 export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
-
-  /** Conditionally highlight text when a query is provided */
   const renderText = (text: string) =>
     highlightQuery ? highlightTerms(text, highlightQuery) : text;
-  const colourKey = item.primary_domain
-    ? getDomainColourKey(item.primary_domain)
-    : 'meta';
+  const colourKey = item.primary_domain ? getDomainColourKey(item.primary_domain) : 'meta';
 
   const isQAPair = item.content_type === 'q_a_pair';
   const isCompactType = COMPACT_CONTENT_TYPES.has(item.content_type ?? '');
-  // Compact types always hide thumbnail; non-compact respect the hideThumbnail prop
   const shouldHideThumbnail = isCompactType || hideThumbnail;
 
-  // Answer text for Q&A cards: prefer content, fall back to brief, then ai_summary
-  const answerPreview = isQAPair
-    ? (item.content || item.brief || item.ai_summary || null)
-    : null;
-
-  // Source document for Q&A cards
+  const answerPreview = isQAPair ? (item.content || item.brief || item.ai_summary || null) : null;
   const sourceDocument = isQAPair ? item.source_document : null;
+
+  const cardClassName = cn(
+    'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    isRead && 'opacity-75',
+  );
+
+  const cardStyle = (intrinsicHeight: string) => ({
+    contentVisibility: 'auto' as const,
+    containIntrinsicSize: `0 ${intrinsicHeight}`,
+    borderLeftWidth: '4px',
+    borderLeftColor: `var(--domain-${colourKey}-text)`,
+  });
 
   // --- Q&A PAIR CARD ---
   if (isQAPair) {
     return (
-      <Link
-        href={`/item/${item.id}`}
-        prefetch={true}
-        className={cn(
-          'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          isRead && 'opacity-75',
-        )}
-        style={{
-          contentVisibility: 'auto',
-          containIntrinsicSize: '0 180px',
-          borderLeftWidth: '4px',
-          borderLeftColor: `var(--domain-${colourKey}-text)`,
-        }}
-      >
+      <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('180px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          {/* Header: content type icon, domain badge, layer badge, similarity, unread dot, star */}
-          <div className="flex items-center gap-1.5">
-            <ContentTypeIcon contentType={item.content_type} size="size-5" />
-            <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-                {getLayerLabel(item.metadata.layer as string)}
-              </Badge>
-            )}
-            <div className="ml-auto flex items-center gap-1">
-              {isSearchResult(item) && (
-                <SimilarityBadge score={item.similarity} />
-              )}
-              {isRead === false && (
-                <span
-                  className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
-                  aria-label="Unread"
-                />
-              )}
-              <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-                <StarButton
-                  itemId={item.id}
-                  starred={item.metadata?.starred === true}
-                  size="sm"
-                />
-              </span>
-            </div>
-          </div>
-
-          {/* Question title */}
-          <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
-            <PriorityBadge priority={item.priority} />
-            <span className="line-clamp-2">
-              <span className="text-muted-foreground">Q:&nbsp;</span>
-              {renderText(title)}
-            </span>
-          </h3>
-
-          {/* Answer preview */}
+          <CardHeaderRow item={item} isRead={isRead} />
+          <CardTitle title={title} priority={item.priority} qaPrefix renderText={renderText} />
           {answerPreview && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
               <span className="font-medium text-muted-foreground">A:&nbsp;</span>
               {renderText(answerPreview)}
             </p>
           )}
-
-          {/* Source document */}
           {sourceDocument && (
             <p className="flex items-center gap-1 truncate text-[11px] text-muted-foreground/70">
               <FileText className="size-3 shrink-0" aria-hidden="true" />
               {sourceDocument}
             </p>
           )}
-
-          {/* Footer: content type + platform, date, copy, verification, quality */}
           <div className="mt-auto flex flex-col gap-1.5 pt-1">
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <ContentTypeIcon contentType={item.content_type} size="size-3" />
-              {[formatContentType(item.content_type), formatPlatform(item.platform)]
-                .filter(Boolean)
-                .join(' \u00B7 ')}
-            </span>
-            <div className="flex items-center gap-2">
-              <time
-                className="text-xs text-muted-foreground"
-                dateTime={item.captured_date ?? undefined}
-              >
-                {formatSmartDate(item.captured_date)}
-              </time>
+            <ContentTypeLine item={item} />
+            <CardStatusRow item={item} hasQualityFlag={hasQualityFlag}>
               {answerPreview && (
                 <button
                   type="button"
@@ -186,20 +270,8 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
                   <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
                 </button>
               )}
-              {item.verified_at && (
-                <VerificationBadge verified={true} size="sm" />
-              )}
-              {item.freshness && item.freshness !== 'fresh' && (
-                <FreshnessBadge freshness={item.freshness} compact />
-              )}
-              {item.governance_review_status === 'pending' && (
-                <GovernanceBadge status="pending" compact />
-              )}
-              {item.governance_review_status === 'draft' && (
-                <GovernanceBadge status="draft" compact />
-              )}
-              {hasQualityFlag && <QualityFlagBadge />}
-            </div>
+              {item.verified_at && <VerificationBadge verified={true} size="sm" />}
+            </CardStatusRow>
           </div>
         </div>
       </Link>
@@ -209,104 +281,13 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
   // --- COMPACT CARD (non-Q&A compact types) ---
   if (isCompactType) {
     return (
-      <Link
-        href={`/item/${item.id}`}
-        prefetch={true}
-        className={cn(
-          'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-          isRead && 'opacity-75',
-        )}
-        style={{
-          contentVisibility: 'auto',
-          containIntrinsicSize: '0 200px',
-          borderLeftWidth: '4px',
-          borderLeftColor: `var(--domain-${colourKey}-text)`,
-        }}
-      >
+      <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('200px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          {/* Header: content type icon, domain badge, layer badge, unread dot, star */}
-          <div className="flex items-center gap-1.5">
-            <ContentTypeIcon contentType={item.content_type} size="size-5" />
-            <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-                {getLayerLabel(item.metadata.layer as string)}
-              </Badge>
-            )}
-            <div className="ml-auto flex items-center gap-1">
-              {isRead === false && (
-                <span
-                  className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
-                  aria-label="Unread"
-                />
-              )}
-              <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-                <StarButton
-                  itemId={item.id}
-                  starred={item.metadata?.starred === true}
-                  size="sm"
-                />
-              </span>
-            </div>
-          </div>
-
-          {/* Title */}
-          <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
-            <PriorityBadge priority={item.priority} />
-            <span className="line-clamp-2">{renderText(title)}</span>
-          </h3>
-
-          {/* Summary text */}
+          <CardHeaderRow item={item} isRead={isRead} />
+          <CardTitle title={title} priority={item.priority} renderText={renderText} />
           {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
-          {isSearchResult(item) && item.snippet ? (
-            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-              <span className="italic text-muted-foreground/70">&hellip;</span>
-              {renderText(item.snippet)}
-              <span className="italic text-muted-foreground/70">&hellip;</span>
-            </p>
-          ) : item.brief || item.ai_summary ? (
-            <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-              {renderText(item.brief || item.ai_summary || '')}
-            </p>
-          ) : null}
-
-          {/* Footer */}
-          <div className="mt-auto flex flex-col gap-1.5 pt-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {item.verified_at && (
-                <VerificationBadge verified={true} size="sm" />
-              )}
-            </div>
-            {item.author_name && (
-              <span className="truncate text-xs font-medium text-foreground">
-                {item.author_name}
-              </span>
-            )}
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <ContentTypeIcon contentType={item.content_type} size="size-3" />
-              {[formatContentType(item.content_type), formatPlatform(item.platform)]
-                .filter(Boolean)
-                .join(' \u00B7 ')}
-            </span>
-            <div className="flex items-center gap-2">
-              <time
-                className="text-xs text-muted-foreground"
-                dateTime={item.captured_date ?? undefined}
-              >
-                {formatSmartDate(item.captured_date)}
-              </time>
-              {item.freshness && item.freshness !== 'fresh' && (
-                <FreshnessBadge freshness={item.freshness} compact />
-              )}
-              {item.governance_review_status === 'pending' && (
-                <GovernanceBadge status="pending" compact />
-              )}
-              {item.governance_review_status === 'draft' && (
-                <GovernanceBadge status="draft" compact />
-              )}
-              {hasQualityFlag && <QualityFlagBadge />}
-            </div>
-          </div>
+          <SummaryPreview item={item} renderText={renderText} />
+          <CardFooter item={item} hasQualityFlag={hasQualityFlag} />
         </div>
       </Link>
     );
@@ -314,131 +295,30 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
 
   // --- STANDARD CARD (thumbnail-eligible types) ---
   return (
-    <Link
-      href={`/item/${item.id}`}
-      prefetch={true}
-      className={cn(
-        'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-        isRead && 'opacity-75',
-      )}
-      style={{
-        contentVisibility: 'auto',
-        containIntrinsicSize: shouldHideThumbnail ? '0 200px' : '0 320px',
-        borderLeftWidth: '4px',
-        borderLeftColor: `var(--domain-${colourKey}-text)`,
-      }}
-    >
-      {!shouldHideThumbnail && (
+    <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle(shouldHideThumbnail ? '200px' : '320px')}>
+      {!shouldHideThumbnail ? (
         <div className="relative">
-          <Thumbnail
-            src={item.thumbnail_url}
-            alt={title}
-            contentType={item.content_type}
-            domain={item.primary_domain}
-            className="rounded-b-none"
-          />
+          <Thumbnail src={item.thumbnail_url} alt={title} contentType={item.content_type} domain={item.primary_domain} className="rounded-b-none" />
           <div className="absolute right-1 top-1 flex items-center gap-1">
-            {isRead === false && (
-              <span
-                className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
-                aria-label="Unread"
-              />
-            )}
-            <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-              <StarButton
-                itemId={item.id}
-                starred={item.metadata?.starred === true}
-                size="sm"
-                className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
-              />
-            </span>
+            <UnreadDot isRead={isRead} />
+            <StarToggle itemId={item.id} metadata={item.metadata} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />
           </div>
         </div>
-      )}
-      {shouldHideThumbnail && (
+      ) : (
         <div className="flex items-center justify-end gap-1 p-3 pb-0">
-          {isRead === false && (
-            <span
-              className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
-              aria-label="Unread"
-            />
-          )}
-          <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
-            <StarButton
-              itemId={item.id}
-              starred={item.metadata?.starred === true}
-              size="sm"
-            />
-          </span>
+          <UnreadDot isRead={isRead} />
+          <StarToggle itemId={item.id} metadata={item.metadata} />
         </div>
       )}
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <h3 className="flex items-start gap-1.5 text-sm font-medium leading-snug text-foreground">
-          <PriorityBadge priority={item.priority} />
-          <span className="line-clamp-2">{renderText(title)}</span>
-        </h3>
+        <CardTitle title={title} priority={item.priority} renderText={renderText} />
         {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
-        {isSearchResult(item) && item.snippet ? (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            <span className="italic text-muted-foreground/70">&hellip;</span>
-            {renderText(item.snippet)}
-            <span className="italic text-muted-foreground/70">&hellip;</span>
-          </p>
-        ) : item.brief || item.ai_summary ? (
-          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {renderText(item.brief || item.ai_summary || '')}
-          </p>
-        ) : null}
-        <div className="mt-auto flex flex-col gap-1.5 pt-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <DomainBadge domain={item.primary_domain ?? ''} />
-            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-                {getLayerLabel(item.metadata.layer as string)}
-              </Badge>
-            )}
-            {item.verified_at && (
-              <VerificationBadge verified={true} size="sm" />
-            )}
-          </div>
-          {item.author_name && (
-            <span className="truncate text-xs font-medium text-foreground">
-              {item.author_name}
-            </span>
-          )}
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <ContentTypeIcon contentType={item.content_type} size="size-3" />
-            {[formatContentType(item.content_type), formatPlatform(item.platform)]
-              .filter(Boolean)
-              .join(' \u00B7 ')}
-          </span>
-          <div className="flex items-center gap-2">
-            <time
-              className="text-xs text-muted-foreground"
-              dateTime={item.captured_date ?? undefined}
-            >
-              {formatSmartDate(item.captured_date)}
-            </time>
-            {item.freshness && item.freshness !== 'fresh' && (
-              <FreshnessBadge freshness={item.freshness} compact />
-            )}
-            {item.governance_review_status === 'pending' && (
-              <GovernanceBadge status="pending" compact />
-            )}
-            {item.governance_review_status === 'draft' && (
-              <GovernanceBadge status="draft" compact />
-            )}
-            {hasQualityFlag && (
-              <span
-                className="inline-flex items-center gap-0.5 rounded-full border border-quality-severity-warning bg-quality-moderate-bg px-1.5 py-0.5 text-[10px] font-medium text-quality-severity-warning"
-                title="Has quality issues"
-              >
-                <AlertTriangle className="size-2.5" aria-hidden="true" />
-                <span>Quality</span>
-              </span>
-            )}
-          </div>
-        </div>
+        <SummaryPreview item={item} renderText={renderText} />
+        <CardFooter
+          item={item}
+          hasQualityFlag={hasQualityFlag}
+          badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge metadata={item.metadata} /></>}
+        />
       </div>
     </Link>
   );

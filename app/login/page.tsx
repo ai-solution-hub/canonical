@@ -11,7 +11,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 
 export default function LoginPage() {
@@ -71,16 +70,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold tracking-tight">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/20 px-4">
+      <div>
+        <div className="mb-8 text-center">
+          <h1 className="text-fluid-2xl font-bold tracking-tight text-foreground">
             Knowledge Hub
-          </CardTitle>
-          <CardDescription>
-            Sign in to your knowledge base
-          </CardDescription>
-        </CardHeader>
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your knowledge, organised
+          </p>
+        </div>
+        <Card className="w-full max-w-sm border-t-2 border-t-primary">
+          <CardHeader className="text-center">
+            <CardDescription>
+              Sign in to your knowledge base
+            </CardDescription>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -195,6 +200,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
