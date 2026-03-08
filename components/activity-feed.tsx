@@ -15,21 +15,11 @@ import { Badge } from '@/components/ui/badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
-
-interface ActivityItem {
-  id: string;
-  type: string;
-  entity_type: string;
-  entity_id: string;
-  summary: string;
-  user_id: string | null;
-  created_at: string | null;
-  metadata: Record<string, unknown>;
-}
+import type { GroupedActivityItem } from '@/lib/dashboard';
 
 interface ActivityFeedProps {
   className?: string;
-  /** Maximum items to show initially */
+  /** Maximum items to show per page */
   initialLimit?: number;
 }
 
@@ -78,16 +68,16 @@ function activityBadgeVariant(
  * Activity feed component showing recent KB changes.
  *
  * Fetches from /api/activity and displays a timeline of edits,
- * rollbacks, and quality events.
+ * rollbacks, and quality events. Uses cursor-based pagination
+ * via the `before` query parameter.
  */
 export function ActivityFeed({
   className,
   initialLimit = 20,
 }: ActivityFeedProps) {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [activities, setActivities] = useState<GroupedActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
   // Collect user IDs for display name resolution
@@ -97,7 +87,7 @@ export function ActivityFeed({
   const displayNames = useDisplayNames(userIds);
 
   const fetchActivities = useCallback(
-    async (currentOffset: number, append = false) => {
+    async (before: string | null, append = false) => {
       if (append) {
         setLoadingMore(true);
       } else {
@@ -105,13 +95,15 @@ export function ActivityFeed({
       }
 
       try {
-        const res = await fetch(
-          `/api/activity?limit=${initialLimit}&offset=${currentOffset}`,
-        );
+        const params = new URLSearchParams({ limit: String(initialLimit) });
+        if (before) {
+          params.set('before', before);
+        }
+        const res = await fetch(`/api/activity?${params.toString()}`);
         if (!res.ok) return;
 
         const data = await res.json();
-        const items: ActivityItem[] = data.activities ?? [];
+        const items: GroupedActivityItem[] = data.activities ?? [];
 
         if (append) {
           setActivities((prev) => [...prev, ...items]);
@@ -119,7 +111,7 @@ export function ActivityFeed({
           setActivities(items);
         }
 
-        setHasMore(items.length >= initialLimit);
+        setHasMore(data.has_more ?? false);
       } catch {
         // Non-critical
       } finally {
@@ -131,13 +123,13 @@ export function ActivityFeed({
   );
 
   useEffect(() => {
-    fetchActivities(0);
+    fetchActivities(null);
   }, [fetchActivities]);
 
   function handleLoadMore() {
-    const newOffset = offset + initialLimit;
-    setOffset(newOffset);
-    fetchActivities(newOffset, true);
+    const lastItem = activities[activities.length - 1];
+    const before = lastItem?.created_at ?? null;
+    fetchActivities(before, true);
   }
 
   if (loading) {
@@ -179,6 +171,11 @@ export function ActivityFeed({
                 >
                   {activityTypeLabel(activity.type)}
                 </Badge>
+                {activity.event_count > 1 && (
+                  <span className="font-medium text-muted-foreground mr-1.5">
+                    {activity.event_count}&times;
+                  </span>
+                )}
                 {activity.created_at && (
                   <span className="text-xs text-muted-foreground">
                     {formatRelativeDate(activity.created_at)}

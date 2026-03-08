@@ -1238,7 +1238,7 @@ export type Database = {
         }[]
       }
       get_grouped_activity_feed: {
-        Args: { p_is_admin?: boolean; p_limit?: number }
+        Args: { p_before?: string; p_is_admin?: boolean; p_limit?: number }
         Returns: {
           earliest_at: string
           entity_id: string
