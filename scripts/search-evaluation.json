@@ -1,328 +1,279 @@
 {
   "metadata": {
-    "version": "2.0",
-    "created": "25/02/2026",
-    "item_count": 2234,
-    "items_with_embeddings": 2186,
-    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC)",
+    "version": "3.0",
+    "created": "08/03/2026",
+    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC). Updated for bid-domain taxonomy (7 domains, 30 subtopics).",
     "search_endpoint": "POST /api/search",
     "search_defaults": {
       "threshold": 0.35,
       "limit": 20
     },
     "app_url": "http://localhost:6100/search",
-    "notes": "All must_include_titles are verified against the live database as of 25/02/2026. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%)."
+    "taxonomy": {
+      "domains": ["security", "compliance", "implementation", "support", "corporate", "product-feature", "methodology"],
+      "content_types": ["article", "blog", "pdf", "note", "research", "other", "q_a_pair", "case_study", "policy", "certification", "compliance", "methodology", "capability", "product_description"]
+    },
+    "notes": "All test cases use realistic UK bid management search queries. Default threshold is 0.35. The hybrid_search RPC combines embedding similarity (70%) + title match (15%) + keyword match (10%) + summary/author (5%) + recency (5%). Content is primarily Q&A pairs from bid libraries."
   },
   "test_cases": [
     {
       "id": "SE-01",
       "category": "exact-topic",
-      "query": "Claude Code best practices and workflows",
+      "query": "data protection GDPR policies",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["AI & EMERGING TECH", "LEARNING & DEVELOPMENT"],
-        "expected_subtopics": ["ai-tools-frameworks", "how-to-guides", "best-practices-frameworks"],
-        "expected_content_types": ["post", "article", "newsletter"],
-        "must_include_titles": [
-          "Claude Code Best Practices: Orchestration Workflows from Anthropic's Team",
-          "Claude Code Skills: Six-Part Series on Coding Standards Automation"
-        ],
-        "notes": "Core topic with strong keyword and semantic signal. Both ai-tools-frameworks (tool descriptions) and how-to-guides (tutorials) should appear. High confidence test -- many items match."
+        "min_results": 3,
+        "expected_domains": ["security"],
+        "expected_subtopics": ["data-protection"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Core security topic. Should strongly favour security/data-protection items covering GDPR compliance, data handling, and privacy policies. Q&A pairs about data protection approach should dominate results."
       }
     },
     {
       "id": "SE-02",
-      "category": "conceptual",
-      "query": "AI replacing software engineers and developers",
+      "category": "exact-topic",
+      "query": "ISO 27001 certification ISMS",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-workforce-impact", "industry-trends-opinions"],
-        "expected_content_types": ["post", "article", "transcript"],
-        "must_include_titles": [
-          "Ryan Dahl (Node.js Creator) Declares Human-Written Code Is Over",
-          "Software Dev Director on Team Identity Crisis as AI Reshapes Engineering Craft"
-        ],
-        "notes": "Conceptual search -- should find workforce impact items even though they may not use the exact phrase 'replacing engineers'. Tests semantic understanding beyond keyword matching."
+        "min_results": 3,
+        "expected_domains": ["security", "compliance"],
+        "expected_subtopics": ["iso-27001", "certification"],
+        "expected_content_types": ["q_a_pair", "certification"],
+        "must_include_titles": [],
+        "notes": "Tests the security/compliance boundary. Queries about ISO 27001 substance (ISMS, controls) should return security/iso-27001. Queries about certification status should return compliance/certification. This query blends both and should surface items from both domains."
       }
     },
     {
       "id": "SE-03",
-      "category": "author-specific",
-      "query": "Ethan Mollick AI research and insights",
+      "category": "exact-topic",
+      "query": "SLA response times uptime guarantees",
       "expectations": {
         "min_results": 3,
-        "expected_domains": ["INSIGHTS & ANALYSIS", "LEARNING & DEVELOPMENT", "AI & EMERGING TECH"],
-        "expected_subtopics": ["industry-trends-opinions", "ai-workforce-impact", "how-to-guides", "ai-society-critique"],
-        "expected_content_types": ["post", "article"],
-        "must_include_titles": [
-          "Ethan Mollick: Management Skills as the Key Superpower in the Agentic AI Era"
-        ],
-        "notes": "Tests whether the embedding captures author name alongside topic. Ethan Mollick has 73 items in the database -- the search should surface his most topically relevant items, not just any item by him."
+        "expected_domains": ["support"],
+        "expected_subtopics": ["sla"],
+        "expected_content_types": ["q_a_pair"],
+        "must_include_titles": [],
+        "notes": "Clear support/sla topic. Should return Q&A pairs about service level agreements, response time commitments, and uptime targets. Highly specific to the support domain with strong keyword signal."
       }
     },
     {
       "id": "SE-04",
-      "category": "cross-domain",
-      "query": "AI governance and responsible scaling policy",
+      "category": "conceptual",
+      "query": "how do you ensure data security during system migration",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["AI & EMERGING TECH"],
-        "expected_subtopics": ["ai-safety-governance"],
-        "expected_content_types": ["post", "article", "newsletter"],
-        "must_include_titles": [
-          "Anthropic's Responsible Scaling Policy v3.0 \u2014 Frontier AI Risk Governance"
-        ],
-        "notes": "Cross-domain test: governance touches ai-safety-governance (technical) but also organisational-strategy and ai-society-critique. Should strongly favour ai-safety-governance but may pull from others. The 'AI Governance vs Data Governance' item focuses on data governance which is semantically distant from responsible scaling."
+        "min_results": 3,
+        "expected_domains": ["implementation", "security"],
+        "expected_subtopics": ["migration", "data-protection"],
+        "expected_content_types": ["q_a_pair"],
+        "must_include_titles": [],
+        "notes": "Cross-domain conceptual test. The query spans implementation/migration and security/data-protection. Tests whether semantic search connects migration activities with security concerns. Should surface items about secure data migration practices."
       }
     },
     {
       "id": "SE-05",
-      "category": "technical",
-      "query": "MCP server tools and protocol integration",
+      "category": "conceptual",
+      "query": "business continuity disaster recovery planning",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-tools-frameworks", "ai-agents-automation-trends"],
-        "expected_content_types": ["post"],
-        "must_include_titles": [
-          "Charlotte: Open Source Browser MCP Server with 136x Token Efficiency",
-          "MCP Official Extension Repository: Docs, Samples, and Quickstarts for Developers"
-        ],
-        "notes": "MCP (Model Context Protocol) is a specific technical protocol with dedicated items. Tests precision on a well-defined technical term."
+        "min_results": 2,
+        "expected_domains": ["support"],
+        "expected_subtopics": ["incident"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Conceptual test for support/incident domain. 'Business continuity' and 'disaster recovery' are semantic concepts that should map to incident response and DR planning content. Tests whether embeddings connect BCP/DR terminology."
       }
     },
     {
       "id": "SE-06",
-      "category": "broad-theme",
-      "query": "startup strategy and business models in the AI era",
+      "category": "conceptual",
+      "query": "agile delivery methodology sprint governance",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["STRATEGY & BUSINESS", "INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["business-model-monetization", "market-analysis", "organizational-strategy", "market-signals-moves"],
-        "expected_content_types": ["post", "newsletter", "transcript"],
-        "must_include_titles": [
-          "How AI Startups Build Defensibility Against Platform Commoditisation",
-          "AI-Native vs Traditional SaaS: Business Models, Lean Teams, and New Pricing"
-        ],
-        "notes": "Broad theme spanning two domains. Should rank STRATEGY & BUSINESS items highly but also pull relevant INSIGHTS items. The 'AI era' framing tests whether semantic search connects strategy with AI context."
+        "min_results": 3,
+        "expected_domains": ["methodology"],
+        "expected_subtopics": ["approach", "project-management"],
+        "expected_content_types": ["q_a_pair", "methodology"],
+        "must_include_titles": [],
+        "notes": "Tests methodology domain with agile-specific terminology. Should surface items about delivery approach, sprint-based working, and project governance. May also pull methodology/quality items about agile QA practices."
       }
     },
     {
       "id": "SE-07",
-      "category": "negative",
-      "query": "quantum computing and superconductor breakthroughs",
+      "category": "cross-domain",
+      "query": "deployment timeline go-live checklist",
       "expectations": {
-        "min_results": 0,
-        "max_results": 20,
-        "expected_domains": [],
-        "expected_content_types": [],
+        "min_results": 3,
+        "expected_domains": ["implementation"],
+        "expected_subtopics": ["deployment"],
+        "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
-        "notes": "Negative test (relaxed) -- the collection has some tangential quantum computing content (IBM, Brian Greene interviews). With hybrid search, keyword matches on 'computing' and 'breakthroughs' pull in more results than pure semantic. Top results should still have moderate similarity (< 0.45)."
+        "notes": "Implementation/deployment test. Should strongly favour concrete deployment activities — environment setup, UAT, go-live steps. May also pull methodology/delivery items about timelines. Tests the implementation vs methodology boundary."
       }
     },
     {
       "id": "SE-08",
-      "category": "keyword-overlap",
-      "query": "prompt engineering techniques for LLMs",
+      "category": "cross-domain",
+      "query": "penetration testing vulnerability management",
       "expectations": {
-        "min_results": 3,
-        "expected_domains": ["LEARNING & DEVELOPMENT", "AI & EMERGING TECH"],
-        "expected_subtopics": ["how-to-guides", "best-practices-frameworks", "ai-research"],
-        "expected_content_types": ["post", "article"],
-        "must_include_titles": [
-          "Universal Prompt Framework Template for Claude and Other LLMs",
-          "Prompt Engineering Playbook for AI Coding Assistants"
-        ],
-        "notes": "Keyword-semantic overlap test. 'Prompt engineering' is both a keyword and a semantic concept. Items with 'prompt' in title AND semantically related items should both appear."
+        "min_results": 2,
+        "expected_domains": ["security"],
+        "expected_subtopics": ["cyber-security"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Clear security/cyber-security topic. Should surface items about threat detection, vulnerability scanning, and penetration testing practices. May also return compliance/audit items about third-party security audits."
       }
     },
     {
       "id": "SE-09",
-      "category": "exact-topic",
-      "query": "Klarna AI workforce reduction and headcount cuts",
+      "category": "cross-domain",
+      "query": "staff qualifications key personnel CVs team structure",
       "expectations": {
-        "min_results": 2,
-        "expected_domains": ["INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-workforce-impact", "industry-trends-opinions"],
-        "expected_content_types": ["transcript", "post"],
-        "must_include_titles": [
-          "Klarna CEO on Cutting Headcount 50% Through AI Acceleration",
-          "Klarna CEO on Why SaaS Is Dead and AI-Driven Workforce Reduction"
-        ],
-        "notes": "Specific company + topic test. Both Klarna transcript items should appear near the top. Tests whether the search connects a specific company name with the broader topic."
+        "min_results": 3,
+        "expected_domains": ["corporate"],
+        "expected_subtopics": ["staffing"],
+        "expected_content_types": ["q_a_pair", "capability"],
+        "must_include_titles": [],
+        "notes": "Cross-signal test within corporate domain. 'Key personnel' and 'CVs' are staffing topics; 'team structure' could be company-info. Should primarily return corporate/staffing items about team qualifications, recruitment, and organisational structure."
       }
     },
     {
       "id": "SE-10",
-      "category": "content-type-specific",
-      "query": "venture capital AI investment and fundraising",
+      "category": "technical",
+      "query": "API integration REST endpoints data exchange",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["INSIGHTS & ANALYSIS", "STRATEGY & BUSINESS"],
-        "expected_subtopics": ["market-signals-moves", "industry-trends-opinions", "market-analysis"],
-        "expected_content_types": ["transcript", "post", "newsletter"],
-        "must_include_titles": [
-          "Anthropic's $30B Raise and Wall Street's All-In Bet on AI",
-          "VC Perspective on SaaS Terminal Value Erosion from AI Disruption"
-        ],
-        "notes": "Should surface transcript items prominently -- the 20VC/SaaStr podcast transcripts are rich in VC and investment content. Tests whether long-form transcript embeddings match investment queries."
+        "min_results": 2,
+        "expected_domains": ["product-feature", "implementation"],
+        "expected_subtopics": ["technical", "integration"],
+        "expected_content_types": ["q_a_pair", "product_description"],
+        "must_include_titles": [],
+        "notes": "Tests the product-feature/technical vs implementation/integration boundary. 'Does your system support REST APIs' = product-feature. 'How do you integrate with our systems' = implementation. This query blends both and should surface items from both domains."
       }
     },
     {
       "id": "SE-11",
-      "category": "conceptual",
-      "query": "future of SaaS software being disrupted by AI",
+      "category": "technical",
+      "query": "encryption at rest in transit TLS certificates",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["INSIGHTS & ANALYSIS", "STRATEGY & BUSINESS"],
-        "expected_subtopics": ["industry-trends-opinions", "market-signals-moves", "business-model-monetization", "market-analysis"],
-        "expected_content_types": ["post", "transcript", "newsletter"],
-        "must_include_titles": [
-          "Klarna CEO on Why SaaS Is Dead and AI-Driven Workforce Reduction",
-          "Andreessen Horowitz GP on Why AI Won't Replace Enterprise SaaS"
-        ],
-        "notes": "Tests opposing viewpoints -- both 'SaaS is dead' and 'SaaS won't be replaced' items should appear, showing the search finds semantically related content regardless of stance."
+        "min_results": 2,
+        "expected_domains": ["security"],
+        "expected_subtopics": ["encryption"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Precise technical security topic. Should strongly favour security/encryption items. Tests whether the search correctly routes encryption-specific queries to the encryption subtopic rather than the broader data-protection or cyber-security subtopics."
       }
     },
     {
       "id": "SE-12",
-      "category": "author-specific",
-      "query": "Addy Osmani on AI coding tools and developer workflows",
+      "category": "broad-theme",
+      "query": "company overview history mission values",
       "expectations": {
         "min_results": 3,
-        "expected_domains": ["AI & EMERGING TECH", "LEARNING & DEVELOPMENT", "INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-tools-frameworks", "how-to-guides", "ai-agents-automation-trends", "ai-workforce-impact"],
-        "expected_content_types": ["post", "article"],
-        "must_include_titles": [
-          "Chrome DevTools MCP Server for AI Coding Agent Integration",
-          "Responsible AI-Assisted Development: Avoiding the Vibe Coding Trap"
-        ],
-        "notes": "Addy Osmani has 9 items. Tests author-topic intersection -- should surface his specific posts about AI dev tools rather than generic AI tool posts by others."
+        "expected_domains": ["corporate"],
+        "expected_subtopics": ["company-info"],
+        "expected_content_types": ["q_a_pair", "capability"],
+        "must_include_titles": [],
+        "notes": "Broad corporate/company-info query. Should surface items about organisational overview, company history, and mission statements. Tests whether the search correctly routes general company queries to the corporate domain rather than scattering across other domains."
       }
     },
     {
       "id": "SE-13",
-      "category": "cross-domain",
-      "query": "AI agents replacing human workers in enterprise",
+      "category": "broad-theme",
+      "query": "client onboarding training change management",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-agents-automation-trends", "ai-workforce-impact"],
-        "expected_content_types": ["post", "newsletter", "transcript"],
-        "must_include_titles": [
-          "Deloitte's Human-Agentic Workforce: Humans and AI Agents as Coworkers",
-          "AI Agent Adoption Dominated by Software Engineering \u2014 Verification Is Key"
-        ],
-        "notes": "Cross-subtopic test within INSIGHTS. Should bridge ai-agents-automation-trends (agent capabilities) with ai-workforce-impact (displacement). Tests whether semantic search connects the agent technology with its workforce implications."
+        "min_results": 2,
+        "expected_domains": ["implementation"],
+        "expected_subtopics": ["onboarding"],
+        "expected_content_types": ["q_a_pair", "methodology"],
+        "must_include_titles": [],
+        "notes": "Tests implementation/onboarding. Should surface items about client onboarding processes, user training during rollout, and change management. May also return support/helpdesk items about ongoing training — tests the implementation vs support boundary."
       }
     },
     {
       "id": "SE-14",
-      "category": "technical",
-      "query": "Anthropic Claude model safety and alignment research",
-      "expectations": {
-        "min_results": 5,
-        "expected_domains": ["AI & EMERGING TECH"],
-        "expected_subtopics": ["ai-safety-governance", "ai-research", "ai-models-llms"],
-        "expected_content_types": ["post", "article"],
-        "must_include_titles": [
-          "Anthropic's Safety Concerns with Claude Opus 4.6 Agentic Behaviour",
-          "Anthropic Research: Reward Hacking Generalises to Broader LLM Misalignment"
-        ],
-        "notes": "Tests specificity to Anthropic's safety research vs general AI safety. Should rank Anthropic-specific items higher than generic governance posts."
-      }
-    },
-    {
-      "id": "SE-15",
-      "category": "broad-theme",
-      "query": "learning resources and courses for AI skills",
-      "expectations": {
-        "min_results": 5,
-        "expected_domains": ["LEARNING & DEVELOPMENT"],
-        "expected_subtopics": ["courses-curricula", "resources-tools", "how-to-guides"],
-        "expected_content_types": ["post", "newsletter"],
-        "must_include_titles": [
-          "Google AI Professional Certificate: Hands-On AI Skills in Under 10 Hours",
-          "Wharton's Human-Centred AI Course Framework as a Benchmark"
-        ],
-        "notes": "Should strongly favour LEARNING & DEVELOPMENT domain. Tests whether the search correctly routes educational/learning queries to the right domain rather than scattering across AI & EMERGING TECH."
-      }
-    },
-    {
-      "id": "SE-16",
       "category": "negative",
-      "query": "blockchain cryptocurrency DeFi web3 tokens",
+      "query": "quantum computing blockchain cryptocurrency",
       "expectations": {
         "min_results": 0,
         "max_results": 3,
         "expected_domains": [],
         "expected_content_types": [],
         "must_include_titles": [],
-        "notes": "Second negative test -- crypto/web3 content is absent from the collection. Should return very few or no results. Any results should have low similarity scores."
+        "notes": "Negative test — these topics are absent from a bid management knowledge base. Should return very few or no results. Any results should have low similarity scores (< 0.3)."
+      }
+    },
+    {
+      "id": "SE-15",
+      "category": "negative",
+      "query": "social media marketing influencer campaign strategy",
+      "expectations": {
+        "min_results": 0,
+        "max_results": 3,
+        "expected_domains": [],
+        "expected_content_types": [],
+        "must_include_titles": [],
+        "notes": "Second negative test — marketing/social media content is absent from a bid management knowledge base. Should return very few or no results. Tests that the threshold correctly filters irrelevant content."
+      }
+    },
+    {
+      "id": "SE-16",
+      "category": "keyword-overlap",
+      "query": "Cyber Essentials Plus accreditation security certification",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["compliance", "security"],
+        "expected_subtopics": ["certification", "cyber-security"],
+        "expected_content_types": ["q_a_pair", "certification"],
+        "must_include_titles": [],
+        "notes": "Keyword-semantic overlap test. 'Cyber Essentials' is both a keyword and a semantic concept spanning compliance (certification status) and security (the controls required). Should surface items from both domains."
       }
     },
     {
       "id": "SE-17",
       "category": "keyword-overlap",
-      "query": "AI product ideas and new startup launches",
+      "query": "professional indemnity public liability insurance coverage",
       "expectations": {
-        "min_results": 5,
-        "expected_domains": ["PRODUCTS & INNOVATION", "INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["product-ideas", "market-signals-moves"],
-        "expected_content_types": ["post", "article"],
-        "must_include_titles": [
-          "VoiceOS: Universal Voice Interface for 10X Productivity"
-        ],
-        "notes": "Tests the boundary between PRODUCTS & INNOVATION (product-ideas subtopic, 40 items) and INSIGHTS market-signals-moves (224 items). Should return a mix of both -- actual product descriptions and market analysis of launches."
+        "min_results": 2,
+        "expected_domains": ["corporate"],
+        "expected_subtopics": ["insurance"],
+        "expected_content_types": ["q_a_pair"],
+        "must_include_titles": [],
+        "notes": "Keyword-overlap test for corporate/insurance. These are highly specific insurance terms that should map directly to corporate/insurance items. Tests whether the search precisely matches financial/insurance terminology."
       }
     },
     {
       "id": "SE-18",
-      "category": "exact-topic",
-      "query": "OpenAI Codex and AI coding assistants",
+      "category": "content-type-specific",
+      "query": "similar contract experience case study reference",
       "expectations": {
-        "min_results": 3,
-        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS", "LEARNING & DEVELOPMENT"],
-        "expected_subtopics": ["ai-tools-frameworks", "industry-trends-opinions", "ai-agents-automation-trends"],
-        "expected_content_types": ["post", "transcript", "article"],
-        "must_include_titles": [
-          "OpenAI Codex Lead on the Future of Coding, Agents, and Software Engineering",
-          "Practical Tips for Getting the Most Out of OpenAI Codex App"
-        ],
-        "notes": "Specific product + category test. Should surface OpenAI Codex items alongside broader AI coding assistant content (Cursor, Claude Code, Copilot discussions)."
+        "min_results": 2,
+        "expected_domains": ["corporate"],
+        "expected_subtopics": ["references"],
+        "expected_content_types": ["q_a_pair", "case_study"],
+        "must_include_titles": [],
+        "notes": "Should surface case_study and q_a_pair content types from corporate/references. Tests whether the search correctly identifies 'similar project' and 'reference' queries as corporate track record content rather than domain-specific implementation details."
       }
     },
     {
       "id": "SE-19",
-      "category": "conceptual",
-      "query": "constitutional AI and machine ethics philosophy",
+      "category": "content-type-specific",
+      "query": "platform reporting dashboards management information",
       "expectations": {
         "min_results": 2,
-        "expected_domains": ["AI & EMERGING TECH", "INSIGHTS & ANALYSIS"],
-        "expected_subtopics": ["ai-safety-governance", "ai-society-critique"],
-        "expected_content_types": ["post"],
-        "must_include_titles": [
-          "Anthropic Publishes Claude's Constitutional AI Guidelines",
-          "Anthropic's Claude Constitution: A Philosophical AI Governance Milestone"
-        ],
-        "notes": "Philosophical/abstract concept test. 'Constitutional AI' is a specific Anthropic term but 'machine ethics' is broader. Tests whether embeddings capture the philosophical dimension of AI safety."
+        "expected_domains": ["product-feature"],
+        "expected_subtopics": ["reporting"],
+        "expected_content_types": ["q_a_pair", "product_description"],
+        "must_include_titles": [],
+        "notes": "Should surface product_description and q_a_pair items from product-feature/reporting. Tests whether the search correctly routes reporting capability queries to the product-feature domain."
       }
     },
     {
       "id": "SE-20",
       "category": "cross-domain",
-      "query": "cybersecurity threats from AI and autonomous attacks",
+      "query": "data migration legacy system transition cutover planning",
       "expectations": {
         "min_results": 2,
-        "expected_domains": ["AI & EMERGING TECH"],
-        "expected_subtopics": ["ai-safety-governance"],
-        "expected_content_types": ["post", "newsletter"],
-        "must_include_titles": [
-          "First Evidence of AI-Driven Autonomous Cyberattacks at Scale",
-          "Anthropic Disrupts First AI-Orchestrated Cyber Espionage Campaign"
-        ],
-        "notes": "Niche topic that sits at the intersection of AI safety and cybersecurity. Should find the specific cyber-related items within the ai-safety-governance subtopic rather than returning generic safety content."
+        "expected_domains": ["implementation", "methodology"],
+        "expected_subtopics": ["migration", "delivery"],
+        "expected_content_types": ["q_a_pair"],
+        "must_include_titles": [],
+        "notes": "Cross-domain test spanning implementation/migration and methodology/delivery. 'Data migration' and 'legacy system transition' are implementation activities; 'cutover planning' bridges into methodology/delivery. Should surface items from both domains with implementation dominating."
       }
     }
   ]
