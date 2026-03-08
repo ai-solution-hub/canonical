@@ -147,9 +147,9 @@ export function ItemDetailClient({
   const showSplitReader = readerOpen && !isDetached;
 
   // Editable field states (extracted hook)
-  const inlineEdit = useInlineFieldEdit({
+  const inlineEdit = useInlineFieldEdit<ItemData>({
     itemId: item.id,
-    onItemUpdate: (updater) => setItem((prev) => updater(prev as unknown as Record<string, unknown>) as unknown as ItemData),
+    onItemUpdate: setItem,
   });
   const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
 

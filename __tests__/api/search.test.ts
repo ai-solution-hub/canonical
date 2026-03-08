@@ -12,16 +12,9 @@ import { createTestRequest } from '../helpers/mock-next';
 const mockSupabase = createMockSupabaseClient();
 
 // Extra mocks that need hoisting for vi.mock() factory references
-const { mockEmbeddingsCreate, mockOpenAIConstructor, mockCookies } = vi.hoisted(() => {
-  const mockEmbeddingsCreate = vi.fn().mockResolvedValue({
-    data: [{ embedding: new Array(1024).fill(0) }],
-  });
-
+const { mockGenerateEmbedding, mockCookies } = vi.hoisted(() => {
   return {
-    mockEmbeddingsCreate,
-    mockOpenAIConstructor: vi.fn().mockImplementation(function () {
-      return { embeddings: { create: mockEmbeddingsCreate } };
-    }),
+    mockGenerateEmbedding: vi.fn().mockResolvedValue(new Array(1024).fill(0)),
     mockCookies: vi.fn().mockResolvedValue({ getAll: () => [], set: () => {} }),
   };
 });
@@ -35,10 +28,8 @@ vi.mock('next/headers', () => ({
   cookies: mockCookies,
 }));
 
-// The search route instantiates OpenAI directly and calls openai.embeddings.create.
-// We mock the default export constructor so it returns our controlled stub.
-vi.mock('openai', () => ({
-  default: mockOpenAIConstructor,
+vi.mock('@/lib/embeddings', () => ({
+  generateEmbedding: mockGenerateEmbedding,
 }));
 
 // Suppress console.error noise from the route's error handling
@@ -61,11 +52,6 @@ describe('POST /api/search', () => {
     // Re-wire next/headers mock (cleared by clearAllMocks)
     mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
 
-    // Re-establish OpenAI constructor (must use function keyword, not arrow, for `new`)
-    mockOpenAIConstructor.mockImplementation(function () {
-      return { embeddings: { create: mockEmbeddingsCreate } };
-    });
-
     // Re-establish default authenticated user
     mockSupabase.auth.getUser.mockResolvedValue({
       data: { user: { id: 'test-user-id', email: 'test@example.com' } },
@@ -73,9 +59,7 @@ describe('POST /api/search', () => {
     });
 
     // Default embedding response
-    mockEmbeddingsCreate.mockResolvedValue({
-      data: [{ embedding: new Array(1024).fill(0) }],
-    });
+    mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
 
     // Default RPC response
     mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
@@ -178,7 +162,7 @@ describe('POST /api/search', () => {
   });
 
   it('returns 503 when embedding generation fails', async () => {
-    mockEmbeddingsCreate.mockRejectedValueOnce(new Error('OpenAI API error'));
+    mockGenerateEmbedding.mockRejectedValueOnce(new Error('OpenAI API error'));
 
     const req = createTestRequest('/api/search', {
       method: 'POST',

@@ -8,10 +8,10 @@ import { validateEditableField } from '@/lib/validation';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface UseInlineFieldEditParams {
+export interface UseInlineFieldEditParams<T extends object = Record<string, unknown>> {
   itemId: string;
   /** Setter to update the parent item state optimistically */
-  onItemUpdate: (updater: (prev: Record<string, unknown>) => Record<string, unknown>) => void;
+  onItemUpdate: (updater: (prev: T) => T) => void;
 }
 
 export interface UseInlineFieldEditReturn {
@@ -29,10 +29,10 @@ export interface UseInlineFieldEditReturn {
 // Hook
 // ---------------------------------------------------------------------------
 
-export function useInlineFieldEdit({
+export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
   itemId,
   onItemUpdate,
-}: UseInlineFieldEditParams): UseInlineFieldEditReturn {
+}: UseInlineFieldEditParams<T>): UseInlineFieldEditReturn {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -59,8 +59,8 @@ export function useInlineFieldEdit({
       // Store for rollback
       let previousValue: unknown;
       onItemUpdate((prev) => {
-        previousValue = prev[field];
-        return { ...prev, [field]: value };
+        previousValue = (prev as Record<string, unknown>)[field];
+        return { ...prev, [field]: value } as T;
       });
       setEditingField(null);
 
@@ -84,7 +84,7 @@ export function useInlineFieldEdit({
         }, 1500);
       } catch {
         // Rollback
-        onItemUpdate((prev) => ({ ...prev, [field]: previousValue }));
+        onItemUpdate((prev) => ({ ...prev, [field]: previousValue } as T));
         setSaveAnnouncement('Save failed');
         setTimeout(() => setSaveAnnouncement(''), 1500);
         toast.error('Failed to save — please try again');

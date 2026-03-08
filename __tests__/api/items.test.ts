@@ -614,7 +614,7 @@ describe('DELETE /api/items/[id]', () => {
     expect(body.id).toBe(VALID_UUID);
   });
 
-  it('deletes related records before the content item', async () => {
+  it('only deletes content_items (related records cascade)', async () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -632,14 +632,17 @@ describe('DELETE /api/items/[id]', () => {
       (c: unknown[]) => c[0],
     );
 
-    expect(fromCalls).toContain('ingestion_quality_log');
-    expect(fromCalls).toContain('read_marks');
-    expect(fromCalls).toContain('content_history');
-    expect(fromCalls).toContain('content_item_workspaces');
-    expect(fromCalls).toContain('content_items');
+    // Should only touch content_items (existence check + delete) — no manual cascade
+    const contentItemsCalls = fromCalls.filter((t: unknown) => t === 'content_items');
+    expect(contentItemsCalls.length).toBe(2); // select + delete
+
+    expect(fromCalls).not.toContain('ingestion_quality_log');
+    expect(fromCalls).not.toContain('read_marks');
+    expect(fromCalls).not.toContain('content_history');
+    expect(fromCalls).not.toContain('content_item_workspaces');
   });
 
-  it('returns 500 when the main content_items delete fails', async () => {
+  it('returns 500 when the content_items delete fails', async () => {
     configureRole(mockSupabase, 'admin');
 
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -647,12 +650,6 @@ describe('DELETE /api/items/[id]', () => {
       error: null,
     });
 
-    for (let i = 0; i < 4; i++) {
-      mockSupabase._chain.then.mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: null, error: null }),
-      );
-    }
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({

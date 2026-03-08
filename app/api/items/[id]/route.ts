@@ -301,51 +301,7 @@ export async function DELETE(
       );
     }
 
-    // Delete related records in order (no CASCADE on live DB FKs)
-    // Each step is best-effort — continue even if one fails
-    const deletionErrors: string[] = [];
-
-    try {
-      await supabase
-        .from('ingestion_quality_log')
-        .delete()
-        .eq('content_item_id', id);
-    } catch (err) {
-      console.error('Failed to delete quality log entries:', err);
-      deletionErrors.push('ingestion_quality_log');
-    }
-
-    try {
-      await supabase
-        .from('read_marks')
-        .delete()
-        .eq('content_item_id', id);
-    } catch (err) {
-      console.error('Failed to delete read marks:', err);
-      deletionErrors.push('read_marks');
-    }
-
-    try {
-      await supabase
-        .from('content_history')
-        .delete()
-        .eq('content_item_id', id);
-    } catch (err) {
-      console.error('Failed to delete content history:', err);
-      deletionErrors.push('content_history');
-    }
-
-    try {
-      await supabase
-        .from('content_item_workspaces')
-        .delete()
-        .eq('content_item_id', id);
-    } catch (err) {
-      console.error('Failed to delete workspace associations:', err);
-      deletionErrors.push('content_item_workspaces');
-    }
-
-    // Delete the content item itself
+    // Delete the content item — related records are cleaned up via ON DELETE CASCADE
     const { error: deleteError } = await supabase
       .from('content_items')
       .delete()
@@ -359,13 +315,7 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({
-      deleted: true,
-      id,
-      ...(deletionErrors.length > 0 && {
-        warnings: deletionErrors.map((t) => `Failed to clean up ${t}`),
-      }),
-    });
+    return NextResponse.json({ deleted: true, id });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to delete content item') },

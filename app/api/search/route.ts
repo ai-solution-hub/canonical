@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import {
   getAuthenticatedClient,
   unauthorisedResponse,
@@ -9,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { SearchBodySchema } from '@/lib/validation/schemas';
+import { generateEmbedding } from '@/lib/embeddings';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,16 +26,10 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return parsed.response;
     const { query, threshold, limit, layer } = parsed.data;
 
-    // 1. Generate embedding via OpenAI
+    // 1. Generate embedding via shared helper (singleton OpenAI client)
     let embedding: number[];
     try {
-      const openai = new OpenAI();
-      const embeddingResponse = await openai.embeddings.create({
-        model: 'text-embedding-3-large',
-        input: query.trim(),
-        dimensions: 1024,
-      });
-      embedding = embeddingResponse.data[0].embedding;
+      embedding = await generateEmbedding(query.trim());
     } catch (err) {
       console.error('OpenAI embedding error:', err);
       return NextResponse.json(
