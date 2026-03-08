@@ -40,6 +40,28 @@ def _request(method: str, path: str, data: dict = None,
         return e.code, body
 
 
+def fetch_taxonomy():
+    """Fetch active taxonomy domains and subtopics from Supabase."""
+    domains_path = (
+        "taxonomy_domains?is_active=eq.true&order=display_order.asc"
+        "&select=id,name,description,display_order"
+    )
+    subtopics_path = (
+        "taxonomy_subtopics?is_active=eq.true&order=display_order.asc"
+        "&select=id,domain_id,name,description,display_order"
+    )
+
+    status_d, domains = _request("GET", domains_path)
+    if status_d not in (200, 206):
+        raise RuntimeError(f"Failed to fetch taxonomy domains: {status_d} {domains}")
+
+    status_s, subtopics = _request("GET", subtopics_path)
+    if status_s not in (200, 206):
+        raise RuntimeError(f"Failed to fetch taxonomy subtopics: {status_s} {subtopics}")
+
+    return domains, subtopics
+
+
 def insert_content_item(record: dict) -> tuple[bool, str]:
     """Insert a content_item. Returns (success, id_or_error).
 

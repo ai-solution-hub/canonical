@@ -54,8 +54,16 @@ def main():
         "--no-summary", action="store_false", dest="generate_summary",
         help="Skip AI summary generation"
     )
+    parser.add_argument(
+        "--static-taxonomy", action="store_true",
+        help="Use static taxonomy from prompt file instead of fetching from DB"
+    )
 
     args = parser.parse_args()
+
+    if args.static_taxonomy:
+        from kb_pipeline.config import set_static_taxonomy
+        set_static_taxonomy(True)
 
     # Collect URLs
     urls = list(args.urls) if args.urls else []

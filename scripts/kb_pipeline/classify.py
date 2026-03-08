@@ -1,6 +1,7 @@
 """Classification via Opus 4.6 with structured outputs."""
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Optional, List
 
@@ -15,6 +16,12 @@ from .config import (
     OPUS_CACHE_WRITE_PRICE,
     OPUS_CACHE_READ_PRICE,
 )
+
+logger = logging.getLogger(__name__)
+
+# Module-level cache for valid taxonomy values (populated when DB taxonomy is fetched)
+_valid_domains: Optional[List[str]] = None
+_valid_subtopics: Optional[List[str]] = None
 
 
 @dataclass
@@ -123,7 +130,7 @@ def classify(
     parsed = json.loads(result_text)
     flags = parsed.get("flags", {})
 
-    return ClassificationResult(
+    cls_result = ClassificationResult(
         primary_domain=parsed["primary_domain"],
         primary_subtopic=parsed["primary_subtopic"],
         confidence=parsed["confidence"],
@@ -143,6 +150,12 @@ def classify(
         cache_read_tokens=cache_read,
     )
 
+    # Post-classification validation (only when DB taxonomy was fetched)
+    if _valid_domains is not None and _valid_subtopics is not None:
+        _validate_classification(cls_result, _valid_domains, _valid_subtopics)
+
+    return cls_result
+
 
 def estimate_cost(input_tokens: int, output_tokens: int,
                   cache_creation: int = 0, cache_read: int = 0) -> float:
@@ -154,3 +167,50 @@ def estimate_cost(input_tokens: int, output_tokens: int,
         cache_creation * OPUS_CACHE_WRITE_PRICE +
         cache_read * OPUS_CACHE_READ_PRICE
     )
+
+
+def set_valid_taxonomy(domains: List[str], subtopics: List[str]):
+    """Cache valid domain/subtopic names for post-classification validation."""
+    global _valid_domains, _valid_subtopics
+    _valid_domains = domains
+    _valid_subtopics = subtopics
+
+
+def build_taxonomy_section(domains, subtopics):
+    """Build markdown taxonomy section from DB data, matching prompt format."""
+    lines = [
+        "## TAXONOMY REFERENCE\n",
+        "### Level 1 Domains (Choose exactly ONE primary)\n",
+    ]
+
+    for i, domain in enumerate(domains, 1):
+        lines.append(f"#### {i}. {domain['name']}\n")
+        if domain.get('description'):
+            lines.append(f"{domain['description']}\n")
+
+        domain_subtopics = [
+            s for s in subtopics if s['domain_id'] == domain['id']
+        ]
+
+        if domain_subtopics:
+            lines.append("**Subtopics:**\n")
+            for st in domain_subtopics:
+                desc = f": {st['description']}" if st.get('description') else ""
+                lines.append(f"- `{st['name']}`{desc}")
+            lines.append("")
+
+        lines.append("---\n")
+
+    return "\n".join(lines)
+
+
+def _validate_classification(result, valid_domains, valid_subtopics):
+    """Validate classification against DB taxonomy. Warns but doesn't reject."""
+    warnings = []
+    if result.primary_domain not in valid_domains:
+        warnings.append(f"Unknown domain: {result.primary_domain}")
+    if result.primary_subtopic not in valid_subtopics:
+        warnings.append(f"Unknown subtopic: {result.primary_subtopic}")
+    for w in warnings:
+        logger.warning(f"Classification validation: {w}")
+    return warnings

@@ -1,6 +1,9 @@
 """Shared configuration for Knowledge Hub pipeline."""
 
+import logging
 import os
+
+logger = logging.getLogger(__name__)
 
 # Derive PROJECT_ROOT from file location: config.py is at scripts/kb_pipeline/config.py
 # So PROJECT_ROOT = dirname(dirname(dirname(abspath(__file__))))
@@ -53,6 +56,13 @@ def load_system_prompt():
 # Lazy-loaded singletons
 _env = None
 _system_prompt = None
+_use_static_taxonomy = False
+
+
+def set_static_taxonomy(value: bool):
+    """Set whether to use static taxonomy from prompt file (skip DB fetch)."""
+    global _use_static_taxonomy
+    _use_static_taxonomy = value
 
 
 def get_env():
@@ -62,10 +72,37 @@ def get_env():
     return _env
 
 
+def _replace_taxonomy_section(prompt, new_section):
+    """Replace the marked taxonomy section in the prompt with new content."""
+    start_marker = "<!-- TAXONOMY_START -->"
+    end_marker = "<!-- TAXONOMY_END -->"
+    s = prompt.index(start_marker)
+    e = prompt.index(end_marker) + len(end_marker)
+    return prompt[:s] + start_marker + "\n" + new_section + "\n" + end_marker + prompt[e:]
+
+
 def get_system_prompt():
     global _system_prompt
     if _system_prompt is None:
-        _system_prompt = load_system_prompt()
+        raw = load_system_prompt()
+        if not _use_static_taxonomy:
+            try:
+                from .store import fetch_taxonomy
+                from .classify import build_taxonomy_section, set_valid_taxonomy
+                domains, subtopics = fetch_taxonomy()
+                section = build_taxonomy_section(domains, subtopics)
+                raw = _replace_taxonomy_section(raw, section)
+                # Cache valid values for post-classification validation
+                valid_domain_names = [d['name'] for d in domains]
+                valid_subtopic_names = [s['name'] for s in subtopics]
+                set_valid_taxonomy(valid_domain_names, valid_subtopic_names)
+                logger.info(
+                    "Injected DB taxonomy: %d domains, %d subtopics",
+                    len(domains), len(subtopics)
+                )
+            except Exception as e:
+                logger.warning("Failed to fetch DB taxonomy, using static: %s", e)
+        _system_prompt = raw
     return _system_prompt
 
 
