@@ -67,7 +67,7 @@ const TEST_USER_ID = 'user-abc-123';
  *
  * The function structure is:
  *   1. from('content_history') for lastActivity — awaited first
- *   2. Then Promise.allSettled with 7 items:
+ *   2. Then Promise.allSettled with 9 items:
  *      [0] from('content_history') — team changes
  *      [1] from('content_history') — recent work
  *      [2] from('workspaces') — active bids
@@ -75,6 +75,8 @@ const TEST_USER_ID = 'user-abc-123';
  *      [4] from('content_items') or Promise.resolve — governance reviews
  *      [5] from('ingestion_quality_log') or Promise.resolve — quality flags
  *      [6] from('notifications') — unread notifications
+ *      [7] from('bid_response_history') — bid response team changes
+ *      [8] from('bid_response_history') — bid response recent work
  *   Then optionally from('bid_questions') batch stats
  *   Then auth.getUser() for display name
  */
@@ -89,6 +91,8 @@ function setupDefaultMock(overrides: {
   governanceCount?: number;
   qualityFlagsCount?: number;
   notificationsCount?: number;
+  bidResponseTeamChangesData?: unknown[];
+  bidResponseRecentWorkData?: unknown[];
 } = {}) {
   const mock = createMockSupabaseClient();
 
@@ -147,6 +151,20 @@ function setupDefaultMock(overrides: {
     data: null,
     error: null,
     count: overrides.notificationsCount ?? 0,
+  });
+
+  // [7] bid_response_history — team changes
+  fromCalls.push({
+    data: overrides.bidResponseTeamChangesData ?? [],
+    error: null,
+    count: null,
+  });
+
+  // [8] bid_response_history — recent work
+  fromCalls.push({
+    data: overrides.bidResponseRecentWorkData ?? [],
+    error: null,
+    count: null,
   });
 
   // Configure from() to return per-call chain
@@ -963,6 +981,205 @@ describe('fetchReorientData', () => {
       );
 
       expect(result.generated_at).toBe('2026-03-08T10:00:00.000Z');
+    });
+  });
+
+  // =========================================================================
+  // Bid response team changes
+  // =========================================================================
+
+  describe('bid response team changes', () => {
+    it('merges bid response edits into team_changes with entity_type bid_response', async () => {
+      const mock = setupDefaultMock({
+        teamChangesData: [
+          {
+            id: 'ch-1',
+            content_item_id: 'item-1',
+            change_type: 'edit',
+            change_summary: 'Updated policy',
+            created_by: 'other-user-1',
+            created_at: '2026-03-08T09:00:00Z',
+            content_items: { title: 'Data Protection Policy', primary_domain: 'Corporate' },
+          },
+        ],
+        bidResponseTeamChangesData: [
+          {
+            id: 'brh-1',
+            response_id: 'resp-1',
+            edited_by: 'other-user-2',
+            created_at: '2026-03-08T09:30:00Z',
+            bid_responses: {
+              question_id: 'q-1',
+              bid_questions: {
+                project_id: 'bid-1',
+                workspaces: { name: 'NHS Digital Bid' },
+              },
+            },
+          },
+        ],
+      });
+
+      // Use admin role to ensure all from() calls fire in sequential mock order
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      expect(result.team_changes).toHaveLength(2);
+      const bidChange = result.team_changes.find(tc => tc.entity_type === 'bid_response');
+      expect(bidChange).toBeDefined();
+      expect(bidChange!.entity_title).toBe('NHS Digital Bid');
+      expect(bidChange!.action).toBe('updated');
+      expect(bidChange!.user_id).toBe('other-user-2');
+    });
+
+    it('sorts combined team changes by date descending', async () => {
+      const mock = setupDefaultMock({
+        teamChangesData: [
+          {
+            id: 'ch-1',
+            content_item_id: 'item-1',
+            change_type: 'edit',
+            change_summary: 'Older change',
+            created_by: 'other-user-1',
+            created_at: '2026-03-08T08:00:00Z',
+            content_items: { title: 'Old Item', primary_domain: 'Security' },
+          },
+        ],
+        bidResponseTeamChangesData: [
+          {
+            id: 'brh-1',
+            response_id: 'resp-1',
+            edited_by: 'other-user-2',
+            created_at: '2026-03-08T09:00:00Z',
+            bid_responses: {
+              question_id: 'q-1',
+              bid_questions: {
+                project_id: 'bid-1',
+                workspaces: { name: 'Recent Bid' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      // Bid response (09:00) should come before content change (08:00)
+      expect(result.team_changes[0].entity_type).toBe('bid_response');
+      expect(result.team_changes[1].entity_type).toBe('content_item');
+    });
+  });
+
+  // =========================================================================
+  // Bid response recent work
+  // =========================================================================
+
+  describe('bid response recent work', () => {
+    it('includes bid response edits in my_recent_work', async () => {
+      const mock = setupDefaultMock({
+        recentWorkData: [],
+        bidResponseRecentWorkData: [
+          {
+            id: 'brh-own-1',
+            response_id: 'resp-2',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:15:00Z',
+            bid_responses: {
+              question_id: 'q-2',
+              bid_questions: {
+                project_id: 'bid-2',
+                question_text: 'Describe your security approach',
+                workspaces: { id: 'bid-2', name: 'Security Bid' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      expect(result.my_recent_work).toHaveLength(1);
+      expect(result.my_recent_work[0].entity_type).toBe('bid_response');
+      expect(result.my_recent_work[0].entity_title).toBe('Describe your security approach');
+      expect(result.my_recent_work[0].href).toBe('/bid/bid-2/session');
+      expect(result.my_recent_work[0].action).toBe('edited');
+    });
+
+    it('truncates long question text in entity_title', async () => {
+      const longQuestion = 'Please provide a detailed description of your organisation\'s approach to information security management including all relevant certifications';
+      const mock = setupDefaultMock({
+        recentWorkData: [],
+        bidResponseRecentWorkData: [
+          {
+            id: 'brh-own-2',
+            response_id: 'resp-3',
+            edited_by: TEST_USER_ID,
+            created_at: '2026-03-08T09:00:00Z',
+            bid_responses: {
+              question_id: 'q-3',
+              bid_questions: {
+                project_id: 'bid-3',
+                question_text: longQuestion,
+                workspaces: { id: 'bid-3', name: 'Long Q Bid' },
+              },
+            },
+          },
+        ],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      expect(result.my_recent_work[0].entity_title.length).toBeLessThanOrEqual(60);
+      expect(result.my_recent_work[0].entity_title).toMatch(/\.\.\.$/);
+    });
+
+    it('limits combined recent work to 5 items', async () => {
+      const mock = setupDefaultMock({
+        recentWorkData: [
+          { id: 'h-1', content_item_id: 'i-1', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:50:00Z', content_items: { title: 'Item 1' } },
+          { id: 'h-2', content_item_id: 'i-2', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:40:00Z', content_items: { title: 'Item 2' } },
+          { id: 'h-3', content_item_id: 'i-3', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:30:00Z', content_items: { title: 'Item 3' } },
+          { id: 'h-4', content_item_id: 'i-4', change_type: 'edit', change_summary: '', created_at: '2026-03-08T09:20:00Z', content_items: { title: 'Item 4' } },
+        ],
+        bidResponseRecentWorkData: [
+          {
+            id: 'brh-1', response_id: 'r-1', edited_by: TEST_USER_ID, created_at: '2026-03-08T09:45:00Z',
+            bid_responses: { question_id: 'q-1', bid_questions: { project_id: 'b-1', question_text: 'Q1', workspaces: { id: 'b-1', name: 'Bid' } } },
+          },
+          {
+            id: 'brh-2', response_id: 'r-2', edited_by: TEST_USER_ID, created_at: '2026-03-08T09:35:00Z',
+            bid_responses: { question_id: 'q-2', bid_questions: { project_id: 'b-1', question_text: 'Q2', workspaces: { id: 'b-1', name: 'Bid' } } },
+          },
+        ],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      // 4 content + 2 bid response = 6 total, should be capped at 5
+      expect(result.my_recent_work).toHaveLength(5);
     });
   });
 
