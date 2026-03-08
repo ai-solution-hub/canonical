@@ -1,14 +1,19 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { Layers, Sparkles, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DigestDomainSection } from '@/components/digest-domain-section';
-import { DigestExportMenu } from '@/components/digest-export-menu';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/digest-export';
+import { digestTypeLabel } from '@/lib/digest-helpers';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import type { Digest, DigestGovernanceSummary } from '@/types/digest';
 import { cn } from '@/lib/utils';
+
+const DigestExportMenu = dynamic(
+  () => import('@/components/digest-export-menu').then((mod) => mod.DigestExportMenu),
+  { ssr: false },
+);
 
 interface DigestViewProps {
   digest: Digest;

@@ -9,25 +9,11 @@ import {
 import { format, parseISO } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { formatDate } from '@/lib/format';
+import { digestTypeLabel } from '@/lib/digest-helpers';
 import type { Digest } from '@/types/digest';
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Map digest_type to a human-readable display label */
-export function digestTypeLabel(digestType: string): string {
-  switch (digestType) {
-    case 'weekly':
-      return 'Weekly Digest';
-    case 'daily':
-      return 'Daily Digest';
-    case 'custom':
-      return 'Custom Digest';
-    default:
-      return 'Content Digest';
-  }
-}
+// Re-export so existing consumers that import from this module still work
+export { digestTypeLabel } from '@/lib/digest-helpers';
 
 /** Format a date string for filenames (e.g. "25-jan-2026") */
 function formatDateForFilename(dateString: string): string {

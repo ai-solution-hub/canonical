@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import {
   ArrowLeft,
   ChevronDown,
@@ -22,8 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { ContentEditor } from '@/components/content-editor';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
+
+const ContentEditor = dynamic(
+  () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
+  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" /> },
+);
 import { toast } from 'sonner';
 import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
 

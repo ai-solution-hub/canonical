@@ -21,8 +21,8 @@ import {
 import {
   digestToMarkdown,
   downloadDigestDocx,
-  digestTypeLabel,
 } from '@/lib/digest-export';
+import { digestTypeLabel } from '@/lib/digest-helpers';
 import { safeErrorMessage } from '@/lib/error';
 import type { Digest } from '@/types/digest';
 
