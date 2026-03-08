@@ -50,15 +50,25 @@ export async function fetchReorientData(
     .order('created_at', { ascending: false })
     .limit(1);
 
-  // Determine last_active_at from content_history or auth
+  // Determine last_active_at from content_history, then auth last_sign_in_at, then 24h ago
   const { data: lastActivityData } = await lastActivityQuery;
   let lastActiveAt: string | null = null;
 
   if (lastActivityData && lastActivityData.length > 0) {
     lastActiveAt = lastActivityData[0].created_at;
+  } else {
+    // Fall back to last_sign_in_at from auth
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.last_sign_in_at) {
+        lastActiveAt = authUser.last_sign_in_at;
+      }
+    } catch {
+      // Non-critical — will fall back to 24h ago
+    }
   }
 
-  // Fall back to 24 hours ago if no activity found
+  // Final fallback: 24 hours ago
   const sinceDate = lastActiveAt
     ? lastActiveAt
     : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -182,6 +192,8 @@ export async function fetchReorientData(
         total_questions: number;
         drafted_count: number;
         complete_count: number;
+        needs_sme_count: number;
+        no_content_count: number;
       }>();
       if (batchStats) {
         for (const row of batchStats) {
@@ -208,7 +220,7 @@ export async function fetchReorientData(
           total_questions: totalQ,
           answered_questions: answeredQ,
           approved_questions: stats?.complete_count ?? 0,
-          gap_count: Math.max(0, totalQ - answeredQ),
+          gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
           href: `/bid/${workspace.id}`,
         });
       }
@@ -319,6 +331,18 @@ export async function fetchReorientData(
       detail: 'Items awaiting review',
       href: '/review',
       entity_id: 'reviews',
+    });
+  }
+
+  // Unresolved quality flags (admin only)
+  if (isAdmin && qualityFlags > 0) {
+    urgent.push({
+      type: 'quality_flag',
+      priority: 3,
+      title: `${qualityFlags} quality flag${qualityFlags === 1 ? '' : 's'} unresolved`,
+      detail: 'Items with quality issues need attention',
+      href: '/review',
+      entity_id: 'quality-flags',
     });
   }
 

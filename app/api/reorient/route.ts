@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient } from '@/lib/auth';
+import { getAuthorisedClient, unauthorisedResponse } from '@/lib/auth';
 import { fetchReorientData } from '@/lib/reorient';
 import { safeErrorMessage } from '@/lib/error';
 
 export async function GET() {
   try {
     const auth = await getAuthorisedClient();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-    }
+    if (!auth) return unauthorisedResponse();
 
     const { user, supabase, role } = auth;
     const isAdmin = role === 'admin';

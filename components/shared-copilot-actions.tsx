@@ -3,6 +3,7 @@
 import { useCopilotAction } from '@copilotkit/react-core';
 import { SearchingIndicator } from '@/components/copilot-ui/searching-indicator';
 import { KBSearchResults } from '@/components/copilot-ui/kb-search-results';
+import { searchKnowledgeBase } from '@/lib/copilotkit/shared-actions';
 
 /**
  * Shared CopilotKit actions available on every page.
@@ -35,46 +36,7 @@ export function SharedCopilotActions() {
         required: false,
       },
     ],
-    handler: async ({
-      query,
-      domain,
-      limit,
-    }: {
-      query: string;
-      domain?: string;
-      limit?: number;
-    }) => {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          domain: domain ?? undefined,
-          limit: Math.min(limit ?? 5, 10),
-        }),
-      });
-
-      if (!response.ok) {
-        return { error: 'Search failed. Please try again.' };
-      }
-
-      const data = await response.json();
-      return {
-        results: (data.results ?? []).map(
-          (r: Record<string, unknown>) => ({
-            id: r.id,
-            title: r.suggested_title ?? r.title ?? 'Untitled',
-            type: r.content_type,
-            domain: r.primary_domain,
-            similarity: r.similarity,
-            summary: typeof r.ai_summary === 'string'
-              ? r.ai_summary.slice(0, 200)
-              : undefined,
-          }),
-        ),
-        totalFound: data.results?.length ?? 0,
-      };
-    },
+    handler: searchKnowledgeBase,
     render: ({ result, status }) => {
       if (status === 'inProgress' || status === 'executing') {
         return <SearchingIndicator />;

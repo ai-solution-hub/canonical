@@ -16,7 +16,7 @@ import { ThemeSettings } from '@/components/theme-settings';
 import { NotificationBell } from '@/components/notification-bell';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useCopilotSidebar } from '@/components/global-copilot-sidebar';
+import { useCopilotSidebar } from '@/hooks/use-copilot-sidebar';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -101,7 +101,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             onClick={toggleSidebar}
-            aria-label="Toggle AI assistant (Ctrl+/)"
+            aria-label="Toggle AI assistant"
             title="AI Assistant (Ctrl+/)"
             className="text-muted-foreground"
           >

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   X,
@@ -17,6 +17,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
+import { useHydrated } from '@/hooks/use-hydrated';
+import { cn } from '@/lib/utils';
 import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -24,14 +26,6 @@ import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/typ
 // ---------------------------------------------------------------------------
 
 const DISMISS_KEY = 'reorient-dismissed';
-
-// SSR-safe hydration check
-const subscribe = () => () => {};
-const getSnapshot = () => true;
-const getServerSnapshot = () => false;
-function useHydrated() {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -88,7 +82,16 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
         <AlertTriangle className="size-3" aria-hidden="true" />
         Needs your attention
       </h3>
-      <div className="space-y-2">
+      <div className={
+        items.length <= 3
+          ? cn(
+              'grid grid-cols-1 gap-2',
+              items.length === 1 && 'lg:grid-cols-1',
+              items.length === 2 && 'lg:grid-cols-2',
+              items.length === 3 && 'lg:grid-cols-3',
+            )
+          : 'space-y-2'
+      }>
         {items.map((item) => {
           const Icon = urgentIcon(item.type);
           return (
@@ -158,7 +161,7 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
             <span className="font-medium text-foreground">{group.name}</span>{' '}
             {group.action} {group.count} item{group.count === 1 ? '' : 's'}
             {group.domain && (
-              <> in <span className="font-medium">{group.domain}</span></>
+              <> in <span className="font-medium text-foreground">{group.domain}</span></>
             )}
           </li>
         ))}
