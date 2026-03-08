@@ -12,13 +12,6 @@ structured data accessible by AI. The first domain application is bid management
 for UK SMBs. The knowledge base is the foundation; bids are the first use case,
 not the only one.
 
-Forked from the IMS (Idea Management System) codebase — a personal knowledge
-management system with semantic search, AI classification, and content ingestion
-pipelines. Personal-use features (LinkedIn, Reddit, YouTube, Gmail integrations,
-Chrome extension, launchd agents) have been stripped. The retained codebase
-provides search, browse, content display, workspaces, digests, and the Python
-ingestion pipeline as a starting point.
-
 **Team:** Liam (product owner, zero development experience) + Claude Code as
 development partner. All code is written through human-AI collaboration.
 
@@ -90,21 +83,11 @@ knowledge-hub/
     login/                    #   /login (Supabase Auth)
     auth/                     #   /auth/callback (OAuth callback)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~118 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
+  components/                 # ~134 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
   contexts/                   # React contexts (read-marks, taxonomy, client-features)
-  hooks/                      # 15 hooks (accessibility, browse-filters, citation-orphans,
-                              #   content-library-drawer, display-names, draft-stream,
-                              #   keyboard-shortcuts, notifications, progress, reader-preferences,
-                              #   review-shortcuts, search, theme-mode, transcript, user-role)
-  lib/                        # Supabase clients, taxonomy, formatting, utils, anthropic,
-                              #   ai-parse, auth, roles, error, rate-limit, digest-export,
-                              #   browse-helpers, extraction-schemas, highlight, validation/,
-                              #   bid-drafting, bid-matching, bid-state-machine, bid-export-*,
-                              #   citations, copilotkit/, editor-utils, embeddings, freshness,
-                              #   quality-check, structured-outputs, pdf-worker, client-config,
-                              #   cost-estimation, dashboard, docx-utils, drawer-insert,
-                              #   change-summary, template-auto-map, user-helpers,
-                              #   taxonomy-format, taxonomy-server, anthropic-files
+  hooks/                      # ~32 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.)
+  lib/                        # ~40 utility modules (auth, supabase clients, bid-*, copilotkit/,
+                              #   embeddings, freshness, validation/, taxonomy-*, etc.)
   types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
@@ -121,13 +104,12 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # 27 migration files
+    migrations/               # ~33 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
-                              #   Regenerate: /opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
     continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest tests (58 files across lib/ (23+4), components/ (5+2), hooks/ (3+3), api/ (13+5) + 5 helper files)
+  __tests__/                  # Vitest tests (~68 test files, ~1248 tests)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -209,8 +191,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — 58 test files (1026 tests) across lib/ (27),
-  components/ (7), hooks/ (6), api/ (18) + 5 helper files
+- **Location:** `__tests__/` — ~68 test files (~1248 tests)
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
@@ -255,69 +236,13 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 ### Design System: Warm Meridian
 
-**Philosophy:** `docs/design/warm-meridian-philosophy.md`
-**Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
-**Visual reference:** `docs/design/warm-meridian-identity.pdf`
+- **Philosophy:** `docs/design/warm-meridian-philosophy.md`
+- **Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
+- **Visual reference:** `docs/design/warm-meridian-identity.pdf`
+- **Quality checks:** `.claude/checks/` (design-system, accessibility, etc.)
 
-### Users
-
-Bid managers and knowledge owners at UK SMBs. They work in high-stakes,
-deadline-driven environments where the quality of a bid response can determine
-whether their company wins or loses significant contracts. They need to find
-information quickly, trust that it is current, and produce polished output under
-time pressure. The tool is used daily as a primary workspace, not occasionally.
-
-### Brand Personality
-
-**Calm, precise, trustworthy.** The interface should feel like a well-organised
-reference library staffed by an expert who anticipates what you need before you
-ask. Never flashy, never clever for its own sake — every visual decision serves
-orientation and clarity.
-
-### Emotional Goals
-
-**Confidence and control.** Users should feel they know exactly where everything
-is, trust the data they are reading, and feel in command of a complex process.
-The interface should reduce cognitive load, not add to it.
-
-### Aesthetic Direction
-
-- **Visual tone:** Restrained, architectural, cartographic. The Warm Meridian
-  philosophy is the primary reference — no external comparisons needed
-- **Colour system:** OKLCH throughout. Warm stone foundation (hue 48) with a
-  single amber signal frequency (hue 55) reserved for actionable elements.
-  Status colours use a teal/sand/rose semantic system. Domain colours are
-  low-chroma categorical, never competing with the signal
-- **Typography:** Instrument Sans — structural clarity, not decorative. One
-  family, hierarchy through weight and space. Atkinson Hyperlegible as
-  accessibility override
-- **Spacing:** 4pt grid with generous margins. Space is load-bearing
-  architecture — corridors that make rooms feel like arrivals
-- **Dark mode:** Full support with warm palette shift (not just inversion)
-- **Anti-references:** Generic SaaS dashboards with candy-coloured cards,
-  gamified interfaces, anything that prioritises visual excitement over
-  navigational clarity
-
-### Design Principles
-
-1. **Signal, not noise** — Amber warmth is reserved for moments of agency
-   (buttons, links, focus rings). It never decorates, never fills. If everything
-   is highlighted, nothing is
-2. **Orientation without instruction** — The user should always know where they
-   are and where to go next, without needing labels or arrows to tell them.
-   Spatial structure, tonal temperature shifts, and information density gradients
-   do the work
-3. **Semantic over arbitrary** — Every colour in the system has a defined
-   meaning (freshness, confidence, bid state, governance). Use the semantic
-   token, never a raw Tailwind colour class. One class handles both light and
-   dark modes automatically
-4. **Invisible craft** — The difficulty of the design should be hidden behind
-   the serenity of the result. If a user notices the design, it has failed. If
-   they find everything effortlessly, it has succeeded
-5. **Accessible by default** — WCAG 2.1 AA minimum. Never colour alone for
-   meaning (always icon + text + colour). Dyslexia mode, high contrast mode,
-   large text mode, reduced motion. Accessibility is not a feature — it is the
-   floor
+Consult these references for brand personality, aesthetic direction, and design
+principles. Key actionable rules below.
 
 ### Token Quick Reference
 
@@ -346,7 +271,7 @@ exists for your use case, define one in `app/globals.css` first.
 | Document | Location | Purpose |
 |----------|----------|---------|
 | State of the Product | `.planning/state-of-the-product.md` | Accurate reference of actual tech stack, architecture, features |
-| Codebase mapping (8 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns |
+| Codebase mapping (7 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
 | Quality checks (10 files) | `.claude/checks/` | Best-practice checks used by `/review` (accessibility, architecture, design system, error handling, image quality, multi-user patterns, package manager, Supabase patterns, testing, UK English) |
 | Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns |
@@ -398,9 +323,6 @@ when needed.
 - **Content review vs governance review:** `/review` is content quality review
   (speed review cards). `/api/governance/review` is freshness/ownership
   governance. They are separate workflows — do not conflate them.
-- **`bun test` vs `bun run test`:** `bun test` invokes bun's native test
-  runner (no jsdom, no vitest config). `bun run test` invokes vitest via the
-  package.json script. ALWAYS use `bun run test` for this project.
 - **`vi.mock()` hoisting in Vitest v4:** `vi.mock()` factories are hoisted
   above `const` declarations. Variables referenced inside factories must use
   `vi.hoisted(() => { return { mock }; })`. Arrow functions in
