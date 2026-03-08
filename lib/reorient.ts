@@ -125,6 +125,23 @@ export async function fetchReorientData(
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
       .is('dismissed_at', null),
+
+    // 7: Bid response changes by others (team changes)
+    supabase
+      .from('bid_response_history')
+      .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
+      .gt('created_at', sinceDate)
+      .neq('edited_by', userId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+
+    // 8: User's own bid response edits (recent work)
+    supabase
+      .from('bid_response_history')
+      .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
+      .eq('edited_by', userId)
+      .order('created_at', { ascending: false })
+      .limit(5),
   ]);
 
   // --- Extract team changes ---
@@ -152,6 +169,41 @@ export async function fetchReorientData(
     errors.push('team_changes query failed');
   }
 
+  // --- Extract bid response team changes ---
+  if (results[7].status === 'fulfilled') {
+    const { data, error } = results[7].value;
+    if (error) {
+      errors.push('bid_response team_changes query failed');
+    } else if (data) {
+      for (const row of data) {
+        const br = row.bid_responses as unknown as {
+          question_id: string;
+          bid_questions: {
+            project_id: string;
+            workspaces: { name: string };
+          };
+        } | null;
+        team_changes.push({
+          user_id: row.edited_by ?? '',
+          user_name: null,
+          action: 'updated',
+          entity_type: 'bid_response',
+          entity_id: row.response_id,
+          entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Bid',
+          domain: undefined,
+          created_at: row.created_at,
+        });
+      }
+    }
+  } else {
+    errors.push('bid_response team_changes query failed');
+  }
+
+  // Sort combined team changes by date (content_history + bid_response_history)
+  team_changes.sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
   // --- Extract user's recent work ---
   const my_recent_work: RecentWorkItem[] = [];
   if (results[1].status === 'fulfilled') {
@@ -174,6 +226,45 @@ export async function fetchReorientData(
   } else {
     errors.push('my_recent_work query failed');
   }
+
+  // --- Extract user's own bid response edits ---
+  if (results[8].status === 'fulfilled') {
+    const { data, error } = results[8].value;
+    if (error) {
+      errors.push('bid_response my_recent_work query failed');
+    } else if (data) {
+      for (const row of data) {
+        const br = row.bid_responses as unknown as {
+          question_id: string;
+          bid_questions: {
+            project_id: string;
+            question_text: string;
+            workspaces: { id: string; name: string };
+          };
+        } | null;
+        const questionText = br?.bid_questions?.question_text ?? 'Untitled question';
+        const bidId = br?.bid_questions?.workspaces?.id;
+        my_recent_work.push({
+          entity_type: 'bid_response',
+          entity_id: row.response_id,
+          entity_title: questionText.length > 60
+            ? `${questionText.slice(0, 57)}...`
+            : questionText,
+          action: 'edited',
+          href: bidId ? `/bid/${bidId}/session` : '/bid',
+          created_at: row.created_at,
+        });
+      }
+    }
+  } else {
+    errors.push('bid_response my_recent_work query failed');
+  }
+
+  // Sort combined recent work by date and limit to 5
+  my_recent_work.sort((a, b) =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  my_recent_work.splice(5);
 
   // --- Extract active bids with question stats ---
   const bid_summary: BidBriefing[] = [];
@@ -343,6 +434,18 @@ export async function fetchReorientData(
       detail: 'Items with quality issues need attention',
       href: '/review',
       entity_id: 'quality-flags',
+    });
+  }
+
+  // Unread notifications above threshold (5+)
+  if (unreadNotifications >= 5) {
+    urgent.push({
+      type: 'notification',
+      priority: 3,
+      title: `${unreadNotifications} unread notification${unreadNotifications === 1 ? '' : 's'}`,
+      detail: 'You have unread notifications that may need attention',
+      href: '/settings?tab=notifications',
+      entity_id: 'notifications',
     });
   }
 

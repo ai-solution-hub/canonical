@@ -132,7 +132,7 @@ async function DashboardContent() {
       </div>
 
       {/* Recent Activity */}
-      <section className="mt-6" aria-label="Recent activity">
+      <section className="mt-6 rounded-lg bg-accent/5 p-4" aria-label="Recent activity">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent Activity
         </h2>

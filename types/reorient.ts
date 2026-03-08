@@ -27,7 +27,7 @@ export interface ReorientData {
 }
 
 export interface UrgentItem {
-  type: 'bid_deadline' | 'review_pending' | 'content_expired' | 'quality_flag';
+  type: 'bid_deadline' | 'review_pending' | 'content_expired' | 'quality_flag' | 'notification';
   priority: 1 | 2 | 3;
   title: string;
   detail: string;
@@ -40,7 +40,12 @@ export interface TeamChange {
   user_id: string;
   user_name: string | null;
   action: 'created' | 'updated' | 'reviewed' | 'flagged';
-  entity_type: 'content_item';
+  /**
+   * 'content_item' — sourced from `content_history` (tracks content_items edits)
+   * 'bid_response' — sourced from `bid_response_history` (tracks bid response edits)
+   * Q&A pair changes go through `content_history` if stored as content_items.
+   */
+  entity_type: 'content_item' | 'bid_response';
   entity_id: string;
   entity_title: string;
   domain?: string;

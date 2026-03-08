@@ -4,14 +4,13 @@ import { useCopilotAction } from '@copilotkit/react-core';
 import { SearchingIndicator } from '@/components/copilot-ui/searching-indicator';
 import { KBSearchResults } from '@/components/copilot-ui/kb-search-results';
 import { searchKnowledgeBase } from '@/lib/copilotkit/shared-actions';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 /**
- * Shared CopilotKit actions available on every page.
- * Mounted at the root layout level. Page-specific components may register
- * their own version of an action with the same name — the most recently
- * registered version takes precedence (CopilotKit's designed behaviour).
+ * Inner component that registers CopilotKit actions.
+ * Only rendered after hydration when CopilotKit context is available.
  */
-export function SharedCopilotActions() {
+function SharedActionsInner() {
   useCopilotAction({
     name: 'searchKnowledgeBase',
     description:
@@ -53,4 +52,19 @@ export function SharedCopilotActions() {
   });
 
   return null;
+}
+
+/**
+ * Shared CopilotKit actions available on every page.
+ * Mounted at the root layout level. Page-specific components may register
+ * their own version of an action with the same name — the most recently
+ * registered version takes precedence (CopilotKit's designed behaviour).
+ * Deferred until after hydration so the CopilotKit provider is mounted.
+ */
+export function SharedCopilotActions() {
+  const hydrated = useHydrated();
+
+  if (!hydrated) return null;
+
+  return <SharedActionsInner />;
 }

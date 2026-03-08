@@ -345,17 +345,16 @@ describe('fetchReorientData', () => {
       // We verify by checking that the mock chain was configured correctly.
       const mock = setupDefaultMock();
 
-      await fetchReorientData(
+      const result = await fetchReorientData(
         mock as unknown as Parameters<typeof fetchReorientData>[0],
         TEST_USER_ID,
         false,
         'editor',
       );
 
-      // The second from() call (index 1) is the team changes query.
-      // Verify limit was called. Since we're using mock chains, we verify
-      // the result is constrained.
-      expect(result => result).toBeDefined();
+      // The team changes query uses .limit(20) — with the mock setup,
+      // we verify that the result is valid (not an error).
+      expect(result.team_changes).toBeDefined();
     });
 
     it('maps change_type "create" to action "created"', async () => {
@@ -626,6 +625,44 @@ describe('fetchReorientData', () => {
       expect(reviewItem).toBeDefined();
       expect(reviewItem!.title).toContain('7 governance reviews');
       expect(reviewItem!.href).toBe('/review');
+    });
+
+    it('generates notification urgent item when 5+ unread notifications', async () => {
+      const mock = setupDefaultMock({
+        notificationsCount: 8,
+      });
+
+      // Use isAdmin=true so that all from() calls in the mock are consumed
+      // in the correct order (quality_flag query uses from() rather than
+      // Promise.resolve)
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      const notifItem = result.urgent.find(u => u.type === 'notification');
+      expect(notifItem).toBeDefined();
+      expect(notifItem!.title).toContain('8 unread notifications');
+      expect(notifItem!.href).toBe('/settings?tab=notifications');
+      expect(notifItem!.priority).toBe(3);
+    });
+
+    it('does not generate notification urgent item when fewer than 5 notifications', async () => {
+      const mock = setupDefaultMock({
+        notificationsCount: 3,
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        true,
+        'admin',
+      );
+
+      const notifItem = result.urgent.find(u => u.type === 'notification');
+      expect(notifItem).toBeUndefined();
     });
 
     it('uses singular form for single items', async () => {

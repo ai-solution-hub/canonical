@@ -3,12 +3,13 @@
 import { useCopilotReadable } from '@copilotkit/react-core';
 import { useCopilotPageContext } from '@/contexts/copilot-page-context';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 /**
- * Always-available CopilotKit readable context.
- * Mounted at the root layout level, providing global context to all pages.
+ * Inner component that registers CopilotKit readables.
+ * Only rendered after hydration when CopilotKit context is available.
  */
-export function GlobalCopilotReadable() {
+function CopilotReadableInner() {
   const { page, pageMetadata } = useCopilotPageContext();
   const { role, canEdit, canAdmin } = useUserRole();
 
@@ -31,4 +32,17 @@ export function GlobalCopilotReadable() {
   });
 
   return null;
+}
+
+/**
+ * Always-available CopilotKit readable context.
+ * Mounted at the root layout level, providing global context to all pages.
+ * Deferred until after hydration so the CopilotKit provider is mounted.
+ */
+export function GlobalCopilotReadable() {
+  const hydrated = useHydrated();
+
+  if (!hydrated) return null;
+
+  return <CopilotReadableInner />;
 }

@@ -298,7 +298,7 @@ export function DashboardActivityFeed({
                   key={group.key}
                   href={`/item/${group.representative.entity_id}`}
                   role="article"
-                  className="group flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/50"
+                  className="group flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <Icon
                     className={`mt-0.5 size-4 shrink-0 ${iconClass}`}

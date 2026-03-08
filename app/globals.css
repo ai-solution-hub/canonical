@@ -172,6 +172,9 @@
   --color-bid-withdrawn: oklch(0.55 0.014 48);
   --color-bid-withdrawn-bg: oklch(0.95 0.010 48);
   --color-bid-withdrawn-border: oklch(0.82 0.014 48);
+  --color-bid-overdue: oklch(0.50 0.20 20);
+  --color-bid-overdue-bg: oklch(0.95 0.03 20);
+  --color-bid-overdue-border: oklch(0.82 0.06 20);
 
   /* Governance */
   --color-governance-pending: oklch(0.60 0.14 70);
@@ -394,6 +397,9 @@
   --color-bid-withdrawn: oklch(0.65 0.012 48);
   --color-bid-withdrawn-bg: oklch(0.25 0.016 48);
   --color-bid-withdrawn-border: oklch(0.35 0.014 48);
+  --color-bid-overdue: oklch(0.70 0.17 20);
+  --color-bid-overdue-bg: oklch(0.25 0.05 20);
+  --color-bid-overdue-border: oklch(0.35 0.06 20);
 
   /* Governance (dark) */
   --color-governance-pending: oklch(0.72 0.12 70);
@@ -547,6 +553,9 @@
   --color-bid-withdrawn: var(--color-bid-withdrawn);
   --color-bid-withdrawn-bg: var(--color-bid-withdrawn-bg);
   --color-bid-withdrawn-border: var(--color-bid-withdrawn-border);
+  --color-bid-overdue: var(--color-bid-overdue);
+  --color-bid-overdue-bg: var(--color-bid-overdue-bg);
+  --color-bid-overdue-border: var(--color-bid-overdue-border);
 
   --color-governance-pending: var(--color-governance-pending);
   --color-governance-pending-bg: var(--color-governance-pending-bg);
@@ -705,6 +714,11 @@ p + p {
 /* ===== CopilotKit Sidebar — Warm Meridian Overrides ===== */
 .global-copilot-sidebar {
   font-family: var(--font-sans);
+}
+
+/* Ensure sidebar sits above site header (z-40) */
+.global-copilot-sidebar .copilotKitSidebar {
+  z-index: 50;
 }
 
 .global-copilot-sidebar [data-copilotkit-sidebar] {

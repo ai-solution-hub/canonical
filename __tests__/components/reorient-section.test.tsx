@@ -309,6 +309,26 @@ describe('ReorientSection', () => {
     expect(link).toHaveAttribute('href', '/item/item-55');
   });
 
+  // ── Notification urgent items ──
+
+  it('renders notification urgent items', () => {
+    const data = makeReorientData({
+      urgent: [
+        makeUrgentItem({
+          type: 'notification',
+          title: '8 unread notifications',
+          detail: 'You have unread notifications that may need attention',
+          href: '/settings?tab=notifications',
+          entity_id: 'notifications',
+          priority: 3,
+        }),
+      ],
+    });
+
+    render(<ReorientSection data={data} />);
+    expect(screen.getByText('8 unread notifications')).toBeInTheDocument();
+  });
+
   // ── Empty state ──
 
   it('shows empty state when all blocks are empty', () => {
@@ -333,6 +353,43 @@ describe('ReorientSection', () => {
 
     render(<ReorientSection data={data} />);
     expect(screen.queryByText(/everything looks good/i)).not.toBeInTheDocument();
+  });
+
+  // ── First-login empty state ──
+
+  it('shows welcome message for first-login users', () => {
+    const data = makeReorientData({
+      last_active_at: null,
+      last_active_relative: '',
+      urgent: [],
+      team_changes: [],
+      my_recent_work: [],
+    });
+
+    render(<ReorientSection data={data} />);
+    expect(
+      screen.getByText(/welcome to knowledge hub/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/everything looks good/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows standard empty state for returning users with no changes', () => {
+    const data = makeReorientData({
+      last_active_at: '2026-03-08T08:00:00Z',
+      urgent: [],
+      team_changes: [],
+      my_recent_work: [],
+    });
+
+    render(<ReorientSection data={data} />);
+    expect(
+      screen.getByText(/everything looks good/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/welcome to knowledge hub/i),
+    ).not.toBeInTheDocument();
   });
 
   // ── Dismiss ──

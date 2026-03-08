@@ -4,6 +4,7 @@ import { CopilotKit } from '@copilotkit/react-core';
 import '@copilotkit/react-ui/styles.css';
 import { ReactNode, Component, useState, useEffect, useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 // ────────────────────────────────────────────
 // Error Boundary
@@ -140,20 +141,30 @@ interface CopilotKitProviderProps {
 }
 
 /**
- * CopilotKit provider scoped to the bid session page.
+ * CopilotKit provider with health check and hydration guard.
  *
- * Performs a lightweight health check against /api/copilotkit before
+ * Defers mounting until after hydration to avoid React error #418:
+ * CopilotKit's ThreadsProvider calls `crypto.randomUUID()` inside
+ * `useState`, producing a different value on server vs client.
+ * During SSR / initial hydration we render children directly.
+ *
+ * Also performs a lightweight health check against /api/copilotkit before
  * mounting the CopilotKit component. If the endpoint is unreachable
- * or returns a server error, renders children directly with a
- * dismissible warning banner instead of entering an infinite retry loop.
+ * or returns a server error, renders children with a dismissible
+ * warning banner instead of entering an infinite retry loop.
  */
 export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
+  const hydrated = useHydrated();
   const health = useCopilotHealthCheck();
 
-  // Always wrap children in CopilotKit so hooks (useCopilotReadable,
-  // useCopilotAction, etc.) and CopilotSidebar never mount without a
-  // provider context. The CopilotKit component is lightweight — it only
-  // sets up React context. Actual network calls happen on user interaction.
+  // Before hydration, render children without CopilotKit context.
+  // Hooks like useCopilotReadable are only called inside components
+  // that themselves wait for hydration (GlobalCopilotSidebar, etc.),
+  // so this is safe.
+  if (!hydrated) {
+    return <>{children}</>;
+  }
+
   return (
     <CopilotKitErrorBoundary>
       <CopilotKit runtimeUrl="/api/copilotkit">

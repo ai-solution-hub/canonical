@@ -8,6 +8,24 @@ import { ConfidenceDot } from '@/components/confidence-badge';
 import { formatDateUK } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Bid, BidMetadata, ConfidencePosture } from '@/types/bid';
+import type { BidState } from '@/types/bid';
+
+/**
+ * Maps each BidState to a left-border accent class using semantic bid-* tokens.
+ * Classes must be written out fully for Tailwind's JIT scanner to detect them.
+ */
+const STATUS_BORDER_CLASS: Record<BidState, string> = {
+  draft: 'border-l-bid-draft-border',
+  questions_extracted: 'border-l-bid-discovery-border',
+  matching: 'border-l-bid-discovery-border',
+  drafting: 'border-l-bid-active-border',
+  in_review: 'border-l-bid-active-border',
+  ready_for_export: 'border-l-bid-review-border',
+  submitted: 'border-l-bid-submitted-border',
+  won: 'border-l-bid-won-border',
+  lost: 'border-l-bid-lost-border',
+  withdrawn: 'border-l-bid-withdrawn-border',
+};
 
 interface BidListCardProps {
   bid: Bid;
@@ -33,7 +51,8 @@ export function BidListCard({ bid, className }: BidListCardProps) {
     <Link
       href={`/bid/${bid.id}`}
       className={cn(
-        'group block rounded-lg border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
+        'group block rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
+        STATUS_BORDER_CLASS[bidStatus] ?? 'border-l-bid-draft-border',
         className,
       )}
     >

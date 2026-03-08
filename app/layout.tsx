@@ -55,8 +55,8 @@ export default async function RootLayout({
                   <a href="#main-content" className="skip-link">
                     Skip to main content
                   </a>
-                  <SiteHeader />
                   <GlobalCopilotSidebar>
+                    <SiteHeader />
                     <main id="main-content">{children}</main>
                   </GlobalCopilotSidebar>
                   <CommandPalette />

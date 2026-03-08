@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   X,
   AlertTriangle,
+  Bell,
   Clock,
   ArrowRight,
   Users,
@@ -63,7 +64,7 @@ function WelcomeBack({
 function UrgentItems({ items }: { items: UrgentItem[] }) {
   if (items.length === 0) return null;
 
-  const urgentIcon = (type: UrgentItem['type']) => {
+  const urgentIcon = (type: UrgentItem['type']): typeof AlertTriangle => {
     switch (type) {
       case 'bid_deadline':
         return Briefcase;
@@ -72,6 +73,10 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
       case 'review_pending':
         return ShieldCheck;
       case 'quality_flag':
+        return AlertTriangle;
+      case 'notification':
+        return Bell;
+      default:
         return AlertTriangle;
     }
   };
@@ -94,15 +99,20 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
       }>
         {items.map((item) => {
           const Icon = urgentIcon(item.type);
+          // Use text-bid-overdue for overdue bids, text-status-warning for everything else
+          const iconColour =
+            item.type === 'bid_deadline' && item.deadline && new Date(item.deadline) < new Date()
+              ? 'text-bid-overdue'
+              : 'text-status-warning';
           return (
             <Link
               key={`${item.type}-${item.entity_id}`}
               href={item.href}
-              className="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50"
+              className="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label={`${item.title} — ${item.detail}`}
             >
               <Icon
-                className="mt-0.5 size-4 shrink-0 text-status-warning"
+                className={`mt-0.5 size-4 shrink-0 ${iconColour}`}
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">
@@ -125,17 +135,47 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
   );
 }
 
+/**
+ * Known domain-to-CSS-token mapping. Domain names from the API (primary_domain)
+ * are lowercase kebab-case. The CSS variables use `--domain-{key}-text` where
+ * the key may differ (e.g. "product-feature" maps to "product"). Domains not in
+ * this map fall back to `text-foreground`.
+ *
+ * NOTE: If new taxonomy domains are added, this map needs updating to match the
+ * CSS variable names in globals.css. A fully dynamic solution would require the
+ * TaxonomyContext here, but that couples the reorient section to taxonomy loading.
+ */
+const DOMAIN_COLOUR_CLASS: Record<string, string> = {
+  security: 'text-[var(--domain-security-text)]',
+  compliance: 'text-[var(--domain-compliance-text)]',
+  implementation: 'text-[var(--domain-implementation-text)]',
+  support: 'text-[var(--domain-support-text)]',
+  corporate: 'text-[var(--domain-corporate-text)]',
+  'product-feature': 'text-[var(--domain-product-text)]',
+  methodology: 'text-[var(--domain-methodology-text)]',
+};
+
 function TeamChanges({ changes }: { changes: TeamChange[] }) {
   const userIds = changes.map((c) => c.user_id).filter(Boolean);
   const displayNames = useDisplayNames(userIds);
 
   if (changes.length === 0) return null;
 
-  // Group changes by user + action for compact display
-  const grouped = new Map<string, { name: string; action: string; count: number; domain?: string }>();
+  // Group changes by user + action + entity type for compact display
+  const grouped = new Map<string, {
+    name: string;
+    action: string;
+    count: number;
+    domain?: string;
+    entityType: TeamChange['entity_type'];
+  }>();
   for (const change of changes) {
     const name = displayNames.get(change.user_id) ?? 'A team member';
-    const key = `${change.user_id}::${change.action}::${change.domain ?? 'general'}`;
+    // For bid responses, use entity_title (bid name) as grouping context instead of domain
+    const context = change.entity_type === 'bid_response'
+      ? change.entity_title
+      : (change.domain ?? 'general');
+    const key = `${change.user_id}::${change.action}::${change.entity_type}::${context}`;
     const existing = grouped.get(key);
     if (existing) {
       existing.count += 1;
@@ -144,7 +184,8 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
         name,
         action: change.action,
         count: 1,
-        domain: change.domain,
+        domain: change.entity_type === 'bid_response' ? change.entity_title : change.domain,
+        entityType: change.entity_type,
       });
     }
   }
@@ -156,15 +197,24 @@ function TeamChanges({ changes }: { changes: TeamChange[] }) {
         Since you were away
       </h3>
       <ul className="space-y-1">
-        {Array.from(grouped.values()).map((group, i) => (
-          <li key={i} className="text-sm text-muted-foreground">
-            <span className="font-medium text-foreground">{group.name}</span>{' '}
-            {group.action} {group.count} item{group.count === 1 ? '' : 's'}
-            {group.domain && (
-              <> in <span className="font-medium text-foreground">{group.domain}</span></>
-            )}
-          </li>
-        ))}
+        {Array.from(grouped.values()).map((group, i) => {
+          const domainColourClass =
+            group.domain
+              ? DOMAIN_COLOUR_CLASS[group.domain.toLowerCase()] ?? 'text-foreground'
+              : undefined;
+
+          const noun = group.entityType === 'bid_response' ? 'response' : 'item';
+
+          return (
+            <li key={i} className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{group.name}</span>{' '}
+              {group.action} {group.count} {noun}{group.count === 1 ? '' : 's'}
+              {group.domain && (
+                <> in <span className={cn('font-medium', domainColourClass ?? 'text-foreground')}>{group.domain}</span></>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -184,7 +234,7 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
           <li key={item.entity_id}>
             <Link
               href={item.href}
-              className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent/50"
+              className="group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Clock className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-foreground group-hover:underline">
@@ -229,6 +279,12 @@ export function ReorientSection({ data }: ReorientSectionProps) {
   const hasRecentWork = data.my_recent_work.length > 0;
   const isEmpty = !hasUrgent && !hasTeamChanges && !hasRecentWork;
 
+  // First-login detection: no prior activity and no recent work
+  const isFirstLogin =
+    !data.last_active_at &&
+    data.my_recent_work.length === 0 &&
+    data.team_changes.length === 0;
+
   return (
     <section
       className="rounded-lg border border-border bg-card p-5"
@@ -255,8 +311,9 @@ export function ReorientSection({ data }: ReorientSectionProps) {
 
       {isEmpty ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Everything looks good — no urgent items and nothing new since your
-          last visit.
+          {isFirstLogin
+            ? 'Welcome to Knowledge Hub. Start by browsing the knowledge base or creating your first bid.'
+            : 'Everything looks good \u2014 no urgent items and nothing new since your last visit.'}
         </p>
       ) : (
         <div className="mt-4 space-y-4">
