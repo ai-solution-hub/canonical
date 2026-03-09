@@ -46,16 +46,14 @@ async function handleMcpRequest(request: Request): Promise<Response> {
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
+    enableJsonResponse: true, // Return JSON instead of SSE for simpler response handling
   });
 
   await server.connect(transport);
 
-  try {
-    return await transport.handleRequest(request);
-  } finally {
-    await transport.close();
-    await server.close();
-  }
+  // Don't close transport/server — the response stream needs them alive.
+  // Vercel will clean up when the function instance is recycled.
+  return await transport.handleRequest(request);
 }
 
 export const maxDuration = 60;
