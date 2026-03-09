@@ -21,12 +21,12 @@ test.describe('Browse page', () => {
     ).toBeVisible();
 
     // Item count text should appear (e.g. "186 items")
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('content grid is displayed by default', async ({ authenticatedPage: page }) => {
     // Wait for content to load (item count visible)
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     // The grid view mode button should be active / selected
     // The view toggle group has two buttons — grid and list
@@ -35,7 +35,7 @@ test.describe('Browse page', () => {
   });
 
   test('can switch between grid and list views', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     const viewGroup = page.getByRole('group', { name: 'View mode' });
 
@@ -54,7 +54,7 @@ test.describe('Browse page', () => {
   });
 
   test('filter button opens the filter panel', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     // The filters button has a SlidersHorizontal icon — look for it by aria-label or text
     const filtersButton = page.getByRole('button', { name: /filter/i });
@@ -62,11 +62,11 @@ test.describe('Browse page', () => {
 
     // The filter panel is a Sheet/dialog that should appear
     // It contains domain, content type, and other filter options
-    await expect(page.getByText(/domain/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('heading', { name: /filter/i }).or(page.getByText('Content type'))).toBeVisible({ timeout: 5000 });
   });
 
   test('sort dropdown shows available sort options', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     // The sort control is a Select component with sort options
     // Look for the sort trigger (ArrowUpDown icon button or select trigger)
@@ -86,7 +86,7 @@ test.describe('Browse page', () => {
   });
 
   test('clicking a content item navigates to the detail page', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     // Content items are rendered as links — find the first one
     // Items in the grid are links to /item/[id]
@@ -107,7 +107,7 @@ test.describe('Browse page', () => {
   });
 
   test('shows item count in footer text', async ({ authenticatedPage: page }) => {
-    await expect(page.getByText(/\d+ items?/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
     // The bottom of the page shows "Showing X of Y items"
     await expect(

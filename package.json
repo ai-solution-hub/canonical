@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.78.0",
@@ -22,6 +23,7 @@
     "@copilotkit/runtime": "^1.53.0",
     "@fontsource/atkinson-hyperlegible-next": "^5.2.7",
     "@fontsource/opendyslexic": "^5.2.5",
+    "@modelcontextprotocol/ext-apps": "^1.2.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@mozilla/readability": "^0.6.0",
     "@sentry/nextjs": "^10.42.0",
@@ -81,6 +83,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.18",
+    "dotenv": "^17.3.1",
     "eslint": "^9",
     "eslint-config-next": "^16",
     "jsdom": "^28.1.0",

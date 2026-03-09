@@ -41,8 +41,8 @@ export async function seedTestData(): Promise<SeededData> {
     {
       title: `${E2E_PREFIX} IT Support Policy`,
       content_type: 'article' as const,
-      domain: 'Service Delivery',
-      summary: 'E2E test article about IT support policies and procedures.',
+      primary_domain: 'Service Delivery',
+      ai_summary: 'E2E test article about IT support policies and procedures.',
       platform: 'manual' as const,
       source_url: 'https://e2e-test.example.com/it-support',
       content: 'This is an E2E test content item covering IT support policies.',
@@ -50,8 +50,8 @@ export async function seedTestData(): Promise<SeededData> {
     {
       title: `${E2E_PREFIX} What is your SLA?`,
       content_type: 'q_a_pair' as const,
-      domain: 'Service Delivery',
-      summary: 'Q&A pair about service level agreements.',
+      primary_domain: 'Service Delivery',
+      ai_summary: 'Q&A pair about service level agreements.',
       platform: 'manual' as const,
       content:
         'Q: What is your SLA?\nA: We provide tiered SLAs with 15-minute P1 response.',
@@ -61,8 +61,8 @@ export async function seedTestData(): Promise<SeededData> {
     {
       title: `${E2E_PREFIX} Test Note`,
       content_type: 'note' as const,
-      domain: 'General',
-      summary: 'A simple test note for E2E testing.',
+      primary_domain: 'General',
+      ai_summary: 'A simple test note for E2E testing.',
       platform: 'manual' as const,
       content: 'This is a test note created for E2E testing purposes.',
     },
@@ -129,7 +129,6 @@ export async function seedTestData(): Promise<SeededData> {
         question_text:
           'Describe your approach to providing IT support services.',
         word_limit: 500,
-        category: 'technical',
       },
       {
         project_id: bid.id,
@@ -139,7 +138,6 @@ export async function seedTestData(): Promise<SeededData> {
         question_text:
           'What experience does your organisation have in public sector IT?',
         word_limit: 400,
-        category: 'experience',
       },
     ];
 

@@ -24,10 +24,12 @@ async function globalSetup(): Promise<void> {
   }
 
   // Warn about optional test user credentials
-  if (!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD) {
+  const hasTestCreds =
+    process.env.E2E_TEST_EMAIL || process.env.TEST_USER_1_EMAIL;
+  if (!hasTestCreds) {
     console.warn(
-      'E2E setup: E2E_TEST_EMAIL and/or E2E_TEST_PASSWORD not set. ' +
-        'Auth fixtures will use default test credentials which may not work.'
+      'E2E setup: no test user credentials found (E2E_TEST_EMAIL or TEST_USER_1_EMAIL). ' +
+        'Auth fixtures will use hardcoded defaults which may not work.'
     );
   }
 
