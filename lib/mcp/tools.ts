@@ -92,6 +92,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
+        offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
         domain: z.string().optional().describe('Filter results to a specific domain (e.g. "Security", "Construction", "HR")'),
       },
       annotations: {
@@ -104,21 +105,22 @@ export function registerTools(server: McpServer): void {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const searchLimit = Math.min(args.limit ?? 10, 50);
+        const searchOffset = args.offset ?? 0;
 
         // Generate embedding for semantic search
         const embedding = await generateEmbedding(args.query.trim());
 
-        // Call hybrid_search RPC (embedding must be JSON-stringified for vector params)
+        // Over-fetch to support offset-based pagination (hybrid_search has no native offset)
         const { data: results, error } = await supabase.rpc('hybrid_search', {
           query_embedding: JSON.stringify(embedding),
           query_text: args.query.trim(),
           similarity_threshold: 0.3,
-          limit_count: searchLimit,
+          limit_count: searchOffset + searchLimit + 1, // +1 to detect has_more
         });
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Search failed: ${error.message}` }],
+            content: [{ type: 'text' as const, text: `Search failed: ${error.message}. Try simplifying your query or removing filters.` }],
             isError: true,
           };
         }
@@ -133,8 +135,13 @@ export function registerTools(server: McpServer): void {
           });
         }
 
+        // Apply pagination via slice
+        const totalFiltered = filtered.length;
+        const hasMore = totalFiltered > searchOffset + searchLimit;
+        const paged = filtered.slice(searchOffset, searchOffset + searchLimit);
+
         // Map to SearchResult type for formatting
-        const searchResults: SearchResult[] = filtered.map((r: Record<string, unknown>) => ({
+        const searchResults: SearchResult[] = paged.map((r: Record<string, unknown>) => ({
           id: r.id as string,
           title: r.title as string | null,
           suggested_title: r.suggested_title as string | null,
@@ -151,14 +158,16 @@ export function registerTools(server: McpServer): void {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
             query: args.query,
+            offset: searchOffset,
             count: searchResults.length,
+            has_more: hasMore,
             results: searchResults,
           }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Search failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Search failed: ${message}. Try simplifying your query or removing filters.` }],
           isError: true,
         };
       }
@@ -195,7 +204,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Dashboard query failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Dashboard query failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }
@@ -210,19 +219,25 @@ export function registerTools(server: McpServer): void {
     {
       title: 'List Active Bids',
       description: 'List all active (non-archived) bids with their status, buyer, deadline, and question completion progress. Use this to see which bids are in progress and which need attention.',
+      inputSchema: {
+        limit: z.number().optional().describe('Maximum number of bids to return (default: 20, max: 50)'),
+        offset: z.number().optional().describe('Number of bids to skip for pagination (default: 0)'),
+      },
       annotations: {
         readOnlyHint: true,
         idempotentHint: true,
         openWorldHint: false,
       },
     },
-    async (extra: ToolExtra) => {
+    async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
+        const bidLimit = Math.min(args.limit ?? 20, 50);
+        const bidOffset = args.offset ?? 0;
         const { workspaces, statsMap } = await fetchActiveBidsWithStats(supabase);
 
         // Map to ActiveBidSummary type
-        const bids: ActiveBidSummary[] = workspaces.map((workspace) => {
+        const allBids: ActiveBidSummary[] = workspaces.map((workspace) => {
           const meta = workspace.domain_metadata as Record<string, unknown> | null;
           const stats = statsMap.get(workspace.id);
           const deadline = (meta?.deadline as string) ?? null;
@@ -244,22 +259,33 @@ export function registerTools(server: McpServer): void {
         const urgencyOrder: Record<string, number> = {
           overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
         };
-        bids.sort((a, b) => {
+        allBids.sort((a, b) => {
           const aUrgency = urgencyOrder[getDeadlineUrgency(a.deadline)] ?? 4;
           const bUrgency = urgencyOrder[getDeadlineUrgency(b.deadline)] ?? 4;
           return aUrgency - bUrgency;
         });
 
+        // Apply pagination
+        const totalCount = allBids.length;
+        const hasMore = totalCount > bidOffset + bidLimit;
+        const bids = allBids.slice(bidOffset, bidOffset + bidLimit);
+
         const markdown = formatActiveBids(bids);
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent({ count: bids.length, bids }),
+          structuredContent: toStructuredContent({
+            offset: bidOffset,
+            count: bids.length,
+            total_count: totalCount,
+            has_more: hasMore,
+            bids,
+          }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to list bids: ${message}` }],
+          content: [{ type: 'text' as const, text: `Failed to list bids: ${message}. Try simplifying your query or removing filters.` }],
           isError: true,
         };
       }
@@ -330,7 +356,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to retrieve content item: ${message}` }],
+          content: [{ type: 'text' as const, text: `Failed to retrieve content item: ${message}. Check the ID is a valid UUID.` }],
           isError: true,
         };
       }
@@ -367,7 +393,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Reorientation briefing failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Reorientation briefing failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }
@@ -435,7 +461,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to get bid detail: ${message}` }],
+          content: [{ type: 'text' as const, text: `Failed to get bid detail: ${message}. Check the ID is a valid UUID.` }],
           isError: true,
         };
       }
@@ -503,7 +529,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to get bid question: ${message}` }],
+          content: [{ type: 'text' as const, text: `Failed to get bid question: ${message}. Check the ID is a valid UUID.` }],
           isError: true,
         };
       }
@@ -553,7 +579,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Quality query failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Quality query failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }
@@ -602,7 +628,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Freshness query failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Freshness query failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }
@@ -655,7 +681,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
         return {
-          content: [{ type: 'text' as const, text: `Classification failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Classification failed: ${message}. Ensure you have editor or admin permissions.` }],
           isError: true,
         };
       }
@@ -708,7 +734,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
         return {
-          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}. Ensure you have editor or admin permissions.` }],
           isError: true,
         };
       }
@@ -804,7 +830,7 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Failed to create item: ${message}` }],
+          content: [{ type: 'text' as const, text: `Failed to create item: ${message}. Ensure you have editor or admin permissions.` }],
           isError: true,
         };
       }
@@ -822,6 +848,7 @@ export function registerTools(server: McpServer): void {
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
+        offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -833,51 +860,58 @@ export function registerTools(server: McpServer): void {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const searchLimit = Math.min(args.limit ?? 10, 50);
+        const searchOffset = args.offset ?? 0;
 
         const embedding = await generateEmbedding(args.query.trim());
 
+        // Over-fetch to compensate for type filtering and support offset pagination
         const { data: results, error } = await supabase.rpc('hybrid_search', {
           query_embedding: JSON.stringify(embedding),
           query_text: args.query.trim(),
           similarity_threshold: 0.3,
-          limit_count: searchLimit * 3, // Over-fetch to compensate for type filtering
+          limit_count: (searchOffset + searchLimit) * 3 + 1, // Over-fetch for type filtering + pagination
         });
 
         if (error) {
           return {
-            content: [{ type: 'text' as const, text: `Q&A search failed: ${error.message}` }],
+            content: [{ type: 'text' as const, text: `Q&A search failed: ${error.message}. Try simplifying your query or removing filters.` }],
             isError: true,
           };
         }
 
-        // Filter to Q&A pairs only
-        const qaResults: SearchResult[] = ((results ?? []) as Record<string, unknown>[])
-          .filter((r) => r.content_type === 'q_a_pair')
-          .slice(0, searchLimit)
-          .map((r) => ({
-            id: r.id as string,
-            title: r.title as string | null,
-            suggested_title: r.suggested_title as string | null,
-            content_type: r.content_type as string | null,
-            primary_domain: r.primary_domain as string | null,
-            primary_subtopic: r.primary_subtopic as string | null,
-            ai_summary: r.ai_summary as string | null,
-            similarity: r.similarity as number,
-          }));
+        // Filter to Q&A pairs only, then apply pagination
+        const allQaResults = ((results ?? []) as Record<string, unknown>[])
+          .filter((r) => r.content_type === 'q_a_pair');
+
+        const hasMore = allQaResults.length > searchOffset + searchLimit;
+        const paged = allQaResults.slice(searchOffset, searchOffset + searchLimit);
+
+        const qaResults: SearchResult[] = paged.map((r) => ({
+          id: r.id as string,
+          title: r.title as string | null,
+          suggested_title: r.suggested_title as string | null,
+          content_type: r.content_type as string | null,
+          primary_domain: r.primary_domain as string | null,
+          primary_subtopic: r.primary_subtopic as string | null,
+          ai_summary: r.ai_summary as string | null,
+          similarity: r.similarity as number,
+        }));
 
         const markdown = formatQASearchResults(args.query, qaResults);
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
             query: args.query,
+            offset: searchOffset,
             count: qaResults.length,
+            has_more: hasMore,
             results: qaResults,
           }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
-          content: [{ type: 'text' as const, text: `Q&A search failed: ${message}` }],
+          content: [{ type: 'text' as const, text: `Q&A search failed: ${message}. Try simplifying your query or removing filters.` }],
           isError: true,
         };
       }
