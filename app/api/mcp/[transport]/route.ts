@@ -24,9 +24,34 @@ const RESOURCE_URL =
 
 const handler = createMcpHandler(
   (server) => {
-    registerTools(server);
-    registerResources(server);
-    registerPrompts(server);
+    try {
+      registerTools(server);
+    } catch (err) {
+      console.error('[MCP] Failed to register tools:', err);
+    }
+    try {
+      registerResources(server);
+    } catch (err) {
+      console.error('[MCP] Failed to register resources:', err);
+    }
+    try {
+      registerPrompts(server);
+    } catch (err) {
+      console.error('[MCP] Failed to register prompts:', err);
+    }
+
+    // Diagnostic tool — always available, no dependencies
+    server.registerTool(
+      'ping',
+      {
+        title: 'Ping',
+        description: 'Health check — returns server status.',
+        annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      },
+      async () => ({
+        content: [{ type: 'text' as const, text: 'Knowledge Hub MCP server is running.' }],
+      }),
+    );
   },
   {
     capabilities: {
