@@ -341,3 +341,10 @@ when needed.
   unauthenticated non-`/api/` requests to `/login`. New public-facing
   endpoints (e.g. `/.well-known`, `/oauth/consent`) must be added to the
   `publicRoutes` array in `proxy.ts` or they will be silently redirected.
+- **mcp-handler breaks on Vercel warm instances:** Do NOT use
+  `createMcpHandler`/`withMcpAuth` from `mcp-handler` for the MCP route.
+  Its shared Node.js transport corrupts on warm serverless instances
+  (initialize works, tools/list crashes). Use the MCP SDK's
+  `WebStandardStreamableHTTPServerTransport` directly with a fresh
+  server + transport per request. `mcp-handler` is still used for
+  `protectedResourceHandler` in the `.well-known` route only.
