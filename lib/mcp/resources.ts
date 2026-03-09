@@ -23,7 +23,12 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
-import { fetchDashboardData } from '@/lib/dashboard';
+
+// Lazy import — dashboard module pulls in bid-queries and other heavy modules
+// that can cause Vercel serverless cold start crashes at module evaluation time.
+async function getDashboardModule() {
+  return await import('@/lib/dashboard');
+}
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
@@ -222,6 +227,7 @@ export function registerResources(server: McpServer): void {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
+        const { fetchDashboardData } = await getDashboardModule();
         const data = await fetchDashboardData(supabase, userId, isAdmin, role);
 
         return {

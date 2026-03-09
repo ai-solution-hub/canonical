@@ -24,9 +24,18 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole, checkMcpRole } from '@/lib/mcp/auth';
-import { generateEmbedding } from '@/lib/ai/embed';
-// Lazy imports — classifyContent and generateSummary pull in Anthropic SDK
-// which can cause serverless cold start issues. Only loaded when called.
+
+// ---------------------------------------------------------------------------
+// Lazy imports — all heavy modules are loaded on-demand to prevent Vercel
+// serverless cold start crashes. Module-level imports of OpenAI SDK,
+// dashboard queries, and Anthropic SDK cause the function to crash at the
+// V8/Node level before any application code runs.
+// ---------------------------------------------------------------------------
+
+async function getGenerateEmbedding() {
+  const { generateEmbedding } = await import('@/lib/ai/embed');
+  return generateEmbedding;
+}
 async function getClassifyContent() {
   const { classifyContent } = await import('@/lib/ai/classify');
   return classifyContent;
@@ -35,11 +44,19 @@ async function getGenerateSummary() {
   const { generateSummary } = await import('@/lib/ai/summarise');
   return generateSummary;
 }
-import { fetchDashboardData } from '@/lib/dashboard';
-import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
-import { fetchReorientData } from '@/lib/reorient';
-import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
-import { AIServiceError } from '@/lib/ai/errors';
+async function getDashboardModule() {
+  return await import('@/lib/dashboard');
+}
+async function getBidQueriesModule() {
+  return await import('@/lib/bid-queries');
+}
+async function getReorientModule() {
+  return await import('@/lib/reorient');
+}
+async function getAIErrors() {
+  const { AIServiceError } = await import('@/lib/ai/errors');
+  return AIServiceError;
+}
 import {
   formatSearchResults,
   formatDashboardSummary,
@@ -115,7 +132,8 @@ export function registerTools(server: McpServer): void {
         const searchLimit = Math.min(args.limit ?? 10, 50);
         const searchOffset = args.offset ?? 0;
 
-        // Generate embedding for semantic search
+        // Generate embedding for semantic search (lazy-loaded to avoid cold start crash)
+        const generateEmbedding = await getGenerateEmbedding();
         const embedding = await generateEmbedding(args.query.trim());
 
         // Over-fetch to support offset-based pagination (hybrid_search has no native offset)
@@ -202,6 +220,7 @@ export function registerTools(server: McpServer): void {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
+        const { fetchDashboardData } = await getDashboardModule();
         const data = await fetchDashboardData(supabase, userId, isAdmin, role);
         const markdown = formatDashboardSummary(data);
 
@@ -242,9 +261,11 @@ export function registerTools(server: McpServer): void {
         const supabase = createMcpClient(extra.authInfo);
         const bidLimit = Math.min(args.limit ?? 20, 50);
         const bidOffset = args.offset ?? 0;
+        const { fetchActiveBidsWithStats } = await getBidQueriesModule();
         const { workspaces, statsMap } = await fetchActiveBidsWithStats(supabase);
 
         // Map to ActiveBidSummary type
+        const { getDeadlineUrgency, getDaysUntilDeadline } = await getDashboardModule();
         const allBids: ActiveBidSummary[] = workspaces.map((workspace) => {
           const meta = workspace.domain_metadata as Record<string, unknown> | null;
           const stats = statsMap.get(workspace.id);
@@ -391,6 +412,7 @@ export function registerTools(server: McpServer): void {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
+        const { fetchReorientData } = await getReorientModule();
         const data = await fetchReorientData(supabase, userId, isAdmin, role);
         const markdown = formatReorientation(data);
 
@@ -688,6 +710,7 @@ export function registerTools(server: McpServer): void {
           structuredContent: toStructuredContent(result),
         };
       } catch (err) {
+        const AIServiceError = await getAIErrors();
         const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
         return {
           content: [{ type: 'text' as const, text: `Classification failed: ${message}. Ensure you have editor or admin permissions.` }],
@@ -742,6 +765,7 @@ export function registerTools(server: McpServer): void {
           structuredContent: toStructuredContent(result),
         };
       } catch (err) {
+        const AIServiceError = await getAIErrors();
         const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
         return {
           content: [{ type: 'text' as const, text: `Summary generation failed: ${message}. Ensure you have editor or admin permissions.` }],
@@ -791,9 +815,10 @@ export function registerTools(server: McpServer): void {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        // Generate embedding for search
+        // Generate embedding for search (lazy-loaded to avoid cold start crash)
         let embedding: number[] | null = null;
         try {
+          const generateEmbedding = await getGenerateEmbedding();
           embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
         } catch {
           // Embedding failure is non-fatal — item is still created
@@ -872,6 +897,7 @@ export function registerTools(server: McpServer): void {
         const searchLimit = Math.min(args.limit ?? 10, 50);
         const searchOffset = args.offset ?? 0;
 
+        const generateEmbedding = await getGenerateEmbedding();
         const embedding = await generateEmbedding(args.query.trim());
 
         // Over-fetch to compensate for type filtering and support offset pagination
