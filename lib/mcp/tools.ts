@@ -71,6 +71,8 @@ import {
   formatSummaryResult,
   formatCreatedItem,
   formatQASearchResults,
+  CHARACTER_LIMIT,
+  truncateResponse,
 } from '@/lib/mcp/formatters';
 import type {
   SearchResult,
@@ -106,6 +108,13 @@ function toStructuredContent(data: unknown): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 
 export function registerTools(server: McpServer): void {
+  // -------------------------------------------------------------------------
+  // Tool naming: names intentionally omit a service prefix (e.g. kb_). The
+  // Knowledge Hub MCP server is designed as a single-purpose connector —
+  // users won't have multiple KB servers. Adding prefixes would make names
+  // unnecessarily verbose for Claude. Revisit if multi-server scenarios arise.
+  // -------------------------------------------------------------------------
+
   // -------------------------------------------------------------------------
   // 1. search_knowledge_base
   // -------------------------------------------------------------------------
@@ -178,7 +187,7 @@ export function registerTools(server: McpServer): void {
           similarity: r.similarity as number,
         }));
 
-        const markdown = formatSearchResults(args.query, searchResults);
+        const markdown = truncateResponse(formatSearchResults(args.query, searchResults));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -222,7 +231,7 @@ export function registerTools(server: McpServer): void {
         const isAdmin = role === 'admin';
         const { fetchDashboardData } = await getDashboardModule();
         const data = await fetchDashboardData(supabase, userId, isAdmin, role);
-        const markdown = formatDashboardSummary(data);
+        const markdown = truncateResponse(formatDashboardSummary(data));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -299,7 +308,7 @@ export function registerTools(server: McpServer): void {
         const hasMore = totalCount > bidOffset + bidLimit;
         const bids = allBids.slice(bidOffset, bidOffset + bidLimit);
 
-        const markdown = formatActiveBids(bids);
+        const markdown = truncateResponse(formatActiveBids(bids));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -376,11 +385,18 @@ export function registerTools(server: McpServer): void {
           priority: item.priority,
         };
 
-        const markdown = formatContentItem(itemDetail);
+        const markdown = truncateResponse(formatContentItem(itemDetail));
+
+        // Truncate content in structuredContent to prevent oversized responses
+        // from large PDFs (which can exceed 500KB)
+        const structuredItem = { ...item };
+        if (typeof structuredItem.content === 'string' && structuredItem.content.length > CHARACTER_LIMIT) {
+          structuredItem.content = structuredItem.content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
+        }
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(item),
+          structuredContent: toStructuredContent(structuredItem),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
@@ -414,7 +430,7 @@ export function registerTools(server: McpServer): void {
         const isAdmin = role === 'admin';
         const { fetchReorientData } = await getReorientModule();
         const data = await fetchReorientData(supabase, userId, isAdmin, role);
-        const markdown = formatReorientation(data);
+        const markdown = truncateResponse(formatReorientation(data));
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
@@ -483,7 +499,7 @@ export function registerTools(server: McpServer): void {
           question_stats: stats?.[0] ?? null,
         };
 
-        const markdown = formatBidDetail(bidDetail);
+        const markdown = truncateResponse(formatBidDetail(bidDetail));
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent(bidDetail),

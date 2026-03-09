@@ -40,7 +40,29 @@ export function registerResources(server: McpServer): void {
   // 1. kb://items/{id} — Content item
   server.registerResource(
     'content_item',
-    new ResourceTemplate('kb://items/{id}', { list: undefined }),
+    new ResourceTemplate('kb://items/{id}', {
+      list: async (extra: Extra) => {
+        try {
+          const supabase = createMcpClient(extra.authInfo);
+          const { data: items } = await supabase
+            .from('content_items')
+            .select('id, title, suggested_title, content_type')
+            .order('updated_at', { ascending: false })
+            .limit(10);
+
+          return {
+            resources: (items ?? []).map((item: { id: string; title: string | null; suggested_title: string | null; content_type: string | null }) => ({
+              uri: `kb://items/${item.id}`,
+              name: item.suggested_title || item.title || 'Untitled',
+              description: item.content_type ? `Type: ${item.content_type}` : undefined,
+              mimeType: 'application/json',
+            })),
+          };
+        } catch {
+          return { resources: [] };
+        }
+      },
+    }),
     {
       description: 'A knowledge base content item with full metadata',
       mimeType: 'application/json',
@@ -81,7 +103,35 @@ export function registerResources(server: McpServer): void {
   // 2. kb://bids/{id} — Bid workspace
   server.registerResource(
     'bid_workspace',
-    new ResourceTemplate('kb://bids/{id}', { list: undefined }),
+    new ResourceTemplate('kb://bids/{id}', {
+      list: async (extra: Extra) => {
+        try {
+          const supabase = createMcpClient(extra.authInfo);
+          const { data: workspaces } = await supabase
+            .from('workspaces')
+            .select('id, name, domain_metadata')
+            .eq('type', 'bid')
+            .eq('is_archived', false)
+            .order('updated_at', { ascending: false })
+            .limit(10);
+
+          return {
+            resources: (workspaces ?? []).map((ws: { id: string; name: string | null; domain_metadata: unknown }) => {
+              const meta = ws.domain_metadata as Record<string, unknown> | null;
+              const buyer = (meta?.buyer as string) ?? null;
+              return {
+                uri: `kb://bids/${ws.id}`,
+                name: ws.name || 'Untitled Bid',
+                description: buyer ? `Buyer: ${buyer}` : undefined,
+                mimeType: 'application/json',
+              };
+            }),
+          };
+        } catch {
+          return { resources: [] };
+        }
+      },
+    }),
     {
       description: 'A bid workspace with questions and response progress',
       mimeType: 'application/json',
@@ -130,7 +180,30 @@ export function registerResources(server: McpServer): void {
   // 3. kb://qa/{id} — Q&A pair
   server.registerResource(
     'qa_pair',
-    new ResourceTemplate('kb://qa/{id}', { list: undefined }),
+    new ResourceTemplate('kb://qa/{id}', {
+      list: async (extra: Extra) => {
+        try {
+          const supabase = createMcpClient(extra.authInfo);
+          const { data: items } = await supabase
+            .from('content_items')
+            .select('id, title, suggested_title, primary_domain')
+            .eq('content_type', 'q_a_pair')
+            .order('updated_at', { ascending: false })
+            .limit(10);
+
+          return {
+            resources: (items ?? []).map((item: { id: string; title: string | null; suggested_title: string | null; primary_domain: string | null }) => ({
+              uri: `kb://qa/${item.id}`,
+              name: item.suggested_title || item.title || 'Untitled Q&A',
+              description: item.primary_domain ? `Domain: ${item.primary_domain}` : undefined,
+              mimeType: 'application/json',
+            })),
+          };
+        } catch {
+          return { resources: [] };
+        }
+      },
+    }),
     {
       description: 'A Q&A pair with standard and advanced answers',
       mimeType: 'application/json',
@@ -294,6 +367,11 @@ export function registerResources(server: McpServer): void {
 // Prompts
 // ---------------------------------------------------------------------------
 
+/**
+ * System context prepended to all prompt messages so the LLM has KB awareness.
+ */
+const KB_SYSTEM_CONTEXT = 'You are an AI assistant for the Knowledge Hub, a UK bid management knowledge base. Use UK English throughout. The knowledge base contains articles, policies, case studies, Q&A pairs, and other content organised by domain and subtopic.\n\n';
+
 export function registerPrompts(server: McpServer): void {
   // 1. reorient
   server.registerPrompt(
@@ -307,7 +385,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: 'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
+          text: KB_SYSTEM_CONTEXT + 'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
         },
       }],
     }),
@@ -328,7 +406,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. Use the list_active_bids and get_bid_detail tools.`,
+          text: KB_SYSTEM_CONTEXT + `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. First list bids to find the matching ID, then use get_bid_detail. Use the list_active_bids and get_bid_detail tools.`,
         },
       }],
     }),
@@ -346,7 +424,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_dashboard_summary, get_quality_summary, and get_freshness_report tools.',
+          text: KB_SYSTEM_CONTEXT + 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_dashboard_summary, get_quality_summary, and get_freshness_report tools.',
         },
       }],
     }),
@@ -367,7 +445,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
+          text: KB_SYSTEM_CONTEXT + `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
         },
       }],
     }),
@@ -388,7 +466,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
+          text: KB_SYSTEM_CONTEXT + `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
         },
       }],
     }),

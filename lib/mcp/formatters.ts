@@ -11,6 +11,16 @@ import type { ClassificationResult } from '@/lib/ai/classify';
 import type { SummariseResult } from '@/lib/ai/summarise';
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum character limit for Markdown tool response text. Prevents oversized
+ * responses from large PDFs or busy dashboards overwhelming the LLM context.
+ */
+export const CHARACTER_LIMIT = 10_000;
+
+// ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
 
@@ -18,6 +28,15 @@ import type { SummariseResult } from '@/lib/ai/summarise';
 function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.slice(0, maxLength - 3) + '...';
+}
+
+/**
+ * Truncate a Markdown response to CHARACTER_LIMIT. Appends a note when
+ * content is truncated so the LLM knows to request specific items instead.
+ */
+export function truncateResponse(text: string): string {
+  if (text.length <= CHARACTER_LIMIT) return text;
+  return text.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated — request specific items for full detail)';
 }
 
 /** Format a deadline with days remaining */
