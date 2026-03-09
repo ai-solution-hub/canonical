@@ -2,12 +2,10 @@
  * MCP server authentication and Supabase client helpers.
  *
  * Creates per-user Supabase clients from OAuth bearer tokens so that
- * RLS policies apply to MCP tool operations. Falls back to a service-role
- * client when no token is available (e.g. during local development or
- * when auth is not required).
+ * RLS policies apply to MCP tool operations. Auth is required — if no
+ * token is available, tools will throw rather than silently bypassing RLS.
  */
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
-import { createServiceClient } from '@/lib/supabase/server';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Database } from '@/supabase/types/database.types';
 
@@ -40,35 +38,42 @@ export function createMcpUserClient(bearerToken: string) {
 }
 
 /**
- * Creates a Supabase client for MCP tool operations.
- *
- * If authInfo is provided (authenticated request), creates a per-user client
- * with the bearer token so RLS applies. Otherwise falls back to the
- * service-role client (no RLS).
+ * Creates a per-user Supabase client for MCP tool operations.
+ * Requires a valid authInfo with a bearer token — throws if missing.
  */
 export function createMcpClient(authInfo?: AuthInfo) {
-  if (authInfo?.token) {
-    return createMcpUserClient(authInfo.token);
+  if (!authInfo?.token) {
+    throw new Error('MCP authentication required: no bearer token provided');
   }
-  return createMcpServiceClient();
+  return createMcpUserClient(authInfo.token);
 }
 
 /**
- * Creates a Supabase service client for MCP tool operations.
- * Uses the service role key to bypass RLS — suitable for admin-level queries.
- *
- * @deprecated Prefer `createMcpClient(authInfo)` for per-user access with RLS.
- */
-export function createMcpServiceClient() {
-  return createServiceClient();
-}
-
-/**
- * Extracts the user ID from authInfo, falling back to a placeholder.
- * The placeholder is used for service-role queries where no user is authenticated.
+ * Extracts the user ID from authInfo.
+ * Throws if no authenticated user — all MCP tools require authentication.
  */
 export function getMcpUserId(authInfo?: AuthInfo): string {
-  return (authInfo?.extra?.userId as string) ?? '00000000-0000-0000-0000-000000000000';
+  const userId = authInfo?.extra?.userId as string | undefined;
+  if (!userId) {
+    throw new Error('MCP authentication required: no user ID in auth context');
+  }
+  return userId;
+}
+
+/**
+ * Gets the authenticated user's application role (admin/editor/viewer).
+ * Returns the role string, defaulting to 'viewer' if no user_roles entry exists.
+ */
+export async function getMcpUserRole(authInfo: AuthInfo): Promise<string> {
+  const userId = getMcpUserId(authInfo);
+  const supabase = createMcpClient(authInfo);
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+
+  return (data?.role as string) ?? 'viewer';
 }
 
 /**
@@ -79,16 +84,7 @@ export async function checkMcpRole(
   authInfo: AuthInfo | undefined,
   requiredRoles: string[] = ['admin', 'editor'],
 ): Promise<string | null> {
-  const userId = getMcpUserId(authInfo);
-  if (userId === '00000000-0000-0000-0000-000000000000') return null;
-
-  const supabase = createMcpClient(authInfo);
-  const { data } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .single();
-
-  const role = (data?.role as string) ?? 'viewer';
+  if (!authInfo) return null;
+  const role = await getMcpUserRole(authInfo);
   return requiredRoles.includes(role) ? role : null;
 }

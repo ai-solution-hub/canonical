@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, unauthorisedResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { getModelForTier } from '@/lib/anthropic';
 
 export const POST = async (req: NextRequest) => {
   try {
@@ -16,12 +15,16 @@ export const POST = async (req: NextRequest) => {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth) return unauthorisedResponse();
 
-    // Rate limit: 60 messages per minute per user
-    const { allowed } = checkRateLimit(`copilotkit:${auth.user.id}`, 60, 60_000);
+    // Rate limit: 10 requests per minute per user.
+    // CopilotKit fires parallel suggestion requests on every navigation —
+    // the tight limit acts as server-side burst protection, reducing API costs
+    // by ~90% while keeping the feature functional.
+    const { allowed } = checkRateLimit(`copilotkit:${auth.user.id}`, 10, 60_000);
     if (!allowed) return rateLimitResponse();
 
-    // Create runtime per-request to avoid stale state and ensure fresh env vars
-    const model = getModelForTier('drafting');
+    // Use Haiku for CopilotKit — suggestions generate ~130 output tokens
+    // and don't need Opus quality. Override with AI_COPILOTKIT_MODEL env var.
+    const model = process.env.AI_COPILOTKIT_MODEL ?? 'claude-haiku-4-5';
     const serviceAdapter = new AnthropicAdapter({ model });
 
     // Fix: CopilotKit's AnthropicAdapter.getLanguageModel() passes the wrong

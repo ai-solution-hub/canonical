@@ -19,7 +19,8 @@ import { createMcpUserClient } from '@/lib/mcp/auth';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
 
-const RESOURCE_URL = 'https://knowledge-hub-seven-kappa.vercel.app';
+const RESOURCE_URL =
+  process.env.NEXT_PUBLIC_APP_URL ?? 'https://knowledge-hub-seven-kappa.vercel.app';
 
 const handler = createMcpHandler(
   (server) => {

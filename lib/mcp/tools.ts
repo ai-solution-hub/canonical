@@ -23,7 +23,7 @@ import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
-import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
+import { createMcpClient, getMcpUserId, getMcpUserRole, checkMcpRole } from '@/lib/mcp/auth';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { classifyContent } from '@/lib/ai/classify';
 import { generateSummary } from '@/lib/ai/summarise';
@@ -179,7 +179,9 @@ export function registerTools(server: McpServer): void {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
-        const data = await fetchDashboardData(supabase, userId, true, 'admin');
+        const role = await getMcpUserRole(extra.authInfo!);
+        const isAdmin = role === 'admin';
+        const data = await fetchDashboardData(supabase, userId, isAdmin, role);
         const markdown = formatDashboardSummary(data);
 
         return {
@@ -343,7 +345,9 @@ export function registerTools(server: McpServer): void {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
-        const data = await fetchReorientData(supabase, userId, true, 'admin');
+        const role = await getMcpUserRole(extra.authInfo!);
+        const isAdmin = role === 'admin';
+        const data = await fetchReorientData(supabase, userId, isAdmin, role);
         const markdown = formatReorientation(data);
 
         return {
