@@ -808,6 +808,230 @@ export function formatContentEffectiveness(data: ContentEffectiveness): string {
 // Q&A search results
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Coverage gaps
+// ---------------------------------------------------------------------------
+
+export interface CoverageGapResult {
+  total_gaps: number;
+  empty_subtopics: Array<{ domain: string; subtopic: string }>;
+  thin_subtopics: Array<{ domain: string; subtopic: string; item_count: number }>;
+  stale_only_subtopics: Array<{ domain: string; subtopic: string; stale_count: number; expired_count: number }>;
+}
+
+export function formatCoverageGaps(data: CoverageGapResult): string {
+  const lines: string[] = [
+    '# Coverage Gaps',
+    '',
+    `**Total gaps found:** ${data.total_gaps}`,
+    '',
+  ];
+
+  if (data.empty_subtopics.length > 0) {
+    lines.push(`## Empty Subtopics (0 items) — ${data.empty_subtopics.length}`, '');
+    for (const gap of data.empty_subtopics) {
+      lines.push(`- ${gap.domain} > ${gap.subtopic}`);
+    }
+    lines.push('');
+  }
+
+  if (data.thin_subtopics.length > 0) {
+    lines.push(`## Thin Subtopics — ${data.thin_subtopics.length}`, '');
+    for (const gap of data.thin_subtopics) {
+      lines.push(`- ${gap.domain} > ${gap.subtopic} (${gap.item_count} item${gap.item_count === 1 ? '' : 's'})`);
+    }
+    lines.push('');
+  }
+
+  if (data.stale_only_subtopics.length > 0) {
+    lines.push(`## Stale-Only Subtopics — ${data.stale_only_subtopics.length}`, '');
+    for (const gap of data.stale_only_subtopics) {
+      lines.push(`- ${gap.domain} > ${gap.subtopic} (${gap.stale_count} stale, ${gap.expired_count} expired)`);
+    }
+    lines.push('');
+  }
+
+  if (data.total_gaps === 0) {
+    lines.push('No coverage gaps found. All taxonomy subtopics have content.');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Content audit
+// ---------------------------------------------------------------------------
+
+export interface AuditItem {
+  id: string;
+  title: string | null;
+  suggested_title: string | null;
+  content_type: string | null;
+  primary_domain: string | null;
+  issues: string[];
+  content_length: number;
+  classification_confidence: number | null;
+  freshness: string | null;
+}
+
+export interface AuditResult {
+  total_flagged: number;
+  by_issue_type: Record<string, number>;
+  items: AuditItem[];
+}
+
+export function formatAuditResult(data: AuditResult): string {
+  const lines: string[] = [
+    '# Content Audit',
+    '',
+    `**Total items flagged:** ${data.total_flagged}`,
+    '',
+  ];
+
+  if (data.total_flagged === 0) {
+    lines.push('No quality issues found.');
+    return lines.join('\n');
+  }
+
+  // Summary by issue type
+  lines.push('## Issues by Type', '');
+  const sortedTypes = Object.entries(data.by_issue_type).sort(([, a], [, b]) => b - a);
+  for (const [type, count] of sortedTypes) {
+    const label = type.replace(/_/g, ' ');
+    lines.push(`- **${label}:** ${count}`);
+  }
+  lines.push('');
+
+  // Item list
+  lines.push('## Flagged Items', '');
+  for (const item of data.items) {
+    const title = item.suggested_title || item.title || 'Untitled';
+    const type = formatContentType(item.content_type);
+    const issues = item.issues.map(i => i.replace(/_/g, ' ')).join(', ');
+    lines.push(`### ${title} (${type})`);
+    if (item.primary_domain) lines.push(`**Domain:** ${item.primary_domain}`);
+    lines.push(`**Issues:** ${issues}`);
+    lines.push(`**Content length:** ${item.content_length} chars`);
+    if (item.classification_confidence !== null) {
+      lines.push(`**Confidence:** ${Math.round(item.classification_confidence * 100)}%`);
+    }
+    if (item.freshness) lines.push(`**Freshness:** ${item.freshness}`);
+    lines.push(`**ID:** ${item.id}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Content item updated
+// ---------------------------------------------------------------------------
+
+export interface UpdatedItemResult {
+  id: string;
+  updated_fields: string[];
+  previous_values: Record<string, unknown>;
+  reason: string | null;
+}
+
+export function formatUpdatedItem(data: UpdatedItemResult): string {
+  const lines: string[] = [
+    '# Content Item Updated',
+    '',
+    `**ID:** ${data.id}`,
+    `**Fields updated:** ${data.updated_fields.join(', ')}`,
+  ];
+
+  if (data.reason) {
+    lines.push(`**Reason:** ${data.reason}`);
+  }
+
+  lines.push('', 'The item has been updated successfully.');
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Similar items
+// ---------------------------------------------------------------------------
+
+export interface SimilarItem {
+  id: string;
+  title: string | null;
+  suggested_title: string | null;
+  content_type: string | null;
+  primary_domain: string | null;
+  similarity: number;
+  likely_duplicate: boolean;
+}
+
+export interface SimilarItemsResult {
+  source_item: { id: string; title: string };
+  similar_items: SimilarItem[];
+}
+
+export function formatSimilarItems(data: SimilarItemsResult): string {
+  const lines: string[] = [
+    `# Similar Items to "${data.source_item.title}"`,
+    '',
+  ];
+
+  if (data.similar_items.length === 0) {
+    lines.push('No similar items found above the similarity threshold.');
+    return lines.join('\n');
+  }
+
+  lines.push(`Found ${data.similar_items.length} similar item${data.similar_items.length === 1 ? '' : 's'}:`, '');
+
+  for (let i = 0; i < data.similar_items.length; i++) {
+    const item = data.similar_items[i];
+    const title = item.suggested_title || item.title || 'Untitled';
+    const similarity = Math.round(item.similarity * 100);
+    const type = formatContentType(item.content_type);
+    const dupLabel = item.likely_duplicate ? ' **[LIKELY DUPLICATE]**' : '';
+
+    lines.push(`## ${i + 1}. ${title} (${type})${dupLabel}`);
+    if (item.primary_domain) lines.push(`**Domain:** ${item.primary_domain}`);
+    lines.push(`**Similarity:** ${similarity}%`);
+    lines.push(`**ID:** ${item.id}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Batch content items
+// ---------------------------------------------------------------------------
+
+export interface BatchContentItemsResult {
+  count: number;
+  items: ContentItemDetail[];
+  not_found: string[];
+}
+
+export function formatBatchContentItems(data: BatchContentItemsResult): string {
+  const lines: string[] = [
+    `# ${data.count} Content Item${data.count === 1 ? '' : 's'}`,
+    '',
+  ];
+
+  if (data.not_found.length > 0) {
+    lines.push(`**Not found:** ${data.not_found.length} ID${data.not_found.length === 1 ? '' : 's'} returned no result`, '');
+  }
+
+  for (const item of data.items) {
+    lines.push(formatContentItem(item));
+    lines.push('', '---', '');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Q&A search results
+// ---------------------------------------------------------------------------
+
 export function formatQASearchResults(query: string, results: SearchResult[]): string {
   if (results.length === 0) {
     return `# Q&A Library Search: "${query}"\n\nNo Q&A pairs found matching your query.`;

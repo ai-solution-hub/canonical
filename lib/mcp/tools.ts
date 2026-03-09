@@ -82,6 +82,11 @@ import {
   formatEntitySummary,
   formatCitation,
   formatContentEffectiveness,
+  formatCoverageGaps,
+  formatAuditResult,
+  formatUpdatedItem,
+  formatSimilarItems,
+  formatBatchContentItems,
   CHARACTER_LIMIT,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -97,6 +102,13 @@ import type {
   EntityRelationship,
   CitationResult,
   ContentEffectiveness,
+  CoverageGapResult,
+  AuditItem,
+  AuditResult,
+  UpdatedItemResult,
+  SimilarItem,
+  SimilarItemsResult,
+  BatchContentItemsResult,
 } from '@/lib/mcp/formatters';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 
@@ -1208,6 +1220,543 @@ export function registerTools(server: McpServer): void {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Effectiveness query failed: ${message}. The database function may be temporarily unavailable.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 17. get_coverage_gaps
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_coverage_gaps',
+    {
+      title: 'Coverage Gaps',
+      description: 'Identify domains and subtopics with zero or thin content coverage. Compares the full taxonomy against actual content items to find gaps. Use this to understand where the knowledge base needs more content. Returns empty subtopics (0 items), thin subtopics (below threshold), and optionally subtopics where all items are stale or expired.',
+      inputSchema: {
+        min_items: z.number().optional().describe('Threshold below which a subtopic is considered "thin" (default: 3)'),
+        include_stale: z.boolean().optional().describe('Whether to flag subtopics where all items are stale/expired (default: true)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const minItems = args.min_items ?? 3;
+        const includeStale = args.include_stale ?? true;
+
+        // Fetch full taxonomy
+        const { data: domains } = await supabase
+          .from('taxonomy_domains')
+          .select('id, name, display_order')
+          .order('display_order');
+
+        const { data: subtopics } = await supabase
+          .from('taxonomy_subtopics')
+          .select('id, name, domain_id, display_order')
+          .order('display_order');
+
+        // Fetch content items grouped by domain + subtopic
+        const { data: items } = await supabase
+          .from('content_items')
+          .select('primary_domain, primary_subtopic, freshness');
+
+        // Build domain ID-to-name map
+        const domainMap = new Map<string, string>();
+        for (const d of (domains ?? []) as Array<{ id: string; name: string }>) {
+          domainMap.set(d.id, d.name);
+        }
+
+        // Count items per domain+subtopic
+        type ItemRow = { primary_domain: string | null; primary_subtopic: string | null; freshness: string | null };
+        const countMap = new Map<string, { total: number; stale: number; expired: number }>();
+        for (const item of (items ?? []) as ItemRow[]) {
+          if (!item.primary_domain || !item.primary_subtopic) continue;
+          const key = `${item.primary_domain}|${item.primary_subtopic}`;
+          const existing = countMap.get(key) ?? { total: 0, stale: 0, expired: 0 };
+          existing.total++;
+          if (item.freshness === 'stale') existing.stale++;
+          if (item.freshness === 'expired') existing.expired++;
+          countMap.set(key, existing);
+        }
+
+        // Analyse gaps
+        const emptySubtopics: Array<{ domain: string; subtopic: string }> = [];
+        const thinSubtopics: Array<{ domain: string; subtopic: string; item_count: number }> = [];
+        const staleOnlySubtopics: Array<{ domain: string; subtopic: string; stale_count: number; expired_count: number }> = [];
+
+        for (const st of (subtopics ?? []) as Array<{ id: string; name: string; domain_id: string }>) {
+          const domainName = domainMap.get(st.domain_id);
+          if (!domainName) continue;
+
+          const key = `${domainName}|${st.name}`;
+          const counts = countMap.get(key);
+
+          if (!counts || counts.total === 0) {
+            emptySubtopics.push({ domain: domainName, subtopic: st.name });
+          } else if (counts.total < minItems) {
+            thinSubtopics.push({ domain: domainName, subtopic: st.name, item_count: counts.total });
+          }
+
+          // Check stale-only (all items are stale or expired)
+          if (includeStale && counts && counts.total > 0) {
+            if (counts.stale + counts.expired === counts.total) {
+              staleOnlySubtopics.push({
+                domain: domainName,
+                subtopic: st.name,
+                stale_count: counts.stale,
+                expired_count: counts.expired,
+              });
+            }
+          }
+        }
+
+        const result: CoverageGapResult = {
+          total_gaps: emptySubtopics.length + thinSubtopics.length + staleOnlySubtopics.length,
+          empty_subtopics: emptySubtopics,
+          thin_subtopics: thinSubtopics,
+          stale_only_subtopics: staleOnlySubtopics,
+        };
+
+        const markdown = truncateResponse(formatCoverageGaps(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Coverage gap analysis failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 18. audit_content
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'audit_content',
+    {
+      title: 'Audit Content',
+      description: 'Find content items with quality issues: thin content (under 20 chars), low classification confidence (under 60%), missing AI summary, missing keywords, no domain assigned, or stale/expired freshness. Use this to identify items that need attention. Filter by issue type or domain for targeted audits. Note: scans up to 500 items — for larger knowledge bases, use the domain filter to target specific areas.',
+      inputSchema: {
+        issue_type: z.enum([
+          'thin_content', 'low_confidence', 'missing_summary',
+          'missing_keywords', 'no_domain', 'stale',
+        ]).optional().describe('Filter to a specific issue type (default: all issues)'),
+        domain: z.string().optional().describe('Filter to a specific domain (exact match)'),
+        limit: z.number().optional().describe('Maximum items to return (default: 25, max: 100)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const auditLimit = Math.min(args.limit ?? 25, 100);
+
+        // Fetch all items with relevant fields
+        let query = supabase
+          .from('content_items')
+          .select('id, title, suggested_title, content_type, primary_domain, content, ai_summary, ai_keywords, classification_confidence, freshness')
+          .order('updated_at', { ascending: false });
+
+        if (args.domain) {
+          query = query.eq('primary_domain', args.domain);
+        }
+
+        const { data: rows, error } = await query.limit(500);
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Audit query failed: ${error.message}.` }],
+            isError: true,
+          };
+        }
+
+        // Categorise issues for each item
+        type Row = {
+          id: string; title: string | null; suggested_title: string | null;
+          content_type: string | null; primary_domain: string | null;
+          content: string | null; ai_summary: string | null;
+          ai_keywords: string[] | null; classification_confidence: number | null;
+          freshness: string | null;
+        };
+
+        const auditItems: AuditItem[] = [];
+        const byIssueType: Record<string, number> = {};
+
+        for (const row of (rows ?? []) as Row[]) {
+          const issues: string[] = [];
+          const contentLen = row.content?.length ?? 0;
+
+          if (contentLen < 20) issues.push('thin_content');
+          if (row.classification_confidence !== null && row.classification_confidence < 0.6) issues.push('low_confidence');
+          if (!row.ai_summary) issues.push('missing_summary');
+          if (!row.ai_keywords || row.ai_keywords.length === 0) issues.push('missing_keywords');
+          if (!row.primary_domain) issues.push('no_domain');
+          if (row.freshness === 'stale' || row.freshness === 'expired') issues.push('stale');
+
+          // Filter by specific issue type if requested
+          if (args.issue_type && !issues.includes(args.issue_type)) continue;
+
+          if (issues.length > 0) {
+            for (const issue of issues) {
+              byIssueType[issue] = (byIssueType[issue] ?? 0) + 1;
+            }
+            auditItems.push({
+              id: row.id,
+              title: row.title,
+              suggested_title: row.suggested_title,
+              content_type: row.content_type,
+              primary_domain: row.primary_domain,
+              issues,
+              content_length: contentLen,
+              classification_confidence: row.classification_confidence,
+              freshness: row.freshness,
+            });
+          }
+        }
+
+        // Apply limit
+        const limited = auditItems.slice(0, auditLimit);
+
+        const result: AuditResult = {
+          total_flagged: auditItems.length,
+          by_issue_type: byIssueType,
+          items: limited,
+        };
+
+        const markdown = truncateResponse(formatAuditResult(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Audit failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 19. update_content_item (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'update_content_item',
+    {
+      title: 'Update Content Item',
+      description: 'Edit an existing content item\'s metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes. Use the kb://taxonomy resource for valid domain and subtopic values.',
+      inputSchema: {
+        id: z.string().uuid().describe('The UUID of the content item to update'),
+        fields: z.object({
+          title: z.string().optional().describe('Display title'),
+          suggested_title: z.string().optional().describe('AI-suggested title'),
+          content: z.string().max(500000).optional().describe('Main content text'),
+          answer_standard: z.string().optional().describe('Standard answer (Q&A pairs)'),
+          answer_advanced: z.string().optional().describe('Advanced answer (Q&A pairs)'),
+          primary_domain: z.string().optional().describe('Domain classification'),
+          primary_subtopic: z.string().optional().describe('Subtopic classification'),
+          priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
+          notes: z.string().optional().describe('Editorial notes'),
+        }).describe('Fields to update — only include fields you want to change'),
+        reason: z.string().optional().describe('Explanation of why the update was made (stored for audit trail)'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+
+        // Validate that at least one field is being updated
+        const allowedFields = [
+          'title', 'suggested_title', 'content', 'answer_standard',
+          'answer_advanced', 'primary_domain', 'primary_subtopic',
+          'priority', 'notes',
+        ] as const;
+
+        const updateData: Record<string, unknown> = {};
+        const updatedFields: string[] = [];
+
+        for (const field of allowedFields) {
+          if (args.fields[field] !== undefined) {
+            updateData[field] = args.fields[field];
+            updatedFields.push(field);
+          }
+        }
+
+        if (updatedFields.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: 'No fields to update. Provide at least one field in the fields object.' }],
+            isError: true,
+          };
+        }
+
+        // Fetch current values for the updated fields (for audit trail)
+        const { data: current, error: fetchError } = await supabase
+          .from('content_items')
+          .select(updatedFields.join(', '))
+          .eq('id', args.id)
+          .single();
+
+        if (fetchError || !current) {
+          return {
+            content: [{ type: 'text' as const, text: `Content item not found: ${args.id}` }],
+            isError: true,
+          };
+        }
+
+        // Add updated_by
+        updateData.updated_by = userId;
+
+        // Apply update
+        const { error: updateError } = await supabase
+          .from('content_items')
+          .update(updateData as never)
+          .eq('id', args.id);
+
+        if (updateError) {
+          return {
+            content: [{ type: 'text' as const, text: `Update failed: ${updateError.message}. Check the ID is valid and you have permissions.` }],
+            isError: true,
+          };
+        }
+
+        const result: UpdatedItemResult = {
+          id: args.id,
+          updated_fields: updatedFields,
+          previous_values: JSON.parse(JSON.stringify(current)) as Record<string, unknown>,
+          reason: args.reason ?? null,
+        };
+
+        const markdown = formatUpdatedItem(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Update failed: ${message}. Ensure you have editor or admin permissions.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 20. find_similar_items
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'find_similar_items',
+    {
+      title: 'Find Similar Items',
+      description: 'Find content items similar to a given item using vector cosine similarity. Useful for duplicate detection and related-content discovery. Items above 95% similarity are flagged as likely duplicates. Uses the existing embedding index — no AI cost.',
+      inputSchema: {
+        id: z.string().uuid().describe('The UUID of the content item to find similar items for'),
+        threshold: z.number().optional().describe('Minimum cosine similarity (default: 0.8, range: 0.5–1.0)'),
+        limit: z.number().optional().describe('Maximum results (default: 10, max: 25)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const threshold = Math.max(0.5, Math.min(1.0, args.threshold ?? 0.8));
+        const resultLimit = Math.min(args.limit ?? 10, 25);
+
+        // Fetch source item's embedding and title
+        const { data: sourceItem, error: sourceError } = await supabase
+          .from('content_items')
+          .select('id, title, suggested_title, embedding')
+          .eq('id', args.id)
+          .single();
+
+        if (sourceError || !sourceItem) {
+          return {
+            content: [{ type: 'text' as const, text: `Content item not found: ${args.id}` }],
+            isError: true,
+          };
+        }
+
+        if (!sourceItem.embedding) {
+          return {
+            content: [{ type: 'text' as const, text: `No embedding found for item ${args.id}. The item may not have been embedded yet.` }],
+            isError: true,
+          };
+        }
+
+        // Use the embedding to search for similar items
+        const { data: results, error: searchError } = await supabase.rpc('hybrid_search', {
+          query_embedding: typeof sourceItem.embedding === 'string'
+            ? sourceItem.embedding
+            : JSON.stringify(sourceItem.embedding),
+          query_text: '',
+          similarity_threshold: threshold,
+          limit_count: resultLimit + 1, // +1 to exclude self
+        });
+
+        if (searchError) {
+          return {
+            content: [{ type: 'text' as const, text: `Similarity search failed: ${searchError.message}.` }],
+            isError: true,
+          };
+        }
+
+        // Filter out the source item itself
+        const similar: SimilarItem[] = ((results ?? []) as Record<string, unknown>[])
+          .filter((r) => r.id !== args.id)
+          .slice(0, resultLimit)
+          .map((r) => ({
+            id: r.id as string,
+            title: r.title as string | null,
+            suggested_title: r.suggested_title as string | null,
+            content_type: r.content_type as string | null,
+            primary_domain: r.primary_domain as string | null,
+            similarity: r.similarity as number,
+            likely_duplicate: (r.similarity as number) > 0.95,
+          }));
+
+        const sourceTitle = sourceItem.suggested_title || sourceItem.title || 'Untitled';
+        const result: SimilarItemsResult = {
+          source_item: { id: args.id, title: sourceTitle },
+          similar_items: similar,
+        };
+
+        const markdown = truncateResponse(formatSimilarItems(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Similarity search failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 21. get_content_items (batch)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_content_items',
+    {
+      title: 'Get Content Items (Batch)',
+      description: 'Fetch multiple content items by ID array in a single call. Eliminates the need for multiple get_content_item calls when auditing or reviewing several items. Returns the same detail level as get_content_item for each item. Maximum 50 IDs per call.',
+      inputSchema: {
+        ids: z.array(z.string().uuid()).min(1).max(50).describe('Array of content item UUIDs to fetch (max: 50)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        const { data: rows, error } = await supabase
+          .from('content_items')
+          .select(
+            'id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, classification_confidence, source_url, content, created_at, updated_at, governance_review_status, priority',
+          )
+          .in('id', args.ids);
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Batch fetch failed: ${error.message}.` }],
+            isError: true,
+          };
+        }
+
+        const foundIds = new Set((rows ?? []).map((r: Record<string, unknown>) => r.id as string));
+        const notFound = args.ids.filter((id) => !foundIds.has(id));
+
+        const items: ContentItemDetail[] = ((rows ?? []) as Record<string, unknown>[]).map((item) => {
+          // Truncate content in results to prevent oversized responses
+          let content = item.content as string | null;
+          if (typeof content === 'string' && content.length > CHARACTER_LIMIT) {
+            content = content.slice(0, CHARACTER_LIMIT) + '\n\n... (content truncated)';
+          }
+
+          return {
+            id: item.id as string,
+            title: item.title as string | null,
+            suggested_title: item.suggested_title as string | null,
+            content_type: item.content_type as string | null,
+            primary_domain: item.primary_domain as string | null,
+            primary_subtopic: item.primary_subtopic as string | null,
+            ai_summary: item.ai_summary as string | null,
+            ai_keywords: item.ai_keywords as string[] | null,
+            freshness: item.freshness as string | null,
+            classification_confidence: item.classification_confidence as number | null,
+            source_url: item.source_url as string | null,
+            content,
+            created_at: item.created_at as string | null,
+            updated_at: item.updated_at as string | null,
+            governance_review_status: item.governance_review_status as string | null,
+            priority: item.priority as string | null,
+          };
+        });
+
+        // Reorder to match input ID order
+        const idOrder = new Map(args.ids.map((id, index) => [id, index]));
+        items.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+
+        const result: BatchContentItemsResult = {
+          count: items.length,
+          items,
+          not_found: notFound,
+        };
+
+        const markdown = truncateResponse(formatBatchContentItems(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Batch fetch failed: ${message}.` }],
           isError: true,
         };
       }

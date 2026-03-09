@@ -10,6 +10,7 @@ import {
   Compass,
   FileText,
   BarChart3,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -202,6 +203,65 @@ export function IntegrationsSection() {
               </li>
             ))}
           </ul>
+        </CardContent>
+      </Card>
+
+      {/* Download plugin */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Claude Code Plugin</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Download the Knowledge Hub plugin for Claude Code or Cowork.
+            Adds slash commands for searching your knowledge base, checking bid
+            status, and drafting responses.
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              variant="outline"
+              className="w-fit"
+              asChild
+            >
+              <a href="/api/plugin/download" download>
+                <Download className="mr-2 size-4" aria-hidden="true" />
+                Download Plugin
+              </a>
+            </Button>
+
+            <ol className="flex list-none flex-col gap-1.5 text-sm text-muted-foreground">
+              <li className="flex gap-2">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                  1
+                </span>
+                <span>Download the plugin file</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                  2
+                </span>
+                <span>
+                  Open{' '}
+                  <span className="font-medium text-foreground">Claude Desktop</span>
+                  {' '}or{' '}
+                  <span className="font-medium text-foreground">Cowork</span>
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                  3
+                </span>
+                <span>Go to Settings &rarr; Plugins &rarr; Upload</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                  4
+                </span>
+                <span>Select the downloaded file</span>
+              </li>
+            </ol>
+          </div>
         </CardContent>
       </Card>
 
