@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Settings, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useUserRole } from '@/hooks/use-user-role';
 import { ProfileSection } from '@/components/settings/profile-section';
 import { TeamSection } from '@/components/settings/team-section';
@@ -10,6 +11,7 @@ import { GovernanceSection } from '@/components/settings/governance-section';
 import { ActivitySection } from '@/components/settings/activity-section';
 import { TaxonomySection } from '@/components/settings/taxonomy-section';
 import { TagsSection } from '@/components/settings/tags-section';
+import { IntegrationsSection } from '@/components/settings/integrations-section';
 import {
   SettingsSidebar,
   SettingsMobileSidebar,
@@ -25,6 +27,8 @@ function SectionContent({ section }: { section: SettingsSection }) {
   switch (section) {
     case 'profile':
       return <ProfileSection />;
+    case 'integrations':
+      return <IntegrationsSection />;
     case 'taxonomy':
       return <TaxonomySection />;
     case 'tags':
@@ -69,33 +73,16 @@ function SettingsContent() {
     );
   }
 
-  // Non-admin: simple layout, no sidebar
-  if (!canAdmin) {
-    return (
-      <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex items-center gap-3">
-          <Settings className="size-6 text-muted-foreground" />
-          <div>
-            <h1 className="text-xl font-semibold">Settings</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage your profile
-            </p>
-          </div>
-        </div>
-        <ProfileSection />
-      </div>
-    );
-  }
-
-  // Admin: sidebar layout
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div className={cn('mx-auto px-4 py-8 sm:px-6', canAdmin ? 'max-w-5xl' : 'max-w-3xl')}>
       <div className="mb-6 flex items-center gap-3">
         <Settings className="size-6 text-muted-foreground" />
         <div className="flex-1">
           <h1 className="text-xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">
-            Manage your profile and system configuration
+            {canAdmin
+              ? 'Manage your profile and system configuration'
+              : 'Manage your profile and integrations'}
           </p>
         </div>
         <SettingsMobileSidebar
