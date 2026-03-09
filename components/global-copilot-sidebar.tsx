@@ -127,7 +127,7 @@ export function GlobalCopilotSidebar({ children }: { children: ReactNode }) {
   return (
     <CopilotSidebar
       defaultOpen={false}
-      clickOutsideToClose={true}
+      clickOutsideToClose={false}
       makeSystemMessage={systemPrompt}
       labels={{
         title: labels.title,

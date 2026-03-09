@@ -731,6 +731,20 @@ p + p {
   visibility: visible;
 }
 
+/* Prevent the entire CopilotKit sidebar container from stealing pointer events when chat is closed */
+.copilotKitSidebar:has(.copilotKitWindow:not(.open)) {
+  pointer-events: none;
+}
+
+.copilotKitSidebar:has(.copilotKitWindow.open) {
+  pointer-events: auto;
+}
+
+/* The floating chat button must always be clickable */
+.copilotKitSidebar .copilotKitButton {
+  pointer-events: auto;
+}
+
 .global-copilot-sidebar [data-copilotkit-sidebar] {
   background: var(--card);
   color: var(--foreground);

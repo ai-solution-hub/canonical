@@ -369,7 +369,7 @@ export function ReviewContent() {
 
       {showQueuePanel && (
         <>
-          <PanelResizeHandle className="hidden w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30 md:block" />
+          <PanelResizeHandle className="hidden w-2 bg-border transition-colors hover:bg-primary/20 data-[separator=active]:bg-primary/30 md:block relative z-[51]" />
           <Panel
             id="review-queue"
             defaultSize={25}
