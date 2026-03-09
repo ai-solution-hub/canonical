@@ -10,9 +10,11 @@ import {
   findQuestionByText,
   calculateBidProgress,
 } from '@/lib/copilotkit/action-helpers';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 /**
  * Registers CopilotKit actions for the bid workspace.
+ * Deferred until after hydration so the CopilotKit provider is mounted.
  *
  * All context values are destructured at the component level so that
  * action handlers can reference them from the closure. Action handlers
@@ -20,6 +22,14 @@ import {
  * Rules of Hooks.
  */
 export function BidCopilotActions() {
+  const hydrated = useHydrated();
+
+  if (!hydrated) return null;
+
+  return <BidCopilotActionsInner />;
+}
+
+function BidCopilotActionsInner() {
   const {
     bidId,
     bid,

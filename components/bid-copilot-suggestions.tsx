@@ -2,9 +2,11 @@
 
 import { useCopilotChatSuggestions } from '@copilotkit/react-ui';
 import { useBidContext } from './bid-context-provider';
+import { useHydrated } from '@/hooks/use-hydrated';
 
 /**
  * Context-aware chat suggestions for the bid workspace.
+ * Deferred until after hydration so the CopilotKit provider is mounted.
  *
  * Suggestions change based on the current question state:
  * - No question selected: general bid overview prompts
@@ -14,6 +16,14 @@ import { useBidContext } from './bid-context-provider';
  * - Approved: next question prompts
  */
 export function BidCopilotSuggestions() {
+  const hydrated = useHydrated();
+
+  if (!hydrated) return null;
+
+  return <BidCopilotSuggestionsInner />;
+}
+
+function BidCopilotSuggestionsInner() {
   const { bid, questions, activeQuestionId, activeResponse } =
     useBidContext();
 

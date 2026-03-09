@@ -83,7 +83,7 @@ export function NeedsAttentionSection({
             <AttentionCard
               icon={Flag}
               count={quality_flag_count}
-              label={`quality ${(quality_flag_count ?? 0) === 1 ? 'flag' : 'flags'} unresolved`}
+              label={`${(quality_flag_count ?? 0) === 1 ? 'item has' : 'items have'} quality issues`}
               href="/browse?quality_issues=true"
               actionLabel="Browse flagged"
             />

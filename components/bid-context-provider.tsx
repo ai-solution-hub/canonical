@@ -11,6 +11,8 @@ import {
 } from 'react';
 import { useCopilotReadable } from '@copilotkit/react-core';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useHydrated } from '@/hooks/use-hydrated';
+import type { UserRole } from '@/lib/roles';
 import type { BidMetadata, BidQuestion } from '@/types/bid';
 
 // ────────────────────────────────────────────
@@ -214,10 +216,52 @@ export function BidContextProvider({
     void fetchActiveResponse();
   }, [fetchActiveResponse]);
 
-  // ════════════════════════════════════════════
-  // CopilotKit Context Hooks
-  // ════════════════════════════════════════════
+  const contextValue = {
+    bidId,
+    bid,
+    questions,
+    activeQuestionId,
+    activeResponse,
+    setActiveQuestionId,
+    editorRef,
+    refreshBid: fetchBid,
+    refreshQuestions: fetchQuestions,
+  };
 
+  return (
+    <BidContext.Provider value={contextValue}>
+      <BidCopilotReadables
+        bid={bid}
+        questions={questions}
+        activeQuestionId={activeQuestionId}
+        activeResponse={activeResponse}
+        role={role}
+      />
+      {children}
+    </BidContext.Provider>
+  );
+}
+
+// ────────────────────────────────────────────
+// Inner component for CopilotKit readables
+// Only rendered after hydration when CopilotKit context is available.
+// ────────────────────────────────────────────
+
+interface BidCopilotReadablesProps {
+  bid: BidSummary | null;
+  questions: QuestionSummary[];
+  activeQuestionId: string | null;
+  activeResponse: ResponseSummary | null;
+  role: UserRole | null;
+}
+
+function BidCopilotReadablesInner({
+  bid,
+  questions,
+  activeQuestionId,
+  activeResponse,
+  role,
+}: BidCopilotReadablesProps) {
   // 1. Current bid overview
   useCopilotReadable({
     description: 'Current bid details -- the bid the user is working on',
@@ -309,21 +353,17 @@ export function BidContextProvider({
     },
   });
 
-  return (
-    <BidContext.Provider
-      value={{
-        bidId,
-        bid,
-        questions,
-        activeQuestionId,
-        activeResponse,
-        setActiveQuestionId,
-        editorRef,
-        refreshBid: fetchBid,
-        refreshQuestions: fetchQuestions,
-      }}
-    >
-      {children}
-    </BidContext.Provider>
-  );
+  return null;
+}
+
+/**
+ * Hydration-guarded wrapper for bid CopilotKit readables.
+ * Deferred until after hydration so the CopilotKit provider is mounted.
+ */
+function BidCopilotReadables(props: BidCopilotReadablesProps) {
+  const hydrated = useHydrated();
+
+  if (!hydrated) return null;
+
+  return <BidCopilotReadablesInner {...props} />;
 }

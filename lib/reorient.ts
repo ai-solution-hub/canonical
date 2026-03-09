@@ -43,20 +43,38 @@ export async function fetchReorientData(
 ): Promise<ReorientData> {
   const errors: string[] = [];
 
-  // Query 1: User's last activity timestamp
-  const lastActivityQuery = supabase
-    .from('content_history')
-    .select('created_at')
-    .eq('created_by', userId)
-    .order('created_at', { ascending: false })
-    .limit(1);
+  // Query 1: User's last activity timestamp (write activity + read activity)
+  const [lastWriteResult, lastReadResult] = await Promise.all([
+    supabase
+      .from('content_history')
+      .select('created_at')
+      .eq('created_by', userId)
+      .order('created_at', { ascending: false })
+      .limit(1),
+    supabase
+      .from('read_marks')
+      .select('read_at')
+      .eq('user_id', userId)
+      .order('read_at', { ascending: false })
+      .limit(1),
+  ]);
 
-  // Determine last_active_at from content_history, then auth last_sign_in_at, then 24h ago
-  const { data: lastActivityData } = await lastActivityQuery;
+  // Determine last_active_at from the most recent of content_history or read_marks,
+  // then auth last_sign_in_at, then 24h ago
+  const lastWriteAt = lastWriteResult.data?.[0]?.created_at ?? null;
+  const lastReadAt = lastReadResult.data?.[0]?.read_at ?? null;
+
   let lastActiveAt: string | null = null;
 
-  if (lastActivityData && lastActivityData.length > 0) {
-    lastActiveAt = lastActivityData[0].created_at;
+  if (lastWriteAt && lastReadAt) {
+    // Take the more recent of the two
+    lastActiveAt = new Date(lastWriteAt) >= new Date(lastReadAt)
+      ? lastWriteAt
+      : lastReadAt;
+  } else if (lastWriteAt) {
+    lastActiveAt = lastWriteAt;
+  } else if (lastReadAt) {
+    lastActiveAt = lastReadAt;
   } else {
     // Fall back to last_sign_in_at from auth
     try {
@@ -392,18 +410,6 @@ export async function fetchReorientData(
       detail: 'Items awaiting review',
       href: '/review',
       entity_id: 'reviews',
-    });
-  }
-
-  // Unresolved quality flags (admin only)
-  if (isAdmin && qualityFlags > 0) {
-    urgent.push({
-      type: 'quality_flag',
-      priority: 3,
-      title: `${qualityFlags} quality flag${qualityFlags === 1 ? '' : 's'} unresolved`,
-      detail: 'Items with quality issues need attention',
-      href: '/review',
-      entity_id: 'quality-flags',
     });
   }
 

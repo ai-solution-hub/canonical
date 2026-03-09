@@ -51,7 +51,7 @@ export function ReviewQueuePanel({
           <SelectTrigger className="h-8 text-xs">
             <SelectValue placeholder="Sort by..." />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent position="popper">
             <SelectItem value="default">Default order</SelectItem>
             <SelectItem value="domain">Domain</SelectItem>
             <SelectItem value="content_type">Content type</SelectItem>

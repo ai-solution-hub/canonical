@@ -80,7 +80,9 @@ const TEST_USER_ID = 'user-abc-123';
  * gets sensible defaults for all its queries.
  *
  * The function structure is:
- *   1. from('content_history') for lastActivity — awaited first
+ *   1. Promise.all for lastActivity:
+ *      - from('content_history') for write activity
+ *      - from('read_marks') for read activity
  *   2. Then Promise.all with:
  *      a) Promise.allSettled with 8 items:
  *         [0] from('content_history') — team changes
@@ -96,6 +98,7 @@ const TEST_USER_ID = 'user-abc-123';
  */
 function setupDefaultMock(overrides: {
   lastActivityData?: unknown[];
+  lastReadActivityData?: unknown[];
   authUser?: Record<string, unknown> | null;
   teamChangesData?: unknown[];
   recentWorkData?: unknown[];
@@ -117,9 +120,16 @@ function setupDefaultMock(overrides: {
     count: number | null;
   }> = [];
 
-  // Call 0: content_history for lastActivity
+  // Call 0: content_history for lastActivity (write)
   fromCalls.push({
     data: overrides.lastActivityData ?? [{ created_at: '2026-03-08T08:00:00Z' }],
+    error: null,
+    count: null,
+  });
+
+  // Call 1: read_marks for lastActivity (read)
+  fromCalls.push({
+    data: overrides.lastReadActivityData ?? [],
     error: null,
     count: null,
   });
@@ -278,9 +288,42 @@ describe('fetchReorientData', () => {
   // =========================================================================
 
   describe('last_active_at', () => {
-    it('returns last_active_at from content_history when available', async () => {
+    it('returns last_active_at from content_history when it is more recent than read_marks', async () => {
       const mock = setupDefaultMock({
-        lastActivityData: [{ created_at: '2026-03-08T08:30:00Z' }],
+        lastActivityData: [{ created_at: '2026-03-08T09:00:00Z' }],
+        lastReadActivityData: [{ read_at: '2026-03-08T08:00:00Z' }],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false,
+        'editor',
+      );
+
+      expect(result.last_active_at).toBe('2026-03-08T09:00:00Z');
+    });
+
+    it('returns last_active_at from read_marks when it is more recent than content_history', async () => {
+      const mock = setupDefaultMock({
+        lastActivityData: [{ created_at: '2026-03-08T07:00:00Z' }],
+        lastReadActivityData: [{ read_at: '2026-03-08T09:30:00Z' }],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false,
+        'editor',
+      );
+
+      expect(result.last_active_at).toBe('2026-03-08T09:30:00Z');
+    });
+
+    it('returns last_active_at from read_marks when no content_history exists', async () => {
+      const mock = setupDefaultMock({
+        lastActivityData: [],
+        lastReadActivityData: [{ read_at: '2026-03-08T08:30:00Z' }],
       });
 
       const result = await fetchReorientData(
@@ -293,7 +336,23 @@ describe('fetchReorientData', () => {
       expect(result.last_active_at).toBe('2026-03-08T08:30:00Z');
     });
 
-    it('falls back to last_sign_in_at when no content_history', async () => {
+    it('returns last_active_at from content_history when no read_marks exist', async () => {
+      const mock = setupDefaultMock({
+        lastActivityData: [{ created_at: '2026-03-08T08:30:00Z' }],
+        lastReadActivityData: [],
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false,
+        'editor',
+      );
+
+      expect(result.last_active_at).toBe('2026-03-08T08:30:00Z');
+    });
+
+    it('falls back to last_sign_in_at when no content_history or read_marks', async () => {
       const mock = setupDefaultMock({
         lastActivityData: [],
         authUser: {
@@ -314,9 +373,10 @@ describe('fetchReorientData', () => {
       expect(result.last_active_at).toBe('2026-03-07T14:00:00Z');
     });
 
-    it('falls back to null when neither content_history nor last_sign_in_at available', async () => {
+    it('falls back to null when no content_history, read_marks, or last_sign_in_at available', async () => {
       const mock = setupDefaultMock({
         lastActivityData: [],
+        lastReadActivityData: [],
         authUser: {
           id: TEST_USER_ID,
           email: 'liam@example.com',
@@ -583,7 +643,7 @@ describe('fetchReorientData', () => {
       }
     });
 
-    it('generates quality_flag urgent items for admin users', async () => {
+    it('does not generate quality_flag urgent items (handled by Needs Attention section)', async () => {
       const mock = setupDefaultMock({
         qualityFlagsCount: 4,
       });
@@ -593,25 +653,6 @@ describe('fetchReorientData', () => {
         TEST_USER_ID,
         true, // isAdmin
         'admin',
-      );
-
-      const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
-      expect(qualityItem).toBeDefined();
-      expect(qualityItem!.title).toContain('4 quality flags');
-      expect(qualityItem!.priority).toBe(3);
-      expect(qualityItem!.href).toBe('/review');
-    });
-
-    it('does not generate quality_flag urgent items for non-admin users', async () => {
-      const mock = setupDefaultMock({
-        qualityFlagsCount: 4,
-      });
-
-      const result = await fetchReorientData(
-        mock as unknown as Parameters<typeof fetchReorientData>[0],
-        TEST_USER_ID,
-        false, // not admin
-        'editor',
       );
 
       const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
@@ -844,17 +885,21 @@ describe('fetchReorientData', () => {
     it('continues with errors array when team changes query fails', async () => {
       const mock = setupDefaultMock();
 
-      // Override: make the second from() call (team changes) return an error.
-      // Capture the index at creation time to avoid closure-over-mutable-variable bug.
+      // Override: make the team changes from() call return an error.
+      // from() calls: 1=content_history (lastActivity write), 2=read_marks (lastActivity read),
+      // 3=content_history (team changes), 4+=other queries.
       let callCounter = 0;
       mock.from.mockImplementation(() => {
         const currentIdx = ++callCounter;
         const response = (() => {
           if (currentIdx === 1) {
-            // First call: lastActivity — return data
+            // First call: content_history for lastActivity (write)
             return { data: [{ created_at: '2026-03-08T08:00:00Z' }], error: null, count: null };
           } else if (currentIdx === 2) {
-            // Second call: team changes — return error
+            // Second call: read_marks for lastActivity (read)
+            return { data: [], error: null, count: null };
+          } else if (currentIdx === 3) {
+            // Third call: content_history for team changes — return error
             return { data: null, error: { message: 'Query failed' }, count: null };
           } else {
             return { data: [], error: null, count: 0 };

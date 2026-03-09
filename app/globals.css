@@ -721,6 +721,12 @@ p + p {
   z-index: 50;
 }
 
+/* Ensure CopilotKit content wrapper does not break nested scroll containers */
+.global-copilot-sidebar .copilotKitSidebarContentWrapper {
+  height: 100vh;
+  overflow: hidden;
+}
+
 .global-copilot-sidebar [data-copilotkit-sidebar] {
   background: var(--card);
   color: var(--foreground);

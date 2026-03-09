@@ -26,11 +26,15 @@ export async function GET(request: NextRequest) {
     );
     const before = url.searchParams.get('before') || undefined;
 
-    const { data, error } = await supabase.rpc('get_grouped_activity_feed', {
+    const rpcParams: { p_limit: number; p_is_admin: boolean; p_before?: string } = {
       p_limit: limit,
       p_is_admin: role === 'admin',
-      p_before: before,
-    });
+    };
+    if (before) {
+      rpcParams.p_before = before;
+    }
+
+    const { data, error } = await supabase.rpc('get_grouped_activity_feed', rpcParams);
 
     if (error) {
       console.error('Failed to fetch activity feed:', error);

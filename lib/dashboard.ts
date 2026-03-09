@@ -108,11 +108,9 @@ export async function fetchDashboardData(
         .select('*', { count: 'exact', head: true })
         .is('verified_at', null),
 
-      // 2: Quality flags unresolved
-      supabase
-        .from('ingestion_quality_log')
-        .select('*', { count: 'exact', head: true })
-        .eq('resolved', false),
+      // 2: Distinct content items with unresolved quality flags
+      // Uses the same RPC as the browse filter so counts match
+      supabase.rpc('get_items_with_quality_flags'),
 
       // 3: Freshness breakdown
       supabase.rpc('get_freshness_breakdown'),
@@ -159,14 +157,14 @@ export async function fetchDashboardData(
     errors.push('unverified_count query failed');
   }
 
-  // --- Extract quality flag count ---
+  // --- Extract quality flag count (distinct items with unresolved flags) ---
   let quality_flag_count: number | null = null;
   if (results[2].status === 'fulfilled') {
-    const { count, error } = results[2].value;
+    const { data, error } = results[2].value;
     if (error) {
       errors.push('quality_flag_count query failed');
     } else {
-      quality_flag_count = count ?? 0;
+      quality_flag_count = Array.isArray(data) ? data.length : 0;
     }
   } else {
     errors.push('quality_flag_count query failed');

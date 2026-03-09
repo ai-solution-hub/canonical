@@ -5,6 +5,7 @@ import { Search, X } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -21,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentLibraryResult } from '@/components/content-library-result';
 import { useSearch } from '@/hooks/use-search';
-import { isMacPlatform } from '@/lib/utils';
+import { useModifierKey } from '@/hooks/use-modifier-key';
 import type { SearchResult } from '@/types/content';
 
 interface ContentLibraryDrawerProps {
@@ -158,7 +159,8 @@ export function ContentLibraryDrawer({
     // Copy callback — currently just for tracking; toast is handled by the result component
   }, []);
 
-  const shortcutLabel = isMacPlatform() ? '⌘L' : 'Ctrl+L';
+  const modKey = useModifierKey();
+  const shortcutLabel = modKey ? `${modKey}L` : '';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -169,6 +171,9 @@ export function ContentLibraryDrawer({
       >
         <SheetHeader className="space-y-0 pb-3">
           <SheetTitle className="text-base">Content Library</SheetTitle>
+          <SheetDescription className="sr-only">
+            Search and browse the knowledge base to find answers, policies, and reference material.
+          </SheetDescription>
         </SheetHeader>
 
         {/* Search bar */}
