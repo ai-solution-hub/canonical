@@ -2,9 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   formatEntitySummary,
   formatEntityOverview,
+  formatCitation,
+  formatContentEffectiveness,
   type EntitySummaryResult,
   type EntityRelationship,
   type EntityOverview,
+  type CitationResult,
+  type ContentEffectiveness,
 } from '@/lib/mcp/formatters';
 
 // ──────────────────────────────────────────
@@ -274,5 +278,128 @@ describe('formatEntityOverview', () => {
       expect(result).toContain('- **regulation:** 1');
       expect(result).toContain('| GDPR | regulation | 1 |');
     });
+  });
+});
+
+// ──────────────────────────────────────────
+// formatCitation
+// ──────────────────────────────────────────
+
+describe('formatCitation', () => {
+  const sampleCitation: CitationResult = {
+    id: 'cit-001',
+    content_item_id: 'item-abc-123',
+    bid_response_id: 'resp-xyz-456',
+    citation_type: 'reference',
+  };
+
+  it('formats a citation with all fields', () => {
+    const result = formatCitation(sampleCitation);
+
+    expect(result).toContain('# Citation Recorded');
+    expect(result).toContain('**Content item:** item-abc-123');
+    expect(result).toContain('**Bid response:** resp-xyz-456');
+    expect(result).toContain('**Type:** reference');
+    expect(result).toContain('**ID:** cit-001');
+    expect(result).toContain('The citation has been recorded successfully.');
+  });
+
+  it('returns item ID and response ID in output', () => {
+    const citation: CitationResult = {
+      id: 'cit-999',
+      content_item_id: 'content-id-abc',
+      bid_response_id: 'response-id-def',
+      citation_type: 'adapted',
+    };
+
+    const result = formatCitation(citation);
+
+    expect(result).toContain('content-id-abc');
+    expect(result).toContain('response-id-def');
+    expect(result).toContain('**Type:** adapted');
+  });
+});
+
+// ──────────────────────────────────────────
+// formatContentEffectiveness
+// ──────────────────────────────────────────
+
+describe('formatContentEffectiveness', () => {
+  it('produces "highly effective" commentary for high win rate (>= 0.7)', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-001',
+      total_citations: 10,
+      winning_citations: 8,
+      win_rate: 0.8,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('# Content Effectiveness');
+    expect(result).toContain('**Win rate:** 80%');
+    expect(result).toContain('highly effective');
+  });
+
+  it('produces moderate commentary for moderate win rate (>= 0.4)', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-002',
+      total_citations: 10,
+      winning_citations: 5,
+      win_rate: 0.5,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('**Win rate:** 50%');
+    expect(result).toContain('moderate effectiveness');
+  });
+
+  it('produces low win rate commentary for win rate < 0.4', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-003',
+      total_citations: 10,
+      winning_citations: 2,
+      win_rate: 0.2,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('**Win rate:** 20%');
+    expect(result).toContain('low win rate');
+  });
+
+  it('produces "no citations" message when total_citations is 0', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-004',
+      total_citations: 0,
+      winning_citations: 0,
+      win_rate: 0,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('**Total citations:** 0');
+    expect(result).toContain('not yet been cited');
+    // Should NOT contain any effectiveness commentary
+    expect(result).not.toContain('highly effective');
+    expect(result).not.toContain('moderate effectiveness');
+    expect(result).not.toContain('low win rate');
+  });
+
+  it('handles exactly 0 win rate with citations present', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-005',
+      total_citations: 5,
+      winning_citations: 0,
+      win_rate: 0,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('**Win rate:** 0%');
+    expect(result).toContain('**Total citations:** 5');
+    // 0 < 0.4, so should get low win rate message, NOT the "no citations" message
+    expect(result).toContain('low win rate');
+    expect(result).not.toContain('not yet been cited');
   });
 });

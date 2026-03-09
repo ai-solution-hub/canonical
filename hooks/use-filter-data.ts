@@ -182,33 +182,22 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [isOpen, userTagsLoaded]);
 
-  // Fetch entity names when panel opens
+  // Fetch entity names when panel opens (server-side aggregation via RPC)
   useEffect(() => {
     if (!isOpen || entitiesLoaded) return;
     const fetchEntities = async () => {
       try {
-        // Get distinct entity canonical names with counts
-        const { data, error } = await supabase
-          .from('entity_mentions')
-          .select('canonical_name');
+        const { data, error } = await supabase.rpc('get_entity_name_counts');
 
         if (error || !data) {
           setEntitiesLoaded(true);
           return;
         }
 
-        // Count occurrences of each canonical name
-        const countMap = new Map<string, number>();
-        for (const row of data) {
-          const name = row.canonical_name;
-          countMap.set(name, (countMap.get(name) ?? 0) + 1);
-        }
-
-        const entities = [...countMap.entries()]
-          .map(([name, count]) => ({ name, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 50); // Cap at 50 to keep the UI manageable
-
+        const entities = (data ?? []).map((row: { canonical_name: string; mention_count: number }) => ({
+          name: row.canonical_name,
+          count: Number(row.mention_count),
+        }));
         setAllEntities(entities);
       } catch {
         // Non-critical
