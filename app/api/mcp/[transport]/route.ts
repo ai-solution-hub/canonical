@@ -42,7 +42,8 @@ const handler = createMcpHandler(
   {
     basePath: '/api/mcp',
     maxDuration: 60,
-    disableSse: true,
+    disableSse: false,
+    verboseLogs: true,
     onEvent: (event: { type: string; error?: unknown; context?: unknown }) => {
       if (event.type === 'ERROR') {
         console.error('[MCP]', event.error, event.context);
