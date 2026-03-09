@@ -2,7 +2,12 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 // Routes that don't require authentication
-const publicRoutes = ['/login', '/auth/callback'];
+const publicRoutes = [
+  '/login',
+  '/auth/callback',
+  '/.well-known',       // OAuth protected resource metadata (MCP discovery)
+  '/oauth/consent',     // OAuth consent page (user authenticates via Supabase)
+];
 
 export async function proxy(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
