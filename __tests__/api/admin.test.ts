@@ -273,7 +273,12 @@ describe('Admin API routes', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('email');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'email' }),
+        ]),
+      );
     });
 
     it('returns 400 for invalid email format', async () => {
@@ -288,7 +293,12 @@ describe('Admin API routes', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('email');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'email', message: 'A valid email address is required' }),
+        ]),
+      );
     });
 
     it('returns 400 for invalid role', async () => {
@@ -303,7 +313,12 @@ describe('Admin API routes', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('Role must be one of');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'role' }),
+        ]),
+      );
     });
 
     it('returns 409 for duplicate user', async () => {
@@ -399,7 +414,12 @@ describe('Admin API routes', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('Role must be one of');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'role' }),
+        ]),
+      );
     });
 
     it('returns 500 when upsert fails', async () => {

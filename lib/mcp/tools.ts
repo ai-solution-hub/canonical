@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 16 tools:
+ * Registers 21 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
@@ -18,6 +18,11 @@
  *  14. get_entity_relationships — Query entity relationships from the entity graph
  *  15. cite_content — Record that a content item was used in a bid response (editor+)
  *  16. get_content_effectiveness — Get win rate stats for a content item
+ *  17. get_coverage_gaps — Identify domains/subtopics with thin or zero coverage
+ *  18. audit_content — Find items matching quality criteria (thin, low confidence, etc.)
+ *  19. update_content_item — Edit content item metadata and fields (editor+)
+ *  20. find_similar_items — Find similar items by cosine similarity
+ *  21. get_content_items — Batch fetch multiple content items by ID array
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -132,12 +137,12 @@ export function registerTools(server: McpServer): void {
     'search_knowledge_base',
     {
       title: 'Search Knowledge Base',
-      description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content.',
+      description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: Security, IT & Infrastructure, Compliance & Governance, Quality & Standards, People & Culture, Operations, Commercial, Sustainability. Use the kb://taxonomy resource for the full subtopic list.',
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
         offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-        domain: z.string().optional().describe('Filter results to a specific domain (e.g. "Security", "Construction", "HR")'),
+        domain: z.string().optional().describe('Filter results to a specific domain. Valid values: Security, IT & Infrastructure, Compliance & Governance, Quality & Standards, People & Culture, Operations, Commercial, Sustainability'),
       },
       annotations: {
         readOnlyHint: true,
@@ -347,7 +352,7 @@ export function registerTools(server: McpServer): void {
     'get_content_item',
     {
       title: 'Get Content Item',
-      description: 'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, and content text. Use this after searching to get the complete details of a specific item.',
+      description: 'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, content text, and entity relationships. For Q&A pairs, includes standard and advanced answers. Use this after searching to get the complete details of a specific item. Use get_entity_relationships to explore connected entities.',
       inputSchema: {
         id: z.string().uuid().describe('The UUID of the content item to retrieve'),
       },
@@ -813,7 +818,7 @@ export function registerTools(server: McpServer): void {
     'create_content_item',
     {
       title: 'Create Content Item',
-      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search.',
+      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z.string().min(1).max(500000).describe('The content text'),
@@ -910,7 +915,7 @@ export function registerTools(server: McpServer): void {
     'search_qa_library',
     {
       title: 'Search Q&A Library',
-      description: 'Search the Q&A library specifically. Returns Q&A pairs from the knowledge base matching your query, useful for finding reusable answers for bid responses.',
+      description: 'Search the Q&A library for reusable answers. Unlike search_knowledge_base which searches all content types, this tool filters to Q&A pairs only — ideal for finding existing answers to use in bid responses. Q&A pairs have standard and advanced answer levels. Use get_content_item to retrieve the full answer text after finding relevant pairs.',
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),

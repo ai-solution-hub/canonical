@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, getAuthenticatedClient, unauthorisedResponse, forbiddenResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
-import type { UserRole } from '@/lib/roles';
+import { parseBody } from '@/lib/validation';
+import { UserRoleUpdateBodySchema } from '@/lib/validation/schemas';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const VALID_ROLES: UserRole[] = ['admin', 'editor', 'viewer'];
 
 /** PATCH /api/admin/users/[userId] — update a user's role (admin only) */
 export async function PATCH(
@@ -30,9 +29,9 @@ export async function PATCH(
       );
     }
 
-    let body: { role: UserRole };
+    let raw: unknown;
     try {
-      body = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
@@ -40,13 +39,9 @@ export async function PATCH(
       );
     }
 
-    const { role } = body;
-    if (!role || !VALID_ROLES.includes(role)) {
-      return NextResponse.json(
-        { error: `Role must be one of: ${VALID_ROLES.join(', ')}` },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(UserRoleUpdateBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { role } = parsed.data;
 
     const serviceClient = createServiceClient();
 

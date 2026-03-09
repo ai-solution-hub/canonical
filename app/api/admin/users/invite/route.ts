@@ -2,15 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, getAuthenticatedClient, unauthorisedResponse, forbiddenResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
-import type { UserRole } from '@/lib/roles';
-
-const VALID_ROLES: UserRole[] = ['admin', 'editor', 'viewer'];
-
-interface InviteBody {
-  email: string;
-  role: UserRole;
-  display_name?: string;
-}
+import { parseBody } from '@/lib/validation';
+import { UserInviteBodySchema } from '@/lib/validation/schemas';
 
 /** POST /api/admin/users/invite — invite a new user by email (admin only) */
 export async function POST(request: NextRequest) {
@@ -22,9 +15,9 @@ export async function POST(request: NextRequest) {
       return forbiddenResponse();
     }
 
-    let body: InviteBody;
+    let raw: unknown;
     try {
-      body = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
@@ -32,23 +25,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, role, display_name } = body;
-
-    // Validate email
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
-      return NextResponse.json(
-        { error: 'A valid email address is required' },
-        { status: 400 },
-      );
-    }
-
-    // Validate role
-    if (!role || !VALID_ROLES.includes(role)) {
-      return NextResponse.json(
-        { error: `Role must be one of: ${VALID_ROLES.join(', ')}` },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(UserInviteBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { email, role, display_name } = parsed.data;
 
     const serviceClient = createServiceClient();
 

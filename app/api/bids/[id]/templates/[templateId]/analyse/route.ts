@@ -6,6 +6,8 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { parseBody } from '@/lib/validation';
+import { TemplateAnalyseBodySchema } from '@/lib/validation/schemas';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -50,9 +52,11 @@ export async function POST(
       );
     }
 
-    // Check if template can be analysed
-    const body = await request.json().catch(() => ({}));
-    const force = body?.force === true;
+    // Parse and validate request body
+    const raw = await request.json().catch(() => ({}));
+    const parsed = parseBody(TemplateAnalyseBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { force } = parsed.data;
 
     if (
       !force &&

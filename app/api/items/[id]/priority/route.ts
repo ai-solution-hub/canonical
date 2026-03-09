@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBody } from '@/lib/validation';
+import { PriorityUpdateBodySchema } from '@/lib/validation/schemas';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const VALID_PRIORITIES = ['high', 'medium', 'low'] as const;
 
 export async function PATCH(
   request: NextRequest,
@@ -25,18 +25,10 @@ export async function PATCH(
       );
     }
 
-    const { priority } = await request.json();
-
-    // Validate priority value (null to clear, or one of the valid values)
-    if (
-      priority !== null &&
-      !(VALID_PRIORITIES as readonly string[]).includes(priority)
-    ) {
-      return NextResponse.json(
-        { error: 'Invalid priority. Must be high, medium, low, or null.' },
-        { status: 400 },
-      );
-    }
+    const raw = await request.json();
+    const parsed = parseBody(PriorityUpdateBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { priority } = parsed.data;
 
     const { data, error } = await supabase
       .from('content_items')

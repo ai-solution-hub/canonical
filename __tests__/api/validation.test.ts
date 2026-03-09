@@ -280,7 +280,12 @@ describe('Cross-cutting input validation', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('Role must be one of');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'role' }),
+        ]),
+      );
     });
 
     it('update role rejects invalid role value', async () => {
@@ -297,7 +302,12 @@ describe('Cross-cutting input validation', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('Role must be one of');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'role' }),
+        ]),
+      );
     });
 
     it('invite rejects empty string role', async () => {

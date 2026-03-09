@@ -7,18 +7,19 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { parseBody } from '@/lib/validation';
+import { OAuthDecisionBodySchema } from '@/lib/validation/schemas';
 
 export async function POST(request: Request) {
   const formData = await request.formData();
-  const decision = formData.get('decision') as string;
-  const authorizationId = formData.get('authorization_id') as string;
 
-  if (!authorizationId) {
-    return NextResponse.json(
-      { error: 'Missing authorization_id' },
-      { status: 400 },
-    );
-  }
+  // Validate form data with Zod schema
+  const parsed = parseBody(OAuthDecisionBodySchema, {
+    decision: formData.get('decision'),
+    authorization_id: formData.get('authorization_id'),
+  });
+  if (!parsed.success) return parsed.response;
+  const { decision, authorization_id: authorizationId } = parsed.data;
 
   const supabase = await createClient();
 

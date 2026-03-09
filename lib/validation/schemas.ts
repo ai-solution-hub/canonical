@@ -258,6 +258,62 @@ export const ItemWorkspaceBodySchema = z.object({
 
 
 // ──────────────────────────────────────────
+// Admin User Management Schemas
+// ──────────────────────────────────────────
+
+const VALID_USER_ROLES = ['admin', 'editor', 'viewer'] as const;
+
+/** POST /api/admin/users/invite */
+export const UserInviteBodySchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, 'A valid email address is required')
+    .email('A valid email address is required'),
+  role: z.enum(VALID_USER_ROLES, {
+    message: `Role must be one of: ${VALID_USER_ROLES.join(', ')}`,
+  }),
+  display_name: z.string().max(200).optional(),
+});
+
+/** PATCH /api/admin/users/[userId] */
+export const UserRoleUpdateBodySchema = z.object({
+  role: z.enum(VALID_USER_ROLES, {
+    message: `Role must be one of: ${VALID_USER_ROLES.join(', ')}`,
+  }),
+});
+
+// ──────────────────────────────────────────
+// Priority Schema
+// ──────────────────────────────────────────
+
+const VALID_PRIORITIES = ['high', 'medium', 'low'] as const;
+
+/** PATCH /api/items/[id]/priority */
+export const PriorityUpdateBodySchema = z.object({
+  priority: z.enum(VALID_PRIORITIES).nullable(),
+});
+
+// ──────────────────────────────────────────
+// Template Analysis Schema
+// ──────────────────────────────────────────
+
+/** POST /api/bids/:id/templates/:templateId/analyse */
+export const TemplateAnalyseBodySchema = z.object({
+  force: z.boolean().default(false),
+});
+
+// ──────────────────────────────────────────
+// OAuth Decision Schema
+// ──────────────────────────────────────────
+
+/** POST /api/oauth/decision */
+export const OAuthDecisionBodySchema = z.object({
+  decision: z.enum(['approve', 'deny']),
+  authorization_id: z.string().min(1, 'Missing authorisation_id'),
+});
+
+// ──────────────────────────────────────────
 // Inline Editing Allowlist
 // ──────────────────────────────────────────
 
