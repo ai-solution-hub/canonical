@@ -121,4 +121,8 @@ const authedHandler = withMcpAuth(handler, verifyToken, {
   resourceUrl: RESOURCE_URL,
 });
 
+// Vercel serverless function config — default is 10s which causes silent 500s
+// on cold starts with heavy imports. MCP needs longer for tool execution.
+export const maxDuration = 60;
+
 export { authedHandler as GET, authedHandler as POST, authedHandler as DELETE };
