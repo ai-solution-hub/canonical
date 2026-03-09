@@ -15,6 +15,11 @@ import { ArrowLeft, ChevronRight, KeyRound, Mail, Loader2 } from 'lucide-react';
 type LoginStep = 'email' | 'method' | 'password' | 'magic-link-sent';
 
 export default function LoginPage() {
+  // Read redirect param for post-login navigation (e.g. OAuth consent flow)
+  const redirectTo = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('redirect')
+    : null;
+
   // --- State ---
   const [step, setStep] = useState<LoginStep>('email');
   const [email, setEmail] = useState('');
@@ -116,7 +121,8 @@ export default function LoginPage() {
     // Full page navigation ensures the auth cookies are sent with the request.
     // Using router.push() would trigger a client-side navigation where the
     // proxy may not yet see the freshly-set session cookies.
-    window.location.href = '/';
+    // Honour redirect param if present (e.g. OAuth consent flow).
+    window.location.href = redirectTo ?? '/';
   }
 
   async function handleSendMagicLink() {
