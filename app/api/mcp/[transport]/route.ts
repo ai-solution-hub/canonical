@@ -1,20 +1,22 @@
 /**
  * MCP server route handler for Knowledge Hub.
  *
- * Serves the MCP protocol over HTTP (Streamable HTTP + SSE transports)
- * via the mcp-handler library. The [transport] dynamic segment routes
- * to the correct transport handler.
+ * Uses the MCP SDK's WebStandardStreamableHTTPServerTransport directly
+ * (not mcp-handler) for reliable operation on Vercel serverless. The
+ * mcp-handler library has a bug where its shared Node.js transport gets
+ * corrupted on warm function instances, causing 500 errors on the second
+ * request (typically tools/list after initialize).
  *
- * Authentication: Uses Supabase OAuth 2.1 via withMcpAuth. Unauthenticated
- * requests are rejected with 401 and directed to the Supabase auth server.
+ * Authentication: Supabase OAuth 2.1. Bearer tokens are validated via
+ * supabase.auth.getUser(). Unauthenticated requests receive 401 with a
+ * WWW-Authenticate header pointing to the Protected Resource Metadata.
  *
  * Endpoint: /api/mcp/[transport]
- *   - /api/mcp/mcp   → Streamable HTTP transport
- *   - /api/mcp/sse   → SSE transport (legacy)
- *   - /api/mcp/message → SSE message endpoint (legacy)
+ *   - /api/mcp/mcp → Streamable HTTP transport (primary)
  */
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
-import { createMcpHandler, withMcpAuth } from 'mcp-handler';
 import { createMcpUserClient } from '@/lib/mcp/auth';
 import { registerTools } from '@/lib/mcp/tools';
 import { registerResources, registerPrompts } from '@/lib/mcp/resources';
@@ -22,69 +24,11 @@ import { registerResources, registerPrompts } from '@/lib/mcp/resources';
 const RESOURCE_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? 'https://knowledge-hub-seven-kappa.vercel.app';
 
-const handler = createMcpHandler(
-  (server) => {
-    try {
-      registerTools(server);
-    } catch (err) {
-      console.error('[MCP] Failed to register tools:', err);
-    }
-    try {
-      registerResources(server);
-    } catch (err) {
-      console.error('[MCP] Failed to register resources:', err);
-    }
-    try {
-      registerPrompts(server);
-    } catch (err) {
-      console.error('[MCP] Failed to register prompts:', err);
-    }
+// ---------------------------------------------------------------------------
+// Auth — verify Supabase OAuth bearer tokens
+// ---------------------------------------------------------------------------
 
-    // Diagnostic tool — always available, no dependencies
-    server.registerTool(
-      'ping',
-      {
-        title: 'Ping',
-        description: 'Health check — returns server status.',
-        annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-      },
-      async () => ({
-        content: [{ type: 'text' as const, text: 'Knowledge Hub MCP server is running.' }],
-      }),
-    );
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {},
-      prompts: {},
-    },
-    serverInfo: {
-      name: 'knowledge-hub',
-      version: '1.0.0',
-    },
-  },
-  {
-    basePath: '/api/mcp',
-    maxDuration: 60,
-    disableSse: false,
-    verboseLogs: true,
-    onEvent: (event: { type: string; error?: unknown; context?: unknown }) => {
-      if (event.type === 'ERROR') {
-        console.error('[MCP]', event.error, event.context);
-      }
-    },
-  },
-);
-
-/**
- * Verify a bearer token by creating a Supabase client and calling getUser().
- * Returns AuthInfo on success, undefined on failure.
- */
-async function verifyToken(
-  _req: Request,
-  bearerToken?: string,
-): Promise<AuthInfo | undefined> {
+async function verifyToken(bearerToken?: string): Promise<AuthInfo | undefined> {
   if (!bearerToken) return undefined;
 
   try {
@@ -115,14 +59,88 @@ async function verifyToken(
   }
 }
 
-const authedHandler = withMcpAuth(handler, verifyToken, {
-  required: true,
-  resourceMetadataPath: '/.well-known/oauth-protected-resource',
-  resourceUrl: RESOURCE_URL,
-});
+// ---------------------------------------------------------------------------
+// Server factory — creates a fresh McpServer with all tools/resources/prompts
+// ---------------------------------------------------------------------------
 
-// Vercel serverless function config — default is 10s which causes silent 500s
-// on cold starts with heavy imports. MCP needs longer for tool execution.
+function createMcpServer(): McpServer {
+  const server = new McpServer(
+    { name: 'knowledge-hub', version: '1.0.0' },
+    { capabilities: { tools: {}, resources: {}, prompts: {} } },
+  );
+
+  registerTools(server);
+  registerResources(server);
+  registerPrompts(server);
+
+  // Diagnostic tool — always available, no dependencies
+  server.registerTool(
+    'ping',
+    {
+      title: 'Ping',
+      description: 'Health check — returns server status.',
+      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+    },
+    async () => ({
+      content: [{ type: 'text' as const, text: 'Knowledge Hub MCP server is running.' }],
+    }),
+  );
+
+  return server;
+}
+
+// ---------------------------------------------------------------------------
+// Request handler — fresh server + transport per request
+// ---------------------------------------------------------------------------
+
+async function handleMcpRequest(request: Request): Promise<Response> {
+  // Extract and verify bearer token
+  const authHeader = request.headers.get('Authorization');
+  const [type, token] = authHeader?.split(' ') ?? [];
+  const bearerToken = type?.toLowerCase() === 'bearer' ? token : undefined;
+
+  const authInfo = await verifyToken(bearerToken);
+
+  if (!authInfo) {
+    return new Response(
+      JSON.stringify({
+        error: 'invalid_token',
+        error_description: 'No authorization provided',
+      }),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': `Bearer resource_metadata="${RESOURCE_URL}/.well-known/oauth-protected-resource"`,
+        },
+      },
+    );
+  }
+
+  // Create fresh server + transport for each request.
+  // This avoids the mcp-handler bug where shared transports get corrupted
+  // on warm Vercel serverless instances.
+  const server = createMcpServer();
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined, // stateless mode
+    enableJsonResponse: true,
+  });
+
+  await server.connect(transport);
+
+  // Pass authInfo so tool callbacks can access it via extra.authInfo
+  return await transport.handleRequest(request, { authInfo });
+}
+
+// Vercel serverless function config
 export const maxDuration = 60;
 
-export { authedHandler as GET, authedHandler as POST, authedHandler as DELETE };
+export async function GET(request: Request) {
+  return handleMcpRequest(request);
+}
+export async function POST(request: Request) {
+  return handleMcpRequest(request);
+}
+export async function DELETE(request: Request) {
+  return handleMcpRequest(request);
+}
