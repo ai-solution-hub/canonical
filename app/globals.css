@@ -716,8 +716,8 @@ p + p {
   font-family: var(--font-sans);
 }
 
-/* Ensure sidebar sits above site header (z-40) */
-.global-copilot-sidebar .copilotKitSidebar {
+/* Ensure sidebar sits above site header (z-40) — both classes are on the same element */
+.global-copilot-sidebar.copilotKitSidebar {
   z-index: 50;
 }
 

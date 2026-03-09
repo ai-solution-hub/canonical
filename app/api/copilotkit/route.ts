@@ -3,11 +3,12 @@ import {
   AnthropicAdapter,
   copilotRuntimeNextJSAppRouterEndpoint,
 } from '@copilotkit/runtime';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, unauthorisedResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { getAnthropicClient, getModelForTier } from '@/lib/anthropic';
+import { getModelForTier } from '@/lib/anthropic';
 
 export const POST = async (req: NextRequest) => {
   try {
@@ -20,14 +21,18 @@ export const POST = async (req: NextRequest) => {
     if (!allowed) return rateLimitResponse();
 
     // Create runtime per-request to avoid stale state and ensure fresh env vars
-    const serviceAdapter = new AnthropicAdapter({
-      anthropic: getAnthropicClient(),
-      model: getModelForTier('drafting'),
-      promptCaching: {
-        enabled: true,
-        debug: process.env.NODE_ENV === 'development',
-      },
-    });
+    const model = getModelForTier('drafting');
+    const serviceAdapter = new AnthropicAdapter({ model });
+
+    // Fix: CopilotKit's AnthropicAdapter.getLanguageModel() passes the wrong
+    // baseURL to @ai-sdk/anthropic (https://api.anthropic.com instead of
+    // https://api.anthropic.com/v1), causing a 404. Override to use the
+    // @ai-sdk/anthropic provider directly with the correct default baseURL.
+    serviceAdapter.getLanguageModel = () => {
+      return createAnthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY!,
+      })(model);
+    };
 
     const runtime = new CopilotRuntime();
 
