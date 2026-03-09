@@ -337,3 +337,7 @@ when needed.
 - **pgvector search_path in Supabase functions:** PL/pgSQL functions don't
   inherit the session `search_path`, so `<=>` operators fail inside function
   bodies. Fix with `ALTER FUNCTION ... SET search_path = public, extensions`.
+- **Proxy blocks non-API public routes:** `proxy.ts` redirects all
+  unauthenticated non-`/api/` requests to `/login`. New public-facing
+  endpoints (e.g. `/.well-known`, `/oauth/consent`) must be added to the
+  `publicRoutes` array in `proxy.ts` or they will be silently redirected.
