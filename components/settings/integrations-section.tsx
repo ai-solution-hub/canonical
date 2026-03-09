@@ -76,7 +76,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       ) : (
         <Copy className="mr-1.5 size-3.5" />
       )}
-      {copied ? 'Copied' : 'Copy'}
+      <span aria-live="polite">{copied ? 'Copied' : 'Copy'}</span>
     </Button>
   );
 }
@@ -87,9 +87,11 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 export function IntegrationsSection() {
   const mcpUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/mcp/mcp`
-      : '/api/mcp/mcp';
+    process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/mcp/mcp`
+      : typeof window !== 'undefined'
+        ? `${window.location.origin}/api/mcp/mcp`
+        : '/api/mcp/mcp';
 
   return (
     <div className="flex flex-col gap-6">
@@ -112,6 +114,7 @@ export function IntegrationsSection() {
                 type="text"
                 value={mcpUrl}
                 readOnly
+                aria-readonly="true"
                 className="bg-muted font-mono text-sm"
               />
               <CopyButton value={mcpUrl} label="Copy MCP server URL" />
@@ -125,12 +128,15 @@ export function IntegrationsSection() {
 
       {/* How to connect */}
       <Card>
+        <CardHeader>
+          <CardTitle>How to connect</CardTitle>
+        </CardHeader>
         <CardContent>
           <Accordion type="single" collapsible>
             <AccordionItem value="how-to-connect" className="border-b-0">
-              <AccordionTrigger>How to connect</AccordionTrigger>
+              <AccordionTrigger>Step-by-step instructions</AccordionTrigger>
               <AccordionContent>
-                <ol className="flex flex-col gap-3 text-sm text-muted-foreground">
+                <ol className="flex list-none flex-col gap-3 text-sm text-muted-foreground">
                   <li className="flex gap-2">
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       1
@@ -207,7 +213,7 @@ export function IntegrationsSection() {
         <p className="mb-4 text-sm text-muted-foreground">
           Try these prompts after connecting to get started quickly.
         </p>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2" role="list">
           {QUICK_START_PROMPTS.map((prompt) => (
             <div
               key={prompt}

@@ -185,6 +185,48 @@ export type Database = {
           },
         ]
       }
+      content_citations: {
+        Row: {
+          bid_response_id: string
+          citation_type: string
+          content_item_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+        }
+        Insert: {
+          bid_response_id: string
+          citation_type?: string
+          content_item_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+        }
+        Update: {
+          bid_response_id?: string
+          citation_type?: string
+          content_item_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_citations_bid_response_id_fkey"
+            columns: ["bid_response_id"]
+            isOneToOne: false
+            referencedRelation: "bid_responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_citations_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_history: {
         Row: {
           brief: string | null
@@ -305,6 +347,7 @@ export type Database = {
           id: string
           lifecycle_type: string | null
           metadata: Json | null
+          notes: string | null
           parent_id: string | null
           platform: string | null
           primary_domain: string | null
@@ -354,6 +397,7 @@ export type Database = {
           id?: string
           lifecycle_type?: string | null
           metadata?: Json | null
+          notes?: string | null
           parent_id?: string | null
           platform?: string | null
           primary_domain?: string | null
@@ -403,6 +447,7 @@ export type Database = {
           id?: string
           lifecycle_type?: string | null
           metadata?: Json | null
+          notes?: string | null
           parent_id?: string | null
           platform?: string | null
           primary_domain?: string | null
@@ -495,6 +540,85 @@ export type Database = {
           tokens_used?: number | null
         }
         Relationships: []
+      }
+      entity_mentions: {
+        Row: {
+          canonical_name: string
+          confidence: number | null
+          content_item_id: string
+          context_snippet: string | null
+          created_at: string | null
+          entity_name: string
+          entity_type: string
+          id: string
+        }
+        Insert: {
+          canonical_name: string
+          confidence?: number | null
+          content_item_id: string
+          context_snippet?: string | null
+          created_at?: string | null
+          entity_name: string
+          entity_type: string
+          id?: string
+        }
+        Update: {
+          canonical_name?: string
+          confidence?: number | null
+          content_item_id?: string
+          context_snippet?: string | null
+          created_at?: string | null
+          entity_name?: string
+          entity_type?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_mentions_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_relationships: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          id: string
+          relationship_type: string
+          source_entity: string
+          source_item_id: string | null
+          target_entity: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          relationship_type: string
+          source_entity: string
+          source_item_id?: string | null
+          target_entity: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          relationship_type?: string
+          source_entity?: string
+          source_item_id?: string | null
+          target_entity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_relationships_source_item_id_fkey"
+            columns: ["source_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       governance_config: {
         Row: {
@@ -756,6 +880,7 @@ export type Database = {
         Row: {
           colour: string | null
           created_at: string
+          description: string | null
           display_order: number
           id: string
           is_active: boolean | null
@@ -764,6 +889,7 @@ export type Database = {
         Insert: {
           colour?: string | null
           created_at?: string
+          description?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -772,6 +898,7 @@ export type Database = {
         Update: {
           colour?: string | null
           created_at?: string
+          description?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -782,6 +909,7 @@ export type Database = {
       taxonomy_subtopics: {
         Row: {
           created_at: string
+          description: string | null
           display_order: number
           domain_id: string
           id: string
@@ -790,6 +918,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          description?: string | null
           display_order?: number
           domain_id: string
           id?: string
@@ -798,6 +927,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          description?: string | null
           display_order?: number
           domain_id?: string
           id?: string
@@ -1198,6 +1328,14 @@ export type Database = {
         }[]
       }
       get_content_gaps: { Args: never; Returns: Json }
+      get_content_win_rate: {
+        Args: { p_content_item_id: string }
+        Returns: {
+          total_citations: number
+          win_rate: number
+          winning_citations: number
+        }[]
+      }
       get_coverage_matrix: {
         Args: { p_layer?: string }
         Returns: {
@@ -1227,6 +1365,26 @@ export type Database = {
           item_count: number
           primary_domain: string
           primary_subtopic: string
+        }[]
+      }
+      get_entity_relationships_rpc: {
+        Args: { p_entity_name: string }
+        Returns: {
+          confidence: number
+          relationship_type: string
+          source_entity: string
+          source_item_id: string
+          target_entity: string
+        }[]
+      }
+      get_entity_summary: {
+        Args: { p_entity_name?: string; p_entity_type?: string }
+        Returns: {
+          canonical_name: string
+          content_item_ids: string[]
+          entity_type: string
+          mention_count: number
+          related_entities: Json
         }[]
       }
       get_filter_counts: { Args: never; Returns: Json }

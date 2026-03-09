@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 13 tools:
+ * Registers 16 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
@@ -15,6 +15,9 @@
  *  11. generate_summary — Generate AI summary for an item (editor+)
  *  12. create_content_item — Create a new KB content item (editor+)
  *  13. search_qa_library — Search Q&A pairs specifically
+ *  14. get_entity_relationships — Query entity relationships from the entity graph
+ *  15. cite_content — Record that a content item was used in a bid response (editor+)
+ *  16. get_content_effectiveness — Get win rate stats for a content item
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -71,6 +74,9 @@ import {
   formatSummaryResult,
   formatCreatedItem,
   formatQASearchResults,
+  formatEntitySummary,
+  formatCitation,
+  formatContentEffectiveness,
   CHARACTER_LIMIT,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -82,6 +88,10 @@ import type {
   QualitySummary,
   FreshnessReport,
   CreatedItem,
+  EntitySummaryResult,
+  EntityRelationship,
+  CitationResult,
+  ContentEffectiveness,
 } from '@/lib/mcp/formatters';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 
@@ -964,6 +974,230 @@ export function registerTools(server: McpServer): void {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Q&A search failed: ${message}. Try simplifying your query or removing filters.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 14. get_entity_relationships
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_entity_relationships',
+    {
+      title: 'Entity Relationships',
+      description: 'Query entity relationships in the knowledge base. Find what certifications the company holds, what technologies are used, what sectors are served, and how entities connect to each other. Returns structured data from the entity graph at zero AI cost.',
+      inputSchema: {
+        entity_name: z.string().optional().describe('Entity name to search for (partial match supported)'),
+        entity_type: z.string().optional().describe('Filter by entity type: organisation, certification, regulation, framework, capability, person, technology, project, sector'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // Call get_entity_summary RPC
+        const rpcArgs: Record<string, string> = {};
+        if (args.entity_name) rpcArgs.p_entity_name = args.entity_name;
+        if (args.entity_type) rpcArgs.p_entity_type = args.entity_type;
+
+        const { data: summaryRows, error: summaryError } = await supabase.rpc(
+          'get_entity_summary',
+          rpcArgs as { p_entity_name?: string; p_entity_type?: string },
+        );
+
+        if (summaryError) {
+          return {
+            content: [{ type: 'text' as const, text: `Entity query failed: ${summaryError.message}. The database function may be temporarily unavailable.` }],
+            isError: true,
+          };
+        }
+
+        const summaries: EntitySummaryResult[] = ((summaryRows ?? []) as Record<string, unknown>[]).map((row) => ({
+          canonical_name: row.canonical_name as string,
+          entity_type: row.entity_type as string,
+          mention_count: Number(row.mention_count),
+          content_item_ids: (row.content_item_ids as string[]) ?? [],
+          related_entities: (row.related_entities as Array<{ relationship: string; target?: string; source?: string }>) ?? [],
+        }));
+
+        // If a specific entity_name was provided, also fetch relationship details
+        let relationships: EntityRelationship[] = [];
+        if (args.entity_name && summaries.length > 0) {
+          const { data: relRows, error: relError } = await supabase.rpc(
+            'get_entity_relationships_rpc',
+            { p_entity_name: args.entity_name },
+          );
+
+          if (!relError && relRows) {
+            relationships = ((relRows ?? []) as Record<string, unknown>[]).map((row) => ({
+              source_entity: row.source_entity as string,
+              relationship_type: row.relationship_type as string,
+              target_entity: row.target_entity as string,
+              source_item_id: row.source_item_id as string,
+              confidence: Number(row.confidence),
+            }));
+          }
+        }
+
+        const markdown = truncateResponse(
+          formatEntitySummary(args.entity_name, args.entity_type, summaries, relationships),
+        );
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            entity_name: args.entity_name ?? null,
+            entity_type: args.entity_type ?? null,
+            entity_count: summaries.length,
+            summaries,
+            relationships,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Entity query failed: ${message}. The database function may be temporarily unavailable.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 15. cite_content (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'cite_content',
+    {
+      title: 'Cite Content',
+      description: 'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role.',
+      inputSchema: {
+        content_item_id: z.string().uuid().describe('The UUID of the content item that was used'),
+        bid_response_id: z.string().uuid().describe('The UUID of the bid response it was used in'),
+        citation_type: z.enum(['reference', 'copied', 'adapted', 'inspired']).optional().describe('How the content was used (default: reference)'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+
+        const insertData: Record<string, unknown> = {
+          content_item_id: args.content_item_id,
+          bid_response_id: args.bid_response_id,
+          citation_type: args.citation_type ?? 'reference',
+          created_by: userId,
+        };
+
+        const { data: citation, error } = await supabase
+          .from('content_citations')
+          .upsert(insertData as never, {
+            onConflict: 'content_item_id,bid_response_id',
+          })
+          .select('id, content_item_id, bid_response_id, citation_type')
+          .single();
+
+        if (error || !citation) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to record citation: ${error?.message ?? 'Unknown error'}. Ensure both the content item and bid response exist.` }],
+            isError: true,
+          };
+        }
+
+        const citationRow = citation as Record<string, string>;
+        const result: CitationResult = {
+          id: citationRow.id,
+          content_item_id: citationRow.content_item_id,
+          bid_response_id: citationRow.bid_response_id,
+          citation_type: citationRow.citation_type,
+        };
+
+        const markdown = formatCitation(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to record citation: ${message}. Ensure you have editor or admin permissions.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 16. get_content_effectiveness
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_content_effectiveness',
+    {
+      title: 'Content Effectiveness',
+      description: 'Get win rate statistics for a content item — how often it has been cited in bid responses and what proportion of those bids were won. Use this to identify high-performing content and content that may need improvement.',
+      inputSchema: {
+        content_item_id: z.string().uuid().describe('The UUID of the content item to check'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        const { data: rows, error } = await supabase.rpc('get_content_win_rate', {
+          p_content_item_id: args.content_item_id,
+        });
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Effectiveness query failed: ${error.message}. The database function may be temporarily unavailable.` }],
+            isError: true,
+          };
+        }
+
+        const row = (rows as Array<{ total_citations: number; winning_citations: number; win_rate: number }> | null)?.[0];
+
+        const effectiveness: ContentEffectiveness = {
+          content_item_id: args.content_item_id,
+          total_citations: Number(row?.total_citations ?? 0),
+          winning_citations: Number(row?.winning_citations ?? 0),
+          win_rate: Number(row?.win_rate ?? 0),
+        };
+
+        const markdown = formatContentEffectiveness(effectiveness);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(effectiveness),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Effectiveness query failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }

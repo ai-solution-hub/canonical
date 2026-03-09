@@ -44,6 +44,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     popularKeywords,
     allWorkspaces,
     allUserTags,
+    allEntities,
   } = useFilterData({ isOpen: open });
 
   const {
@@ -60,6 +61,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     handleWorkspaceChange,
     handleFreshnessToggle,
     handleLayerToggle,
+    handleEntityChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,
@@ -282,6 +284,40 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                     );
                   })}
                 </div>
+              </FilterSection>
+
+              <Separator className="my-3" />
+            </>
+          )}
+
+          {/* Entities */}
+          {allEntities.length > 0 && (
+            <>
+              <FilterSection title="Entities">
+                <div className="flex flex-wrap gap-2">
+                  {allEntities.map(({ name, count }) => {
+                    const isActive = draft.entity === name;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => handleEntityChange(name)}
+                        aria-pressed={isActive}
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          isActive
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border bg-muted text-foreground hover:bg-accent'
+                        }`}
+                      >
+                        {name}
+                        <span className="text-muted-foreground">{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Filter by entity mentioned in content
+                </p>
               </FilterSection>
 
               <Separator className="my-3" />

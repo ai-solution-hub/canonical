@@ -58,6 +58,10 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const [allUserTags, setAllUserTags] = useState<{ tag: string; count: number }[]>([]);
   const [userTagsLoaded, setUserTagsLoaded] = useState(false);
 
+  // Entity names for filter
+  const [allEntities, setAllEntities] = useState<{ name: string; count: number }[]>([]);
+  const [entitiesLoaded, setEntitiesLoaded] = useState(false);
+
   // Fetch counts when panel opens via server-side aggregation RPC.
   // Results are cached for 30 seconds to avoid redundant fetches.
   useEffect(() => {
@@ -178,6 +182,43 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [isOpen, userTagsLoaded]);
 
+  // Fetch entity names when panel opens
+  useEffect(() => {
+    if (!isOpen || entitiesLoaded) return;
+    const fetchEntities = async () => {
+      try {
+        // Get distinct entity canonical names with counts
+        const { data, error } = await supabase
+          .from('entity_mentions')
+          .select('canonical_name');
+
+        if (error || !data) {
+          setEntitiesLoaded(true);
+          return;
+        }
+
+        // Count occurrences of each canonical name
+        const countMap = new Map<string, number>();
+        for (const row of data) {
+          const name = row.canonical_name;
+          countMap.set(name, (countMap.get(name) ?? 0) + 1);
+        }
+
+        const entities = [...countMap.entries()]
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 50); // Cap at 50 to keep the UI manageable
+
+        setAllEntities(entities);
+      } catch {
+        // Non-critical
+      }
+      setEntitiesLoaded(true);
+    };
+    fetchEntities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, [isOpen, entitiesLoaded]);
+
   return {
     counts,
     authorSearch,
@@ -186,5 +227,6 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
     popularKeywords,
     allWorkspaces,
     allUserTags,
+    allEntities,
   };
 }

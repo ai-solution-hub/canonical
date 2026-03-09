@@ -19,6 +19,7 @@ export interface FilterDraft {
   user_tags: string[];
   freshness: string[];
   layer: string;
+  entity: string;
   quality_issues: boolean;
   include_drafts: boolean;
   include_qa: boolean;
@@ -49,6 +50,7 @@ function filtersTodraft(filters: BrowseFilters): FilterDraft {
     user_tags: filters.user_tags ?? [],
     freshness: filters.freshness ?? [],
     layer: filters.layer ?? '',
+    entity: filters.entity ?? '',
     quality_issues: filters.quality_issues ?? false,
     include_drafts: filters.include_drafts ?? false,
     include_qa: filters.include_qa ?? false,
@@ -175,6 +177,13 @@ export function useFilterDraft({
     }));
   }, []);
 
+  const handleEntityChange = useCallback((entityName: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      entity: prev.entity === entityName ? '' : entityName,
+    }));
+  }, []);
+
   const handleUserTagToggle = useCallback((tag: string) => {
     setDraft((prev) => {
       const isSelected = prev.user_tags.includes(tag);
@@ -214,6 +223,7 @@ export function useFilterDraft({
       user_tags: draft.user_tags.length ? draft.user_tags : undefined,
       freshness: draft.freshness.length ? draft.freshness : undefined,
       layer: draft.layer || undefined,
+      entity: draft.entity || undefined,
       quality_issues: draft.quality_issues || undefined,
       include_drafts: draft.include_drafts || undefined,
       include_qa: draft.include_qa || undefined,
@@ -237,6 +247,7 @@ export function useFilterDraft({
       user_tags: [],
       freshness: [],
       layer: '',
+      entity: '',
       quality_issues: false,
       include_drafts: false,
       include_qa: false,
@@ -261,6 +272,7 @@ export function useFilterDraft({
     draft.user_tags.length > 0,
     draft.freshness.length > 0,
     draft.layer,
+    draft.entity,
     draft.quality_issues,
     draft.include_drafts,
     draft.include_qa,
@@ -280,6 +292,7 @@ export function useFilterDraft({
     handleWorkspaceChange,
     handleFreshnessToggle,
     handleLayerToggle,
+    handleEntityChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,

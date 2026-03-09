@@ -638,6 +638,173 @@ export function formatCreatedItem(item: CreatedItem): string {
 }
 
 // ---------------------------------------------------------------------------
+// Entity relationships
+// ---------------------------------------------------------------------------
+
+export interface EntitySummaryResult {
+  canonical_name: string;
+  entity_type: string;
+  mention_count: number;
+  content_item_ids: string[];
+  related_entities: Array<{ relationship: string; target?: string; source?: string }>;
+}
+
+export interface EntityRelationship {
+  source_entity: string;
+  relationship_type: string;
+  target_entity: string;
+  source_item_id: string;
+  confidence: number;
+}
+
+export interface EntityOverview {
+  total_entities: number;
+  by_type: Record<string, number>;
+  top_entities: Array<{ canonical_name: string; entity_type: string; mention_count: number }>;
+}
+
+export function formatEntitySummary(
+  entityName: string | undefined,
+  entityType: string | undefined,
+  summaries: EntitySummaryResult[],
+  relationships: EntityRelationship[],
+): string {
+  if (summaries.length === 0) {
+    const filter = entityName
+      ? `"${entityName}"${entityType ? ` (type: ${entityType})` : ''}`
+      : entityType
+        ? `type "${entityType}"`
+        : 'the specified criteria';
+    return `# Entity Relationships\n\nNo entities found matching ${filter}.`;
+  }
+
+  const lines: string[] = [
+    '# Entity Relationships',
+    '',
+  ];
+
+  for (const entity of summaries) {
+    lines.push(`## ${entity.canonical_name}`);
+    lines.push(`**Type:** ${entity.entity_type}`);
+    lines.push(`**Mentions:** ${entity.mention_count}`);
+    lines.push(`**Referenced in:** ${entity.content_item_ids.length} content item${entity.content_item_ids.length === 1 ? '' : 's'}`);
+
+    if (entity.related_entities.length > 0) {
+      lines.push('', '### Related Entities');
+      for (const related of entity.related_entities) {
+        const relLabel = related.relationship.replace(/_/g, ' ');
+        const entityName = related.target ?? related.source ?? 'unknown';
+        const direction = related.target ? `${relLabel} → ${entityName}` : `${entityName} → ${relLabel}`;
+        lines.push(`- ${direction}`);
+      }
+    }
+
+    lines.push('');
+  }
+
+  if (relationships.length > 0) {
+    lines.push('## Relationships', '');
+    lines.push('| Source | Relationship | Target | Confidence |');
+    lines.push('|--------|-------------|--------|------------|');
+    for (const rel of relationships) {
+      const conf = Math.round(rel.confidence * 100);
+      const relLabel = rel.relationship_type.replace(/_/g, ' ');
+      lines.push(`| ${rel.source_entity} | ${relLabel} | ${rel.target_entity} | ${conf}% |`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+export function formatEntityOverview(overview: EntityOverview): string {
+  const lines: string[] = [
+    '# Entity Overview',
+    '',
+    `**Total entities:** ${overview.total_entities}`,
+    '',
+    '## Entities by Type',
+    '',
+  ];
+
+  const sortedTypes = Object.entries(overview.by_type).sort(([, a], [, b]) => b - a);
+  for (const [type, count] of sortedTypes) {
+    lines.push(`- **${type}:** ${count}`);
+  }
+
+  if (overview.top_entities.length > 0) {
+    lines.push('', '## Top Entities', '');
+    lines.push('| Entity | Type | Mentions |');
+    lines.push('|--------|------|----------|');
+    for (const entity of overview.top_entities) {
+      lines.push(`| ${entity.canonical_name} | ${entity.entity_type} | ${entity.mention_count} |`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Citation confirmation
+// ---------------------------------------------------------------------------
+
+export interface CitationResult {
+  id: string;
+  content_item_id: string;
+  bid_response_id: string;
+  citation_type: string;
+}
+
+export function formatCitation(citation: CitationResult): string {
+  return [
+    '# Citation Recorded',
+    '',
+    `**Content item:** ${citation.content_item_id}`,
+    `**Bid response:** ${citation.bid_response_id}`,
+    `**Type:** ${citation.citation_type}`,
+    `**ID:** ${citation.id}`,
+    '',
+    'The citation has been recorded successfully.',
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Content effectiveness (win rate)
+// ---------------------------------------------------------------------------
+
+export interface ContentEffectiveness {
+  content_item_id: string;
+  total_citations: number;
+  winning_citations: number;
+  win_rate: number;
+}
+
+export function formatContentEffectiveness(data: ContentEffectiveness): string {
+  const winPct = Math.round(data.win_rate * 100);
+
+  const lines: string[] = [
+    '# Content Effectiveness',
+    '',
+    `**Content item:** ${data.content_item_id}`,
+    `**Total citations:** ${data.total_citations}`,
+    `**Winning citations:** ${data.winning_citations}`,
+    `**Win rate:** ${winPct}%`,
+  ];
+
+  if (data.total_citations === 0) {
+    lines.push('', 'This content has not yet been cited in any bid responses.');
+  } else if (data.win_rate >= 0.7) {
+    lines.push('', 'This content is highly effective — it is frequently associated with winning bids.');
+  } else if (data.win_rate >= 0.4) {
+    lines.push('', 'This content has moderate effectiveness in bid outcomes.');
+  } else {
+    lines.push('', 'This content has a low win rate — consider reviewing or updating it.');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Q&A search results
 // ---------------------------------------------------------------------------
 

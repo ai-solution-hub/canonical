@@ -103,6 +103,22 @@ export function useBrowseData(): UseBrowseDataReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [filters.quality_issues]);
 
+  // Resolve entity filter to matching content_item IDs
+  const resolveEntityIds = useCallback(async (): Promise<string[] | null> => {
+    if (!filters.entity) return null;
+    const { data, error } = await supabase
+      .from('entity_mentions')
+      .select('content_item_id')
+      .eq('canonical_name', filters.entity);
+    if (error) {
+      console.error('Entity filter failed:', error);
+      return null;
+    }
+    // Deduplicate content_item_ids
+    return [...new Set((data ?? []).map((row: { content_item_id: string }) => row.content_item_id))];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, [filters.entity]);
+
   // Build the Supabase query with filters and cursor-based pagination
   const buildQuery = useCallback(
     (
@@ -111,6 +127,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       keywordMatchIds?: string[] | null,
       projectMatchIds?: string[] | null,
       qualityIssueIds?: string[] | null,
+      entityMatchIds?: string[] | null,
     ) => {
       let query = supabase
         .from('content_items')
@@ -160,6 +177,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       if (keywordMatchIds) idSets.push(keywordMatchIds);
       if (projectMatchIds) idSets.push(projectMatchIds);
       if (qualityIssueIds) idSets.push(qualityIssueIds);
+      if (entityMatchIds) idSets.push(entityMatchIds);
 
       if (idSets.length > 0) {
         let intersection = idSets[0];
@@ -267,16 +285,18 @@ export function useBrowseData(): UseBrowseDataReturn {
       setItems([]);
       setCursor(null);
 
-      // Resolve keyword + project + quality issue filters via server-side lookups
-      const [keywordIds, projectIds, qualityIds] = await Promise.all([
+      // Resolve keyword + project + quality issue + entity filters via server-side lookups
+      const [keywordIds, projectIds, qualityIds, entityIds] = await Promise.all([
         resolveKeywordIds(),
         resolveWorkspaceIds(),
         resolveQualityIssueIds(),
+        resolveEntityIds(),
       ]);
       if (
         (keywordIds !== null && keywordIds.length === 0) ||
         (projectIds !== null && projectIds.length === 0) ||
-        (qualityIds !== null && qualityIds.length === 0)
+        (qualityIds !== null && qualityIds.length === 0) ||
+        (entityIds !== null && entityIds.length === 0)
       ) {
         // Filter was specified but nothing matched
         if (currentRequestId !== requestIdRef.current) return;
@@ -287,7 +307,7 @@ export function useBrowseData(): UseBrowseDataReturn {
         return;
       }
 
-      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds, qualityIds);
+      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds, qualityIds, entityIds);
 
       // Discard stale response
       if (currentRequestId !== requestIdRef.current) return;
@@ -314,7 +334,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     };
 
     fetchData();
-  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, filters.sort, refreshCounter]);
+  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, filters.sort, refreshCounter]);
 
   // Load more using cursor
   const handleLoadMore = useCallback(async () => {
@@ -322,12 +342,13 @@ export function useBrowseData(): UseBrowseDataReturn {
 
     setIsLoadingMore(true);
 
-    const [keywordIds, projectIds, qualityIds] = await Promise.all([
+    const [keywordIds, projectIds, qualityIds, entityIds] = await Promise.all([
       resolveKeywordIds(),
       resolveWorkspaceIds(),
       resolveQualityIssueIds(),
+      resolveEntityIds(),
     ]);
-    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds);
+    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds, entityIds);
 
     if (error) {
       console.error('Failed to load more items:', error);
@@ -355,6 +376,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     resolveKeywordIds,
     resolveWorkspaceIds,
     resolveQualityIssueIds,
+    resolveEntityIds,
     filters.sort,
   ]);
 

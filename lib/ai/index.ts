@@ -10,7 +10,12 @@ export { AIServiceError } from './errors';
 
 // Classification
 export { classifyContent } from './classify';
-export type { ClassifyParams, ClassificationResult } from './classify';
+export type {
+  ClassifyParams,
+  ClassificationResult,
+  ExtractedEntity,
+  ExtractedRelationship,
+} from './classify';
 
 // Summarisation
 export { callSummaryAI, generateSummary } from './summarise';

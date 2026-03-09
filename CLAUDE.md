@@ -140,7 +140,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-### Tables (16)
+### Tables (18)
 
 | # | Table | Purpose |
 |---|-------|---------|
@@ -160,6 +160,8 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 | 14 | `taxonomy_subtopics` | Configurable subtopics (DB-driven via taxonomy-context) |
 | 15 | `governance_config` | Governance settings (freshness thresholds, review rules) |
 | 16 | `notifications` | User notifications (governance, freshness, quality) |
+| 17 | `entity_mentions` | Extracted entities from content (context graph nodes) |
+| 18 | `entity_relationships` | Relationships between entities (context graph edges) |
 
 ### RLS Model
 

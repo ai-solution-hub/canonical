@@ -1,13 +1,14 @@
 /**
  * MCP resource and prompt registrations for the Knowledge Hub server.
  *
- * Resources (6):
+ * Resources (7):
  *   - kb://items/{id}    — Full content item with metadata
  *   - kb://bids/{id}     — Bid with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
  *   - kb://coverage      — Current taxonomy coverage state
  *   - kb://dashboard     — Current dashboard state
  *   - kb://taxonomy      — Domains and subtopics
+ *   - kb://entities      — Entity overview with types, counts, and top entities
  *
  * Prompts (5):
  *   - reorient           — "What has changed since I was last active?"
@@ -348,6 +349,78 @@ export function registerResources(server: McpServer): void {
             uri: uri.href,
             mimeType: 'application/json',
             text: JSON.stringify({ domains: domains ?? [], subtopics: subtopics ?? [] }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    },
+  );
+
+  // 7. kb://entities — Entity overview
+  server.registerResource(
+    'entities',
+    'kb://entities',
+    {
+      description: 'Overview of all entities in the knowledge base — entity types, counts per type, and top entities by mention count',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, extra: Extra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // Fetch all entity summaries (no filters = full overview)
+        const { data: rows, error } = await supabase.rpc('get_entity_summary', {});
+
+        if (error) {
+          return {
+            contents: [{
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${error.message}`,
+            }],
+          };
+        }
+
+        const entities = (rows ?? []) as Array<{
+          canonical_name: string;
+          entity_type: string;
+          mention_count: number;
+        }>;
+
+        // Count by type
+        const byType: Record<string, number> = {};
+        for (const entity of entities) {
+          byType[entity.entity_type] = (byType[entity.entity_type] ?? 0) + 1;
+        }
+
+        // Top entities by mention count
+        const topEntities = [...entities]
+          .sort((a, b) => Number(b.mention_count) - Number(a.mention_count))
+          .slice(0, 20)
+          .map((e) => ({
+            canonical_name: e.canonical_name,
+            entity_type: e.entity_type,
+            mention_count: Number(e.mention_count),
+          }));
+
+        const overview = {
+          total_entities: entities.length,
+          by_type: byType,
+          top_entities: topEntities,
+        };
+
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(overview, null, 2),
           }],
         };
       } catch (err) {

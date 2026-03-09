@@ -11,10 +11,42 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
+import { canonicalise } from '@/lib/entity-dedup';
 
 // ──────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────
+
+export interface ExtractedEntity {
+  name: string;
+  type:
+    | 'organisation'
+    | 'certification'
+    | 'regulation'
+    | 'framework'
+    | 'capability'
+    | 'person'
+    | 'technology'
+    | 'project'
+    | 'sector';
+  canonical_name: string;
+}
+
+export interface ExtractedRelationship {
+  source: string;
+  relationship:
+    | 'holds'
+    | 'complies_with'
+    | 'delivers_to'
+    | 'uses'
+    | 'demonstrated_by'
+    | 'requires'
+    | 'part_of'
+    | 'supersedes'
+    | 'references'
+    | 'evidences';
+  target: string;
+}
 
 export interface ClassificationResult {
   primary_domain: string;
@@ -26,6 +58,8 @@ export interface ClassificationResult {
   suggested_title: string;
   classification_confidence: number;
   classification_reasoning: string;
+  entities?: ExtractedEntity[];
+  relationships?: ExtractedRelationship[];
   cached?: boolean;
 }
 
@@ -122,7 +156,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
 
   const response = await client.messages.create({
     model,
-    max_tokens: 1500,
+    max_tokens: 2500,
     tools: [
       {
         name: 'return_classification',
@@ -139,6 +173,74 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
             suggested_title: { type: 'string' },
             classification_confidence: { type: 'number' },
             classification_reasoning: { type: 'string' },
+            entities: {
+              type: 'array',
+              description:
+                'Named entities extracted from the content',
+              items: {
+                type: 'object',
+                properties: {
+                  name: {
+                    type: 'string',
+                    description: 'Entity name as it appears in the text',
+                  },
+                  type: {
+                    type: 'string',
+                    enum: [
+                      'organisation',
+                      'certification',
+                      'regulation',
+                      'framework',
+                      'capability',
+                      'person',
+                      'technology',
+                      'project',
+                      'sector',
+                    ],
+                  },
+                  canonical_name: {
+                    type: 'string',
+                    description:
+                      'Normalised form for deduplication (e.g. "ISO 27001" not "ISO27001")',
+                  },
+                },
+                required: ['name', 'type', 'canonical_name'],
+              },
+            },
+            relationships: {
+              type: 'array',
+              description:
+                'Relationships between extracted entities',
+              items: {
+                type: 'object',
+                properties: {
+                  source: {
+                    type: 'string',
+                    description: 'Canonical name of the source entity',
+                  },
+                  relationship: {
+                    type: 'string',
+                    enum: [
+                      'holds',
+                      'complies_with',
+                      'delivers_to',
+                      'uses',
+                      'demonstrated_by',
+                      'requires',
+                      'part_of',
+                      'supersedes',
+                      'references',
+                      'evidences',
+                    ],
+                  },
+                  target: {
+                    type: 'string',
+                    description: 'Canonical name of the target entity',
+                  },
+                },
+                required: ['source', 'relationship', 'target'],
+              },
+            },
           },
           required: [
             'primary_domain',
@@ -176,7 +278,12 @@ Classify this content. Return a JSON object with:
 - ai_summary: one sentence summary (max 200 chars)
 - suggested_title: a clear, descriptive title (40-100 chars)
 - classification_confidence: 0.0-1.0
-- classification_reasoning: brief explanation of the classification`,
+- classification_reasoning: brief explanation of the classification
+
+Also extract named entities and relationships from the content:
+- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
+- relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
+Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.`,
       },
     ],
   });
@@ -220,6 +327,55 @@ Classify this content. Return a JSON object with:
     throw new AIServiceError('Classification succeeded but failed to store', 500);
   }
 
+  // Store extracted entities (non-blocking — failures must not break classification)
+  if (result.entities?.length) {
+    try {
+      const entityRows = result.entities.map((e) => ({
+        content_item_id: itemId,
+        entity_type: e.type,
+        entity_name: e.name,
+        canonical_name: canonicalise(e.canonical_name),
+        confidence: 1.0,
+      }));
+
+      const { error: entityError } = await supabase
+        .from('entity_mentions')
+        .upsert(entityRows, {
+          onConflict: 'canonical_name,entity_type,content_item_id',
+          ignoreDuplicates: true,
+        });
+
+      if (entityError) {
+        console.error('Failed to store entity mentions:', entityError);
+      }
+    } catch (entityErr) {
+      console.error('Entity mention storage failed:', entityErr);
+    }
+  }
+
+  // Store extracted relationships (non-blocking)
+  if (result.relationships?.length) {
+    try {
+      const relRows = result.relationships.map((r) => ({
+        source_entity: canonicalise(r.source),
+        relationship_type: r.relationship,
+        target_entity: canonicalise(r.target),
+        source_item_id: itemId,
+        confidence: 1.0,
+      }));
+
+      const { error: relError } = await supabase
+        .from('entity_relationships')
+        .insert(relRows);
+
+      if (relError) {
+        console.error('Failed to store entity relationships:', relError);
+      }
+    } catch (relErr) {
+      console.error('Entity relationship storage failed:', relErr);
+    }
+  }
+
   return {
     primary_domain: result.primary_domain,
     primary_subtopic: result.primary_subtopic,
@@ -230,5 +386,7 @@ Classify this content. Return a JSON object with:
     suggested_title: result.suggested_title,
     classification_confidence: result.classification_confidence,
     classification_reasoning: result.classification_reasoning,
+    entities: result.entities,
+    relationships: result.relationships,
   };
 }

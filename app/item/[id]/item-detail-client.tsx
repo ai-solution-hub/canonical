@@ -16,6 +16,8 @@ import { ContentTabs } from '@/components/content-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
 import { RelatedItems } from '@/components/related-items';
 import { RelatedByTags } from '@/components/related-by-tags';
+import { EntityBadges } from '@/components/entity-badges';
+import { RelatedByEntities } from '@/components/related-by-entities';
 import { VersionHistory } from '@/components/version-history';
 import { ContentTypeHeader } from '@/components/content-type-header';
 import { VerificationBadge } from '@/components/verification-badge';
@@ -748,6 +750,12 @@ export function ItemDetailClient({
             onWorkspacesChanged={() => {}}
             className="mb-6"
           />
+
+          {/* Entity mentions — shows badges grouped by entity type */}
+          <EntityBadges
+            contentItemId={item.id}
+            className="mb-6"
+          />
         </article>
 
         {/* Metadata sidebar */}
@@ -785,6 +793,12 @@ export function ItemDetailClient({
           tags={(item.user_tags as string[]) ?? []}
         />
       )}
+
+      {/* Related by shared entities */}
+      <RelatedByEntities
+        contentItemId={item.id}
+        className="mt-6"
+      />
     </>
   );
 
