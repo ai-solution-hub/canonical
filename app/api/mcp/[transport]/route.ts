@@ -73,19 +73,6 @@ function createMcpServer(): McpServer {
   registerResources(server);
   registerPrompts(server);
 
-  // Diagnostic tool — always available, no dependencies
-  server.registerTool(
-    'ping',
-    {
-      title: 'Ping',
-      description: 'Health check — returns server status.',
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
-    },
-    async () => ({
-      content: [{ type: 'text' as const, text: 'Knowledge Hub MCP server is running.' }],
-    }),
-  );
-
   return server;
 }
 
