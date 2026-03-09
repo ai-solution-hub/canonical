@@ -13,8 +13,13 @@ export { classifyContent } from './classify';
 export type { ClassifyParams, ClassificationResult } from './classify';
 
 // Summarisation
-export { generateSummary } from './summarise';
-export type { SummariseParams, SummariseResult } from './summarise';
+export { callSummaryAI, generateSummary } from './summarise';
+export type {
+  CallSummaryAIParams,
+  CallSummaryAIResult,
+  SummariseParams,
+  SummariseResult,
+} from './summarise';
 
 // Digest generation
 export { generateDigest } from './digest';

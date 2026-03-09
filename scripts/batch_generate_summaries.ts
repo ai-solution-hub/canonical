@@ -2,8 +2,8 @@
  * Batch AI Summary Generation
  *
  * Generates multi-level summaries (executive, detailed, takeaways) for content
- * items that don't have them yet. Calls Anthropic SDK directly, bypassing the
- * HTTP endpoint and its rate limiting.
+ * items that don't have them yet. Uses the shared callSummaryAI() function from
+ * the AI service layer.
  *
  * Usage:
  *   bun run scripts/batch_generate_summaries.ts --limit 20
@@ -11,11 +11,8 @@
  *   bun run scripts/batch_generate_summaries.ts --dry-run
  */
 
-import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
-import { extractToolResult } from '@/lib/ai-parse';
-import { SummaryResponseSchema } from '@/lib/validation/ai-schemas';
-import type { SummaryResponse } from '@/lib/validation/ai-schemas';
+import { callSummaryAI } from '@/lib/ai/summarise';
 import type { SummaryData } from '@/types/content';
 
 // ── Env loading ──
@@ -75,8 +72,6 @@ function parseArgs(): { limit: number; dryRun: boolean; batchSize: number } {
 
 // ── Constants ──
 
-const MAX_CONTENT_LENGTH = 100_000;
-
 // Content type priority ordering (lower index = higher priority)
 const CONTENT_TYPE_PRIORITY = [
   'article',
@@ -100,32 +95,6 @@ const CONTENT_TYPE_PRIORITY = [
 const SONNET_INPUT_PRICE = 3.0 / 1_000_000;
 const SONNET_OUTPUT_PRICE = 15.0 / 1_000_000;
 
-// ── Tool schema (matches the API route) ──
-
-const SUMMARY_TOOL: Anthropic.Tool = {
-  name: 'return_summary',
-  description: 'Return the generated summary',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      executive: {
-        type: 'string',
-        description: 'Single sentence summary (max 150 chars)',
-      },
-      detailed: {
-        type: 'string',
-        description: '2-3 paragraph detailed summary',
-      },
-      takeaways: {
-        type: 'array',
-        items: { type: 'string' },
-        description: '3-7 key takeaways',
-      },
-    },
-    required: ['executive', 'detailed', 'takeaways'],
-  },
-};
-
 // ── Types ──
 
 interface ContentRow {
@@ -138,33 +107,6 @@ interface ContentRow {
 }
 
 // ── Helpers ──
-
-function buildPrompt(item: ContentRow): string {
-  const content =
-    (item.content?.length ?? 0) > MAX_CONTENT_LENGTH
-      ? item.content!.slice(0, MAX_CONTENT_LENGTH)
-      : item.content!;
-
-  const displayTitle = item.suggested_title || item.title || 'Untitled';
-  const contentType = item.content_type || 'article';
-  const domain = item.primary_domain || 'unknown';
-  const isTranscript = ['transcript', 'podcast', 'video'].includes(contentType);
-
-  return `You are summarising content for a knowledge base.
-Content type: ${contentType}
-Title: ${displayTitle}
-Domain: ${domain}
-
-Rules:
-- 3 to 7 takeaways
-- Use UK English
-- Be specific and factual, not vague
-${isTranscript ? "- This is a transcript/podcast: capture the speaker's key arguments, viewpoints, and any debates or disagreements between speakers" : '- For articles/posts: focus on the thesis, evidence, and conclusions'}
-- The executive summary should be self-contained and informative
-
-Content to summarise:
-${content}`;
-}
 
 function contentTypeSortKey(contentType: string | null): number {
   const idx = CONTENT_TYPE_PRIORITY.indexOf(contentType ?? 'other');
@@ -205,7 +147,6 @@ async function main(): Promise<void> {
 
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
   const supabase = createClient(supabaseUrl, supabaseKey);
-  const anthropic = new Anthropic({ apiKey: anthropicKey });
 
   // ── Fetch items needing summaries ──
 
@@ -243,7 +184,7 @@ async function main(): Promise<void> {
   // ── Cost estimate ──
 
   const totalChars = candidates.reduce((sum, item) => {
-    const len = Math.min(item.content?.length ?? 0, MAX_CONTENT_LENGTH);
+    const len = Math.min(item.content?.length ?? 0, 100_000);
     return sum + len;
   }, 0);
   // Rough token estimate: ~4 chars per token for English text
@@ -314,42 +255,12 @@ async function main(): Promise<void> {
         const displayTitle = item.suggested_title || item.title || 'Untitled';
 
         try {
-          const prompt = buildPrompt(item);
-
-          const response = await anthropic.messages.create({
-            model,
-            max_tokens: 2000,
-            tools: [SUMMARY_TOOL],
-            tool_choice: { type: 'tool', name: 'return_summary' },
-            messages: [{ role: 'user', content: prompt }],
+          const { summaryData, inputTokens, outputTokens } = await callSummaryAI({
+            content: item.content!,
+            title: displayTitle,
+            contentType: item.content_type || 'article',
+            domain: item.primary_domain || 'unknown',
           });
-
-          if (response.stop_reason === 'max_tokens') {
-            throw new Error('Response truncated (max_tokens reached)');
-          }
-
-          const parsed = extractToolResult<SummaryResponse>(
-            response,
-            'return_summary',
-            SummaryResponseSchema,
-          );
-
-          if (!parsed.executive || !parsed.detailed || !Array.isArray(parsed.takeaways)) {
-            throw new Error('Invalid summary structure returned by Claude');
-          }
-
-          const inputTokens = response.usage?.input_tokens ?? 0;
-          const outputTokens = response.usage?.output_tokens ?? 0;
-          const tokensUsed = inputTokens + outputTokens;
-
-          const summaryData: SummaryData = {
-            executive: parsed.executive,
-            detailed: parsed.detailed,
-            takeaways: parsed.takeaways,
-            generated_at: new Date().toISOString(),
-            model,
-            tokens_used: tokensUsed,
-          };
 
           // Store in Supabase (cast to bypass JSONB typing)
           // Also sync ai_summary with the higher-quality executive summary
@@ -369,6 +280,7 @@ async function main(): Promise<void> {
           totalOutputTokens += outputTokens;
           successCount++;
 
+          const tokensUsed = inputTokens + outputTokens;
           console.log(
             `  [${String(index).padStart(String(candidates.length).length)}/${candidates.length}] Generated summary for "${truncate(displayTitle, 50)}" (${tokensUsed.toLocaleString()} tokens)`,
           );
