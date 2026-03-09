@@ -96,7 +96,7 @@ function BidCopilotSuggestionsInner() {
     {
       instructions,
       minSuggestions: 1,
-      maxSuggestions: 3,
+      maxSuggestions: 1,
     },
     [
       activeQuestionId,
