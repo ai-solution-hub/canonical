@@ -1367,6 +1367,13 @@ export type Database = {
           primary_subtopic: string
         }[]
       }
+      get_entity_name_counts: {
+        Args: never
+        Returns: {
+          canonical_name: string
+          mention_count: number
+        }[]
+      }
       get_entity_relationships_rpc: {
         Args: { p_entity_name: string }
         Returns: {
