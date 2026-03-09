@@ -25,8 +25,16 @@ import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/proto
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole, checkMcpRole } from '@/lib/mcp/auth';
 import { generateEmbedding } from '@/lib/ai/embed';
-import { classifyContent } from '@/lib/ai/classify';
-import { generateSummary } from '@/lib/ai/summarise';
+// Lazy imports — classifyContent and generateSummary pull in Anthropic SDK
+// which can cause serverless cold start issues. Only loaded when called.
+async function getClassifyContent() {
+  const { classifyContent } = await import('@/lib/ai/classify');
+  return classifyContent;
+}
+async function getGenerateSummary() {
+  const { generateSummary } = await import('@/lib/ai/summarise');
+  return generateSummary;
+}
 import { fetchDashboardData } from '@/lib/dashboard';
 import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
 import { fetchReorientData } from '@/lib/reorient';
@@ -666,6 +674,7 @@ export function registerTools(server: McpServer): void {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
+        const classifyContent = await getClassifyContent();
         const result = await classifyContent({
           supabase,
           itemId: args.item_id,
@@ -719,6 +728,7 @@ export function registerTools(server: McpServer): void {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
+        const generateSummary = await getGenerateSummary();
         const result = await generateSummary({
           supabase,
           itemId: args.item_id,
