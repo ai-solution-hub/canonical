@@ -1,40 +1,68 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 5 core tools:
+ * Registers 13 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
  *   4. get_content_item — Retrieve a specific content item by ID
  *   5. get_reorientation — Personal briefing on what changed and what needs attention
+ *   6. get_bid_detail — Bid with questions, responses, progress, and gaps
+ *   7. get_bid_question — Specific question with response and confidence
+ *   8. get_quality_summary — Quality issue counts and breakdown
+ *   9. get_freshness_report — Content freshness breakdown
+ *  10. classify_content — Trigger AI classification of an item (editor+)
+ *  11. generate_summary — Generate AI summary for an item (editor+)
+ *  12. create_content_item — Create a new KB content item (editor+)
+ *  13. search_qa_library — Search Q&A pairs specifically
+ *
+ * All tools use per-user Supabase clients via extra.authInfo so that
+ * RLS policies are applied based on the authenticated user.
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { createMcpServiceClient } from '@/lib/mcp/auth';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import { createMcpClient, getMcpUserId, checkMcpRole } from '@/lib/mcp/auth';
 import { generateEmbedding } from '@/lib/ai/embed';
+import { classifyContent } from '@/lib/ai/classify';
+import { generateSummary } from '@/lib/ai/summarise';
 import { fetchDashboardData } from '@/lib/dashboard';
 import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
 import { fetchReorientData } from '@/lib/reorient';
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
+import { AIServiceError } from '@/lib/ai/errors';
 import {
   formatSearchResults,
   formatDashboardSummary,
   formatActiveBids,
   formatContentItem,
   formatReorientation,
+  formatBidDetail,
+  formatBidQuestion,
+  formatQualitySummary,
+  formatFreshnessReport,
+  formatClassification,
+  formatSummaryResult,
+  formatCreatedItem,
+  formatQASearchResults,
 } from '@/lib/mcp/formatters';
-import type { SearchResult, ContentItemDetail } from '@/lib/mcp/formatters';
+import type {
+  SearchResult,
+  ContentItemDetail,
+  BidDetail,
+  BidQuestionDetail,
+  QualitySummary,
+  FreshnessReport,
+  CreatedItem,
+} from '@/lib/mcp/formatters';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
-// Constants
+// Type alias for the extra parameter in tool callbacks
 // ---------------------------------------------------------------------------
 
-/**
- * Placeholder admin user ID for MVP (service-role queries).
- * When OAuth is added, this will be replaced with the authenticated user's ID.
- */
-const MCP_ADMIN_USER_ID = '00000000-0000-0000-0000-000000000000';
+type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 // ---------------------------------------------------------------------------
 // Helper — safely convert typed objects to structuredContent
@@ -70,9 +98,9 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async (args) => {
+    async (args, extra: ToolExtra) => {
       try {
-        const supabase = createMcpServiceClient();
+        const supabase = createMcpClient(extra.authInfo);
         const searchLimit = Math.min(args.limit ?? 10, 50);
 
         // Generate embedding for semantic search
@@ -147,10 +175,11 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async () => {
+    async (extra: ToolExtra) => {
       try {
-        const supabase = createMcpServiceClient();
-        const data = await fetchDashboardData(supabase, MCP_ADMIN_USER_ID, true, 'admin');
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const data = await fetchDashboardData(supabase, userId, true, 'admin');
         const markdown = formatDashboardSummary(data);
 
         return {
@@ -179,9 +208,9 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async () => {
+    async (extra: ToolExtra) => {
       try {
-        const supabase = createMcpServiceClient();
+        const supabase = createMcpClient(extra.authInfo);
         const { workspaces, statsMap } = await fetchActiveBidsWithStats(supabase);
 
         // Map to ActiveBidSummary type
@@ -244,9 +273,9 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async (args) => {
+    async (args, extra: ToolExtra) => {
       try {
-        const supabase = createMcpServiceClient();
+        const supabase = createMcpClient(extra.authInfo);
 
         const { data: item, error } = await supabase
           .from('content_items')
@@ -310,10 +339,11 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async () => {
+    async (extra: ToolExtra) => {
       try {
-        const supabase = createMcpServiceClient();
-        const data = await fetchReorientData(supabase, MCP_ADMIN_USER_ID, true, 'admin');
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const data = await fetchReorientData(supabase, userId, true, 'admin');
         const markdown = formatReorientation(data);
 
         return {
@@ -324,6 +354,500 @@ export function registerTools(server: McpServer): void {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Reorientation briefing failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 6. get_bid_detail
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_bid_detail',
+    {
+      description: 'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
+      inputSchema: {
+        id: z.string().describe('The UUID of the bid workspace'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // Fetch workspace
+        const { data: workspace, error: wsError } = await supabase
+          .from('workspaces')
+          .select('id, name, description, domain_metadata, is_archived')
+          .eq('id', args.id)
+          .eq('type', 'bid')
+          .single();
+
+        if (wsError || !workspace) {
+          return {
+            content: [{ type: 'text' as const, text: `Bid not found: ${args.id}` }],
+            isError: true,
+          };
+        }
+
+        // Fetch question stats
+        const { data: stats } = await supabase.rpc('get_bid_question_stats', {
+          p_project_id: args.id,
+        });
+
+        const meta = workspace.domain_metadata as Record<string, unknown> | null;
+        const bidDetail: BidDetail = {
+          id: workspace.id,
+          name: workspace.name ?? 'Untitled Bid',
+          buyer: (meta?.buyer as string) ?? null,
+          status: (meta?.status as string) ?? 'draft',
+          deadline: (meta?.deadline as string) ?? null,
+          reference_number: (meta?.reference_number as string) ?? null,
+          description: workspace.description,
+          question_stats: stats?.[0] ?? null,
+        };
+
+        const markdown = formatBidDetail(bidDetail);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(bidDetail),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to get bid detail: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 7. get_bid_question
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_bid_question',
+    {
+      description: 'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
+      inputSchema: {
+        question_id: z.string().describe('The UUID of the bid question'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // Fetch question
+        const { data: question, error: qError } = await supabase
+          .from('bid_questions')
+          .select('id, question_text, section_name, word_limit, confidence_posture, status')
+          .eq('id', args.question_id)
+          .single();
+
+        if (qError || !question) {
+          return {
+            content: [{ type: 'text' as const, text: `Question not found: ${args.question_id}` }],
+            isError: true,
+          };
+        }
+
+        // Fetch response if exists
+        const { data: response } = await supabase
+          .from('bid_responses')
+          .select('response_text, review_status')
+          .eq('question_id', args.question_id)
+          .single();
+
+        const detail: BidQuestionDetail = {
+          id: question.id,
+          question_text: question.question_text,
+          section_name: question.section_name,
+          word_limit: question.word_limit,
+          confidence_posture: question.confidence_posture,
+          status: question.status,
+          response_text: response?.response_text ?? null,
+          review_status: response?.review_status ?? null,
+        };
+
+        const markdown = formatBidQuestion(detail);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(detail),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to get bid question: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 8. get_quality_summary
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_quality_summary',
+    {
+      description: 'Get a summary of open quality issues in the knowledge base, grouped by type and severity. Use this to understand what content quality problems need attention.',
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { data: details, error } = await supabase.rpc('get_quality_issue_counts');
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Quality query failed: ${error.message}` }],
+            isError: true,
+          };
+        }
+
+        const rows = (details ?? []) as Array<{ flag_type: string; severity: string; open_count: number }>;
+        const totalOpen = rows.reduce((sum, r) => sum + Number(r.open_count), 0);
+        const byType: Record<string, number> = {};
+        for (const r of rows) {
+          byType[r.flag_type] = (byType[r.flag_type] ?? 0) + Number(r.open_count);
+        }
+
+        const summary: QualitySummary = { total_open: totalOpen, by_type: byType, details: rows };
+        const markdown = formatQualitySummary(summary);
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(summary),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Quality query failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 9. get_freshness_report
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_freshness_report',
+    {
+      description: 'Get a breakdown of content freshness across the knowledge base — how many items are fresh, aging, stale, or expired. Use this to understand the health of your content.',
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { data: rows, error } = await supabase.rpc('get_freshness_breakdown');
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Freshness query failed: ${error.message}` }],
+            isError: true,
+          };
+        }
+
+        const report: FreshnessReport = { fresh: 0, aging: 0, stale: 0, expired: 0 };
+        for (const row of (rows ?? []) as Array<{ freshness: string; count: number }>) {
+          const key = row.freshness as keyof FreshnessReport;
+          if (key in report) {
+            report[key] = Number(row.count);
+          }
+        }
+
+        const markdown = formatFreshnessReport(report);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(report),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Freshness query failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 10. classify_content (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'classify_content',
+    {
+      description: 'Trigger AI classification of a content item. Assigns domain, subtopic, keywords, summary, and a suggested title. Requires editor or admin role.',
+      inputSchema: {
+        item_id: z.string().describe('The UUID of the content item to classify'),
+        force: z.boolean().optional().describe('Re-classify even if already classified (default: false)'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const result = await classifyContent({
+          supabase,
+          itemId: args.item_id,
+          force: args.force ?? false,
+          userId,
+        });
+
+        const markdown = formatClassification(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
+        return {
+          content: [{ type: 'text' as const, text: `Classification failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 11. generate_summary (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'generate_summary',
+    {
+      description: 'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role.',
+      inputSchema: {
+        item_id: z.string().describe('The UUID of the content item to summarise'),
+        force: z.boolean().optional().describe('Regenerate even if summary exists (default: false)'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const result = await generateSummary({
+          supabase,
+          itemId: args.item_id,
+          force: args.force ?? false,
+          userId,
+        });
+
+        const markdown = formatSummaryResult(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
+        return {
+          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 12. create_content_item (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'create_content_item',
+    {
+      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search.',
+      inputSchema: {
+        title: z.string().min(1).max(500).describe('Title of the content item'),
+        content: z.string().min(1).max(500000).describe('The content text'),
+        content_type: z.enum([
+          'article', 'blog', 'pdf', 'note', 'research', 'other',
+          'q_a_pair', 'case_study', 'policy', 'certification',
+          'compliance', 'methodology', 'capability', 'product_description',
+        ]).describe('Type of content'),
+        primary_domain: z.string().optional().describe('Primary domain category'),
+        primary_subtopic: z.string().optional().describe('Primary subtopic'),
+        priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+
+        // Generate embedding for search
+        let embedding: number[] | null = null;
+        try {
+          embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
+        } catch {
+          // Embedding failure is non-fatal — item is still created
+        }
+
+        const insertData: Record<string, unknown> = {
+          title: args.title,
+          suggested_title: args.title,
+          content: args.content,
+          content_type: args.content_type,
+          platform: 'manual',
+          captured_date: new Date().toISOString(),
+          created_by: userId,
+          ...(args.primary_domain && { primary_domain: args.primary_domain }),
+          ...(args.primary_subtopic && { primary_subtopic: args.primary_subtopic }),
+          ...(args.priority && { priority: args.priority }),
+          ...(embedding && { embedding: JSON.stringify(embedding) }),
+        };
+
+        const { data: item, error } = await supabase
+          .from('content_items')
+          .insert(insertData as never)
+          .select('id, title, content_type')
+          .single();
+
+        if (error || !item) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to create item: ${error?.message ?? 'Unknown error'}` }],
+            isError: true,
+          };
+        }
+
+        const created: CreatedItem = {
+          id: item.id,
+          title: item.title ?? args.title,
+          content_type: item.content_type ?? args.content_type,
+        };
+
+        const markdown = formatCreatedItem(created);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(created),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to create item: ${message}` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 13. search_qa_library
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'search_qa_library',
+    {
+      description: 'Search the Q&A library specifically. Returns Q&A pairs from the knowledge base matching your query, useful for finding reusable answers for bid responses.',
+      inputSchema: {
+        query: z.string().describe('The search query — use natural language for best results'),
+        limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const searchLimit = Math.min(args.limit ?? 10, 50);
+
+        const embedding = await generateEmbedding(args.query.trim());
+
+        const { data: results, error } = await supabase.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(embedding),
+          query_text: args.query.trim(),
+          similarity_threshold: 0.3,
+          limit_count: searchLimit * 3, // Over-fetch to compensate for type filtering
+        });
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Q&A search failed: ${error.message}` }],
+            isError: true,
+          };
+        }
+
+        // Filter to Q&A pairs only
+        const qaResults: SearchResult[] = ((results ?? []) as Record<string, unknown>[])
+          .filter((r) => r.content_type === 'q_a_pair')
+          .slice(0, searchLimit)
+          .map((r) => ({
+            id: r.id as string,
+            title: r.title as string | null,
+            suggested_title: r.suggested_title as string | null,
+            content_type: r.content_type as string | null,
+            primary_domain: r.primary_domain as string | null,
+            primary_subtopic: r.primary_subtopic as string | null,
+            ai_summary: r.ai_summary as string | null,
+            similarity: r.similarity as number,
+          }));
+
+        const markdown = formatQASearchResults(args.query, qaResults);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            query: args.query,
+            count: qaResults.length,
+            results: qaResults,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Q&A search failed: ${message}` }],
           isError: true,
         };
       }

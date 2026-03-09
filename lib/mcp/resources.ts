@@ -1,0 +1,328 @@
+/**
+ * MCP resource and prompt registrations for the Knowledge Hub server.
+ *
+ * Resources (6):
+ *   - kb://items/{id}    — Full content item with metadata
+ *   - kb://bids/{id}     — Bid with questions and responses
+ *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
+ *   - kb://coverage      — Current taxonomy coverage state
+ *   - kb://dashboard     — Current dashboard state
+ *   - kb://taxonomy      — Domains and subtopics
+ *
+ * Prompts (5):
+ *   - reorient           — "What has changed since I was last active?"
+ *   - bid_briefing       — "Give me a briefing on {bid_name}"
+ *   - coverage_analysis  — "Analyse coverage gaps and suggest content to create"
+ *   - draft_response     — "Draft a response to this bid question"
+ *   - review_item        — "Review this content item for quality"
+ */
+import { z } from 'zod';
+import { ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
+import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
+import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
+import { createMcpClient, getMcpUserId } from '@/lib/mcp/auth';
+import { fetchDashboardData } from '@/lib/dashboard';
+
+type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+// ---------------------------------------------------------------------------
+// Resources
+// ---------------------------------------------------------------------------
+
+export function registerResources(server: McpServer): void {
+  // 1. kb://items/{id} — Content item
+  server.registerResource(
+    'content_item',
+    new ResourceTemplate('kb://items/{id}', { list: undefined }),
+    {
+      description: 'A knowledge base content item with full metadata',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, variables: Variables, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+      const itemId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+      const { data: item, error } = await supabase
+        .from('content_items')
+        .select('id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at')
+        .eq('id', itemId)
+        .single();
+
+      if (error || !item) {
+        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Item not found: ${itemId}` }] };
+      }
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(item, null, 2),
+        }],
+      };
+    },
+  );
+
+  // 2. kb://bids/{id} — Bid workspace
+  server.registerResource(
+    'bid_workspace',
+    new ResourceTemplate('kb://bids/{id}', { list: undefined }),
+    {
+      description: 'A bid workspace with questions and response progress',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, variables: Variables, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+      const bidId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+      const { data: workspace, error } = await supabase
+        .from('workspaces')
+        .select('id, name, description, domain_metadata, is_archived')
+        .eq('id', bidId)
+        .eq('type', 'bid')
+        .single();
+
+      if (error || !workspace) {
+        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Bid not found: ${bidId}` }] };
+      }
+
+      const { data: questions } = await supabase
+        .from('bid_questions')
+        .select('id, question_text, section_name, status, confidence_posture')
+        .eq('project_id', bidId)
+        .order('section_sequence')
+        .order('question_sequence');
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify({ ...workspace, questions: questions ?? [] }, null, 2),
+        }],
+      };
+    },
+  );
+
+  // 3. kb://qa/{id} — Q&A pair
+  server.registerResource(
+    'qa_pair',
+    new ResourceTemplate('kb://qa/{id}', { list: undefined }),
+    {
+      description: 'A Q&A pair with standard and advanced answers',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, variables: Variables, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+      const qaId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+      const { data: item, error } = await supabase
+        .from('content_items')
+        .select('id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary')
+        .eq('id', qaId)
+        .eq('content_type', 'q_a_pair')
+        .single();
+
+      if (error || !item) {
+        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Q&A pair not found: ${qaId}` }] };
+      }
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(item, null, 2),
+        }],
+      };
+    },
+  );
+
+  // 4. kb://coverage — Taxonomy coverage
+  server.registerResource(
+    'coverage_matrix',
+    'kb://coverage',
+    {
+      description: 'Current taxonomy coverage state — domains, subtopics, and item counts',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+
+      // Count items per domain
+      const { data: domainCounts } = await supabase
+        .from('content_items')
+        .select('primary_domain')
+        .not('primary_domain', 'is', null);
+
+      const coverage: Record<string, number> = {};
+      for (const row of (domainCounts ?? []) as Array<{ primary_domain: string | null }>) {
+        if (row.primary_domain) {
+          coverage[row.primary_domain] = (coverage[row.primary_domain] ?? 0) + 1;
+        }
+      }
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify({ domains: coverage }, null, 2),
+        }],
+      };
+    },
+  );
+
+  // 5. kb://dashboard — Dashboard state
+  server.registerResource(
+    'dashboard',
+    'kb://dashboard',
+    {
+      description: 'Current dashboard state — freshness, attention items, activity',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+      const userId = getMcpUserId(extra.authInfo);
+      const data = await fetchDashboardData(supabase, userId, true, 'admin');
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify(data, null, 2),
+        }],
+      };
+    },
+  );
+
+  // 6. kb://taxonomy — Domains and subtopics
+  server.registerResource(
+    'taxonomy',
+    'kb://taxonomy',
+    {
+      description: 'The full taxonomy of domains and subtopics used to classify content',
+      mimeType: 'application/json',
+    },
+    async (uri: URL, extra: Extra) => {
+      const supabase = createMcpClient(extra.authInfo);
+      const { data: domains } = await supabase
+        .from('taxonomy_domains')
+        .select('id, name, sort_order')
+        .order('sort_order');
+
+      const { data: subtopics } = await supabase
+        .from('taxonomy_subtopics')
+        .select('id, name, domain_id, sort_order')
+        .order('sort_order');
+
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: 'application/json',
+          text: JSON.stringify({ domains: domains ?? [], subtopics: subtopics ?? [] }, null, 2),
+        }],
+      };
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Prompts
+// ---------------------------------------------------------------------------
+
+export function registerPrompts(server: McpServer): void {
+  // 1. reorient
+  server.registerPrompt(
+    'reorient',
+    {
+      title: 'Reorientation Briefing',
+      description: 'Get a briefing on what has changed since your last visit. Shows urgent items, team activity, and bid status.',
+    },
+    async () => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: 'What has changed in my knowledge base since I was last active? Give me a briefing covering urgent items, team activity, my recent work, and active bid status. Use the get_reorientation tool.',
+        },
+      }],
+    }),
+  );
+
+  // 2. bid_briefing
+  server.registerPrompt(
+    'bid_briefing',
+    {
+      title: 'Bid Briefing',
+      description: 'Get a comprehensive briefing on a specific bid including progress, gaps, and next steps.',
+      argsSchema: {
+        bid_name: z.string().describe('Name or ID of the bid to brief on'),
+      },
+    },
+    async (args) => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Give me a comprehensive briefing on the bid "${args.bid_name}". Include the current status, question completion progress, any gaps or blockers, upcoming deadlines, and recommended next steps. Use the list_active_bids and get_bid_detail tools.`,
+        },
+      }],
+    }),
+  );
+
+  // 3. coverage_analysis
+  server.registerPrompt(
+    'coverage_analysis',
+    {
+      title: 'Coverage Analysis',
+      description: 'Analyse knowledge base coverage gaps and suggest content to create.',
+    },
+    async () => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_dashboard_summary, get_quality_summary, and get_freshness_report tools.',
+        },
+      }],
+    }),
+  );
+
+  // 4. draft_response
+  server.registerPrompt(
+    'draft_response',
+    {
+      title: 'Draft Bid Response',
+      description: 'Draft a response to a bid question using relevant knowledge base content.',
+      argsSchema: {
+        question_text: z.string().describe('The bid question to respond to'),
+      },
+    },
+    async (args) => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Draft a bid response to the following question, using relevant content from my knowledge base:\n\n"${args.question_text}"\n\nSearch the knowledge base and Q&A library for relevant content, then compose a well-structured response with citations. Use the search_knowledge_base and search_qa_library tools.`,
+        },
+      }],
+    }),
+  );
+
+  // 5. review_item
+  server.registerPrompt(
+    'review_item',
+    {
+      title: 'Review Content Item',
+      description: 'Review a content item for quality, accuracy, and completeness.',
+      argsSchema: {
+        item_id: z.string().describe('The UUID of the content item to review'),
+      },
+    },
+    async (args) => ({
+      messages: [{
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Review the content item with ID "${args.item_id}" for quality, accuracy, and completeness. Check: Is the classification correct? Is the summary accurate? Is the content up to date? Are there any quality issues? Use the get_content_item tool to fetch the item, then provide a detailed assessment with recommendations.`,
+        },
+      }],
+    }),
+  );
+}

@@ -1,8 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { PanelRightClose, PanelRightOpen, CheckCircle2, Sparkles } from 'lucide-react';
+import { PanelRight, CheckCircle2, Sparkles } from 'lucide-react';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { ReviewCard } from '@/components/review-card';
 import { ReviewActionBar } from '@/components/review-action-bar';
 import { ReviewProgressBar } from '@/components/review-progress-bar';
@@ -216,20 +222,15 @@ export function ReviewContent() {
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
-            {/* Queue panel toggle (hidden on mobile) */}
+            {/* Queue panel toggle */}
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={handleTogglePanel}
-              className="hidden md:inline-flex"
               aria-label={showQueuePanel ? 'Hide review queue panel' : 'Show review queue panel'}
               aria-expanded={showQueuePanel}
             >
-              {showQueuePanel ? (
-                <PanelRightClose className="size-4" />
-              ) : (
-                <PanelRightOpen className="size-4" />
-              )}
+              <PanelRight className="size-4" />
             </Button>
           </div>
           <ReviewFilters
@@ -351,43 +352,32 @@ export function ReviewContent() {
     </div>
   );
 
-  // Main review view — with optional side panel
+  // Main review view — with Sheet-based queue panel
   return (
-    <div className="h-[calc(100vh-3.5rem)]">
-    <PanelGroup
-      orientation="horizontal"
-      className="overflow-hidden"
-    >
-      <Panel
-        id="review-main"
-        defaultSize={showQueuePanel ? 75 : 100}
-        minSize={60}
-        className="overflow-y-auto overscroll-contain"
-      >
-        {reviewMainContent}
-      </Panel>
+    <>
+      {reviewMainContent}
 
-      {showQueuePanel && (
-        <>
-          <PanelResizeHandle className="hidden w-2 bg-border transition-colors hover:bg-primary/20 data-[separator=active]:bg-primary/30 md:block relative z-[51]" />
-          <Panel
-            id="review-queue"
-            defaultSize={25}
-            minSize={20}
-            maxSize={35}
-            className="hidden overflow-hidden md:block"
-          >
-            <ReviewQueuePanel
-              items={sortedQueue}
-              currentIndex={currentSortedIndex}
-              onSelectItem={handleSelectItem}
-              sortBy={queueSort}
-              onSortChange={setQueueSort}
-            />
-          </Panel>
-        </>
-      )}
-    </PanelGroup>
-    </div>
+      <Sheet open={showQueuePanel} onOpenChange={handleTogglePanel} modal={false}>
+        <SheetContent
+          side="right"
+          className="w-[320px] p-0 sm:w-[360px]"
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Review Queue</SheetTitle>
+            <SheetDescription>
+              Items in the current review batch
+            </SheetDescription>
+          </SheetHeader>
+          <ReviewQueuePanel
+            items={sortedQueue}
+            currentIndex={currentSortedIndex}
+            onSelectItem={handleSelectItem}
+            sortBy={queueSort}
+            onSortChange={setQueueSort}
+          />
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

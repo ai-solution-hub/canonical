@@ -721,6 +721,18 @@ p + p {
   z-index: 50;
 }
 
+/* Push CopilotKit chat window below the sticky header (h-14 = 3.5rem).
+   The compound selector (0,3,0 specificity) beats the library's
+   .copilotKitSidebar .copilotKitWindow (0,2,0) regardless of CSS load order,
+   fixing the Turbopack-vs-production ordering mismatch on localhost. */
+.global-copilot-sidebar.copilotKitSidebar .copilotKitWindow {
+  top: 3.5rem;
+  height: calc(100vh - 3.5rem);
+  min-height: calc(100vh - 3.5rem);
+  max-height: calc(100vh - 3.5rem);
+  overscroll-behavior: contain;
+}
+
 /* Remove closed CopilotKit overlay from hit testing and scroll interception */
 .copilotKitWindow:not(.open) {
   pointer-events: none !important;

@@ -7,6 +7,8 @@
 import { formatDateUK, formatContentType } from '@/lib/format';
 import type { ActiveBidSummary, DashboardData, GroupedActivityItem } from '@/lib/dashboard';
 import type { ReorientData } from '@/types/reorient';
+import type { ClassificationResult } from '@/lib/ai/classify';
+import type { SummariseResult } from '@/lib/ai/summarise';
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -378,6 +380,282 @@ export function formatReorientation(data: ReorientData): string {
     for (const item of countItems) {
       lines.push(`- ${item}`);
     }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Bid detail
+// ---------------------------------------------------------------------------
+
+export interface BidDetail {
+  id: string;
+  name: string;
+  buyer: string | null;
+  status: string;
+  deadline: string | null;
+  reference_number: string | null;
+  description: string | null;
+  question_stats: {
+    total_questions: number;
+    strong_match_count: number;
+    partial_match_count: number;
+    needs_sme_count: number;
+    no_content_count: number;
+    unmatched_count: number;
+    drafted_count: number;
+    complete_count: number;
+  } | null;
+}
+
+export function formatBidDetail(bid: BidDetail): string {
+  const lines: string[] = [
+    `# ${bid.name}`,
+    '',
+    `**Status:** ${bid.status}`,
+  ];
+
+  if (bid.buyer) lines.push(`**Buyer:** ${bid.buyer}`);
+  if (bid.reference_number) lines.push(`**Reference:** ${bid.reference_number}`);
+  if (bid.deadline) lines.push(`**Deadline:** ${formatDateUK(bid.deadline)}`);
+  if (bid.description) lines.push('', bid.description);
+
+  lines.push(`**ID:** ${bid.id}`);
+
+  if (bid.question_stats) {
+    const qs = bid.question_stats;
+    const answered = qs.drafted_count + qs.complete_count;
+    lines.push('', '## Question Progress', '');
+    lines.push(`- **Total questions:** ${qs.total_questions}`);
+    lines.push(`- **Answered:** ${answered} (${formatProgress(answered, qs.total_questions)})`);
+    lines.push(`- **Approved:** ${qs.complete_count}`);
+    lines.push(`- **Strong KB match:** ${qs.strong_match_count}`);
+    lines.push(`- **Partial match:** ${qs.partial_match_count}`);
+    lines.push(`- **Needs SME:** ${qs.needs_sme_count}`);
+    lines.push(`- **No content:** ${qs.no_content_count}`);
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Bid question
+// ---------------------------------------------------------------------------
+
+export interface BidQuestionDetail {
+  id: string;
+  question_text: string;
+  section_name: string | null;
+  word_limit: number | null;
+  confidence_posture: string | null;
+  status: string | null;
+  response_text: string | null;
+  review_status: string | null;
+}
+
+export function formatBidQuestion(q: BidQuestionDetail): string {
+  const lines: string[] = [
+    '# Bid Question',
+    '',
+    `**Question:** ${q.question_text}`,
+  ];
+
+  if (q.section_name) lines.push(`**Section:** ${q.section_name}`);
+  if (q.word_limit) lines.push(`**Word limit:** ${q.word_limit}`);
+  if (q.confidence_posture) lines.push(`**Confidence:** ${q.confidence_posture}`);
+  if (q.status) lines.push(`**Status:** ${q.status}`);
+  if (q.review_status) lines.push(`**Review status:** ${q.review_status}`);
+  lines.push(`**ID:** ${q.id}`);
+
+  if (q.response_text) {
+    lines.push('', '## Response', '', truncate(q.response_text, 3000));
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Quality summary
+// ---------------------------------------------------------------------------
+
+export interface QualitySummary {
+  total_open: number;
+  by_type: Record<string, number>;
+  details: Array<{ flag_type: string; severity: string; open_count: number }>;
+}
+
+export function formatQualitySummary(data: QualitySummary): string {
+  const lines: string[] = [
+    '# Quality Summary',
+    '',
+    `**Total open issues:** ${data.total_open}`,
+    '',
+  ];
+
+  if (data.details.length === 0) {
+    lines.push('No open quality issues found.');
+  } else {
+    lines.push('## Issues by Type', '');
+    for (const d of data.details) {
+      const label = d.flag_type.replace(/_/g, ' ');
+      lines.push(`- **${label}** (${d.severity}): ${d.open_count}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Freshness report
+// ---------------------------------------------------------------------------
+
+export interface FreshnessReport {
+  fresh: number;
+  aging: number;
+  stale: number;
+  expired: number;
+}
+
+export function formatFreshnessReport(data: FreshnessReport): string {
+  const total = data.fresh + data.aging + data.stale + data.expired;
+  const lines: string[] = [
+    '# Content Freshness Report',
+    '',
+    `**Total items:** ${total}`,
+    '',
+    `- **Fresh:** ${data.fresh} (${formatProgress(data.fresh, total)})`,
+    `- **Aging:** ${data.aging} (${formatProgress(data.aging, total)})`,
+    `- **Stale:** ${data.stale} (${formatProgress(data.stale, total)})`,
+    `- **Expired:** ${data.expired} (${formatProgress(data.expired, total)})`,
+  ];
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Classification result
+// ---------------------------------------------------------------------------
+
+export function formatClassification(result: ClassificationResult): string {
+  const lines: string[] = [
+    '# Classification Result',
+    '',
+    `**Title:** ${result.suggested_title}`,
+    `**Domain:** ${result.primary_domain}`,
+    `**Subtopic:** ${result.primary_subtopic}`,
+    `**Confidence:** ${Math.round(result.classification_confidence * 100)}%`,
+  ];
+
+  if (result.secondary_domain) {
+    lines.push(`**Secondary domain:** ${result.secondary_domain}`);
+  }
+
+  if (result.ai_keywords.length > 0) {
+    lines.push(`**Keywords:** ${result.ai_keywords.join(', ')}`);
+  }
+
+  if (result.ai_summary) {
+    lines.push('', '## Summary', '', result.ai_summary);
+  }
+
+  if (result.classification_reasoning) {
+    lines.push('', '## Reasoning', '', result.classification_reasoning);
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Summary result
+// ---------------------------------------------------------------------------
+
+export function formatSummaryResult(result: SummariseResult): string {
+  const data = result.summary_data;
+  const lines: string[] = [
+    '# Generated Summary',
+    '',
+    '## Executive Summary',
+    '',
+    data.executive,
+    '',
+    '## Detailed Summary',
+    '',
+    data.detailed,
+  ];
+
+  if (data.takeaways.length > 0) {
+    lines.push('', '## Key Takeaways', '');
+    for (const t of data.takeaways) {
+      lines.push(`- ${t}`);
+    }
+  }
+
+  lines.push('', `*Generated at ${data.generated_at} using ${data.model}*`);
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Content item created
+// ---------------------------------------------------------------------------
+
+export interface CreatedItem {
+  id: string;
+  title: string;
+  content_type: string;
+}
+
+export function formatCreatedItem(item: CreatedItem): string {
+  return [
+    '# Content Item Created',
+    '',
+    `**Title:** ${item.title}`,
+    `**Type:** ${formatContentType(item.content_type)}`,
+    `**ID:** ${item.id}`,
+    '',
+    'The item has been created successfully.',
+  ].join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Q&A search results
+// ---------------------------------------------------------------------------
+
+export function formatQASearchResults(query: string, results: SearchResult[]): string {
+  if (results.length === 0) {
+    return `# Q&A Library Search: "${query}"\n\nNo Q&A pairs found matching your query.`;
+  }
+
+  const lines: string[] = [
+    `# Q&A Library Search: "${query}"`,
+    '',
+    `Found ${results.length} Q&A pair${results.length === 1 ? '' : 's'}:`,
+    '',
+  ];
+
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    const title = r.suggested_title || r.title || 'Untitled Q&A';
+    const similarity = Math.round(r.similarity * 100);
+
+    lines.push(`## ${i + 1}. ${title}`);
+
+    if (r.primary_domain) {
+      const domain = r.primary_subtopic
+        ? `${r.primary_domain} > ${r.primary_subtopic}`
+        : r.primary_domain;
+      lines.push(`**Domain:** ${domain}`);
+    }
+
+    lines.push(`**Relevance:** ${similarity}%`);
+
+    if (r.ai_summary) {
+      lines.push(truncate(r.ai_summary, 300));
+    }
+
+    lines.push(`**ID:** ${r.id}`);
+    lines.push('');
   }
 
   return lines.join('\n');

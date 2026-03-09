@@ -40,11 +40,7 @@ export function ReviewQueuePanel({
   }, [currentIndex]);
 
   return (
-    <aside
-      role="complementary"
-      aria-label="Review queue"
-      className="flex h-full flex-col border-l border-border bg-card"
-    >
+    <div className="flex h-full flex-col">
       {/* Sort controls */}
       <div className="border-b border-border px-3 py-2">
         <Select value={sortBy} onValueChange={(v) => onSortChange(v as QueueSortField)}>
@@ -123,6 +119,6 @@ export function ReviewQueuePanel({
       <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
         {items.length} {items.length === 1 ? 'item' : 'items'} loaded
       </div>
-    </aside>
+    </div>
   );
 }
