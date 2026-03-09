@@ -48,6 +48,9 @@ export function RelatedByEntities({
         .select('canonical_name')
         .eq('content_item_id', contentItemId);
 
+      if (entError) {
+        console.error('RelatedByEntities: failed to fetch entities for item:', entError);
+      }
       if (entError || !myEntities || myEntities.length === 0) {
         setLoading(false);
         return;
@@ -65,6 +68,9 @@ export function RelatedByEntities({
         .in('canonical_name', myEntityNames)
         .neq('content_item_id', contentItemId);
 
+      if (sharedError) {
+        console.error('RelatedByEntities: failed to fetch shared entity mentions:', sharedError);
+      }
       if (sharedError || !sharedMentions || sharedMentions.length === 0) {
         setLoading(false);
         return;
@@ -110,6 +116,9 @@ export function RelatedByEntities({
           'governance_review_status.is.null,governance_review_status.neq.draft',
         );
 
+      if (detailError) {
+        console.error('RelatedByEntities: failed to fetch content item details:', detailError);
+      }
       if (detailError || !details) {
         setLoading(false);
         return;

@@ -1385,7 +1385,11 @@ export type Database = {
         }[]
       }
       get_entity_summary: {
-        Args: { p_entity_name?: string; p_entity_type?: string }
+        Args: {
+          p_entity_name?: string
+          p_entity_type?: string
+          p_limit?: number
+        }
         Returns: {
           canonical_name: string
           content_item_ids: string[]

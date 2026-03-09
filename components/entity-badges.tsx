@@ -58,7 +58,9 @@ export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
         .order('entity_type')
         .order('canonical_name');
 
-      if (!error && data) {
+      if (error) {
+        console.error('EntityBadges: failed to fetch entity mentions:', error);
+      } else if (data) {
         // Deduplicate by canonical_name within each type
         const seen = new Set<string>();
         const deduped = (data as EntityMention[]).filter((e) => {

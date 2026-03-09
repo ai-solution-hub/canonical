@@ -375,43 +375,66 @@ export function registerResources(server: McpServer): void {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Fetch all entity summaries (no filters = full overview)
-        const { data: rows, error } = await supabase.rpc('get_entity_summary', {});
+        // Two bounded queries instead of one unbounded RPC call:
+        // 1. Entity type counts (lightweight — only fetches entity_type column)
+        // 2. Top 20 entities via RPC with p_limit parameter
 
-        if (error) {
+        // Query 1: Count distinct entities per type
+        const { data: typeRows, error: typeError } = await supabase
+          .from('entity_mentions')
+          .select('entity_type, canonical_name');
+
+        if (typeError) {
           return {
             contents: [{
               uri: uri.href,
               mimeType: 'text/plain',
-              text: `Error: ${error.message}`,
+              text: `Error: ${typeError.message}`,
             }],
           };
         }
 
-        const entities = (rows ?? []) as Array<{
+        // Count unique entities per type (deduplicate by canonical_name + entity_type)
+        const seen = new Set<string>();
+        const byType: Record<string, number> = {};
+        let totalEntities = 0;
+        for (const row of (typeRows ?? []) as Array<{ entity_type: string; canonical_name: string }>) {
+          const key = `${row.entity_type}:${row.canonical_name}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            byType[row.entity_type] = (byType[row.entity_type] ?? 0) + 1;
+            totalEntities++;
+          }
+        }
+
+        // Query 2: Top entities via RPC (ordered by mention_count DESC, bounded to 20)
+        const { data: topRows, error: topError } = await supabase.rpc(
+          'get_entity_summary',
+          { p_limit: 20 },
+        );
+
+        if (topError) {
+          return {
+            contents: [{
+              uri: uri.href,
+              mimeType: 'text/plain',
+              text: `Error: ${topError.message}`,
+            }],
+          };
+        }
+
+        const topEntities = ((topRows ?? []) as Array<{
           canonical_name: string;
           entity_type: string;
           mention_count: number;
-        }>;
-
-        // Count by type
-        const byType: Record<string, number> = {};
-        for (const entity of entities) {
-          byType[entity.entity_type] = (byType[entity.entity_type] ?? 0) + 1;
-        }
-
-        // Top entities by mention count
-        const topEntities = [...entities]
-          .sort((a, b) => Number(b.mention_count) - Number(a.mention_count))
-          .slice(0, 20)
-          .map((e) => ({
-            canonical_name: e.canonical_name,
-            entity_type: e.entity_type,
-            mention_count: Number(e.mention_count),
-          }));
+        }>).slice(0, 20).map((e) => ({
+          canonical_name: e.canonical_name,
+          entity_type: e.entity_type,
+          mention_count: Number(e.mention_count),
+        }));
 
         const overview = {
-          total_entities: entities.length,
+          total_entities: totalEntities,
           by_type: byType,
           top_entities: topEntities,
         };

@@ -942,6 +942,13 @@ Classify this content and extract entities and relationships. Return the classif
           }
 
           // ── Insert relationships ──
+          // Always delete existing relationships for this item first
+          // (clean slate on reclassify, even when zero new relationships found)
+          await supabase
+            .from('entity_relationships')
+            .delete()
+            .eq('source_item_id', item.id);
+
           if (relationships.length > 0) {
             const relRows = relationships.map((r) => ({
               source_entity: r.source,
@@ -950,12 +957,6 @@ Classify this content and extract entities and relationships. Return the classif
               source_item_id: item.id,
               confidence: 1.0,
             }));
-
-            // Delete existing relationships for this item first
-            await supabase
-              .from('entity_relationships')
-              .delete()
-              .eq('source_item_id', item.id);
 
             const { error: relError } = await supabase
               .from('entity_relationships')

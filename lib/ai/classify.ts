@@ -328,6 +328,10 @@ Only include entities and relationships that are clearly stated or strongly impl
   }
 
   // Store extracted entities (non-blocking — failures must not break classification)
+  // Note: the entity_mentions table has a `context_snippet` column that is
+  // reserved for future use (short excerpt showing where the entity was found).
+  // It is intentionally not populated during classification — a future enhancement
+  // could extract surrounding text from the content to populate it.
   if (result.entities?.length) {
     try {
       const entityRows = result.entities.map((e) => ({

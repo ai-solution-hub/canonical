@@ -3,7 +3,7 @@
 Chains the pipeline: extract -> dedup -> classify -> embed -> store
 
 Usage:
-    python3 scripts/import_bid_library.py /path/to/docs/ [--dry-run] [--skip-embed]
+    python3 scripts/import_bid_library.py /path/to/docs/ [--dry-run] [--skip-embed] [--force]
 
 Steps:
     1. Find all .docx files in the given directory
@@ -11,15 +11,20 @@ Steps:
     3. Run exact dedup (MD5 of normalised question text)
     4. Run near-duplicate detection, print candidates for review
     5. Classify using keyword classifier
-    6. Generate embeddings using kb_pipeline/embed.py
-    7. Store in Supabase using kb_pipeline/store.py
-    8. Print summary
+    6. Check for existing records in Supabase (idempotency)
+    7. Generate embeddings using kb_pipeline/embed.py
+    8. Store in Supabase using kb_pipeline/store.py
+    9. Print summary with quality report
 """
 
 import argparse
+import json
 import os
 import sys
 import time
+import urllib.parse
+import urllib.request
+import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,6 +38,26 @@ from dedup import exact_dedup, find_near_duplicates
 from keyword_classifier import classify_pairs, classification_summary
 
 
+# ── Quality thresholds ─────────────────────────────────────────────────
+FRAGMENT_THRESHOLD = 20  # Content shorter than this is flagged as a fragment
+
+
+def truncate_at_word_boundary(text: str, max_length: int, suffix: str = "...") -> str:
+    """Truncate text at a word boundary near max_length.
+
+    Finds the last space before max_length and truncates there, unless
+    doing so would lose more than 30% of the allowed length (in which
+    case the hard cut is used). Appends suffix if truncated.
+    """
+    if len(text) <= max_length:
+        return text
+    truncated = text[:max_length]
+    last_space = truncated.rfind(" ")
+    if last_space > max_length * 0.7:
+        truncated = truncated[:last_space]
+    return truncated.rstrip() + suffix
+
+
 def find_docx_files(directory: str) -> list[str]:
     """Find all .docx files in a directory (non-recursive)."""
     p = Path(directory)
@@ -44,23 +69,81 @@ def find_docx_files(directory: str) -> list[str]:
     return files
 
 
+def check_question_exists(question_text: str) -> bool:
+    """Check if a Q&A pair with this question already exists in Supabase.
+
+    Matches against the title field (which contains the question text)
+    for content_type='q_a_pair' records.
+    """
+    from kb_pipeline.config import get_supabase_url, get_supabase_secret_key
+
+    # Use first 80 chars of the question for matching — enough to be unique
+    # without hitting URL length limits
+    search_text = question_text[:80].strip()
+    if not search_text:
+        return False
+
+    key = get_supabase_secret_key()
+    encoded_text = urllib.parse.quote(search_text, safe="")
+    url = (
+        f"{get_supabase_url()}/rest/v1/content_items"
+        f"?content_type=eq.q_a_pair"
+        f"&title=ilike.*{encoded_text}*"
+        f"&select=id"
+        f"&limit=1"
+    )
+
+    req = urllib.request.Request(url)
+    req.add_header("apikey", key)
+    req.add_header("Authorization", f"Bearer {key}")
+
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return len(data) > 0
+    except Exception:
+        return False
+
+
+def validate_content_quality(content: str, question_text: str) -> dict:
+    """Validate content quality and return a quality report dict.
+
+    Returns:
+        dict with keys: is_empty (bool), is_fragment (bool), content_length (int)
+    """
+    content_stripped = content.strip()
+    return {
+        "is_empty": len(content_stripped) == 0,
+        "is_fragment": 0 < len(content_stripped) < FRAGMENT_THRESHOLD,
+        "content_length": len(content_stripped),
+    }
+
+
 def build_content_record(pair: dict, batch_name: str) -> dict:
     """Convert a classified Q&A pair dict into a Supabase content_items record."""
-    # Build the content field: clean answer text for search indexing
-    answer_parts = []
+    # Build the content field: question + answer text for search indexing
+    content_parts = []
+    content_parts.append(f"Q: {pair['question_text']}")
+    content_parts.append("")  # blank line separator
     if pair.get("answer_standard"):
-        answer_parts.append(pair["answer_standard"])
+        content_parts.append(pair["answer_standard"])
     if pair.get("answer_advanced"):
-        answer_parts.append(pair["answer_advanced"])
-    content = "\n\n".join(answer_parts) if answer_parts else ""
+        content_parts.append(pair["answer_advanced"])
+    content = "\n".join(content_parts) if content_parts else ""
 
-    # Build a concise title from the question (first 120 chars)
-    title = pair["question_text"][:120]
-    if len(pair["question_text"]) > 120:
-        title += "..."
+    # Build a concise title from the question (word-boundary-aware)
+    title = truncate_at_word_boundary(pair["question_text"], 120)
 
-    # Build ai_summary from first 200 chars of answer text
-    ai_summary = content[:200] + "..." if len(content) > 200 else content
+    # Build ai_summary from answer text (word-boundary-aware)
+    answer_text = ""
+    if pair.get("answer_standard"):
+        answer_text = pair["answer_standard"]
+    if pair.get("answer_advanced"):
+        if answer_text:
+            answer_text += "\n" + pair["answer_advanced"]
+        else:
+            answer_text = pair["answer_advanced"]
+    ai_summary = truncate_at_word_boundary(answer_text, 200)
 
     record = {
         "title": title,
@@ -128,6 +211,11 @@ def main():
         default="",
         help="Name for this import batch (default: auto-generated)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip idempotency check — import even if matching records exist",
+    )
 
     args = parser.parse_args()
     start_time = time.time()
@@ -141,6 +229,7 @@ def main():
     print(f"  Batch:      {batch_name}")
     print(f"  Dry run:    {args.dry_run}")
     print(f"  Skip embed: {args.skip_embed}")
+    print(f"  Force:      {args.force}")
     print()
 
     # ── Step 1: Find files ──────────────────────────────────────────
@@ -149,13 +238,13 @@ def main():
         print("No .docx files found in the specified directory.")
         sys.exit(1)
 
-    print(f"[1/7] Found {len(files)} .docx files:")
+    print(f"[1/9] Found {len(files)} .docx files:")
     for f in files:
         print(f"  - {os.path.basename(f)}")
     print()
 
     # ── Step 2: Extract Q&A pairs ───────────────────────────────────
-    print("[2/7] Extracting Q&A pairs...")
+    print("[2/9] Extracting Q&A pairs...")
     all_pairs = []
     for filepath in files:
         try:
@@ -173,7 +262,7 @@ def main():
         sys.exit(1)
 
     # ── Step 3: Exact dedup ─────────────────────────────────────────
-    print("[3/7] Running exact dedup (MD5 of normalised question text)...")
+    print("[3/9] Running exact dedup (MD5 of normalised question text)...")
     unique_pairs, removed_pairs = exact_dedup(all_pairs)
     print(f"  Exact duplicates removed: {len(removed_pairs)}")
     print(f"  Unique pairs: {len(unique_pairs)}")
@@ -186,7 +275,7 @@ def main():
     print()
 
     # ── Step 4: Near-duplicate detection ────────────────────────────
-    print(f"[4/7] Detecting near-duplicates (threshold={args.near_dedup_threshold})...")
+    print(f"[4/9] Detecting near-duplicates (threshold={args.near_dedup_threshold})...")
     near_dupes = find_near_duplicates(unique_pairs, threshold=args.near_dedup_threshold)
     print(f"  Near-duplicate candidates: {len(near_dupes)}")
     if near_dupes:
@@ -201,7 +290,7 @@ def main():
     print()
 
     # ── Step 5: Classify ────────────────────────────────────────────
-    print("[5/7] Classifying pairs using keyword matching...")
+    print("[5/9] Classifying pairs using keyword matching...")
     classified_pairs = classify_pairs(unique_pairs)
     summary = classification_summary(classified_pairs)
     print("  Classification results:")
@@ -209,17 +298,77 @@ def main():
         print(f"    {domain}: {count}")
     print()
 
-    # ── Step 6: Embed ───────────────────────────────────────────────
+    # ── Step 6: Quality validation ──────────────────────────────────
+    print("[6/9] Validating content quality...")
+    quality_empty = []
+    quality_fragments = []
+    for i, pair in enumerate(classified_pairs):
+        record = build_content_record(pair, batch_name)
+        quality = validate_content_quality(record["content"], pair["question_text"])
+        if quality["is_empty"]:
+            quality_empty.append((i, pair["question_text"][:80]))
+        elif quality["is_fragment"]:
+            quality_fragments.append((i, pair["question_text"][:80], quality["content_length"]))
+
+    if quality_empty:
+        print(f"  WARNING: {len(quality_empty)} items with empty content:")
+        for idx, q in quality_empty[:5]:
+            print(f"    #{idx}: {q}")
+        if len(quality_empty) > 5:
+            print(f"    ... and {len(quality_empty) - 5} more")
+    if quality_fragments:
+        print(f"  WARNING: {len(quality_fragments)} items with fragment content (<{FRAGMENT_THRESHOLD} chars):")
+        for idx, q, length in quality_fragments[:5]:
+            print(f"    #{idx} ({length} chars): {q}")
+        if len(quality_fragments) > 5:
+            print(f"    ... and {len(quality_fragments) - 5} more")
+    if not quality_empty and not quality_fragments:
+        print("  All items pass quality checks")
+    print()
+
+    # ── Step 7: Idempotency check ────────────────────────────────────
     if args.dry_run:
-        print("[6/7] SKIPPED (dry run) — no embeddings generated")
-        print("[7/7] SKIPPED (dry run) — no records stored")
+        print("[7/9] SKIPPED (dry run) — no idempotency check")
+        print("[8/9] SKIPPED (dry run) — no embeddings generated")
+        print("[9/9] SKIPPED (dry run) — no records stored")
     else:
+        skip_existing = 0
+        pairs_to_import = classified_pairs
+
+        if not args.force:
+            print("[7/9] Checking for existing records (idempotency)...")
+            pairs_to_import = []
+            for i, pair in enumerate(classified_pairs):
+                if check_question_exists(pair["question_text"]):
+                    skip_existing += 1
+                    if skip_existing <= 5:
+                        print(f"  SKIP (exists): {pair['question_text'][:80]}")
+                else:
+                    pairs_to_import.append(pair)
+                if (i + 1) % 20 == 0:
+                    print(f"  Checked {i + 1}/{len(classified_pairs)}...")
+
+            if skip_existing > 5:
+                print(f"  ... and {skip_existing - 5} more existing records skipped")
+            print(f"  Existing: {skip_existing}, New: {len(pairs_to_import)}")
+
+            if not pairs_to_import:
+                print("  All records already exist. Use --force to re-import.")
+        else:
+            print("[7/9] SKIPPED (--force) — importing all records regardless")
+
+        print()
+
+        # ── Step 8: Embed ────────────────────────────────────────────
         embed_count = 0
         store_success = 0
         store_fail = 0
 
-        if not args.skip_embed:
-            print("[6/7] Generating embeddings...")
+        if not pairs_to_import:
+            print("[8/9] SKIPPED — no new records to embed")
+            print("[9/9] SKIPPED — no new records to store")
+        elif not args.skip_embed:
+            print(f"[8/9] Generating embeddings for {len(pairs_to_import)} items...")
             try:
                 from kb_pipeline.embed import build_embedding_text, generate_embedding
             except ImportError as e:
@@ -227,58 +376,64 @@ def main():
                 print("  Run with --skip-embed to store without vectors.")
                 sys.exit(1)
 
-            for i, pair in enumerate(classified_pairs):
+            for i, pair in enumerate(pairs_to_import):
                 try:
+                    # Build richer embedding text: question + both answer fields
+                    answer_text = pair.get("answer_standard", "")
+                    if pair.get("answer_advanced"):
+                        answer_text += "\n" + pair["answer_advanced"]
+
                     embed_text = build_embedding_text(
                         title=pair["question_text"][:120],
-                        ai_summary=pair.get("answer_standard", "")[:500],
-                        content=pair.get("answer_standard", ""),
+                        ai_summary=answer_text[:500],
+                        content=answer_text,
                         content_type="q_a_pair",
                     )
                     embedding, tokens = generate_embedding(embed_text)
                     pair["_embedding"] = embedding
                     embed_count += 1
                     if (i + 1) % 10 == 0:
-                        print(f"  Embedded {i + 1}/{len(classified_pairs)}")
+                        print(f"  Embedded {i + 1}/{len(pairs_to_import)}")
                 except Exception as e:
                     print(f"  Embed error for pair #{i}: {e}")
                     pair["_embedding"] = None
 
-            print(f"  Embeddings generated: {embed_count}/{len(classified_pairs)}")
+            print(f"  Embeddings generated: {embed_count}/{len(pairs_to_import)}")
         else:
-            print("[6/7] SKIPPED (--skip-embed) — no embeddings generated")
-            for pair in classified_pairs:
+            print("[8/9] SKIPPED (--skip-embed) — no embeddings generated")
+            for pair in pairs_to_import:
                 pair["_embedding"] = None
 
         print()
 
-        # ── Step 7: Store ───────────────────────────────────────────
-        print("[7/7] Storing in Supabase...")
-        try:
-            from kb_pipeline.store import insert_content_item
-        except ImportError as e:
-            print(f"  ERROR: Could not import store module: {e}")
-            sys.exit(1)
+        # ── Step 9: Store ────────────────────────────────────────────
+        if pairs_to_import:
+            print(f"[9/9] Storing {len(pairs_to_import)} items in Supabase...")
+            try:
+                from kb_pipeline.store import insert_content_item
+            except ImportError as e:
+                print(f"  ERROR: Could not import store module: {e}")
+                sys.exit(1)
 
-        for i, pair in enumerate(classified_pairs):
-            record = build_content_record(pair, batch_name)
+            for i, pair in enumerate(pairs_to_import):
+                record = build_content_record(pair, batch_name)
 
-            # Attach embedding if present
-            if pair.get("_embedding"):
-                record["embedding"] = pair["_embedding"]
+                # Attach embedding if present
+                if pair.get("_embedding"):
+                    record["embedding"] = pair["_embedding"]
 
-            success, id_or_error = insert_content_item(record)
-            if success:
-                store_success += 1
-                if (i + 1) % 10 == 0:
-                    print(f"  Stored {i + 1}/{len(classified_pairs)}")
-            else:
-                store_fail += 1
-                print(f"  Store error for pair #{i}: {id_or_error}")
+                success, id_or_error = insert_content_item(record)
+                if success:
+                    store_success += 1
+                    if (i + 1) % 10 == 0:
+                        print(f"  Stored {i + 1}/{len(pairs_to_import)}")
+                else:
+                    store_fail += 1
+                    print(f"  Store error for pair #{i}: {id_or_error}")
 
-        print(f"  Stored: {store_success}")
-        if store_fail:
-            print(f"  Failed: {store_fail}")
+            print(f"  Stored: {store_success}")
+            if store_fail:
+                print(f"  Failed: {store_fail}")
 
     # ── Summary ─────────────────────────────────────────────────────
     elapsed = time.time() - start_time
@@ -292,12 +447,31 @@ def main():
     print(f"  Near-dupe candidates: {len(near_dupes)}")
     print(f"  Unique classified:    {len(classified_pairs)}")
     if not args.dry_run:
+        if not args.force:
+            print(f"  Already existing:     {skip_existing}")
+        print(f"  New to import:        {len(pairs_to_import)}")
         print(f"  Embeddings:           {embed_count}")
         print(f"  Stored:               {store_success}")
         if store_fail:
             print(f"  Store failures:       {store_fail}")
     print(f"  Time:                 {elapsed:.1f}s ({elapsed/60:.1f}m)")
     print(f"  Batch:                {batch_name}")
+
+    # ── Quality report ───────────────────────────────────────────────
+    if quality_empty or quality_fragments:
+        print()
+        print("─" * 60)
+        print("QUALITY REPORT")
+        print("─" * 60)
+        if quality_empty:
+            print(f"  Empty content:    {len(quality_empty)} items (no answer text)")
+        if quality_fragments:
+            print(f"  Fragment content: {len(quality_fragments)} items (<{FRAGMENT_THRESHOLD} chars)")
+        total_issues = len(quality_empty) + len(quality_fragments)
+        total_items = len(classified_pairs)
+        pct = (total_issues / total_items * 100) if total_items > 0 else 0
+        print(f"  Quality issues:   {total_issues}/{total_items} ({pct:.1f}%)")
+        print("  TIP: Review flagged items and expand content where needed.")
 
 
 if __name__ == "__main__":

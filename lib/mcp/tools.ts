@@ -753,10 +753,10 @@ export function registerTools(server: McpServer): void {
     'generate_summary',
     {
       title: 'Generate Summary',
-      description: 'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role.',
+      description: 'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role. If a summary already exists, pass force=true to regenerate it — otherwise the call will return an error.',
       inputSchema: {
         item_id: z.string().uuid().describe('The UUID of the content item to summarise'),
-        force: z.boolean().optional().describe('Regenerate even if summary exists (default: false)'),
+        force: z.boolean().optional().describe('Regenerate even if a summary already exists. Set to true when you want to refresh an existing summary (default: false)'),
       },
       annotations: {
         readOnlyHint: false,
@@ -793,8 +793,13 @@ export function registerTools(server: McpServer): void {
       } catch (err) {
         const AIServiceError = await getAIErrors();
         const message = err instanceof AIServiceError ? err.message : (err instanceof Error ? err.message : 'Unknown error');
+        // Provide actionable guidance for common error cases
+        const isConflict = err instanceof AIServiceError && err.status === 409;
+        const hint = isConflict
+          ? ' To regenerate an existing summary, call again with force=true.'
+          : ' Ensure you have editor or admin permissions.';
         return {
-          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}. Ensure you have editor or admin permissions.` }],
+          content: [{ type: 'text' as const, text: `Summary generation failed: ${message}.${hint}` }],
           isError: true,
         };
       }
@@ -1077,7 +1082,7 @@ export function registerTools(server: McpServer): void {
     'cite_content',
     {
       title: 'Cite Content',
-      description: 'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role.',
+      description: 'Record that a knowledge base content item was used when drafting a bid response. This tracks which content contributes to bids and enables win rate analysis. Requires editor or admin role. Note: if the same content_item_id + bid_response_id pair is cited again, the existing citation is updated (upsert) — re-citing with a different citation_type will silently overwrite the previous type.',
       inputSchema: {
         content_item_id: z.string().uuid().describe('The UUID of the content item that was used'),
         bid_response_id: z.string().uuid().describe('The UUID of the bid response it was used in'),

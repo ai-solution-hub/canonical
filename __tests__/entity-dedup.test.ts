@@ -54,6 +54,18 @@ describe('canonicalise', () => {
     it('preserves text after "Cyber Essentials": "Cyber Essentials Plus"', () => {
       expect(canonicalise('cyber essentials Plus')).toBe('Cyber Essentials Plus');
     });
+
+    it('normalises "CYBER ESSENTIALS PLUS" to "Cyber Essentials Plus"', () => {
+      expect(canonicalise('CYBER ESSENTIALS PLUS')).toBe('Cyber Essentials Plus');
+    });
+
+    it('normalises "cyber essentials plus" (all lowercase) to "Cyber Essentials Plus"', () => {
+      expect(canonicalise('cyber essentials plus')).toBe('Cyber Essentials Plus');
+    });
+
+    it('normalises "Cyber Essentials PLUS" (mixed case) to "Cyber Essentials Plus"', () => {
+      expect(canonicalise('Cyber Essentials PLUS')).toBe('Cyber Essentials Plus');
+    });
   });
 
   describe('trailing period stripping', () => {
@@ -92,6 +104,54 @@ describe('canonicalise', () => {
 
     it('handles a string that is only whitespace', () => {
       expect(canonicalise('   ')).toBe('');
+    });
+  });
+
+  describe('slug-to-proper-case conversion', () => {
+    it('converts slug-style names to Title Case: "penetration-testing"', () => {
+      expect(canonicalise('penetration-testing')).toBe('Penetration Testing');
+    });
+
+    it('preserves known abbreviations in slugs: "uk-gdpr"', () => {
+      expect(canonicalise('uk-gdpr')).toBe('UK GDPR');
+    });
+
+    it('converts "data-protection-act-2018" to proper case', () => {
+      expect(canonicalise('data-protection-act-2018')).toBe(
+        'Data Protection Act 2018',
+      );
+    });
+
+    it('converts "owasp-top-10" preserving OWASP abbreviation', () => {
+      expect(canonicalise('owasp-top-10')).toBe('OWASP Top 10');
+    });
+
+    it('does not convert names with spaces (already proper)', () => {
+      expect(canonicalise('Penetration Testing')).toBe('Penetration Testing');
+    });
+
+    it('handles underscores as word separators', () => {
+      expect(canonicalise('access_control')).toBe('Access Control');
+    });
+  });
+
+  describe('single-word abbreviation fixing', () => {
+    it('fixes lowercase "gdpr" to "GDPR"', () => {
+      expect(canonicalise('gdpr')).toBe('GDPR');
+    });
+
+    it('fixes lowercase "crest" to "CREST"', () => {
+      expect(canonicalise('crest')).toBe('CREST');
+    });
+
+    it('fixes lowercase "owasp" to "OWASP"', () => {
+      expect(canonicalise('owasp')).toBe('OWASP');
+    });
+
+    it('does not alter unknown single words: "example-client" stays "example-client"', () => {
+      // "example-client" is not in the abbreviations map — it stays lowercase
+      // (proper name capitalisation is handled by the slug converter only)
+      expect(canonicalise('example-client')).toBe('example-client');
     });
   });
 
