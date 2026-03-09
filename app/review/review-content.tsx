@@ -353,9 +353,10 @@ export function ReviewContent() {
 
   // Main review view — with optional side panel
   return (
+    <div className="h-[calc(100vh-3.5rem)]">
     <PanelGroup
       orientation="horizontal"
-      className="h-[calc(100vh-3.5rem)] overflow-hidden"
+      className="overflow-hidden"
     >
       <Panel
         id="review-main"
@@ -387,5 +388,6 @@ export function ReviewContent() {
         </>
       )}
     </PanelGroup>
+    </div>
   );
 }
