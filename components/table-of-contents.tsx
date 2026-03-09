@@ -64,9 +64,13 @@ export function TableOfContents({
 }: TableOfContentsProps) {
   const entries = useMemo(() => parseHeadings(content), [content]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
-  );
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setIsCollapsed(true); // eslint-disable-line react-hooks/set-state-in-effect -- SSR-safe: initialise from window on mount to avoid hydration mismatch
+    }
+  }, []);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
   // Set up IntersectionObserver to track active heading

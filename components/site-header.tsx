@@ -9,6 +9,7 @@ import { SearchBar } from '@/components/search-bar';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -129,6 +130,9 @@ export function SiteHeader() {
         <SheetContent side="left" className="w-72 p-0">
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle className="text-lg font-semibold">Knowledge Hub</SheetTitle>
+            <SheetDescription className="sr-only">
+              Main navigation menu
+            </SheetDescription>
           </SheetHeader>
           <nav className="flex flex-col gap-1 p-3" aria-label="Mobile navigation">
             <Link

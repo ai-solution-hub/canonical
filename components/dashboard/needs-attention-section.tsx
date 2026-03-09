@@ -29,7 +29,7 @@ export function NeedsAttentionSection({
       (expired_content_count ?? 0);
 
   return (
-    <section aria-label="Items needing attention" className="rounded-lg bg-accent/5 p-4">
+    <section aria-label="Items needing attention" className="rounded-lg border border-border bg-card p-4">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Needs Attention{totalAttention > 0 && ` (${totalAttention})`}
       </h2>

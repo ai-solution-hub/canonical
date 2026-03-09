@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useCallback, useMemo, useState } from 'react';
-import { getModifierKey } from '@/lib/utils';
+import { useModifierKey } from '@/hooks/use-modifier-key';
 
 interface EditorToolbarProps {
   editor: Editor | null;
@@ -164,7 +164,7 @@ function ToolbarButton({
 export function EditorToolbar({ editor }: EditorToolbarProps) {
   const [linkUrl, setLinkUrl] = useState('');
   const [showLinkInput, setShowLinkInput] = useState(false);
-  const mod = getModifierKey();
+  const mod = useModifierKey();
   const FORMATTING_ACTIONS = useMemo(() => getFormattingActions(mod), [mod]);
   const HISTORY_ACTIONS = useMemo(() => getHistoryActions(mod), [mod]);
 

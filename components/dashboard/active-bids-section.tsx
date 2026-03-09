@@ -46,7 +46,7 @@ interface ActiveBidsSectionProps {
 
 export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
   return (
-    <section aria-label="Active bids">
+    <section aria-label="Active bids" className="rounded-lg border border-border bg-card p-4">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Active Bids
       </h2>

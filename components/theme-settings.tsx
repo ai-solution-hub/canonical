@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -108,9 +109,9 @@ export function ThemeSettings() {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Appearance Settings</DialogTitle>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             Customise your experience
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-6 py-4">

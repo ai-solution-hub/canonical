@@ -355,7 +355,7 @@ export function ReviewContent() {
   return (
     <PanelGroup
       orientation="horizontal"
-      className="h-[calc(100vh-3.5rem)] overflow-hidden"
+      className="h-full overflow-hidden"
     >
       <Panel
         id="review-main"

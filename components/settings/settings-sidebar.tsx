@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -185,6 +186,9 @@ export function SettingsMobileSidebar({
         <SheetContent side="left" className="w-[260px] px-4 pt-6">
           <SheetHeader className="mb-4">
             <SheetTitle>Settings</SheetTitle>
+            <SheetDescription className="sr-only">
+              Settings navigation
+            </SheetDescription>
           </SheetHeader>
           <SidebarNav
             sections={sections}
