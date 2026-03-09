@@ -71,6 +71,10 @@ knowledge-hub/
     api/dashboard/            #   GET /api/dashboard (dashboard stats)
     api/quality/              #   GET + summary (quality metrics)
     api/jobs/[id]/status/     #   GET (background job status)
+    api/mcp/                  #   MCP server (Streamable HTTP transport, 16 tools)
+    api/oauth/                #   OAuth decision endpoint (MCP authorization)
+    api/reorient/             #   GET /api/reorient (Reorient Me context summary)
+    api/coverage/             #   GET /api/coverage (coverage analysis)
     bid/                      #   /bid (bid workspace + [id] detail/session pages)
     browse/                   #   /browse (grid/list, filters, pagination)
     item/[id]/                #   /item/:id (detail + inline editing)
@@ -81,13 +85,17 @@ knowledge-hub/
     review/                   #   /review (content review workflow)
     settings/                 #   /settings (user settings, 4 tabs)
     login/                    #   /login (Supabase Auth)
+    coverage/                 #   /coverage (coverage analysis dashboard)
     auth/                     #   /auth/callback (OAuth callback)
+    oauth/                    #   /oauth (MCP OAuth consent)
     page.tsx                  #   / (home: search + recent items)
-  components/                 # ~134 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
+  components/                 # ~176 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
   contexts/                   # React contexts (read-marks, taxonomy, client-features)
-  hooks/                      # ~32 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.)
-  lib/                        # ~40 utility modules (auth, supabase clients, bid-*, copilotkit/,
+  hooks/                      # ~33 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.)
+  lib/                        # ~69 utility modules (auth, supabase clients, bid-*, copilotkit/,
                               #   embeddings, freshness, validation/, taxonomy-*, etc.)
+    mcp/                      #   MCP server subsystem (tools.ts, resources.ts, formatters.ts, auth.ts)
+    ai/                       #   AI service layer (shared by MCP + CopilotKit)
   types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
   scripts/
     kb_pipeline/              #   Python pipeline package (config, extract, classify,
@@ -104,12 +112,12 @@ knowledge-hub/
     extract-reader-html.ts
     search-evaluation.json    #   20 search test cases
   supabase/
-    migrations/               # ~33 migration files
+    migrations/               # ~45 migration files
     types/                    # Auto-generated types (database.types.ts) — never edit manually
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
     continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest tests (~68 test files, ~1248 tests)
+  __tests__/                  # Vitest tests (~75 test files, ~1447 tests)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -123,6 +131,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 - `SUPABASE_ANON_KEY` — Supabase anon key (Python scripts)
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase URL (Next.js client)
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (Next.js client)
+- `SUPABASE_SECRET_KEY` — Supabase service role key (batch scripts, MCP server)
 - `AI_SUMMARY_MODEL` — (optional) Claude model for AI summaries/digests,
   defaults to `claude-sonnet-4-6`
 
@@ -140,7 +149,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-### Tables (18)
+### Tables (18 core + supporting)
 
 | # | Table | Purpose |
 |---|-------|---------|
@@ -193,7 +202,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~68 test files (~1248 tests)
+- **Location:** `__tests__/` — ~75 test files (~1447 tests)
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
@@ -272,20 +281,21 @@ exists for your use case, define one in `app/globals.css` first.
 
 | Document | Location | Purpose |
 |----------|----------|---------|
-| State of the Product | `.planning/state-of-the-product.md` | Accurate reference of actual tech stack, architecture, features |
+| State of the Product | `docs/reference/state-of-the-product.md` | Accurate reference of actual tech stack, architecture, features |
 | Codebase mapping (7 docs) | `.planning/codebase/` | Deep detail on stack, architecture, structure, conventions, testing, integrations, concerns |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` | Tables, columns, functions, views |
 | Quality checks (10 files) | `.claude/checks/` | Best-practice checks used by `/review` (accessibility, architecture, design system, error handling, image quality, multi-user patterns, package manager, Supabase patterns, testing, UK English) |
 | Testing strategy | `.planning/specs/testing-strategy-spec.md` | Test infrastructure, priorities, mock patterns |
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
+| AI integration layers | `docs/reference/ai-integration-layers.md` | 5-layer architecture: how MCP, plugin, skills, CopilotKit interconnect |
 
 ### Remaining Roadmap
 
 | Item | Location | Status |
 |------|----------|--------|
-| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Tags done; `/coverage` page not built |
-| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Not started — Liam covering interactively |
+| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Tags done; `/coverage` API built, page in progress |
+| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Sprints 1-6b done (MCP server 16 tools, OAuth, plugin, entity graph); Sprints 7-8 remaining |
 
 ### Domain References — consult when working in that area
 
@@ -350,3 +360,8 @@ when needed.
   `WebStandardStreamableHTTPServerTransport` directly with a fresh
   server + transport per request. `mcp-handler` is still used for
   `protectedResourceHandler` in the `.well-known` route only.
+- **Knowledge Hub plugin not auto-discovered:** The plugin at
+  `.claude/plugins/knowledge-hub/1.0.0/` is NOT auto-discovered by Claude Code.
+  It must be published to the local marketplace
+  (`~/.claude/plugins/marketplaces/local/plugins/`) and enabled in settings.
+  Simply existing in the project's `.claude/plugins/` directory is not enough.
