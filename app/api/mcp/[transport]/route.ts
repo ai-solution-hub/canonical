@@ -29,7 +29,15 @@ const handler = createMcpHandler(
     registerPrompts(server);
   },
   {
-    capabilities: {},
+    capabilities: {
+      tools: {},
+      resources: {},
+      prompts: {},
+    },
+    serverInfo: {
+      name: 'knowledge-hub',
+      version: '1.0.0',
+    },
   },
   {
     basePath: '/api/mcp',
@@ -56,11 +64,19 @@ async function verifyToken(
 
     if (error || !user) return undefined;
 
+    // Cache user role in authInfo to avoid extra DB query per tool call
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+    const role = (roleData?.role as string) ?? 'viewer';
+
     return {
       token: bearerToken,
       clientId: 'mcp-client',
       scopes: [],
-      extra: { userId: user.id, email: user.email },
+      extra: { userId: user.id, email: user.email, role },
     };
   } catch {
     return undefined;

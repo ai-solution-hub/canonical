@@ -22,7 +22,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import type { Variables } from '@modelcontextprotocol/sdk/shared/uriTemplate.js';
-import { createMcpClient, getMcpUserId } from '@/lib/mcp/auth';
+import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import { fetchDashboardData } from '@/lib/dashboard';
 
 type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
@@ -41,25 +41,35 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, variables: Variables, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
-      const itemId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
-      const { data: item, error } = await supabase
-        .from('content_items')
-        .select('id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at')
-        .eq('id', itemId)
-        .single();
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const itemId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const { data: item, error } = await supabase
+          .from('content_items')
+          .select('id, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_summary, ai_keywords, freshness, content, created_at, updated_at')
+          .eq('id', itemId)
+          .single();
 
-      if (error || !item) {
-        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Item not found: ${itemId}` }] };
+        if (error || !item) {
+          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Item not found: ${itemId}` }] };
+        }
+
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(item, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
       }
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify(item, null, 2),
-        }],
-      };
     },
   );
 
@@ -72,33 +82,43 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, variables: Variables, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
-      const bidId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
-      const { data: workspace, error } = await supabase
-        .from('workspaces')
-        .select('id, name, description, domain_metadata, is_archived')
-        .eq('id', bidId)
-        .eq('type', 'bid')
-        .single();
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const bidId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const { data: workspace, error } = await supabase
+          .from('workspaces')
+          .select('id, name, description, domain_metadata, is_archived')
+          .eq('id', bidId)
+          .eq('type', 'bid')
+          .single();
 
-      if (error || !workspace) {
-        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Bid not found: ${bidId}` }] };
+        if (error || !workspace) {
+          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Bid not found: ${bidId}` }] };
+        }
+
+        const { data: questions } = await supabase
+          .from('bid_questions')
+          .select('id, question_text, section_name, status, confidence_posture')
+          .eq('project_id', bidId)
+          .order('section_sequence')
+          .order('question_sequence');
+
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify({ ...workspace, questions: questions ?? [] }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
       }
-
-      const { data: questions } = await supabase
-        .from('bid_questions')
-        .select('id, question_text, section_name, status, confidence_posture')
-        .eq('project_id', bidId)
-        .order('section_sequence')
-        .order('question_sequence');
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify({ ...workspace, questions: questions ?? [] }, null, 2),
-        }],
-      };
     },
   );
 
@@ -111,26 +131,36 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, variables: Variables, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
-      const qaId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
-      const { data: item, error } = await supabase
-        .from('content_items')
-        .select('id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary')
-        .eq('id', qaId)
-        .eq('content_type', 'q_a_pair')
-        .single();
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const qaId = Array.isArray(variables.id) ? variables.id[0] : variables.id;
+        const { data: item, error } = await supabase
+          .from('content_items')
+          .select('id, title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, ai_summary')
+          .eq('id', qaId)
+          .eq('content_type', 'q_a_pair')
+          .single();
 
-      if (error || !item) {
-        return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Q&A pair not found: ${qaId}` }] };
+        if (error || !item) {
+          return { contents: [{ uri: uri.href, mimeType: 'text/plain', text: `Q&A pair not found: ${qaId}` }] };
+        }
+
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(item, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
       }
-
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify(item, null, 2),
-        }],
-      };
     },
   );
 
@@ -143,28 +173,38 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
+      try {
+        const supabase = createMcpClient(extra.authInfo);
 
-      // Count items per domain
-      const { data: domainCounts } = await supabase
-        .from('content_items')
-        .select('primary_domain')
-        .not('primary_domain', 'is', null);
+        // Count items per domain
+        const { data: domainCounts } = await supabase
+          .from('content_items')
+          .select('primary_domain')
+          .not('primary_domain', 'is', null);
 
-      const coverage: Record<string, number> = {};
-      for (const row of (domainCounts ?? []) as Array<{ primary_domain: string | null }>) {
-        if (row.primary_domain) {
-          coverage[row.primary_domain] = (coverage[row.primary_domain] ?? 0) + 1;
+        const coverage: Record<string, number> = {};
+        for (const row of (domainCounts ?? []) as Array<{ primary_domain: string | null }>) {
+          if (row.primary_domain) {
+            coverage[row.primary_domain] = (coverage[row.primary_domain] ?? 0) + 1;
+          }
         }
-      }
 
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify({ domains: coverage }, null, 2),
-        }],
-      };
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify({ domains: coverage }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
+      }
     },
   );
 
@@ -177,17 +217,29 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
-      const userId = getMcpUserId(extra.authInfo);
-      const data = await fetchDashboardData(supabase, userId, true, 'admin');
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const role = await getMcpUserRole(extra.authInfo!);
+        const isAdmin = role === 'admin';
+        const data = await fetchDashboardData(supabase, userId, isAdmin, role);
 
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify(data, null, 2),
-        }],
-      };
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify(data, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
+      }
     },
   );
 
@@ -200,24 +252,34 @@ export function registerResources(server: McpServer): void {
       mimeType: 'application/json',
     },
     async (uri: URL, extra: Extra) => {
-      const supabase = createMcpClient(extra.authInfo);
-      const { data: domains } = await supabase
-        .from('taxonomy_domains')
-        .select('id, name, sort_order')
-        .order('sort_order');
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { data: domains } = await supabase
+          .from('taxonomy_domains')
+          .select('id, name, sort_order')
+          .order('sort_order');
 
-      const { data: subtopics } = await supabase
-        .from('taxonomy_subtopics')
-        .select('id, name, domain_id, sort_order')
-        .order('sort_order');
+        const { data: subtopics } = await supabase
+          .from('taxonomy_subtopics')
+          .select('id, name, domain_id, sort_order')
+          .order('sort_order');
 
-      return {
-        contents: [{
-          uri: uri.href,
-          mimeType: 'application/json',
-          text: JSON.stringify({ domains: domains ?? [], subtopics: subtopics ?? [] }, null, 2),
-        }],
-      };
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'application/json',
+            text: JSON.stringify({ domains: domains ?? [], subtopics: subtopics ?? [] }, null, 2),
+          }],
+        };
+      } catch (err) {
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: 'text/plain',
+            text: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          }],
+        };
+      }
     },
   );
 }

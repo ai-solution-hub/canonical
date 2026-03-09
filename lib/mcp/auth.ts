@@ -65,6 +65,11 @@ export function getMcpUserId(authInfo?: AuthInfo): string {
  * Returns the role string, defaulting to 'viewer' if no user_roles entry exists.
  */
 export async function getMcpUserRole(authInfo: AuthInfo): Promise<string> {
+  // Use cached role from verifyToken if available
+  if (authInfo.extra?.role && typeof authInfo.extra.role === 'string') {
+    return authInfo.extra.role;
+  }
+  // Fallback: query the database
   const userId = getMcpUserId(authInfo);
   const supabase = createMcpClient(authInfo);
   const { data } = await supabase

@@ -87,6 +87,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'search_knowledge_base',
     {
+      title: 'Search Knowledge Base',
       description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content.',
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
@@ -95,6 +96,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -169,9 +171,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_dashboard_summary',
     {
+      title: 'Dashboard Summary',
       description: 'Get an overview of the knowledge base health including items needing attention, content freshness breakdown, active bids, and recent activity. Use this to understand the current state of the knowledge base at a glance.',
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -204,9 +208,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'list_active_bids',
     {
+      title: 'List Active Bids',
       description: 'List all active (non-archived) bids with their status, buyer, deadline, and question completion progress. Use this to see which bids are in progress and which need attention.',
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -266,12 +272,14 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_content_item',
     {
+      title: 'Get Content Item',
       description: 'Retrieve a specific content item from the knowledge base by its ID. Returns the full item including title, type, domain, summary, keywords, freshness status, and content text. Use this after searching to get the complete details of a specific item.',
       inputSchema: {
-        id: z.string().describe('The UUID of the content item to retrieve'),
+        id: z.string().uuid().describe('The UUID of the content item to retrieve'),
       },
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -335,9 +343,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_reorientation',
     {
+      title: 'Reorientation Briefing',
       description: 'Get a personal briefing on what has changed in the knowledge base since your last visit. Includes urgent items needing attention, team activity, your recent work, and active bid status. Use this to quickly catch up on what happened while you were away.',
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -370,12 +380,14 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_bid_detail',
     {
+      title: 'Get Bid Detail',
       description: 'Get detailed information about a specific bid including buyer, deadline, status, and question completion progress. Use this after listing bids to drill into a specific one.',
       inputSchema: {
-        id: z.string().describe('The UUID of the bid workspace'),
+        id: z.string().uuid().describe('The UUID of the bid workspace'),
       },
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -436,12 +448,14 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_bid_question',
     {
+      title: 'Get Bid Question',
       description: 'Get a specific bid question with its response text, confidence posture, and review status. Use this to see the detail of a particular question within a bid.',
       inputSchema: {
-        question_id: z.string().describe('The UUID of the bid question'),
+        question_id: z.string().uuid().describe('The UUID of the bid question'),
       },
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -502,9 +516,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_quality_summary',
     {
+      title: 'Quality Summary',
       description: 'Get a summary of open quality issues in the knowledge base, grouped by type and severity. Use this to understand what content quality problems need attention.',
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -550,9 +566,11 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'get_freshness_report',
     {
+      title: 'Freshness Report',
       description: 'Get a breakdown of content freshness across the knowledge base — how many items are fresh, aging, stale, or expired. Use this to understand the health of your content.',
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
@@ -597,13 +615,15 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'classify_content',
     {
+      title: 'Classify Content',
       description: 'Trigger AI classification of a content item. Assigns domain, subtopic, keywords, summary, and a suggested title. Requires editor or admin role.',
       inputSchema: {
-        item_id: z.string().describe('The UUID of the content item to classify'),
+        item_id: z.string().uuid().describe('The UUID of the content item to classify'),
         force: z.boolean().optional().describe('Re-classify even if already classified (default: false)'),
       },
       annotations: {
         readOnlyHint: false,
+        idempotentHint: true,
         destructiveHint: false,
         openWorldHint: false,
       },
@@ -648,13 +668,15 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'generate_summary',
     {
+      title: 'Generate Summary',
       description: 'Generate an AI summary for a content item including executive summary, detailed summary, and key takeaways. Requires editor or admin role.',
       inputSchema: {
-        item_id: z.string().describe('The UUID of the content item to summarise'),
+        item_id: z.string().uuid().describe('The UUID of the content item to summarise'),
         force: z.boolean().optional().describe('Regenerate even if summary exists (default: false)'),
       },
       annotations: {
         readOnlyHint: false,
+        idempotentHint: true,
         destructiveHint: false,
         openWorldHint: false,
       },
@@ -699,6 +721,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'create_content_item',
     {
+      title: 'Create Content Item',
       description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
@@ -714,6 +737,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
+        idempotentHint: false,
         destructiveHint: false,
         openWorldHint: false,
       },
@@ -793,6 +817,7 @@ export function registerTools(server: McpServer): void {
   server.registerTool(
     'search_qa_library',
     {
+      title: 'Search Q&A Library',
       description: 'Search the Q&A library specifically. Returns Q&A pairs from the knowledge base matching your query, useful for finding reusable answers for bid responses.',
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
@@ -800,6 +825,7 @@ export function registerTools(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: true,
+        idempotentHint: true,
         openWorldHint: false,
       },
     },
