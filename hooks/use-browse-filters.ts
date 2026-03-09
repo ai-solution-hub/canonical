@@ -32,6 +32,12 @@ export function useBrowseFilters() {
       ?.split(',')
       .filter(Boolean);
 
+    const qualityIssues = searchParams.get('quality_issues') === 'true' || undefined;
+    const includeQaExplicit = searchParams.get('include_qa') === 'true' || undefined;
+    // When quality_issues is active, automatically include Q&A pairs so the
+    // user sees every flagged item — unless they've explicitly turned it off
+    const includeQa = includeQaExplicit || (qualityIssues && searchParams.get('include_qa') === null) || undefined;
+
     return {
       domain: domainRaw?.length ? domainRaw : undefined,
       subtopic: searchParams.get('subtopic') ?? undefined,
@@ -48,9 +54,9 @@ export function useBrowseFilters() {
       user_tags: userTagsRaw?.length ? userTagsRaw : undefined,
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
       layer: searchParams.get('layer') ?? undefined,
-      quality_issues: searchParams.get('quality_issues') === 'true' || undefined,
+      quality_issues: qualityIssues,
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
-      include_qa: searchParams.get('include_qa') === 'true' || undefined,
+      include_qa: includeQa,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',

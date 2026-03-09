@@ -130,10 +130,10 @@ export function useBrowseData(): UseBrowseDataReturn {
 
       if (filters.content_type?.length) {
         query = query.in('content_type', filters.content_type);
-      } else if (!filters.include_qa && !filters.quality_issues) {
+      } else if (!filters.include_qa) {
         // Default: exclude Q&A pairs (they live in /library)
-        // Exception: when quality_issues filter is active, include all content
-        // types so the user sees every flagged item
+        // When quality_issues is active, include_qa is auto-set to true by
+        // useBrowseFilters so all flagged items are visible
         // content_type is NOT NULL so .neq() is safe here
         query = query.neq('content_type', 'q_a_pair');
       }

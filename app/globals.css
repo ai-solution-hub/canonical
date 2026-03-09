@@ -721,21 +721,13 @@ p + p {
   z-index: 50;
 }
 
-/* CopilotKit sidebar layout — establish height chain for nested scroll containers */
-.global-copilot-sidebar .copilotKitSidebarContentWrapper {
-  height: 100vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
 /* Remove closed CopilotKit overlay from hit testing and scroll interception */
-.global-copilot-sidebar .copilotKitWindow:not(.open) {
+.copilotKitWindow:not(.open) {
   pointer-events: none !important;
   visibility: hidden;
 }
 
-.global-copilot-sidebar .copilotKitWindow.open {
+.copilotKitWindow.open {
   visibility: visible;
 }
 

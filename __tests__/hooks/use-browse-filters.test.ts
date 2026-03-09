@@ -147,4 +147,33 @@ describe('useBrowseFilters', () => {
     act(() => { result.current.removeFilterValue('domain', 'Corporate'); });
     expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('domain=Technical'));
   });
+
+  // --- Quality issues + include_qa auto-derivation ---
+
+  it('auto-sets include_qa to true when quality_issues is active and include_qa is absent', () => {
+    currentSearchParams = new URLSearchParams('quality_issues=true');
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.filters.quality_issues).toBe(true);
+    expect(result.current.filters.include_qa).toBe(true);
+  });
+
+  it('respects explicit include_qa=false when quality_issues is active', () => {
+    currentSearchParams = new URLSearchParams('quality_issues=true&include_qa=false');
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.filters.quality_issues).toBe(true);
+    expect(result.current.filters.include_qa).toBeUndefined();
+  });
+
+  it('does not auto-set include_qa when quality_issues is absent', () => {
+    currentSearchParams = new URLSearchParams();
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.filters.include_qa).toBeUndefined();
+  });
+
+  it('counts both quality_issues and auto-derived include_qa in active filter count', () => {
+    currentSearchParams = new URLSearchParams('quality_issues=true');
+    const { result } = renderHook(() => useBrowseFilters());
+    // quality_issues = 1, include_qa (auto-derived) = 1
+    expect(result.current.activeFilterCount).toBe(2);
+  });
 });
