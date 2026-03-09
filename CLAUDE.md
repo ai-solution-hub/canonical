@@ -331,3 +331,9 @@ when needed.
   destroy each other's untracked files and revert shared config. Never run
   test infrastructure work concurrently with feature work — use git worktrees
   or sequence the sessions.
+- **CopilotKit CSS selectors:** `CopilotSidebar` applies the user `className`
+  and its own `copilotKitSidebar` class to the SAME element. Use compound
+  selectors (`.my-class.copilotKitSidebar`, no space) not descendant selectors.
+- **pgvector search_path in Supabase functions:** PL/pgSQL functions don't
+  inherit the session `search_path`, so `<=>` operators fail inside function
+  bodies. Fix with `ALTER FUNCTION ... SET search_path = public, extensions`.
