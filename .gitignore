@@ -64,3 +64,4 @@ logs/
 # CSV data files
 *.csv
 !supabase/**/*.csv
+.firecrawl/
