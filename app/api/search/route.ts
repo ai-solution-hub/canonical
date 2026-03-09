@@ -8,7 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { SearchBodySchema } from '@/lib/validation/schemas';
-import { generateEmbedding } from '@/lib/embeddings';
+import { generateEmbedding } from '@/lib/ai/embed';
 
 export async function POST(request: NextRequest) {
   try {

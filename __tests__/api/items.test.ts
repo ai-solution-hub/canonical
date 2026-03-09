@@ -34,7 +34,7 @@ vi.mock('next/headers', () => ({
   cookies: mockCookies,
 }));
 
-vi.mock('@/lib/embeddings', () => ({
+vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: mockGenerateEmbedding,
 }));
 

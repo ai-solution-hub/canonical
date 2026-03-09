@@ -8,7 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ItemCreateBodySchema } from '@/lib/validation/schemas';
-import { generateEmbedding } from '@/lib/embeddings';
+import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 
 export const maxDuration = 30;

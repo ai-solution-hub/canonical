@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import OpenAI from 'openai';
 import {
   getAuthorisedClient,
   forbiddenResponse,
@@ -9,6 +8,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { EmbedBodySchema } from '@/lib/validation/schemas';
+import { generateEmbedding, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '@/lib/ai/embed';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,17 +26,12 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return parsed.response;
     const { text } = parsed.data;
 
-    const openai = new OpenAI();
-    const response = await openai.embeddings.create({
-      model: 'text-embedding-3-large',
-      input: text,
-      dimensions: 1024,
-    });
+    const embedding = await generateEmbedding(text);
 
     return NextResponse.json({
-      embedding: response.data[0].embedding,
-      model: 'text-embedding-3-large',
-      dimensions: 1024,
+      embedding,
+      model: EMBEDDING_MODEL,
+      dimensions: EMBEDDING_DIMENSIONS,
     });
   } catch (err) {
     return NextResponse.json(

@@ -8,6 +8,7 @@ import type {
   BidBriefing,
 } from '@/types/reorient';
 import { getDeadlineUrgency, getDaysUntilDeadline } from '@/lib/dashboard';
+import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
 import { formatRelativeDate } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
@@ -73,75 +74,70 @@ export async function fetchReorientData(
     ? lastActiveAt
     : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  // Run remaining queries in parallel
-  const results = await Promise.allSettled([
-    // 0: Team changes since last active
-    supabase
-      .from('content_history')
-      .select('id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)')
-      .gt('created_at', sinceDate)
-      .neq('created_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(20),
+  // Run remaining queries in parallel (active bids via shared helper)
+  const [results, activeBidsResult] = await Promise.all([
+    Promise.allSettled([
+      // 0: Team changes since last active
+      supabase
+        .from('content_history')
+        .select('id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)')
+        .gt('created_at', sinceDate)
+        .neq('created_by', userId)
+        .order('created_at', { ascending: false })
+        .limit(20),
 
-    // 1: User's own recent work
-    supabase
-      .from('content_history')
-      .select('id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)')
-      .eq('created_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(5),
+      // 1: User's own recent work
+      supabase
+        .from('content_history')
+        .select('id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)')
+        .eq('created_by', userId)
+        .order('created_at', { ascending: false })
+        .limit(5),
 
-    // 2: Active bids
-    supabase
-      .from('workspaces')
-      .select('id, name, domain_metadata, is_archived, updated_at')
-      .eq('type', 'bid')
-      .eq('is_archived', false)
-      .order('updated_at', { ascending: false }),
+      // 2: Expired content count
+      supabase.rpc('get_freshness_breakdown'),
 
-    // 3: Expired content count
-    supabase.rpc('get_freshness_breakdown'),
+      // 3: Governance reviews pending (editor/admin only)
+      role === 'viewer'
+        ? Promise.resolve({ count: 0, error: null })
+        : supabase
+            .from('content_items')
+            .select('*', { count: 'exact', head: true })
+            .eq('governance_review_status', 'pending'),
 
-    // 4: Governance reviews pending (editor/admin only)
-    role === 'viewer'
-      ? Promise.resolve({ count: 0, error: null })
-      : supabase
-          .from('content_items')
-          .select('*', { count: 'exact', head: true })
-          .eq('governance_review_status', 'pending'),
+      // 4: Quality flags count (admin only)
+      isAdmin
+        ? supabase
+            .from('ingestion_quality_log')
+            .select('*', { count: 'exact', head: true })
+            .eq('resolved', false)
+        : Promise.resolve({ count: 0, error: null }),
 
-    // 5: Quality flags count (admin only)
-    isAdmin
-      ? supabase
-          .from('ingestion_quality_log')
-          .select('*', { count: 'exact', head: true })
-          .eq('resolved', false)
-      : Promise.resolve({ count: 0, error: null }),
+      // 5: Unread notifications
+      supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('dismissed_at', null),
 
-    // 6: Unread notifications
-    supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .is('dismissed_at', null),
+      // 6: Bid response changes by others (team changes)
+      supabase
+        .from('bid_response_history')
+        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
+        .gt('created_at', sinceDate)
+        .neq('edited_by', userId)
+        .order('created_at', { ascending: false })
+        .limit(20),
 
-    // 7: Bid response changes by others (team changes)
-    supabase
-      .from('bid_response_history')
-      .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
-      .gt('created_at', sinceDate)
-      .neq('edited_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(20),
-
-    // 8: User's own bid response edits (recent work)
-    supabase
-      .from('bid_response_history')
-      .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
-      .eq('edited_by', userId)
-      .order('created_at', { ascending: false })
-      .limit(5),
+      // 7: User's own bid response edits (recent work)
+      supabase
+        .from('bid_response_history')
+        .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
+        .eq('edited_by', userId)
+        .order('created_at', { ascending: false })
+        .limit(5),
+    ]),
+    fetchActiveBidsWithStats(supabase),
   ]);
 
   // --- Extract team changes ---
@@ -170,8 +166,8 @@ export async function fetchReorientData(
   }
 
   // --- Extract bid response team changes ---
-  if (results[7].status === 'fulfilled') {
-    const { data, error } = results[7].value;
+  if (results[6].status === 'fulfilled') {
+    const { data, error } = results[6].value;
     if (error) {
       errors.push('bid_response team_changes query failed');
     } else if (data) {
@@ -228,8 +224,8 @@ export async function fetchReorientData(
   }
 
   // --- Extract user's own bid response edits ---
-  if (results[8].status === 'fulfilled') {
-    const { data, error } = results[8].value;
+  if (results[7].status === 'fulfilled') {
+    const { data, error } = results[7].value;
     if (error) {
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
@@ -266,72 +262,46 @@ export async function fetchReorientData(
   );
   my_recent_work.splice(5);
 
-  // --- Extract active bids with question stats ---
+  // --- Extract active bids with question stats (from shared helper) ---
+  const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
   const bid_summary: BidBriefing[] = [];
-  if (results[2].status === 'fulfilled') {
-    const { data: workspaces, error } = results[2].value;
-    if (error) {
-      errors.push('bid_summary query failed');
-    } else if (workspaces && workspaces.length > 0) {
-      const bidIds = workspaces.map((w) => w.id);
-      const { data: batchStats } = await supabase.rpc(
-        'get_bid_question_stats_batch',
-        { p_project_ids: bidIds },
-      );
 
-      const statsMap = new Map<string, {
-        total_questions: number;
-        drafted_count: number;
-        complete_count: number;
-        needs_sme_count: number;
-        no_content_count: number;
-      }>();
-      if (batchStats) {
-        for (const row of batchStats) {
-          statsMap.set(row.project_id, row);
-        }
-      }
+  for (const workspace of bidWorkspaces) {
+    const meta = workspace.domain_metadata as Record<string, unknown> | null;
+    const stats = statsMap.get(workspace.id);
+    const deadline = (meta?.deadline as string) ?? null;
+    const urgency = getDeadlineUrgency(deadline);
+    const totalQ = stats?.total_questions ?? 0;
+    const answeredQ = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
 
-      for (const workspace of workspaces) {
-        const meta = workspace.domain_metadata as Record<string, unknown> | null;
-        const stats = statsMap.get(workspace.id);
-        const deadline = (meta?.deadline as string) ?? null;
-        const urgency = getDeadlineUrgency(deadline);
-        const totalQ = stats?.total_questions ?? 0;
-        const answeredQ = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
-
-        bid_summary.push({
-          id: workspace.id,
-          name: workspace.name ?? 'Untitled Bid',
-          buyer: (meta?.buyer as string) ?? null,
-          status: (meta?.status as string) ?? 'draft',
-          deadline,
-          days_until_deadline: getDaysUntilDeadline(deadline),
-          urgency,
-          total_questions: totalQ,
-          answered_questions: answeredQ,
-          approved_questions: stats?.complete_count ?? 0,
-          gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
-          href: `/bid/${workspace.id}`,
-        });
-      }
-
-      // Sort by deadline urgency
-      const urgencyOrder: Record<string, number> = {
-        overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
-      };
-      bid_summary.sort((a, b) =>
-        (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
-      );
-    }
-  } else {
-    errors.push('bid_summary query failed');
+    bid_summary.push({
+      id: workspace.id,
+      name: workspace.name ?? 'Untitled Bid',
+      buyer: (meta?.buyer as string) ?? null,
+      status: (meta?.status as string) ?? 'draft',
+      deadline,
+      days_until_deadline: getDaysUntilDeadline(deadline),
+      urgency,
+      total_questions: totalQ,
+      answered_questions: answeredQ,
+      approved_questions: stats?.complete_count ?? 0,
+      gap_count: (stats?.needs_sme_count ?? 0) + (stats?.no_content_count ?? 0),
+      href: `/bid/${workspace.id}`,
+    });
   }
+
+  // Sort by deadline urgency
+  const urgencyOrder: Record<string, number> = {
+    overdue: 0, urgent: 1, approaching: 2, normal: 3, unknown: 4,
+  };
+  bid_summary.sort((a, b) =>
+    (urgencyOrder[a.urgency] ?? 4) - (urgencyOrder[b.urgency] ?? 4),
+  );
 
   // --- Extract freshness counts ---
   let staleOrExpired = 0;
-  if (results[3].status === 'fulfilled') {
-    const { data, error } = results[3].value;
+  if (results[2].status === 'fulfilled') {
+    const { data, error } = results[2].value;
     if (error) {
       errors.push('freshness query failed');
     } else if (data) {
@@ -345,8 +315,8 @@ export async function fetchReorientData(
 
   // --- Extract pending reviews count ---
   let pendingReviews = 0;
-  if (results[4].status === 'fulfilled') {
-    const r = results[4].value as { count?: number | null; error?: unknown };
+  if (results[3].status === 'fulfilled') {
+    const r = results[3].value as { count?: number | null; error?: unknown };
     if (!r.error) {
       pendingReviews = r.count ?? 0;
     }
@@ -354,8 +324,8 @@ export async function fetchReorientData(
 
   // --- Extract quality flags count ---
   let qualityFlags = 0;
-  if (results[5].status === 'fulfilled') {
-    const r = results[5].value as { count?: number | null; error?: unknown };
+  if (results[4].status === 'fulfilled') {
+    const r = results[4].value as { count?: number | null; error?: unknown };
     if (!r.error) {
       qualityFlags = r.count ?? 0;
     }
@@ -363,8 +333,8 @@ export async function fetchReorientData(
 
   // --- Extract unread notifications count ---
   let unreadNotifications = 0;
-  if (results[6].status === 'fulfilled') {
-    const r = results[6].value as { count?: number | null; error?: unknown };
+  if (results[5].status === 'fulfilled') {
+    const r = results[5].value as { count?: number | null; error?: unknown };
     if (!r.error) {
       unreadNotifications = r.count ?? 0;
     }

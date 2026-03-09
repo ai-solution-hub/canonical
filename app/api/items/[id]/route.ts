@@ -8,7 +8,7 @@ import {
   VALID_PLATFORMS,
 } from '@/lib/validation/schemas';
 import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
-import { generateEmbedding } from '@/lib/embeddings';
+import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 
 const UUID_RE =

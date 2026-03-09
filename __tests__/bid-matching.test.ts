@@ -4,7 +4,7 @@ import {
   deduplicateResults,
   MATCH_THRESHOLDS,
   type MatchResult,
-} from '@/lib/bid-matching';
+} from '@/lib/ai/match';
 
 describe('bid-matching', () => {
   describe('MATCH_THRESHOLDS', () => {

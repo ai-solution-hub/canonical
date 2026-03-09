@@ -8,10 +8,10 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionMatchBodySchema } from '@/lib/validation/schemas';
-import { generateSearchQueries } from '@/lib/structured-outputs';
-import { generateEmbedding } from '@/lib/embeddings';
-import { deduplicateResults, assessConfidence } from '@/lib/bid-matching';
-import type { MatchResult } from '@/lib/bid-matching';
+import { generateSearchQueries } from '@/lib/ai/extract-questions';
+import { generateEmbedding } from '@/lib/ai/embed';
+import { deduplicateResults, assessConfidence } from '@/lib/ai/match';
+import type { MatchResult } from '@/lib/ai/match';
 import { canTransition } from '@/lib/bid-state-machine';
 import type { BidState } from '@/lib/bid-state-machine';
 

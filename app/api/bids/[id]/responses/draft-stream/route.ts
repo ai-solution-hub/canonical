@@ -8,11 +8,11 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { ResponseDraftStreamBodySchema } from '@/lib/validation/schemas';
-import { analyseQuestion, draftResponseStreaming } from '@/lib/bid-drafting';
-import { checkResponseQuality } from '@/lib/quality-check';
+import { analyseQuestion, draftResponseStreaming } from '@/lib/ai/draft';
+import { checkResponseQuality } from '@/lib/ai/quality-check';
 import { getModelForTier } from '@/lib/anthropic';
-import type { DraftableQuestion, DraftableContent } from '@/lib/bid-drafting';
-import type { QualityCheckQuestion } from '@/lib/quality-check';
+import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
+import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import type { BidResponseMetadata } from '@/types/bid-metadata';
 import type { BidState } from '@/lib/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
@@ -160,7 +160,7 @@ export async function POST(
           send('pass1_complete', { analysis });
 
           // Pass 2: Stream the draft response
-          const { textStream, finalise } = draftResponseStreaming(
+          const { textStream, finalise } = await draftResponseStreaming(
             draftableQuestion,
             matchedContent,
             analysis,

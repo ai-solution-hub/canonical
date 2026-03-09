@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,50 +93,44 @@ export async function fetchDashboardData(
 ): Promise<DashboardData> {
   const errors: string[] = [];
 
-  const results = await Promise.allSettled([
-    // 0: Governance reviews pending
-    supabase
-      .from('content_items')
-      .select('*', { count: 'exact', head: true })
-      .eq('governance_review_status', 'pending'),
+  // Run active bids query in parallel with the other queries
+  const [results, activeBidsResult] = await Promise.all([
+    Promise.allSettled([
+      // 0: Governance reviews pending
+      supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('governance_review_status', 'pending'),
 
-    // 1: Unverified items
-    supabase
-      .from('content_items')
-      .select('*', { count: 'exact', head: true })
-      .is('verified_at', null),
+      // 1: Unverified items
+      supabase
+        .from('content_items')
+        .select('*', { count: 'exact', head: true })
+        .is('verified_at', null),
 
-    // 2: Quality flags unresolved
-    supabase
-      .from('ingestion_quality_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('resolved', false),
+      // 2: Quality flags unresolved
+      supabase
+        .from('ingestion_quality_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('resolved', false),
 
-    // 3: Freshness breakdown
-    supabase.rpc('get_freshness_breakdown'),
+      // 3: Freshness breakdown
+      supabase.rpc('get_freshness_breakdown'),
 
-    // 4: Active bids
-    supabase
-      .from('workspaces')
-      .select(
-        'id, name, domain_metadata, is_archived, created_at, updated_at',
-      )
-      .eq('type', 'bid')
-      .eq('is_archived', false)
-      .order('updated_at', { ascending: false }),
+      // 4: Unread notifications
+      supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .is('dismissed_at', null),
 
-    // 5: Unread notifications
-    supabase
-      .from('notifications')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .is('dismissed_at', null),
-
-    // 6: Recent activity (grouped RPC — replaces separate content_history + quality_log queries)
-    supabase.rpc('get_grouped_activity_feed', {
-      p_limit: 10,
-      p_is_admin: isAdmin,
-    }),
+      // 5: Recent activity (grouped RPC — replaces separate content_history + quality_log queries)
+      supabase.rpc('get_grouped_activity_feed', {
+        p_limit: 10,
+        p_is_admin: isAdmin,
+      }),
+    ]),
+    fetchActiveBidsWithStats(supabase),
   ]);
 
   // --- Extract governance review count ---
@@ -199,71 +194,44 @@ export async function fetchDashboardData(
     errors.push('freshness_breakdown query failed');
   }
 
-  // --- Extract active bids with question stats ---
-  let active_bids: ActiveBidSummary[] = [];
-  if (results[4].status === 'fulfilled') {
-    const { data: workspaces, error } = results[4].value;
-    if (error) {
-      errors.push('active_bids query failed');
-    } else if (workspaces && workspaces.length > 0) {
-      // Fetch question stats batch
-      const bidIds = workspaces.map((p) => p.id);
-      const { data: batchStats } = await supabase.rpc(
-        'get_bid_question_stats_batch',
-        { p_project_ids: bidIds },
-      );
+  // --- Extract active bids with question stats (from shared helper) ---
+  const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
+  const active_bids: ActiveBidSummary[] = bidWorkspaces.map((workspace) => {
+    const meta = workspace.domain_metadata as Record<string, unknown> | null;
+    const stats = statsMap.get(workspace.id);
+    const deadline = (meta?.deadline as string) ?? null;
 
-      const statsMap = new Map<string, {
-        total_questions: number;
-        drafted_count: number;
-        complete_count: number;
-      }>();
-      if (batchStats) {
-        for (const row of batchStats) {
-          statsMap.set(row.project_id, row);
-        }
-      }
+    return {
+      id: workspace.id,
+      name: workspace.name ?? 'Untitled Bid',
+      buyer: (meta?.buyer as string) ?? null,
+      status: (meta?.status as string) ?? 'draft',
+      deadline,
+      days_until_deadline: getDaysUntilDeadline(deadline),
+      total_questions: stats?.total_questions ?? 0,
+      answered_questions: (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
+      approved_questions: stats?.complete_count ?? 0,
+    };
+  });
 
-      active_bids = workspaces.map((workspace) => {
-        const meta = workspace.domain_metadata as Record<string, unknown> | null;
-        const stats = statsMap.get(workspace.id);
-        const deadline = (meta?.deadline as string) ?? null;
-
-        return {
-          id: workspace.id,
-          name: workspace.name ?? 'Untitled Bid',
-          buyer: (meta?.buyer as string) ?? null,
-          status: (meta?.status as string) ?? 'draft',
-          deadline,
-          days_until_deadline: getDaysUntilDeadline(deadline),
-          total_questions: stats?.total_questions ?? 0,
-          answered_questions: (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0),
-          approved_questions: stats?.complete_count ?? 0,
-        };
-      });
-
-      // Sort by deadline urgency (most urgent first)
-      active_bids.sort((a, b) => {
-        const urgencyOrder: Record<DeadlineUrgency, number> = {
-          overdue: 0,
-          urgent: 1,
-          approaching: 2,
-          normal: 3,
-          unknown: 4,
-        };
-        const aUrgency = urgencyOrder[getDeadlineUrgency(a.deadline)];
-        const bUrgency = urgencyOrder[getDeadlineUrgency(b.deadline)];
-        return aUrgency - bUrgency;
-      });
-    }
-  } else {
-    errors.push('active_bids query failed');
-  }
+  // Sort by deadline urgency (most urgent first)
+  active_bids.sort((a, b) => {
+    const urgencyOrder: Record<DeadlineUrgency, number> = {
+      overdue: 0,
+      urgent: 1,
+      approaching: 2,
+      normal: 3,
+      unknown: 4,
+    };
+    const aUrgency = urgencyOrder[getDeadlineUrgency(a.deadline)];
+    const bUrgency = urgencyOrder[getDeadlineUrgency(b.deadline)];
+    return aUrgency - bUrgency;
+  });
 
   // --- Extract unread notification count ---
   let unread_notification_count = 0;
-  if (results[5].status === 'fulfilled') {
-    const { count, error } = results[5].value;
+  if (results[4].status === 'fulfilled') {
+    const { count, error } = results[4].value;
     if (error) {
       errors.push('unread_notification_count query failed');
     } else {
@@ -275,8 +243,8 @@ export async function fetchDashboardData(
 
   // --- Extract recent activity (grouped RPC) ---
   let recent_activity: GroupedActivityItem[] = [];
-  if (results[6].status === 'fulfilled') {
-    const { data, error } = results[6].value;
+  if (results[5].status === 'fulfilled') {
+    const { data, error } = results[5].value;
     if (error) {
       errors.push('recent_activity query failed');
     } else if (data) {

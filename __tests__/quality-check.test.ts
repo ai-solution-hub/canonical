@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { runDeterministicChecks } from '@/lib/quality-check';
+import { runDeterministicChecks } from '@/lib/ai/quality-check';
 import type { CitationEntry } from '@/types/bid-metadata';
 
 /**

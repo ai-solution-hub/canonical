@@ -49,6 +49,20 @@ vi.mock('@/lib/format', () => ({
   }),
 }));
 
+// Store the mock return value so tests can override it
+const mockActiveBidsResult = vi.hoisted(() => ({
+  current: {
+    workspaces: [] as unknown[],
+    statsMap: new Map<string, unknown>(),
+  },
+}));
+
+vi.mock('@/lib/bid-queries', () => ({
+  fetchActiveBidsWithStats: vi.fn(() =>
+    Promise.resolve(mockActiveBidsResult.current),
+  ),
+}));
+
 // ---------------------------------------------------------------------------
 // Import under test AFTER mocks
 // ---------------------------------------------------------------------------
@@ -67,17 +81,17 @@ const TEST_USER_ID = 'user-abc-123';
  *
  * The function structure is:
  *   1. from('content_history') for lastActivity — awaited first
- *   2. Then Promise.allSettled with 9 items:
- *      [0] from('content_history') — team changes
- *      [1] from('content_history') — recent work
- *      [2] from('workspaces') — active bids
- *      [3] rpc('get_freshness_breakdown')
- *      [4] from('content_items') or Promise.resolve — governance reviews
- *      [5] from('ingestion_quality_log') or Promise.resolve — quality flags
- *      [6] from('notifications') — unread notifications
- *      [7] from('bid_response_history') — bid response team changes
- *      [8] from('bid_response_history') — bid response recent work
- *   Then optionally from('bid_questions') batch stats
+ *   2. Then Promise.all with:
+ *      a) Promise.allSettled with 8 items:
+ *         [0] from('content_history') — team changes
+ *         [1] from('content_history') — recent work
+ *         [2] rpc('get_freshness_breakdown')
+ *         [3] from('content_items') or Promise.resolve — governance reviews
+ *         [4] from('ingestion_quality_log') or Promise.resolve — quality flags
+ *         [5] from('notifications') — unread notifications
+ *         [6] from('bid_response_history') — bid response team changes
+ *         [7] from('bid_response_history') — bid response recent work
+ *      b) fetchActiveBidsWithStats (mocked — returns workspaces + statsMap)
  *   Then auth.getUser() for display name
  */
 function setupDefaultMock(overrides: {
@@ -110,7 +124,7 @@ function setupDefaultMock(overrides: {
     count: null,
   });
 
-  // Promise.allSettled calls 1-7 (indices 0-6 in results):
+  // Promise.allSettled from() calls (indices 0-7 in results):
   // [0] team changes — from('content_history')
   fromCalls.push({
     data: overrides.teamChangesData ?? [],
@@ -125,42 +139,35 @@ function setupDefaultMock(overrides: {
     count: null,
   });
 
-  // [2] workspaces — from('workspaces')
-  fromCalls.push({
-    data: overrides.workspacesData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // [4] governance reviews — from('content_items')
+  // [3] governance reviews — from('content_items')
   fromCalls.push({
     data: null,
     error: null,
     count: overrides.governanceCount ?? 0,
   });
 
-  // [5] quality flags — from('ingestion_quality_log')
+  // [4] quality flags — from('ingestion_quality_log')
   fromCalls.push({
     data: null,
     error: null,
     count: overrides.qualityFlagsCount ?? 0,
   });
 
-  // [6] notifications — from('notifications')
+  // [5] notifications — from('notifications')
   fromCalls.push({
     data: null,
     error: null,
     count: overrides.notificationsCount ?? 0,
   });
 
-  // [7] bid_response_history — team changes
+  // [6] bid_response_history — team changes
   fromCalls.push({
     data: overrides.bidResponseTeamChangesData ?? [],
     error: null,
     count: null,
   });
 
-  // [8] bid_response_history — recent work
+  // [7] bid_response_history — recent work
   fromCalls.push({
     data: overrides.bidResponseRecentWorkData ?? [],
     error: null,
@@ -225,18 +232,24 @@ function setupDefaultMock(overrides: {
     return c;
   });
 
-  // Configure RPC — first call is freshness breakdown, second (if any) is batch stats
-  const rpcResponses: Array<{ data: unknown; error: unknown }> = [
-    // get_freshness_breakdown
-    { data: overrides.freshnessData ?? [], error: null },
-    // get_bid_question_stats_batch
-    { data: overrides.batchStatsData ?? [], error: null },
-  ];
-  let rpcIdx = 0;
-  mock.rpc.mockImplementation(() => {
-    const response = rpcResponses[rpcIdx++] ?? { data: null, error: null };
-    return Promise.resolve(response);
+  // Configure RPC — only freshness breakdown is called directly now
+  // (batch stats is handled by the mocked fetchActiveBidsWithStats)
+  mock.rpc.mockResolvedValue({
+    data: overrides.freshnessData ?? [],
+    error: null,
   });
+
+  // Configure the mocked fetchActiveBidsWithStats result
+  const workspacesData = (overrides.workspacesData ?? []) as Array<Record<string, unknown>>;
+  const batchStatsData = (overrides.batchStatsData ?? []) as Array<Record<string, unknown>>;
+  const statsMap = new Map<string, unknown>();
+  for (const row of batchStatsData) {
+    statsMap.set(row.project_id as string, row);
+  }
+  mockActiveBidsResult.current = {
+    workspaces: workspacesData,
+    statsMap,
+  };
 
   // Configure auth.getUser — called twice (once for fallback, once for display name)
   const authUser = overrides.authUser !== undefined

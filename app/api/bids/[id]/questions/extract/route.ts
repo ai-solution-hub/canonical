@@ -8,7 +8,7 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
-import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/structured-outputs';
+import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
 

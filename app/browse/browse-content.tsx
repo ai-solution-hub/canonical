@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'motion/react';
@@ -75,13 +75,9 @@ export function BrowseContent() {
   });
 
   // Reset activeIndex when items change (new filter/sort/data)
-  const prevItemsRef = useRef(items);
-  if (prevItemsRef.current !== items) {
-    prevItemsRef.current = items;
-    if (activeIndex !== -1) {
-      setActiveIndex(-1);
-    }
-  }
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [items]);
 
   // Keyboard shortcut callbacks
   const handleFocusSearch = useCallback(() => {

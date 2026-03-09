@@ -4,7 +4,7 @@ import type {
   DraftableQuestion,
   DraftableContent,
   QuestionAnalysis,
-} from '@/lib/bid-drafting';
+} from '@/lib/ai/draft';
 
 // ──────────────────────────────────────────
 // Mock the Anthropic client module
@@ -46,7 +46,7 @@ vi.mock('@/lib/anthropic', () => ({
 const { mockCheckResponseQuality } = vi.hoisted(() => ({
   mockCheckResponseQuality: vi.fn(),
 }));
-vi.mock('@/lib/quality-check', () => ({
+vi.mock('@/lib/ai/quality-check', () => ({
   checkResponseQuality: mockCheckResponseQuality,
 }));
 
@@ -57,7 +57,7 @@ vi.mock('@/lib/quality-check', () => ({
 
 // Import after mocks are declared
 import { estimateCost } from '@/lib/anthropic';
-import { analyseQuestion, draftResponse, runDraftingPipeline } from '@/lib/bid-drafting';
+import { analyseQuestion, draftResponse, runDraftingPipeline } from '@/lib/ai/draft';
 
 // ──────────────────────────────────────────
 // Test fixtures

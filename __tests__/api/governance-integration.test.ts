@@ -29,7 +29,7 @@ vi.mock('next/headers', () => ({
 }));
 
 // Mock embeddings — not relevant to governance tests
-vi.mock('@/lib/embeddings', () => ({
+vi.mock('@/lib/ai/embed', () => ({
   generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3]),
 }));
 

@@ -6,7 +6,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
-import { generateEmbedding } from '@/lib/embeddings';
+import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import type { BidState } from '@/lib/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
