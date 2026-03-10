@@ -9,7 +9,7 @@ import type { Page, BrowserContext } from '@playwright/test';
  * - `authenticatedPage` — admin page (from storageState, default)
  * - `editorPage` — editor role page (separate browser context)
  * - `viewerPage` — viewer role page (separate browser context)
- * - `workerData` — per-worker isolated test data (3 items, 1 workspace, 1 bid)
+ * - `workerData` — per-worker isolated test data (6 items, 1 workspace, 1 bid with responses)
  *
  * Usage:
  *   import { test, expect } from '../fixtures';
