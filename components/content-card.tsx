@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import { Thumbnail } from '@/components/thumbnail';
 import { DomainBadge } from '@/components/domain-badge';
@@ -60,7 +61,7 @@ function StarToggle({ itemId, metadata, className }: {
   className?: string;
 }) {
   return (
-    <span className="opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+    <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
       <StarButton itemId={itemId} starred={metadata?.starred === true} size="sm" className={className} />
     </span>
   );
@@ -141,7 +142,11 @@ function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
       <ContentTypeIcon contentType={item.content_type} size="size-3" />
       {[formatContentType(item.content_type), formatPlatform(item.platform)]
         .filter(Boolean)
-        .join(' \u00B7 ')}
+        .reduce<React.ReactNode[]>((acc, part, i) => {
+          if (i > 0) acc.push(<span key={`sep-${i}`} aria-hidden="true"> &middot; </span>);
+          acc.push(<span key={i}>{part}</span>);
+          return acc;
+        }, [])}
     </span>
   );
 }
@@ -207,7 +212,7 @@ interface ContentCardProps {
   highlightQuery?: string;
 }
 
-export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
@@ -259,7 +264,7 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
                 <button
                   type="button"
                   aria-label="Copy answer to clipboard"
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -322,4 +327,4 @@ export function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highl
       </div>
     </Link>
   );
-}
+});

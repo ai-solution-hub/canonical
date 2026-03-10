@@ -164,7 +164,7 @@ describe('ContentRow', () => {
 
   it('renders content type in metadata line for standard items', () => {
     render(<ContentRow item={makeItem({ content_type: 'article' })} />);
-    // formatContentType('article') returns 'Article'; parts joined with middot separators in separate spans
+    // formatContentType('article') returns 'Article'; parts are in separate spans with middot separators
     expect(screen.getByText('Article')).toBeInTheDocument();
     expect(screen.getByText('web')).toBeInTheDocument();
     expect(screen.getByText('John Smith')).toBeInTheDocument();

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AnimatePresence, motion } from 'motion/react';
+
 import { toast } from 'sonner';
 import { Upload, Plus, Loader2 } from 'lucide-react';
 import { ContentGrid } from '@/components/content-grid';
@@ -269,50 +269,36 @@ export function BrowseContent() {
 
       <div className="mt-6">
         {isLoading ? (
-          <LoadingSkeleton viewMode={viewMode} />
+          <div role="status" aria-label="Loading content">
+            <LoadingSkeleton viewMode={viewMode} />
+          </div>
         ) : displayItems.length === 0 ? (
           <EmptyState hasFilters={activeFilterCount > 0 || showUnreadOnly} />
         ) : (
-          <AnimatePresence mode="wait">
+          <div className="transition-opacity duration-150">
             {viewMode === 'grid' ? (
-              <motion.div
-                key="grid"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <ContentGrid
-                  items={displayItems}
-                  activeIndex={activeIndex}
-                  readItemIds={readMarksLoaded ? readItemIds : undefined}
-                  qualityFlaggedIds={qualityFlaggedIds}
-                  multiSelectMode={multiSelectMode}
-                  selectedIds={selectedIds}
-                  onToggleSelect={toggleSelectItem}
-                  hideThumbnails={hideThumbnails}
-                />
-              </motion.div>
+              <ContentGrid
+                items={displayItems}
+                activeIndex={activeIndex}
+                readItemIds={readMarksLoaded ? readItemIds : undefined}
+                qualityFlaggedIds={qualityFlaggedIds}
+                multiSelectMode={multiSelectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelectItem}
+                hideThumbnails={hideThumbnails}
+              />
             ) : (
-              <motion.div
-                key="list"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-              >
-                <ContentList
-                  items={displayItems}
-                  activeIndex={activeIndex}
-                  readItemIds={readMarksLoaded ? readItemIds : undefined}
-                  qualityFlaggedIds={qualityFlaggedIds}
-                  multiSelectMode={multiSelectMode}
-                  selectedIds={selectedIds}
-                  onToggleSelect={toggleSelectItem}
-                />
-              </motion.div>
+              <ContentList
+                items={displayItems}
+                activeIndex={activeIndex}
+                readItemIds={readMarksLoaded ? readItemIds : undefined}
+                qualityFlaggedIds={qualityFlaggedIds}
+                multiSelectMode={multiSelectMode}
+                selectedIds={selectedIds}
+                onToggleSelect={toggleSelectItem}
+              />
             )}
-          </AnimatePresence>
+          </div>
         )}
       </div>
 
@@ -325,7 +311,7 @@ export function BrowseContent() {
           {isLoadingMore && (
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           )}
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
             Showing {displayItems.length} of {totalCount?.toLocaleString('en-GB') ?? '...'} items
           </p>
         </div>

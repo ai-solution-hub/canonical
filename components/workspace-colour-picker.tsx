@@ -114,7 +114,7 @@ export function WorkspaceColourPicker({
           )}
           style={{
             backgroundColor:
-              !isPreset && HEX_RE.test(value) ? value : '#e5e7eb',
+              !isPreset && HEX_RE.test(value) ? value : '#E8E6E1',
           }}
         />
         <Input

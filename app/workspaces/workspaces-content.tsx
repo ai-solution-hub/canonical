@@ -169,7 +169,10 @@ export function WorkspacesContent({
             key={value}
             type="button"
             role="tab"
+            id={`workspace-tab-${value}`}
             aria-selected={typeFilter === value}
+            aria-controls="workspace-tabpanel"
+            tabIndex={typeFilter === value ? 0 : -1}
             onClick={() => setTypeFilter(value)}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -184,7 +187,7 @@ export function WorkspacesContent({
       </div>
 
       {/* Active workspaces */}
-      <section className="mt-6">
+      <section id="workspace-tabpanel" role="tabpanel" aria-labelledby={`workspace-tab-${typeFilter}`} className="mt-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Active Workspaces ({activeWorkspaces.length})
         </h2>
@@ -236,7 +239,7 @@ export function WorkspacesContent({
             onClick={() => setShowArchived((prev) => !prev)}
             aria-expanded={showArchived}
             aria-controls="archived-workspaces"
-            className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+            className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {showArchived ? (
               <ChevronDown className="size-4" />

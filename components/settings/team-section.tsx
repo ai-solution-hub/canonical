@@ -421,7 +421,7 @@ export function TeamSection() {
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction
                                     onClick={() => handleDeactivate(user.id)}
-                                    className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                   >
                                     Deactivate
                                   </AlertDialogAction>
@@ -537,7 +537,7 @@ export function TeamSection() {
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => handleDeactivate(user.id)}
-                                className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               >
                                 Deactivate
                               </AlertDialogAction>

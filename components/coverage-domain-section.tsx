@@ -30,6 +30,12 @@ interface CoverageDomainSectionProps {
 
 // ---------------------------------------------------------------------------
 // Domain colour dot
+//
+// Uses Tailwind arbitrary value syntax `bg-[var(--domain-*-text)]` because
+// the domain colour CSS custom properties are defined in globals.css and
+// there are no corresponding Tailwind utility classes. This is the correct
+// approach — we cannot add Tailwind theme extensions here without modifying
+// globals.css or tailwind.config, which are outside this file's ownership.
 // ---------------------------------------------------------------------------
 
 const COLOUR_MAP: Record<string, string> = {

@@ -174,7 +174,7 @@ export function GovernanceSection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold">Governance Configuration</h3>
+          <h3 id="governance-config-heading" className="text-base font-semibold">Governance Configuration</h3>
           <p className="text-sm text-muted-foreground">
             Set review posture per domain. &quot;Open&quot; allows changes freely.
             &quot;Review on Change&quot; requires review after edits.
@@ -273,7 +273,7 @@ export function GovernanceSection() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border" role="list">
+          <div className="divide-y divide-border" role="list" aria-labelledby="governance-config-heading">
             {configs.map((config) => (
               <div
                 key={config.id}

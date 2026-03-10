@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { RefreshCw, LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   CoverageSummaryCards,
@@ -185,7 +186,7 @@ export function CoverageContent() {
             disabled={isLoading}
             className="gap-1.5"
           >
-            <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            <RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} aria-hidden="true" />
             Refresh
           </Button>
         </div>
@@ -194,7 +195,9 @@ export function CoverageContent() {
       {/* Content */}
       <div className="mt-6 space-y-6">
         {isLoading ? (
-          <CoverageSkeleton />
+          <div role="status" aria-label="Loading coverage data">
+            <CoverageSkeleton />
+          </div>
         ) : error ? (
           <CoverageError message={error} onRetry={handleRetry} />
         ) : !data || data.summary.length === 0 ? (

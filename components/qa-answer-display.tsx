@@ -29,8 +29,8 @@ export function QAAnswerDisplay({
   return (
     <div className="mb-6 space-y-4">
       {(item.answer_standard || isEditing) && (
-        <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <div className="rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+          <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Standard Answer
             </span>
@@ -62,8 +62,8 @@ export function QAAnswerDisplay({
         </div>
       )}
       {(item.answer_advanced || isEditing) && (
-        <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <div className="rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+          <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               Advanced Answer
             </span>

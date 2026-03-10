@@ -191,6 +191,7 @@ export function SearchBar({
                   key={`recent-${search}`}
                   id={`search-option-${idx}`}
                   role="option"
+                  tabIndex={-1}
                   aria-selected={activeIndex === idx}
                   onClick={() => handleSelectRecent(search)}
                   onMouseEnter={() => setActiveIndex(idx)}
@@ -222,6 +223,7 @@ export function SearchBar({
                     key={`suggestion-${kw}`}
                     id={`search-option-${idx}`}
                     role="option"
+                    tabIndex={-1}
                     aria-selected={activeIndex === idx}
                     onClick={() => handleSelectRecent(kw)}
                     onMouseEnter={() => setActiveIndex(idx)}

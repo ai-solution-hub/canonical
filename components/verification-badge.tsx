@@ -27,7 +27,7 @@ export function VerificationBadge({
       <span
         className={cn(
           'inline-flex items-center gap-1 text-[var(--color-status-success)]',
-          size === 'sm' ? 'text-[10px]' : 'text-xs',
+          size === 'sm' ? 'text-xs' : 'text-xs',
           className,
         )}
         role="status"
@@ -42,7 +42,7 @@ export function VerificationBadge({
     <span
       className={cn(
         'inline-flex items-center gap-1 text-muted-foreground',
-        size === 'sm' ? 'text-[10px]' : 'text-xs',
+        size === 'sm' ? 'text-xs' : 'text-xs',
         className,
       )}
       role="status"

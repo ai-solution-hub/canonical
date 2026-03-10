@@ -50,6 +50,22 @@ export const ICON_MAP: Record<WorkspaceIconName, LucideIcon> = {
   zap: Zap,
 };
 
+/** Human-readable labels for workspace icons */
+const ICON_LABELS: Record<WorkspaceIconName, string> = {
+  folder: 'Folder',
+  briefcase: 'Briefcase',
+  lightbulb: 'Light Bulb',
+  rocket: 'Rocket',
+  target: 'Target',
+  'flask-conical': 'Flask',
+  'book-open': 'Open Book',
+  code: 'Code',
+  globe: 'Globe',
+  users: 'Users',
+  star: 'Star',
+  zap: 'Lightning Bolt',
+};
+
 /** Resolve an icon name string to a lucide-react component */
 export function getWorkspaceIcon(name: string): LucideIcon {
   return ICON_MAP[name as WorkspaceIconName] ?? Folder;
@@ -102,6 +118,7 @@ export function WorkspaceIconPicker({
     >
       {WORKSPACE_ICONS.map((iconName, idx) => {
         const Icon = ICON_MAP[iconName];
+        const label = ICON_LABELS[iconName];
         const selected = value === iconName;
         return (
           <button
@@ -109,10 +126,10 @@ export function WorkspaceIconPicker({
             type="button"
             role="radio"
             aria-checked={selected}
-            aria-label={iconName}
+            aria-label={label}
             tabIndex={selected ? 0 : -1}
             data-icon-idx={idx}
-            title={iconName}
+            title={label}
             onClick={() => onChange(iconName)}
             className={cn(
               'flex size-9 items-center justify-center rounded-md border transition-colors hover:bg-accent',

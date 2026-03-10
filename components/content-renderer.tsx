@@ -94,7 +94,7 @@ export function ContentRenderer({ content, className }: ContentRendererProps) {
     return (
       <div
         className={cn(
-          'prose prose-sm dark:prose-invert max-w-[65ch]',
+          'prose prose-sm max-w-[65ch]',
           'prose-headings:font-semibold prose-headings:tracking-tight',
           'prose-h1:text-xl prose-h2:text-lg prose-h3:text-base',
           'prose-p:leading-relaxed prose-p:text-foreground',

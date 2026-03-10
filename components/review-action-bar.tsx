@@ -104,7 +104,7 @@ export function ReviewActionBar({
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Back</span>
-          <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2190'}</kbd>
+          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2190'}</kbd>
         </Button>
         <Button
           variant="ghost"
@@ -116,7 +116,7 @@ export function ReviewActionBar({
         >
           <ArrowRight className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Skip</span>
-          <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2192'}</kbd>
+          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2192'}</kbd>
         </Button>
       </div>
 
@@ -134,18 +134,18 @@ export function ReviewActionBar({
         >
           <Check className="size-5" aria-hidden="true" />
           Verify
-          <kbd className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]">Enter</kbd>
+          <kbd aria-hidden="true" className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]">Enter</kbd>
         </Button>
         <Button
           variant="outline"
           onClick={handleAction('flag')}
           disabled={isActioning}
-          className={`min-h-[44px] gap-1.5 border-status-warning/50 text-status-warning transition-colors hover:bg-governance-pending-bg hover:text-status-warning ${flashAction === 'flag' ? flashClass : ''}`}
+          className={`min-h-[44px] gap-1.5 text-muted-foreground border-border transition-colors hover:text-status-warning hover:border-status-warning/50 hover:bg-governance-pending-bg ${flashAction === 'flag' ? flashClass : ''}`}
           aria-label="Flag for review (keyboard shortcut: F)"
         >
           <Flag className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Flag</span>
-          <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">F</kbd>
+          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">F</kbd>
         </Button>
       </div>
 
@@ -165,7 +165,7 @@ export function ReviewActionBar({
           >
             <Pencil className="size-4" aria-hidden="true" />
             <span className="hidden sm:inline">Edit</span>
-            <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">E</kbd>
+            <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">E</kbd>
           </Button>
         )}
         <Button
@@ -177,7 +177,7 @@ export function ReviewActionBar({
         >
           <X className="size-4" aria-hidden="true" />
           <span className="hidden sm:inline">Exit</span>
-          <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">Esc</kbd>
+          <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">Esc</kbd>
         </Button>
         {onShowHelp && (
           <Button
@@ -188,7 +188,7 @@ export function ReviewActionBar({
             aria-label="Show keyboard shortcuts"
           >
             <HelpCircle className="size-4" aria-hidden="true" />
-            <kbd className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">?</kbd>
+            <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">?</kbd>
           </Button>
         )}
       </div>

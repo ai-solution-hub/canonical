@@ -52,7 +52,7 @@ export function ReaderView({ html, fontSize, maxWidth, className }: ReaderViewPr
   return (
     <div
       className={cn(
-        'prose prose-neutral dark:prose-invert',
+        'prose',
         fontSizeClass,
         maxWidthClass,
         // When no fontSize/maxWidth props are passed (e.g. inline tab usage),

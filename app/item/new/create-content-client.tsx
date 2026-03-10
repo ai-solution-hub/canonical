@@ -81,6 +81,12 @@ export function CreateContentClient() {
   // Draft toggle
   const [saveAsDraft, setSaveAsDraft] = useState(false);
 
+  // Validation state
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [contentTypeTouched, setContentTypeTouched] = useState(false);
+  const [contentTouched, setContentTouched] = useState(false);
+  const [saveAttempted, setSaveAttempted] = useState(false);
+
   // UI state
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
@@ -90,6 +96,36 @@ export function CreateContentClient() {
   const canSave = title.trim() && contentHtml.trim() && contentType;
   const domainNames = getDomainNames();
   const subtopicNames = primaryDomain ? getSubtopics(primaryDomain) : [];
+
+  // Track whether the form is dirty (any field modified from initial empty state)
+  const isDirty =
+    title.trim() !== '' ||
+    contentHtml.trim() !== '' ||
+    contentType !== '' ||
+    primaryDomain !== '' ||
+    authorName.trim() !== '' ||
+    sourceUrl.trim() !== '' ||
+    keywordsInput.trim() !== '' ||
+    tags.length > 0 ||
+    brief.trim() !== '' ||
+    detail.trim() !== '' ||
+    reference.trim() !== '';
+
+  // Validation error flags
+  const showTitleError = !title.trim() && (titleTouched || saveAttempted);
+  const showContentTypeError = !contentType && (contentTypeTouched || saveAttempted);
+  const showContentError = !contentHtml.trim() && (contentTouched || saveAttempted);
+
+  // IC-4: Unsaved changes guard
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty && !isSaving && !isSavingAndContinue) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty, isSaving, isSavingAndContinue]);
 
   // Reset subtopic when domain changes
   useEffect(() => {
@@ -217,7 +253,7 @@ export function CreateContentClient() {
   const saving = isSaving || isSavingAndContinue;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+    <section aria-label="Create content" className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -241,7 +277,7 @@ export function CreateContentClient() {
           size="sm"
           onClick={() => handleSave(true)}
           disabled={!canSave || saving}
-          className="hidden gap-1.5 sm:inline-flex"
+          className="w-full gap-1.5 sm:w-auto"
         >
           {isSavingAndContinue ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -255,6 +291,10 @@ export function CreateContentClient() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (!canSave) {
+            setSaveAttempted(true);
+            return;
+          }
           handleSave(false);
         }}
         className="space-y-6"
@@ -269,13 +309,21 @@ export function CreateContentClient() {
             id="title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => setTitleTouched(true)}
             placeholder={
               isQAPair ? 'Enter the question...' : 'Enter title...'
             }
             autoFocus
             required
             maxLength={500}
+            aria-invalid={showTitleError || undefined}
+            className={showTitleError ? 'border-destructive' : ''}
           />
+          {showTitleError && (
+            <p className="text-destructive text-sm">
+              {isQAPair ? 'Question' : 'Title'} is required
+            </p>
+          )}
         </div>
 
         {/* Content Type */}
@@ -283,8 +331,13 @@ export function CreateContentClient() {
           <Label htmlFor="content-type">
             Content Type <span className="text-destructive">*</span>
           </Label>
-          <Select value={contentType} onValueChange={setContentType}>
-            <SelectTrigger id="content-type">
+          <Select value={contentType} onValueChange={(val) => { setContentType(val); setContentTypeTouched(true); }}>
+            <SelectTrigger
+              id="content-type"
+              onBlur={() => setContentTypeTouched(true)}
+              className={showContentTypeError ? 'border-destructive' : ''}
+              aria-invalid={showContentTypeError || undefined}
+            >
               <SelectValue placeholder="Select content type..." />
             </SelectTrigger>
             <SelectContent>
@@ -310,6 +363,9 @@ export function CreateContentClient() {
               ))}
             </SelectContent>
           </Select>
+          {showContentTypeError && (
+            <p className="text-destructive text-sm">Content type is required</p>
+          )}
         </div>
 
         {/* Content / Answer */}
@@ -318,14 +374,21 @@ export function CreateContentClient() {
             {isQAPair ? 'Answer' : 'Content'}{' '}
             <span className="text-destructive">*</span>
           </Label>
-          <ContentEditor
-            content={contentHtml}
-            onChange={setContentHtml}
-            placeholder={
-              isQAPair ? 'Write the answer...' : 'Start writing...'
-            }
-            minHeight="300px"
-          />
+          <div onBlur={() => setContentTouched(true)}>
+            <ContentEditor
+              content={contentHtml}
+              onChange={setContentHtml}
+              placeholder={
+                isQAPair ? 'Write the answer...' : 'Start writing...'
+              }
+              minHeight="300px"
+            />
+          </div>
+          {showContentError && (
+            <p className="text-destructive text-sm">
+              {isQAPair ? 'Answer' : 'Content'} is required
+            </p>
+          )}
         </div>
 
         {/* More details toggle */}
@@ -458,7 +521,7 @@ export function CreateContentClient() {
                       <button
                         type="button"
                         onClick={() => removeTag(tag)}
-                        className="rounded-full p-0.5 hover:bg-foreground/10"
+                        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-foreground/10"
                         aria-label={`Remove tag ${tag}`}
                       >
                         &times;
@@ -494,7 +557,7 @@ export function CreateContentClient() {
                         value={p}
                         checked={priority === p}
                         onChange={() => setPriority(p)}
-                        className="accent-primary"
+                        className="accent-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       />
                       {p ? p.charAt(0).toUpperCase() + p.slice(1) : 'None'}
                     </label>
@@ -614,6 +677,6 @@ export function CreateContentClient() {
           </div>
         </div>
       </form>
-    </div>
+    </section>
   );
 }

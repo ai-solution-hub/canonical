@@ -150,6 +150,7 @@ export function ReviewFilters({
                       <button
                         key={value}
                         onClick={() => handleDomainToggle(value)}
+                        aria-pressed={isSelected}
                         className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
                           isSelected ? 'bg-accent font-medium' : ''
                         }`}
@@ -178,6 +179,7 @@ export function ReviewFilters({
                       <button
                         key={value}
                         onClick={() => handleContentTypeToggle(value)}
+                        aria-pressed={isSelected}
                         className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
                           isSelected ? 'bg-accent font-medium' : ''
                         }`}

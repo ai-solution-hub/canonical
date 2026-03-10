@@ -5,6 +5,13 @@ interface SimilarityBadgeProps {
   className?: string;
 }
 
+function getQualityLabel(percentage: number): string {
+  if (percentage >= 90) return 'Excellent match';
+  if (percentage >= 80) return 'Strong match';
+  if (percentage >= 70) return 'Good match';
+  return 'Partial match';
+}
+
 export function SimilarityBadge({
   score,
   className = '',
@@ -18,9 +25,12 @@ export function SimilarityBadge({
     colorClass = 'text-foreground';
   }
 
+  const qualityLabel = getQualityLabel(percentage);
+
   return (
-    <span className={`text-xs font-medium ${colorClass} ${className}`}>
-      {formatSimilarity(score)} match
+    <span className={`inline-flex items-baseline gap-1 text-xs font-medium ${colorClass} ${className}`}>
+      <span>{formatSimilarity(score)}</span>
+      <span className="text-[10px] font-normal">{qualityLabel}</span>
     </span>
   );
 }

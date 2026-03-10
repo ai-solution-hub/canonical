@@ -31,7 +31,7 @@ export function WorkspaceCreateDialog({
 }: WorkspaceCreateDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#6366f1');
+  const [color, setColor] = useState('#d4880f');
   const [icon, setIcon] = useState('folder');
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
@@ -39,7 +39,7 @@ export function WorkspaceCreateDialog({
   function resetForm() {
     setName('');
     setDescription('');
-    setColor('#6366f1');
+    setColor('#d4880f');
     setIcon('folder');
     setNameError('');
   }

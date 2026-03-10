@@ -30,6 +30,7 @@ export function ContentLayerSelector({
           <button
             type="button"
             onClick={() => handleLayerChange(null)}
+            aria-pressed={!item.metadata?.layer}
             className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
               !item.metadata?.layer
                 ? 'border-primary bg-primary/10 text-primary'
@@ -45,6 +46,7 @@ export function ContentLayerSelector({
                 key={layer.key}
                 type="button"
                 onClick={() => handleLayerChange(layer.key)}
+                aria-pressed={isActive}
                 className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   isActive
                     ? 'border-primary bg-primary/10 text-primary'

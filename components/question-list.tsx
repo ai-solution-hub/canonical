@@ -246,7 +246,7 @@ export function QuestionList({
             {/* Section header */}
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent"
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => toggleSection(sectionKey)}
               aria-expanded={!isCollapsed}
               aria-controls={`section-${sectionKey}`}

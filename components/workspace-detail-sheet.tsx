@@ -69,7 +69,7 @@ export function WorkspaceDetailSheet({
 }: WorkspaceDetailSheetProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [color, setColor] = useState('#6366f1');
+  const [color, setColor] = useState('#d4880f');
   const [icon, setIcon] = useState('folder');
   const [items, setItems] = useState<WorkspaceItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
@@ -396,7 +396,7 @@ export function WorkspaceDetailSheet({
             <AlertDialogAction
               onClick={handleDelete}
               disabled={deleting}
-              className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleting ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>

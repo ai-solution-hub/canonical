@@ -40,7 +40,7 @@ function FreshnessIndicator({
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
       <span
-        className={cn('inline-block size-2 shrink-0 rounded-full', colourClass)}
+        className={cn('inline-block size-2.5 shrink-0 rounded-full', colourClass)}
         aria-hidden="true"
       />
       <span>

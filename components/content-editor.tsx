@@ -97,7 +97,6 @@ export function ContentEditor({
         editor={editor}
         className={cn(
           'prose prose-sm max-w-none px-4 py-3',
-          'dark:prose-invert',
           'focus-within:outline-none',
           '[&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground',
           '[&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]',

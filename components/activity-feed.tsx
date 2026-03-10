@@ -26,13 +26,13 @@ interface ActivityFeedProps {
 function activityIcon(type: string) {
   switch (type) {
     case 'edit':
-      return <Edit3 className="size-3.5 text-primary" />;
+      return <Edit3 className="size-3.5 text-primary" aria-hidden="true" />;
     case 'rollback':
-      return <RotateCcw className="size-3.5 text-status-warning" />;
+      return <RotateCcw className="size-3.5 text-status-warning" aria-hidden="true" />;
     case 'quality_flag':
-      return <AlertTriangle className="size-3.5 text-destructive" />;
+      return <AlertTriangle className="size-3.5 text-destructive" aria-hidden="true" />;
     default:
-      return <Activity className="size-3.5 text-muted-foreground" />;
+      return <Activity className="size-3.5 text-muted-foreground" aria-hidden="true" />;
   }
 }
 

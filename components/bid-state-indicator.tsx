@@ -128,7 +128,7 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
             <div className="flex flex-col items-center gap-0.5">
               <div
                 className={cn(
-                  'flex size-5 items-center justify-center rounded-full border text-[10px]',
+                  'flex size-5 items-center justify-center rounded-full border text-xs',
                   isCompleted && 'border-primary bg-primary text-primary-foreground',
                   isCurrent && 'border-primary bg-primary/10 text-primary ring-2 ring-primary/30',
                   isFuture && 'border-muted-foreground/30 text-muted-foreground/50',
@@ -144,7 +144,7 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
               </div>
               <span
                 className={cn(
-                  'hidden text-[9px] leading-tight sm:block',
+                  'hidden text-[11px] leading-tight sm:block',
                   isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground',
                 )}
               >
@@ -177,7 +177,7 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
                 <Clock className="size-3" aria-hidden="true" />
               )}
             </div>
-            <span className="hidden text-[9px] font-medium leading-tight sm:block">
+            <span className="hidden text-[11px] font-medium leading-tight sm:block">
               {BID_STATE_LABELS[state]}
             </span>
           </div>

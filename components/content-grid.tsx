@@ -188,15 +188,10 @@ export function ContentGrid({
                     e.stopPropagation();
                     onToggleSelect?.(item.id);
                   }}
-                  className="absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded border border-border bg-background/90 shadow-sm transition-colors hover:bg-accent"
+                  className="absolute left-2 top-2 z-10 flex items-center justify-center rounded border border-border bg-background/90 p-2.5 shadow-sm transition-colors hover:bg-accent"
                   aria-label={
                     selectedIds?.has(item.id) ? 'Deselect' : 'Select'
                   }
-                  style={{
-                    minHeight: '44px',
-                    minWidth: '44px',
-                    margin: '-9px',
-                  }}
                 >
                   <span
                     className={`size-3.5 rounded-sm border ${selectedIds?.has(item.id) ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}
@@ -294,15 +289,10 @@ export function ContentGrid({
                           e.stopPropagation();
                           onToggleSelect?.(item.id);
                         }}
-                        className="absolute left-2 top-2 z-10 flex size-6 items-center justify-center rounded border border-border bg-background/90 shadow-sm transition-colors hover:bg-accent"
+                        className="absolute left-2 top-2 z-10 flex items-center justify-center rounded border border-border bg-background/90 p-2.5 shadow-sm transition-colors hover:bg-accent"
                         aria-label={
                           selectedIds?.has(item.id) ? 'Deselect' : 'Select'
                         }
-                        style={{
-                          minHeight: '44px',
-                          minWidth: '44px',
-                          margin: '-9px',
-                        }}
                       >
                         <span
                           className={`size-3.5 rounded-sm border ${selectedIds?.has(item.id) ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}

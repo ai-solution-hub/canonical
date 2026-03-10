@@ -96,6 +96,15 @@ export function EmptyState({ hasFilters }: { hasFilters: boolean }) {
           ? 'Try adjusting or clearing your filters to see more results.'
           : 'Content added to the knowledge base will appear here.'}
       </p>
+      {!hasFilters && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Q&A pairs are shown in the{' '}
+          <a href="/library" className="underline hover:text-foreground">
+            Q&A Library
+          </a>
+          .
+        </p>
+      )}
       {hasFilters && (
         <Button
           variant="outline"

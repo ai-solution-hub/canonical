@@ -137,14 +137,20 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
         <Link
           href={`/item/${item.id}`}
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"
-          aria-label="Open detail view"
+          aria-label={`Open detail view for "${item.title}"`}
         >
           <ExternalLink className="size-3.5" />
         </Link>
       </div>
 
       {/* Expanded answer content */}
-      {expanded && (
+      <div
+        className={cn(
+          'grid motion-safe:transition-all motion-safe:duration-200 overflow-hidden',
+          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}
+      >
+        <div className="min-h-0">
         <div className="border-t border-border px-4 pb-4 pt-3 pl-11">
           {hasStandard && (
             <div className="mb-3">
@@ -207,7 +213,8 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
             </p>
           )}
         </div>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

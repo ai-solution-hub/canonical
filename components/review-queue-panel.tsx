@@ -90,16 +90,20 @@ export function ReviewQueuePanel({
                   </Badge>
                 )}
                 {isFlagged && (
-                  <Flag
-                    className="ml-auto size-3.5 text-status-warning"
-                    aria-label="Flagged for review"
-                  />
+                  <span className="ml-auto" role="img" aria-label="Flagged for review">
+                    <Flag
+                      className="size-3.5 text-status-warning"
+                      aria-hidden="true"
+                    />
+                  </span>
                 )}
                 {!isFlagged && item.verified_at && (
-                  <Check
-                    className="ml-auto size-3.5 text-success"
-                    aria-label="Verified"
-                  />
+                  <span className="ml-auto" role="img" aria-label="Verified">
+                    <Check
+                      className="size-3.5 text-success"
+                      aria-hidden="true"
+                    />
+                  </span>
                 )}
               </div>
               <p className="mt-1 line-clamp-1 text-sm font-medium text-foreground">

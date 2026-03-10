@@ -267,7 +267,7 @@ export function TaxonomyDialogs({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeactivate}
-              className="bg-destructive text-primary-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Deactivate
             </AlertDialogAction>

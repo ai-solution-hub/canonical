@@ -17,7 +17,7 @@ function LibraryPageSkeleton() {
         <div className="h-9 w-24 animate-pulse rounded-md bg-accent" />
       </div>
       <div className="mt-6 space-y-3">
-        {Array.from({ length: 10 }).map((_, i) => (
+        {Array.from({ length: 8 }).map((_, i) => (
           <div
             key={i}
             className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4"

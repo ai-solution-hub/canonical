@@ -232,7 +232,7 @@ export function VersionHistory({
                           {version.change_summary ?? 'No description'}
                         </p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
-                          {creatorName} &middot;{' '}
+                          {creatorName} <span aria-hidden="true">&middot;</span>{' '}
                           {formatDateTime(version.created_at)}
                         </p>
                       </div>

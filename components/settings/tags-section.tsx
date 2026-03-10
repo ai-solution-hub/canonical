@@ -190,7 +190,7 @@ export function TagsSection() {
       <div className="flex items-center gap-3">
         <Tags className="size-5 text-muted-foreground" />
         <div>
-          <h2 className="text-lg font-semibold">Tag Management</h2>
+          <h3 className="text-lg font-semibold">Tag Management</h3>
           <p className="text-sm text-muted-foreground">
             {tags.length} tags across user tags and AI keywords
           </p>
@@ -205,6 +205,7 @@ export function TagsSection() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="pl-9"
+          aria-label="Search tags"
         />
       </div>
 
@@ -241,6 +242,7 @@ export function TagsSection() {
                   size="sm"
                   className="size-7 p-0"
                   title="Rename tag"
+                  aria-label={`Rename tag: ${t.tag}`}
                   onClick={() =>
                     setRenameDialog({ open: true, tag: t, newName: t.tag })
                   }
@@ -252,6 +254,7 @@ export function TagsSection() {
                   size="sm"
                   className="size-7 p-0"
                   title="Merge into another tag"
+                  aria-label={`Merge tag: ${t.tag}`}
                   onClick={() =>
                     setMergeDialog({ open: true, tag: t, targetName: '' })
                   }
@@ -263,6 +266,7 @@ export function TagsSection() {
                   size="sm"
                   className="size-7 p-0 text-destructive hover:text-destructive"
                   title="Delete tag"
+                  aria-label={`Delete tag: ${t.tag}`}
                   onClick={() =>
                     setDeleteDialog({ open: true, tag: t })
                   }

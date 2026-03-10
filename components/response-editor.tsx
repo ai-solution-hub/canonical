@@ -108,9 +108,8 @@ export function ResponseEditor({
         editor={editor}
         className={cn(
           'prose prose-sm max-w-none px-4 py-3',
-          'dark:prose-invert',
           'min-h-[200px]',
-          'focus-within:outline-none',
+          'focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
           '[&_.tiptap_p.is-editor-empty:first-child::before]:text-muted-foreground',
           '[&_.tiptap_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]',
           '[&_.tiptap_p.is-editor-empty:first-child::before]:float-left',

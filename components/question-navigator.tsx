@@ -177,7 +177,7 @@ export function QuestionNavigator({
       </div>
 
       {/* Question dot navigator */}
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="Question navigator">
+      <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Question navigator">
         {questions.map((q, i) => {
           const config = getPostureConfig(q.confidence_posture);
           const isComplete = q.status === 'complete' || q.status === 'approved';
@@ -192,8 +192,8 @@ export function QuestionNavigator({
                 isCurrent && 'ring-2 ring-ring ring-offset-1',
                 isComplete ? 'bg-confidence-strong border-confidence-strong-border' : config.bgColour + ' border-border',
               )}
-              role="tab"
-              aria-selected={isCurrent}
+              role="button"
+              aria-current={isCurrent ? 'true' : undefined}
               aria-label={`Question ${i + 1}: ${q.section_name ?? q.question_text.slice(0, 50)}${isComplete ? ' (complete)' : ''}`}
               type="button"
             />

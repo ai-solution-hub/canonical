@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import { ThumbnailSmall } from '@/components/thumbnail';
 import { DomainBadge } from '@/components/domain-badge';
@@ -33,7 +34,7 @@ function isSearchResult(
   return 'similarity' in item;
 }
 
-export function ContentRow({
+export const ContentRow = memo(function ContentRow({
   item,
   isActive = false,
   isRead,
@@ -151,7 +152,7 @@ export function ContentRow({
           <button
             type="button"
             aria-label="Copy answer to clipboard"
-            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -166,7 +167,7 @@ export function ContentRow({
           itemId={item.id}
           starred={item.metadata?.starred === true}
           size="sm"
-          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         />
       </Link>
     );
@@ -243,7 +244,11 @@ export function ContentRow({
                 item.author_name,
               ]
                 .filter(Boolean)
-                .join(' \u00B7 ')}
+                .reduce<React.ReactNode[]>((acc, part, i) => {
+                  if (i > 0) acc.push(<span key={`sep-${i}`} aria-hidden="true"> &middot; </span>);
+                  acc.push(<span key={i}>{part}</span>);
+                  return acc;
+                }, [])}
             </span>
           )}
         </span>
@@ -261,8 +266,8 @@ export function ContentRow({
         itemId={item.id}
         starred={item.metadata?.starred === true}
         size="sm"
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 [@media(hover:none)]:opacity-100"
+        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
       />
     </Link>
   );
-}
+});

@@ -137,7 +137,7 @@ export function IntegrationsSection() {
             <AccordionItem value="how-to-connect" className="border-b-0">
               <AccordionTrigger>Step-by-step instructions</AccordionTrigger>
               <AccordionContent>
-                <ol className="flex list-none flex-col gap-3 text-sm text-muted-foreground">
+                <ol className="flex list-none flex-col gap-3 text-sm text-muted-foreground" role="list">
                   <li className="flex gap-2">
                     <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                       1
@@ -230,7 +230,7 @@ export function IntegrationsSection() {
               </a>
             </Button>
 
-            <ol className="flex list-none flex-col gap-1.5 text-sm text-muted-foreground">
+            <ol className="flex list-none flex-col gap-1.5 text-sm text-muted-foreground" role="list">
               <li className="flex gap-2">
                 <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
                   1

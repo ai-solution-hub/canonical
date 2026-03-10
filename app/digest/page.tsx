@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DigestView } from '@/components/digest-view';
 import { formatDate } from '@/lib/format';
+import { digestTypeLabel } from '@/lib/digest-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { Digest } from '@/types/digest';
@@ -94,6 +95,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         id="tab-preset"
         aria-selected={mode === 'preset'}
         aria-controls="digest-content-panel"
+        tabIndex={mode === 'preset' ? 0 : -1}
         onClick={() => onModeChange('preset')}
         className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
           mode === 'preset'
@@ -102,6 +104,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         }`}
       >
         <Calendar className="inline-block size-3.5 sm:mr-1.5" />
+        <span className="sm:hidden">7d</span>
         <span className="hidden sm:inline">Period</span>
       </button>
       <button
@@ -109,6 +112,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         id="tab-daily"
         aria-selected={mode === 'daily'}
         aria-controls="digest-content-panel"
+        tabIndex={mode === 'daily' ? 0 : -1}
         onClick={() => onModeChange('daily')}
         className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
           mode === 'daily'
@@ -117,6 +121,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         }`}
       >
         <Sparkles className="inline-block size-3.5 sm:mr-1.5" />
+        <span className="sm:hidden">1d</span>
         <span className="hidden sm:inline">Daily</span>
       </button>
       <button
@@ -124,6 +129,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         id="tab-custom"
         aria-selected={mode === 'custom'}
         aria-controls="digest-content-panel"
+        tabIndex={mode === 'custom' ? 0 : -1}
         onClick={() => onModeChange('custom')}
         className={`rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-3 ${
           mode === 'custom'
@@ -132,6 +138,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
         }`}
       >
         <SlidersHorizontal className="inline-block size-3.5 sm:mr-1.5" />
+        <span className="sm:hidden">Filter</span>
         <span className="hidden sm:inline">Custom</span>
       </button>
     </div>
@@ -289,9 +296,9 @@ function GenerateControls({
 
             {/* Domain filter */}
             <div className="space-y-2">
-              <Label>Domain</Label>
+              <Label htmlFor="custom-domain">Domain</Label>
               <Select value={customDomain} onValueChange={onCustomDomainChange}>
-                <SelectTrigger>
+                <SelectTrigger id="custom-domain">
                   <SelectValue placeholder="All domains" />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,7 +346,7 @@ function GenerateControls({
                   <button
                     onClick={() => onCustomDomainChange('')}
                     aria-label={`Remove domain filter: ${customDomain}`}
-                    className="ml-0.5 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-muted"
+                    className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
                   >
                     <X className="size-3" />
                   </button>
@@ -366,7 +373,7 @@ function GenerateControls({
                         onCustomKeywordsChange(remaining);
                       }}
                       aria-label={`Remove keyword filter: ${kw}`}
-                      className="ml-0.5 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-muted"
+                      className="ml-0.5 flex min-h-[32px] min-w-[32px] items-center justify-center rounded-full hover:bg-muted"
                     >
                       <X className="size-3" />
                     </button>
@@ -601,16 +608,18 @@ export default function DigestPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
-        <DigestSkeleton />
-      </div>
+      <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+        <div role="status" aria-label="Loading">
+          <DigestSkeleton />
+        </div>
+      </section>
     );
   }
 
   // No digest state + generating state
   if (!currentDigest) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-primary/10 p-4">
             <Sparkles className="size-8 text-primary" />
@@ -636,13 +645,13 @@ export default function DigestPage() {
             </div>
           )}
         </div>
-      </div>
+      </section>
     );
   }
 
   // Digest view state
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+    <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       {/* Generate new / controls bar */}
       <div className="mb-8">
         <GenerateControls variant="bar" {...controlsProps} />
@@ -666,14 +675,14 @@ export default function DigestPage() {
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Previous Digests
           </h2>
-          <ul className="space-y-2">
+          <ul className="space-y-2" aria-label="Previous digests">
             {pastDigests
               .filter((d) => d.id !== currentDigest?.id)
               .map((digest) => (
                 <li key={digest.id}>
                   <button
                     onClick={() => loadDigest(digest.id)}
-                    className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                    className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                   >
                     <div>
                       <span className="text-sm font-medium text-foreground">
@@ -681,7 +690,7 @@ export default function DigestPage() {
                         {formatDate(digest.period_end)}
                       </span>
                       <span className="ml-2 text-xs text-muted-foreground">
-                        {digest.digest_type}
+                        {digestTypeLabel(digest.digest_type)}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -693,6 +702,6 @@ export default function DigestPage() {
           </ul>
         </section>
       )}
-    </div>
+    </section>
   );
 }

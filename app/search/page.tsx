@@ -111,7 +111,7 @@ function SearchResults() {
       </h1>
 
       {/* Search bar (compact, pre-filled with query) */}
-      <div className="mb-8">
+      <div className="mb-8 max-w-2xl">
         <SearchBar variant="compact" defaultValue={query} autoFocus />
       </div>
 
@@ -165,9 +165,12 @@ function SearchResults() {
               {count > 0 && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span
+                      tabIndex={0}
+                      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
                       Hybrid search
-                      <Info className="size-3" />
+                      <Info className="size-3" aria-hidden="true" />
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs text-xs">
@@ -178,13 +181,14 @@ function SearchResults() {
               )}
             </div>
             {count > 0 && (
-              <div className="flex items-center gap-1">
+              <div className="flex rounded-md border border-border" role="group" aria-label="View mode">
                 <Button
                   variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                   size="icon"
                   onClick={() => handleViewChange('grid')}
                   aria-label="Grid view"
                   aria-pressed={viewMode === 'grid'}
+                  className="rounded-r-none border-r border-border"
                 >
                   <LayoutGrid className="size-4" />
                 </Button>
@@ -194,6 +198,7 @@ function SearchResults() {
                   onClick={() => handleViewChange('list')}
                   aria-label="List view"
                   aria-pressed={viewMode === 'list'}
+                  className="rounded-l-none"
                 >
                   <List className="size-4" />
                 </Button>
