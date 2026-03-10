@@ -353,29 +353,37 @@ body {
   font-size: 0.8125rem;
 }
 
-/* Cell colouring */
+/* Cell colouring — density-aware heat map.
+   JS sets --cell-bg as an inline style with a computed oklch colour
+   that varies lightness based on item count density. Text colour
+   remains constant for WCAG contrast. */
 .cell--fresh {
-  background: var(--freshness-fresh-bg);
   color: var(--freshness-fresh);
   font-weight: 600;
+  background: var(--cell-bg, var(--freshness-fresh-bg));
 }
 
 .cell--aging {
-  background: var(--freshness-aging-bg);
   color: var(--freshness-aging);
   font-weight: 600;
+  background: var(--cell-bg, var(--freshness-aging-bg));
 }
 
 .cell--stale {
-  background: var(--freshness-stale-bg);
   color: var(--freshness-stale);
   font-weight: 600;
+  background: var(--cell-bg, var(--freshness-stale-bg));
 }
 
 .cell--expired {
-  background: var(--freshness-expired-bg);
   color: var(--freshness-expired);
   font-weight: 600;
+  background: var(--cell-bg, var(--freshness-expired-bg));
+}
+
+/* Cells with density scaling applied */
+.cell--has-density {
+  position: relative;
 }
 
 .cell--zero {
@@ -530,6 +538,33 @@ body {
 .drill-btn:focus-visible {
   outline: 2px solid var(--app-accent);
   outline-offset: 2px;
+}
+
+/* Freshness cell drill-down buttons — inherit cell colour, not accent */
+.drill-btn--cell {
+  color: inherit;
+  text-decoration: none;
+}
+
+.drill-btn--cell:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+/* Quality indicator dot in freshness cells */
+.cell--has-quality-indicator {
+  position: relative;
+}
+
+.cell-quality-dot {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  font-size: 0.5625rem;
+  line-height: 1;
+  color: var(--gap-text);
+  pointer-events: none;
 }
 
 /* Detail panel (slide-in from right) */

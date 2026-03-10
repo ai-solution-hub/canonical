@@ -5,7 +5,8 @@ import {
   applyHostFonts,
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
-import type { CoverageMatrixData, DomainRow, DetailPanelState, SearchResultItem } from "./types";
+import type { CoverageMatrixData, DomainRow, DetailPanelState, SearchResultItem, FreshnessKey } from "./types";
+import { FRESHNESS_LABELS } from "./types";
 import "./styles.css";
 
 // ── App setup ──────────────────────────────────────────────
@@ -17,6 +18,7 @@ let matrixData: CoverageMatrixData | null = null;
 let domainRows: DomainRow[] = [];
 let showGapsOnly = false;
 let detailPanel: DetailPanelState | null = null;
+let maxCellCount = 1; // Maximum count across all freshness cells, for density scaling
 
 // ── Initial state: loading ────────────────────────────────
 
@@ -55,6 +57,7 @@ app.ontoolresult = (result) => {
     domainRows = data.domains
       .map((d) => ({ ...d, expanded: false }))
       .sort((a, b) => a.name.localeCompare(b.name));
+    maxCellCount = computeMaxCellCount(data);
     renderMatrix();
   } catch {
     renderEmpty("Failed to parse coverage data.");
@@ -368,7 +371,7 @@ function buildTable(domains: DomainRow[]): HTMLElement {
     domainTr.appendChild(nameTd);
 
     // Freshness cells
-    appendFreshnessCells(domainTr, domain, false);
+    appendFreshnessCells(domainTr, domain, false, domain.name);
 
     // Total cell with drill-down button
     const totalTd = createElement("td", { className: "cell--total" });
@@ -419,7 +422,7 @@ function buildTable(domains: DomainRow[]): HTMLElement {
         subNameTd.appendChild(subNameSpan);
         subTr.appendChild(subNameTd);
 
-        appendFreshnessCells(subTr, sub, isGap);
+        appendFreshnessCells(subTr, sub, isGap, domain.name, sub.name);
 
         const subTotalTd = createElement("td", { className: "cell--total" });
         if (sub.total_items > 0) {
@@ -454,10 +457,12 @@ function buildTable(domains: DomainRow[]): HTMLElement {
 function appendFreshnessCells(
   row: HTMLElement,
   item: { fresh: number; aging: number; stale: number; expired: number },
-  isGap: boolean
+  isGap: boolean,
+  domainName: string,
+  subtopicName?: string
 ): void {
   const states: Array<{
-    key: keyof Pick<typeof item, "fresh" | "aging" | "stale" | "expired">;
+    key: FreshnessKey;
     cls: string;
   }> = [
     { key: "fresh", cls: "cell--fresh" },
@@ -465,6 +470,16 @@ function appendFreshnessCells(
     { key: "stale", cls: "cell--stale" },
     { key: "expired", cls: "cell--expired" },
   ];
+
+  // Check whether this domain has a stale_only gap (for quality indicator)
+  const hasStaleOnlyGap = matrixData
+    ? matrixData.gaps.some(
+        (g) =>
+          g.domain === domainName &&
+          g.issue === "stale_only" &&
+          (subtopicName ? g.subtopic === subtopicName : true)
+      )
+    : false;
 
   for (const state of states) {
     const count = item[state.key];
@@ -477,7 +492,61 @@ function appendFreshnessCells(
       className = state.cls;
     }
     const td = createElement("td", { className });
-    td.textContent = String(count);
+
+    // Heat map density: compute background lightness based on count.
+    // Higher counts → lower lightness (darker/more saturated background).
+    // Lightness ranges from 0.96 (low density) to 0.82 (high density)
+    // in light mode. Text colour stays constant for WCAG contrast.
+    if (count > 0) {
+      const ratio = count / maxCellCount; // 0..1
+      const bgColor = getCellDensityBg(state.key, ratio);
+      td.style.setProperty("--cell-bg", bgColor);
+      td.classList.add("cell--has-density");
+    }
+
+    if (count > 0) {
+      // Clickable cell: drill down filtered by freshness state
+      const label = FRESHNESS_LABELS[state.key];
+      const context = subtopicName
+        ? `${domainName} > ${subtopicName}`
+        : domainName;
+      const drillBtn = createElement("button", {
+        className: "drill-btn drill-btn--cell",
+        attrs: {
+          type: "button",
+          "aria-label": `View ${count} ${label.toLowerCase()} items in ${context}`,
+          title: `${label}: ${count} item${count !== 1 ? "s" : ""}`,
+        },
+      });
+      drillBtn.textContent = String(count);
+      drillBtn.addEventListener("click", (e: Event) => {
+        e.stopPropagation();
+        drillDown(domainName, subtopicName, state.key);
+      });
+      td.appendChild(drillBtn);
+    } else {
+      td.textContent = "0";
+    }
+
+    // Quality indicator: small dot for stale_only gap cells
+    // Show on stale and expired cells when the domain/subtopic has a stale_only gap
+    if (
+      hasStaleOnlyGap &&
+      (state.key === "stale" || state.key === "expired") &&
+      count > 0
+    ) {
+      const dot = createElement("span", {
+        className: "cell-quality-dot",
+        attrs: {
+          "aria-label": "Quality concern: all content is stale or expired",
+          title: "All content ageing or expired",
+        },
+      });
+      dot.textContent = "\u26A0";
+      td.appendChild(dot);
+      td.classList.add("cell--has-quality-indicator");
+    }
+
     row.appendChild(td);
   }
 }
@@ -573,17 +642,27 @@ function isSubtopicGap(domain: string, subtopic: string): boolean {
 
 // ── Drill-down via callServerTool ──────────────────────────
 
-async function drillDown(domain: string, subtopic?: string): Promise<void> {
+async function drillDown(
+  domain: string,
+  subtopic?: string,
+  freshnessFilter?: FreshnessKey
+): Promise<void> {
   detailPanel = {
     domain,
     subtopic,
+    freshnessFilter: freshnessFilter
+      ? FRESHNESS_LABELS[freshnessFilter]
+      : undefined,
     loading: true,
     items: [],
   };
   renderDetailPanel();
 
   try {
-    const query = subtopic ? `${domain} ${subtopic}` : domain;
+    const queryParts = [domain];
+    if (subtopic) queryParts.push(subtopic);
+    if (freshnessFilter) queryParts.push(freshnessFilter);
+    const query = queryParts.join(" ");
     const result = await app.callServerTool({
       name: "search_knowledge_base",
       arguments: { query, domain, limit: 15 },
@@ -595,6 +674,9 @@ async function drillDown(domain: string, subtopic?: string): Promise<void> {
     detailPanel = {
       domain,
       subtopic,
+      freshnessFilter: freshnessFilter
+        ? FRESHNESS_LABELS[freshnessFilter]
+        : undefined,
       loading: false,
       items: structured?.results ?? [],
     };
@@ -602,6 +684,9 @@ async function drillDown(domain: string, subtopic?: string): Promise<void> {
     detailPanel = {
       domain,
       subtopic,
+      freshnessFilter: freshnessFilter
+        ? FRESHNESS_LABELS[freshnessFilter]
+        : undefined,
       loading: false,
       items: [],
       error: err instanceof Error ? err.message : "Search failed",
@@ -637,9 +722,14 @@ function renderDetailPanel(): void {
   // Header
   const header = createElement("div", { className: "detail-header" });
   const title = createElement("h2", { className: "detail-title" });
-  title.textContent = detailPanel.subtopic
-    ? `${detailPanel.domain} \u203A ${detailPanel.subtopic}`
-    : detailPanel.domain;
+  let titleText = detailPanel.domain;
+  if (detailPanel.subtopic) {
+    titleText += ` \u203A ${detailPanel.subtopic}`;
+  }
+  if (detailPanel.freshnessFilter) {
+    titleText += ` \u203A ${detailPanel.freshnessFilter}`;
+  }
+  title.textContent = titleText;
   header.appendChild(title);
 
   const closeBtn = createElement("button", {
@@ -708,6 +798,59 @@ function renderDetailPanel(): void {
     list.appendChild(card);
   }
   panel.appendChild(list);
+}
+
+// ── Density computation ───────────────────────────────────
+
+function computeMaxCellCount(data: CoverageMatrixData): number {
+  let max = 1;
+  for (const domain of data.domains) {
+    max = Math.max(max, domain.fresh, domain.aging, domain.stale, domain.expired);
+    for (const sub of domain.subtopics) {
+      max = Math.max(max, sub.fresh, sub.aging, sub.stale, sub.expired);
+    }
+  }
+  return max;
+}
+
+/**
+ * Detect whether the app is in dark mode via host data-theme attribute
+ * or system prefers-color-scheme.
+ */
+function isDarkMode(): boolean {
+  const root = document.documentElement;
+  if (root.getAttribute("data-theme") === "dark") return true;
+  if (root.getAttribute("data-theme") === "light") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+/**
+ * Compute an oklch background colour for a freshness cell, varying lightness
+ * by density ratio. Low density produces lighter backgrounds, high density
+ * produces darker/more saturated backgrounds. Each freshness state uses its
+ * own chroma and hue from the Warm Meridian palette.
+ */
+function getCellDensityBg(key: FreshnessKey, ratio: number): string {
+  // Base chroma and hue per freshness state (from --freshness-*-bg tokens)
+  const palette: Record<FreshnessKey, { c: number; h: number }> = {
+    fresh: { c: 0.04, h: 160 },
+    aging: { c: 0.02, h: 70 },
+    stale: { c: 0.03, h: 20 },
+    expired: { c: 0.03, h: 20 },
+  };
+  const { c, h } = palette[key];
+
+  const dark = isDarkMode();
+  // Light mode: lightness 0.96 (low density) → 0.82 (high density)
+  // Dark mode: lightness 0.22 (low density) → 0.35 (high density)
+  const l = dark
+    ? 0.22 + ratio * 0.13
+    : 0.96 - ratio * 0.14;
+  // Chroma increases slightly with density for more saturation
+  const cScaled = dark
+    ? 0.04 + ratio * 0.04
+    : c + ratio * 0.02;
+  return `oklch(${l.toFixed(3)} ${cScaled.toFixed(4)} ${h})`;
 }
 
 // ── DOM utilities ─────────────────────────────────────────

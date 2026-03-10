@@ -1,0 +1,583 @@
+/* Bid Dashboard — Warm Meridian palette */
+
+:root {
+  /* Host-aware tokens: SDK variables with Warm Meridian fallbacks */
+  --app-bg: var(--color-background-primary, oklch(0.98 0.008 48));
+  --app-text: var(--color-text-primary, oklch(0.25 0.016 48));
+  --app-text-muted: var(--color-text-secondary, oklch(0.55 0.014 48));
+  --app-border: var(--color-border-primary, oklch(0.90 0.012 48));
+  --app-accent: var(--color-accent-primary, oklch(0.65 0.16 55));
+  --app-card: oklch(0.99 0.005 48);
+  --app-card-hover: oklch(0.97 0.008 48);
+
+  /* Bid lifecycle colours */
+  --bid-draft: oklch(0.55 0.014 48);
+  --bid-active: oklch(0.55 0.15 250);
+  --bid-submitted: oklch(0.60 0.14 70);
+  --bid-won: oklch(0.55 0.15 160);
+  --bid-lost: oklch(0.50 0.20 20);
+
+  --bid-draft-bg: oklch(0.95 0.005 48);
+  --bid-active-bg: oklch(0.93 0.04 250);
+  --bid-submitted-bg: oklch(0.97 0.02 70);
+  --bid-won-bg: oklch(0.93 0.04 160);
+  --bid-lost-bg: oklch(0.95 0.03 20);
+
+  /* Urgency colours */
+  --urgency-overdue: oklch(0.50 0.22 25);
+  --urgency-urgent: oklch(0.55 0.20 25);
+  --urgency-approaching: oklch(0.60 0.14 70);
+  --urgency-normal: oklch(0.55 0.15 160);
+  --urgency-none: oklch(0.55 0.014 48);
+
+  --urgency-overdue-bg: oklch(0.95 0.04 25);
+  --urgency-urgent-bg: oklch(0.95 0.03 25);
+  --urgency-approaching-bg: oklch(0.97 0.02 70);
+  --urgency-normal-bg: oklch(0.95 0.02 160);
+
+  /* Confidence posture colours */
+  --confidence-strong: oklch(0.55 0.15 160);
+  --confidence-partial: oklch(0.60 0.14 70);
+  --confidence-weak: oklch(0.55 0.20 20);
+  --confidence-none: oklch(0.55 0.014 48);
+
+  /* Progress bar */
+  --progress-bg: oklch(0.92 0.008 48);
+  --progress-fill: var(--app-accent);
+  --progress-approved: oklch(0.55 0.15 160);
+
+  /* Radius */
+  --radius: 0.5rem;
+  --radius-sm: 0.375rem;
+  --radius-lg: 0.75rem;
+}
+
+/* Dark mode: host-driven via data-theme or system preference */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --app-bg: var(--color-background-primary, oklch(0.18 0.014 48));
+    --app-text: var(--color-text-primary, oklch(0.90 0.012 48));
+    --app-text-muted: var(--color-text-secondary, oklch(0.65 0.012 48));
+    --app-border: var(--color-border-primary, oklch(0.30 0.016 48));
+    --app-card: oklch(0.22 0.014 48);
+    --app-card-hover: oklch(0.26 0.014 48);
+
+    --bid-draft-bg: oklch(0.22 0.005 48);
+    --bid-active-bg: oklch(0.22 0.04 250);
+    --bid-submitted-bg: oklch(0.22 0.03 70);
+    --bid-won-bg: oklch(0.22 0.04 160);
+    --bid-lost-bg: oklch(0.22 0.03 20);
+
+    --urgency-overdue-bg: oklch(0.22 0.04 25);
+    --urgency-urgent-bg: oklch(0.22 0.03 25);
+    --urgency-approaching-bg: oklch(0.22 0.02 70);
+    --urgency-normal-bg: oklch(0.22 0.02 160);
+
+    --progress-bg: oklch(0.28 0.008 48);
+  }
+}
+[data-theme="dark"] {
+  --app-bg: var(--color-background-primary, oklch(0.18 0.014 48));
+  --app-text: var(--color-text-primary, oklch(0.90 0.012 48));
+  --app-text-muted: var(--color-text-secondary, oklch(0.65 0.012 48));
+  --app-border: var(--color-border-primary, oklch(0.30 0.016 48));
+  --app-card: oklch(0.22 0.014 48);
+  --app-card-hover: oklch(0.26 0.014 48);
+
+  --bid-draft-bg: oklch(0.22 0.005 48);
+  --bid-active-bg: oklch(0.22 0.04 250);
+  --bid-submitted-bg: oklch(0.22 0.03 70);
+  --bid-won-bg: oklch(0.22 0.04 160);
+  --bid-lost-bg: oklch(0.22 0.03 20);
+
+  --urgency-overdue-bg: oklch(0.22 0.04 25);
+  --urgency-urgent-bg: oklch(0.22 0.03 25);
+  --urgency-approaching-bg: oklch(0.22 0.02 70);
+  --urgency-normal-bg: oklch(0.22 0.02 160);
+
+  --progress-bg: oklch(0.28 0.008 48);
+}
+
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  background: var(--app-bg);
+  color: var(--app-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+}
+
+/* Loading & empty states */
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: 0.75rem;
+  color: var(--app-text-muted);
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--app-border);
+  border-top-color: var(--app-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.empty-state-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+/* Header */
+.dashboard-header {
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.dashboard-subtitle {
+  font-size: 0.875rem;
+  color: var(--app-text-muted);
+}
+
+/* Summary bar */
+.summary-bar {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.summary-card {
+  flex: 1;
+  min-width: 100px;
+  padding: 0.75rem 1rem;
+  background: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius);
+}
+
+.summary-card-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--app-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.summary-card-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.summary-card--overdue .summary-card-value {
+  color: var(--urgency-overdue);
+}
+
+/* Bid cards */
+.bid-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bid-card {
+  background: var(--app-card);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  position: relative;
+}
+
+.bid-card:hover {
+  background: var(--app-card-hover);
+}
+
+.bid-card:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: -2px;
+}
+
+/* Left urgency border */
+.bid-card--overdue {
+  border-left: 4px solid var(--urgency-overdue);
+}
+
+.bid-card--urgent {
+  border-left: 4px solid var(--urgency-urgent);
+}
+
+.bid-card--approaching {
+  border-left: 4px solid var(--urgency-approaching);
+}
+
+.bid-card--expanded {
+  border-color: var(--app-accent);
+}
+
+/* Card header row */
+.bid-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.bid-card-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.bid-card-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.125rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bid-card-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  font-size: 0.625rem;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  color: var(--app-text-muted);
+}
+
+.bid-card-chevron--expanded {
+  transform: rotate(90deg);
+}
+
+.bid-card-buyer {
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+}
+
+.bid-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.375rem;
+  flex-shrink: 0;
+}
+
+/* Status badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+.status-badge--draft {
+  background: var(--bid-draft-bg);
+  color: var(--bid-draft);
+}
+
+.status-badge--active {
+  background: var(--bid-active-bg);
+  color: var(--bid-active);
+}
+
+.status-badge--submitted {
+  background: var(--bid-submitted-bg);
+  color: var(--bid-submitted);
+}
+
+.status-badge--won {
+  background: var(--bid-won-bg);
+  color: var(--bid-won);
+}
+
+.status-badge--lost {
+  background: var(--bid-lost-bg);
+  color: var(--bid-lost);
+}
+
+/* Deadline badge */
+.deadline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.deadline-badge--overdue {
+  background: var(--urgency-overdue-bg);
+  color: var(--urgency-overdue);
+}
+
+.deadline-badge--urgent {
+  background: var(--urgency-urgent-bg);
+  color: var(--urgency-urgent);
+}
+
+.deadline-badge--approaching {
+  background: var(--urgency-approaching-bg);
+  color: var(--urgency-approaching);
+}
+
+.deadline-badge--normal {
+  background: var(--urgency-normal-bg);
+  color: var(--urgency-normal);
+}
+
+.deadline-badge--none {
+  color: var(--urgency-none);
+}
+
+/* Progress section */
+.bid-card-progress {
+  margin-top: 0.625rem;
+}
+
+.progress-labels {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+.progress-answered {
+  font-weight: 600;
+}
+
+.progress-approved {
+  color: var(--confidence-strong);
+  font-size: 0.75rem;
+}
+
+.progress-bar {
+  position: relative;
+  height: 8px;
+  background: var(--progress-bg);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--progress-fill);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-bar-approved {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: var(--progress-approved);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  /* Striped pattern so approved is distinguishable without colour */
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 3px,
+    oklch(1 0 0 / 0.2) 3px,
+    oklch(1 0 0 / 0.2) 6px
+  );
+  background-size: auto;
+}
+
+/* View in KB button */
+.view-in-kb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.75rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--app-accent);
+  background: none;
+  border: 1px solid var(--app-accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.view-in-kb-btn:hover {
+  background: var(--app-card-hover);
+}
+
+.view-in-kb-btn:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+/* Expanded detail section */
+.bid-detail {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--app-border);
+}
+
+.bid-detail-loading {
+  text-align: center;
+  padding: 1rem 0;
+  color: var(--app-text-muted);
+  font-size: 0.875rem;
+}
+
+.bid-detail-error {
+  padding: 0.75rem;
+  background: var(--urgency-overdue-bg);
+  border: 1px solid var(--urgency-overdue);
+  border-radius: var(--radius);
+  color: var(--urgency-overdue);
+  font-size: 0.875rem;
+}
+
+/* Question stats grid */
+.question-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.stat-item {
+  padding: 0.5rem 0.625rem;
+  background: var(--app-bg);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-sm);
+}
+
+.stat-item-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--app-text-muted);
+  margin-bottom: 0.125rem;
+}
+
+.stat-item-value {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.stat-item--strong .stat-item-value {
+  color: var(--confidence-strong);
+}
+
+.stat-item--partial .stat-item-value {
+  color: var(--confidence-partial);
+}
+
+.stat-item--weak .stat-item-value {
+  color: var(--confidence-weak);
+}
+
+.stat-item--none .stat-item-value {
+  color: var(--confidence-none);
+}
+
+/* Bid metadata in expanded view */
+.bid-detail-meta {
+  font-size: 0.8125rem;
+  color: var(--app-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.bid-detail-meta p {
+  margin-bottom: 0.25rem;
+}
+
+.bid-detail-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .summary-bar {
+    flex-direction: column;
+  }
+
+  .summary-card {
+    min-width: unset;
+  }
+
+  .bid-card-header {
+    flex-direction: column;
+  }
+
+  .bid-card-right {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .question-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Screen reader only utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

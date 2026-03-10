@@ -70,7 +70,19 @@ export interface SearchResultItem {
 export interface DetailPanelState {
   domain: string;
   subtopic?: string;
+  freshnessFilter?: string;
   loading: boolean;
   items: SearchResultItem[];
   error?: string;
 }
+
+/** Freshness state key used in data objects */
+export type FreshnessKey = "fresh" | "aging" | "stale" | "expired";
+
+/** Display labels for freshness states (UK English) */
+export const FRESHNESS_LABELS: Record<FreshnessKey, string> = {
+  fresh: "Fresh",
+  aging: "Ageing",
+  stale: "Stale",
+  expired: "Expired",
+};
