@@ -36,95 +36,32 @@ development partner. All code is written through human-AI collaboration.
 | `python3 -m pytest scripts/tests/` | Run Python tests |
 | `bun run format` | Prettier format all files |
 | `bun run format:check` | Check Prettier formatting |
+| `bun run build:mcp-apps` | Build MCP Apps (Vite) + generate inline bundles for Vercel |
+| `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
 
 ## Architecture
 
-```
-knowledge-hub/
-  app/                        # Next.js 16 App Router (proxy.ts for auth)
-    api/search/               #   POST /api/search (hybrid: embedding + keywords)
-    api/search/suggestions/   #   GET /api/search/suggestions
-    api/items/[id]/           #   GET/PATCH + sub-routes (priority, vision, files, images, workspaces, layers, metadata)
-    api/workspaces/           #   GET/POST + [id]/ (PATCH/DELETE) + [id]/items
-    api/bids/                 #   GET/POST + [id]/ (CRUD, questions, responses, tender, outcome, export)
-    api/copilotkit/           #   POST (CopilotKit AG-UI runtime endpoint)
-    api/embed/                #   POST /api/embed (standalone embedding)
-    api/summaries/            #   POST /api/summaries/generate (Claude AI summaries)
-    api/digest/               #   generate + latest + list (AI digest)
-    api/read-marks/           #   POST /api/read-marks (read tracking)
-    api/insights/             #   GET /api/insights (analytical RPCs wrapper)
-    api/review/               #   queue + action + stats (content review workflow)
-    api/governance/           #   review + route (freshness/ownership governance)
-    api/notifications/        #   read + route (user notifications)
-    api/freshness/            #   calculate + recalculate-all
-    api/activity/             #   GET /api/activity (activity feed)
-    api/health/               #   GET /api/health (health check)
-    api/admin/users/          #   list + invite + [userId] (user management)
-    api/users/display-names/  #   GET (UUID→display name resolution)
-    api/upload/               #   POST (file upload)
-    api/extract/              #   POST (content extraction)
-    api/tags/                 #   GET/POST + rename, merge, suggest
-    api/taxonomy/             #   domains + subtopics CRUD, reorder
-    api/dashboard/            #   GET /api/dashboard (dashboard stats)
-    api/quality/              #   GET + summary (quality metrics)
-    api/jobs/[id]/status/     #   GET (background job status)
-    api/mcp/                  #   MCP server (Streamable HTTP transport, 23 tools)
-    api/oauth/                #   OAuth decision endpoint (MCP authorization)
-    api/plugin/               #   Plugin download (ZIP for client distribution)
-    api/reorient/             #   GET /api/reorient (Reorient Me context summary)
-    api/coverage/             #   GET /api/coverage (coverage analysis)
-    bid/                      #   /bid (bid workspace + [id] detail/session pages)
-    browse/                   #   /browse (grid/list, filters, pagination)
-    item/[id]/                #   /item/:id (detail + inline editing)
-    search/                   #   /search (semantic search results)
-    digest/                   #   /digest (AI digest generation + history)
-    library/                  #   /library (Q&A Library — browse, filter, manage Q&A pairs)
-    workspaces/               #   /workspaces (workspace management)
-    review/                   #   /review (content review workflow)
-    settings/                 #   /settings (user settings, 4 tabs)
-    login/                    #   /login (Supabase Auth)
-    coverage/                 #   /coverage (coverage analysis dashboard)
-    auth/                     #   /auth/callback (OAuth callback)
-    oauth/                    #   /oauth (MCP OAuth consent)
-    page.tsx                  #   / (home: search + recent items)
-  mcp-apps/                    # MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)
-    coverage-matrix/          #   Coverage Matrix (domains × freshness grid, Warm Meridian)
-  components/                 # ~176 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
-  contexts/                   # React contexts (read-marks, taxonomy, client-features)
-  hooks/                      # ~33 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.)
-  lib/                        # ~69 utility modules (auth, supabase clients, bid-*, copilotkit/,
-                              #   embeddings, freshness, validation/, taxonomy-*, etc.)
-    mcp/                      #   MCP server subsystem (tools.ts, resources.ts, formatters.ts, auth.ts)
-                              #   23 tools (incl. 2 app trigger), 9 resources (incl. 2 ui://), 5 prompts
-    ai/                       #   AI service layer (shared by MCP + CopilotKit)
-  types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
-  scripts/
-    kb_pipeline/              #   Python pipeline package (config, extract, classify,
-                              #     embed, store, dedup, summarise, pipeline, pipeline_log)
-    ingest.py                 #   Main ingestion CLI
-    ingest_markdown.py        #   Markdown file ingestion
-    import_bid_library.py     #   Q&A pair import from client documents
-    extract_pdf_text.py       #   PDF text extraction
-    extract_pdf_images.py     #   PDF image extraction
-    extract_docx_tables.py    #   DOCX table extraction
-    kb-search.ts              #   Semantic search CLI
-    batch_generate_summaries.ts
-    backfill-reader-html.ts
-    extract-reader-html.ts
-    search-evaluation.json    #   20 search test cases
-  supabase/
-    migrations/               # ~45 migration files
-    types/                    # Auto-generated types (database.types.ts) — never edit manually
-  docs/
-    reference/                # Schema reference, classification, search evaluation, import guide
-    continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest tests (101 test files, ~1916 tests)
-  e2e/                        # Playwright E2E tests (4 spec files)
-  proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
-```
+Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
+
+Key directories:
+
+| Directory | Contents |
+|-----------|----------|
+| `app/` | Next.js 16 App Router — ~30 API route groups, ~12 page routes, `proxy.ts` auth middleware |
+| `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
+| `components/` | ~210 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
+| `contexts/` | React contexts (read-marks, taxonomy, client-features) |
+| `hooks/` | ~33 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
+| `lib/` | ~69 utility modules — includes `mcp/` (23 tools, 9 resources, 5 prompts) and `ai/` (service layer) |
+| `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
+| `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
+| `supabase/` | ~45 migrations + auto-generated types (`database.types.ts` — never edit manually) |
+| `__tests__/` | Vitest — ~111 test files |
+| `e2e/` | Playwright — 5 spec files (auth, browse-search, settings, governance-review, role-gating) |
+| `docs/` | Reference docs, continuation prompts, design system |
 
 ## Environment
 
@@ -154,28 +91,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-### Tables (18 core + supporting)
-
-| # | Table | Purpose |
-|---|-------|---------|
-| 1 | `content_items` | Core KB content with progressive depth, user tracking, freshness |
-| 2 | `workspaces` | Generic containers (project, bid, kb_section) via `type` column |
-| 3 | `content_item_workspaces` | Item-to-container junction |
-| 4 | `ingestion_quality_log` | Data quality flags |
-| 5 | `read_marks` | Per-user read tracking (scoped by `user_id`) |
-| 6 | `digests` | AI-generated change digests |
-| 7 | `pipeline_runs` | Pipeline execution tracking |
-| 8 | `processing_queue` | Python worker job queue |
-| 9 | `user_roles` | Application-level role assignments (admin/editor/viewer) |
-| 10 | `content_history` | Immutable version snapshots (auto-versioned) |
-| 11 | `bid_questions` | Extracted tender questions |
-| 12 | `bid_responses` | AI-drafted and human-edited responses |
-| 13 | `taxonomy_domains` | Configurable taxonomy (DB-driven via taxonomy-context) |
-| 14 | `taxonomy_subtopics` | Configurable subtopics (DB-driven via taxonomy-context) |
-| 15 | `governance_config` | Governance settings (freshness thresholds, review rules) |
-| 16 | `notifications` | User notifications (governance, freshness, quality) |
-| 17 | `entity_mentions` | Extracted entities from content (context graph nodes) |
-| 18 | `entity_relationships` | Relationships between entities (context graph edges) |
+**20 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 
 ### RLS Model
 
@@ -189,31 +105,23 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 ### Key Constraints
 
-- `content_type` IN: article, blog, pdf, note, research, other,
-  q_a_pair, case_study, policy, certification, compliance, methodology,
-  capability, product_description
-- `platform` IN: web, email, manual, upload, extraction, other
-- `workspaces.type` IN: project, bid, kb_section
-- `priority` IN: high, medium, low (nullable — null means unset)
-- `freshness` IN: fresh, aging, stale, expired
-- `lifecycle_type` IN: evergreen, date_bound, regulation, bid_discovered
-- `classification_confidence` between 0 and 1
-- `user_roles.role` IN: admin, editor, viewer
 - Embeddings: `vector(1024)` — OpenAI text-embedding-3-large shortened from
-  3072 via Matryoshka
-- HNSW indexes (m=16, ef_construction=64, cosine similarity)
+  3072 via Matryoshka, HNSW indexes (m=16, ef_construction=64, cosine)
+- Enum-like columns use CHECK constraints — see schema reference for valid values
+- Canonical constants for content_type, platform, priority, freshness, etc.
+  live in `lib/validation/schemas.ts`
 
 ## Testing
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~101 test files (~1916 tests)
+- **Location:** `__tests__/` — ~111 test files
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
-- **E2E:** Playwright — 4 spec files in `e2e/tests/` (auth, browse-search,
-  settings, governance-review). Config: `playwright.config.ts`
+- **E2E:** Playwright — 5 spec files in `e2e/tests/` (auth, browse-search,
+  settings, governance-review, role-gating). Config: `playwright.config.ts`
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
 
@@ -222,7 +130,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Platform:** Vercel
 - **URL:** https://knowledge-hub-seven-kappa.vercel.app
 - **GitHub:** https://github.com/liam-jons/knowledge-hub (private)
-- **Region:** TBD (client is UK-based, likely LHR1)
+- **Region:** eu-west-2 (London) — matches Supabase region
 
 ## Key Design Principles
 
@@ -372,3 +280,8 @@ when needed.
   It must be published to the local marketplace
   (`~/.claude/plugins/marketplaces/local/plugins/`) and enabled in settings.
   Simply existing in the project's `.claude/plugins/` directory is not enough.
+- **Plugin bundle is a committed artefact:** `lib/mcp/plugin-bundle.ts` is a
+  generated file (like `app-bundles.ts`) that must be committed to git. The
+  `.claude/` directory is gitignored, so Vercel cannot regenerate it. After
+  changing plugin files (commands, skills, plugin.json), run
+  `bun run build:plugin` and commit the updated `plugin-bundle.ts`.
