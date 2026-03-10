@@ -277,6 +277,49 @@ export async function createTestNotification(
 }
 
 /**
+ * Create a bid workspace and advance it to the target state in one call.
+ * Returns the bid workspace ID.
+ */
+export async function createBidWithState(
+  prefix: string,
+  targetState: string,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const bidId = await createTestBid(prefix, overrides);
+  await advanceBidState(bidId, targetState);
+  return bidId;
+}
+
+/**
+ * Create a bid workspace with N questions. Returns both the bid ID and question IDs.
+ */
+export async function createBidWithQuestions(
+  prefix: string,
+  questionCount: number,
+  overrides: Record<string, unknown> = {},
+): Promise<{ bidId: string; questionIds: string[] }> {
+  const supabase = createServiceClient();
+  const bidId = await createTestBid(prefix, overrides);
+
+  const questions = Array.from({ length: questionCount }, (_, i) => ({
+    project_id: bidId,
+    section_name: `Section ${i + 1}`,
+    section_sequence: i + 1,
+    question_sequence: 1,
+    question_text: `${prefix} Question ${i + 1}: Describe your approach.`,
+    word_limit: 500,
+  }));
+
+  const { data: qs } = await supabase
+    .from('bid_questions')
+    .insert(questions)
+    .select('id')
+    .throwOnError();
+
+  return { bidId, questionIds: (qs ?? []).map((q) => q.id) };
+}
+
+/**
  * Advance a bid workspace through sequential state transitions to reach
  * the target state. The bid state machine requires stepping through each
  * intermediate state.

@@ -12,7 +12,7 @@ import { navigateViaHeader } from '../helpers/responsive';
 test.describe('Review page — queue display', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
   });
 
   test('review page loads with heading', async ({ authenticatedPage: page }) => {
@@ -49,7 +49,7 @@ test.describe('Review page — queue display', () => {
 test.describe('Review page — action bar', () => {
   test('action bar shows verify, flag, skip, and exit buttons', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -77,7 +77,7 @@ test.describe('Review page — action bar', () => {
 
   test('verify button advances to the next item', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -105,7 +105,7 @@ test.describe('Review page — action bar', () => {
 
   test('flag button shows flag input for reason', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -133,22 +133,19 @@ test.describe('Review page — action bar', () => {
 
   test('flag cancel hides the flag input', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
     if (await actionBar.isVisible({ timeout: 10000 }).catch(() => false)) {
       // Open flag input
       const flagButton = actionBar.getByRole('button', { name: /Flag/ });
-      await flagButton.scrollIntoViewIfNeeded();
-      await flagButton.click({ force: true });
+      await flagButton.click();
       const reasonInput = page.getByLabel(/Reason/);
       await expect(reasonInput).toBeVisible({ timeout: 5000 });
 
-      // Cancel — use dispatchEvent to ensure the handler fires on mobile
       const cancelButton = page.getByRole('button', { name: 'Cancel' });
-      await cancelButton.scrollIntoViewIfNeeded();
-      await cancelButton.dispatchEvent('click');
+      await cancelButton.click();
 
       // Flag input should be hidden — the Submit button disappearing confirms cancel worked
       await expect(
@@ -159,7 +156,7 @@ test.describe('Review page — action bar', () => {
 
   test('skip button advances to the next item without changing status', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -177,7 +174,7 @@ test.describe('Review page — action bar', () => {
 
   test('back button is disabled on the first item', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -190,7 +187,7 @@ test.describe('Review page — action bar', () => {
 
   test('exit button navigates away from review page', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -205,7 +202,7 @@ test.describe('Review page — action bar', () => {
 
   test('keyboard shortcut help dialog opens', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
 
@@ -234,7 +231,7 @@ test.describe('Review page — queue state', () => {
     // Navigate to review page — it may show review items, a completion
     // message, or an error state depending on the test data and API health
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Review Queue' })).toBeVisible({ timeout: 10000 });
 
     // Wait for the page to settle — it may show review items, a completion
     // message, or an error state. The page heading "Review Queue" is always
@@ -257,7 +254,7 @@ test.describe('Review page — queue state', () => {
 
   test('review page is accessible via navigation', async ({ authenticatedPage: page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
 
     // Use responsive helper — opens hamburger on mobile, clicks directly on desktop
     await navigateViaHeader(page, 'Review');

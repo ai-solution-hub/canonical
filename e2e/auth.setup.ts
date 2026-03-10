@@ -66,10 +66,7 @@ async function loginAndSave(
 
   // Navigate and verify auth works
   await page.goto('/');
-  await page.waitForLoadState('networkidle');
-
-  // Verify we are NOT on the login page (auth succeeded)
-  await expect(page).not.toHaveURL(/\/login/);
+  await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
 
   // Save the authenticated browser state
   await page.context().storageState({ path: savePath });

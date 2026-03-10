@@ -30,7 +30,7 @@ test.describe('Viewer role restrictions', () => {
 
   test('viewer sees limited settings sections', async ({ viewerPage: page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -47,7 +47,6 @@ test.describe('Viewer role restrictions', () => {
 test.describe('Editor role access', () => {
   test('editor can access the review page', async ({ editorPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
 
     // Editor should see the review queue heading (not redirected)
     await expect(
@@ -57,7 +56,7 @@ test.describe('Editor role access', () => {
 
   test('editor sees content management but not system settings', async ({ editorPage: page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     const settingsNav = await getSettingsNav(page);
 
@@ -73,7 +72,6 @@ test.describe('Editor role access', () => {
 test.describe('Admin role full access', () => {
   test('admin can access the review page', async ({ authenticatedPage: page }) => {
     await page.goto('/review');
-    await page.waitForLoadState('networkidle');
 
     // Admin should see the review queue heading
     await expect(
@@ -83,7 +81,7 @@ test.describe('Admin role full access', () => {
 
   test('admin sees all settings sections', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     const settingsNav = await getSettingsNav(page);
 

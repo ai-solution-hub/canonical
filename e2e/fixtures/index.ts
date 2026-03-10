@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture `use()` is not a React hook */
 import { test as testDataTest, type WorkerData } from './test-data-fixture';
+import { expect } from '@playwright/test';
 import type { Page, BrowserContext } from '@playwright/test';
 import { hideDevOverlays } from '../helpers/dev-overlays';
 
@@ -30,7 +31,7 @@ export const test = testDataTest.extend<CombinedFixtures>({
   authenticatedPage: async ({ page }, use) => {
     await hideDevOverlays(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
     await use(page);
   },
 
@@ -41,7 +42,7 @@ export const test = testDataTest.extend<CombinedFixtures>({
     const page = await ctx.newPage();
     await hideDevOverlays(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
     await use(page);
     await ctx.close();
   },
@@ -53,7 +54,7 @@ export const test = testDataTest.extend<CombinedFixtures>({
     const page = await ctx.newPage();
     await hideDevOverlays(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
     await use(page);
     await ctx.close();
   },

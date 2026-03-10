@@ -12,7 +12,7 @@ import { getSettingsNav, navigateToSettingsSection } from '../helpers/responsive
 test.describe('Settings page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
   });
 
   test('settings page loads with heading', async ({ authenticatedPage: page }) => {
@@ -120,7 +120,7 @@ test.describe('Settings page', () => {
   test('settings page loads directly via section query param', async ({ authenticatedPage: page }) => {
     // Navigate directly to the team section via URL
     await page.goto('/settings?section=team');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     const settingsNav = await getSettingsNav(page);
     await expect(
@@ -130,7 +130,7 @@ test.describe('Settings page', () => {
 
   test('invalid section param falls back to profile', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=nonexistent');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     // Should fall back to the profile section
     const settingsNav = await getSettingsNav(page);
@@ -143,7 +143,7 @@ test.describe('Settings page', () => {
 test.describe('Settings — section content', () => {
   test('profile section shows user information', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=profile');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     // The profile section should display user-related content
     // Scope to the main content area to avoid matching sidebar/header text
@@ -155,7 +155,7 @@ test.describe('Settings — section content', () => {
 
   test('integrations section loads', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=integrations');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     // Integrations section should show MCP connection details
     // Scope to the main content area to avoid matching sidebar text
@@ -167,7 +167,7 @@ test.describe('Settings — section content', () => {
 
   test('team section shows user management for admins', async ({ authenticatedPage: page }) => {
     await page.goto('/settings?section=team');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible({ timeout: 10000 });
 
     // Team section should show the Team Members heading
     const main = page.locator('main');
@@ -180,7 +180,7 @@ test.describe('Settings — section content', () => {
 test.describe('Settings — navigation via site header', () => {
   test('settings button in header navigates to settings page', async ({ authenticatedPage: page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await expect(page.getByRole('link', { name: 'Knowledge Hub' })).toBeVisible({ timeout: 10000 });
 
     // Click the Settings icon button in the site header (not the ThemeSettings
     // "Appearance settings" button). Scope to <header> and use exact: true.

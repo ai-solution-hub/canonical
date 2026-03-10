@@ -51,8 +51,9 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('can enter email and proceed to method selection', async ({ page }) => {
     await page.goto('/login');
 
-    await page.getByLabel('Email address').waitFor({ state: 'visible' });
-    await page.getByLabel('Email address').fill('user@example.co.uk');
+    const emailInput = page.getByLabel('Email address');
+    await expect(emailInput).toBeFocused({ timeout: 5000 });
+    await emailInput.fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Step 2: method selection should show "Welcome back" and both options
@@ -66,9 +67,9 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('shows password input after choosing password method', async ({ page }) => {
     await page.goto('/login');
 
-    // Wait for the email input to be ready before interacting
-    await page.getByLabel('Email address').waitFor({ state: 'visible' });
-    await page.getByLabel('Email address').fill('user@example.co.uk');
+    const emailInput = page.getByLabel('Email address');
+    await expect(emailInput).toBeFocused({ timeout: 5000 });
+    await emailInput.fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Choose password method
@@ -102,8 +103,9 @@ baseTest.describe('Authentication — unauthenticated access', () => {
     await page.goto('/login');
 
     const testEmail = 'user@example.co.uk';
-    await page.getByLabel('Email address').waitFor({ state: 'visible' });
-    await page.getByLabel('Email address').fill(testEmail);
+    const emailInput = page.getByLabel('Email address');
+    await expect(emailInput).toBeFocused({ timeout: 5000 });
+    await emailInput.fill(testEmail);
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // Click the "Send magic link" option — this triggers the OTP call
@@ -121,9 +123,9 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('back button navigates between login steps', async ({ page }) => {
     await page.goto('/login');
 
-    // Wait for the email input to be ready before interacting
-    await page.getByLabel('Email address').waitFor({ state: 'visible' });
-    await page.getByLabel('Email address').fill('user@example.co.uk');
+    const emailInput = page.getByLabel('Email address');
+    await expect(emailInput).toBeFocused({ timeout: 5000 });
+    await emailInput.fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
     // On method step — go back
@@ -154,10 +156,7 @@ authTest.describe('Authentication — authenticated session', () => {
 
     for (const path of pages) {
       await page.goto(path);
-      await page.waitForLoadState('networkidle');
-
-      // Should stay on the target page, not redirected to login
-      await expect(page).not.toHaveURL(/\/login/);
+      await expect(page).not.toHaveURL(/\/login/, { timeout: 10000 });
     }
   });
 

@@ -12,7 +12,6 @@ import { searchFromHeader } from '../helpers/responsive';
 test.describe('Browse page', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/browse');
-    await page.waitForLoadState('networkidle');
   });
 
   test('browse page loads with heading and content', async ({ authenticatedPage: page }) => {
@@ -60,7 +59,7 @@ test.describe('Browse page', () => {
     // The filters button has a SlidersHorizontal icon and text "Filters"
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.scrollIntoViewIfNeeded();
-    await filtersButton.click({ force: true });
+    await filtersButton.click();
 
     // The filter panel is a Sheet that appears on the right side.
     // Scope assertions to the Sheet dialog to avoid matching domain badges
@@ -84,7 +83,7 @@ test.describe('Browse page', () => {
 
     if (await sortTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
       await sortTrigger.scrollIntoViewIfNeeded();
-      await sortTrigger.click({ force: true });
+      await sortTrigger.click();
 
       // Should show sort options in the dropdown listbox
       const listbox = page.getByRole('listbox');
@@ -130,7 +129,6 @@ test.describe('Browse page', () => {
 test.describe('Search', () => {
   test('compact search bar in header accepts input', async ({ authenticatedPage: page }) => {
     await page.goto('/browse');
-    await page.waitForLoadState('networkidle');
 
     // Use the responsive helper — works on both mobile and desktop
     await searchFromHeader(page, 'IT support');
@@ -141,7 +139,6 @@ test.describe('Search', () => {
 
   test('search page loads and shows results for a query', async ({ authenticatedPage: page }) => {
     await page.goto('/search?q=IT+support');
-    await page.waitForLoadState('networkidle');
 
     // Either search results appear or an empty/no-results message
     const hasResults = page.locator('a[href^="/item/"]').first();
@@ -152,7 +149,6 @@ test.describe('Search', () => {
 
   test('search results link to item detail pages', async ({ authenticatedPage: page }) => {
     await page.goto('/search?q=SLA');
-    await page.waitForLoadState('networkidle');
 
     // Wait for results to load
     const firstResult = page.locator('a[href^="/item/"]').first();

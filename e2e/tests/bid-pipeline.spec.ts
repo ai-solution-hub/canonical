@@ -1,0 +1,474 @@
+import { test, expect } from '../fixtures';
+import { isMobileViewport } from '../helpers/responsive';
+import {
+  createTestBid,
+} from '../helpers/data-factory';
+import { createServiceClient } from '../fixtures/supabase';
+
+/**
+ * Flow: Bid Pipeline
+ *
+ * Tests for the Bid Pipeline pages covering the bid list (/bid),
+ * bid detail (/bid/[id]), status filters, role-based behaviour,
+ * bid creation form, and mobile responsiveness.
+ *
+ * Worker-scoped data provides one bid in "drafting" state with
+ * 4 questions and 2 responses (see test-data-fixture.ts).
+ */
+
+// ---------------------------------------------------------------------------
+// 1. Bid List Page (/bid)
+// ---------------------------------------------------------------------------
+
+test.describe('Bid list page', () => {
+  test('bid list page loads with heading', async ({ authenticatedPage: page }) => {
+    await page.goto('/bid');
+
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await expect(
+      page.getByText('Manage bid submissions and tender responses'),
+    ).toBeVisible();
+  });
+
+  test('bid cards display key information', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto('/bid');
+
+    // Wait for bid cards to load
+    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    await expect(bidCard).toBeVisible({ timeout: 10000 });
+
+    // Bid name (with prefix)
+    await expect(bidCard.getByText('IT Support Services')).toBeVisible();
+
+    // Status badge — bid is in "drafting" state, label is "Drafting"
+    await expect(bidCard.getByText('Drafting')).toBeVisible();
+
+    // Buyer
+    await expect(bidCard.getByText('E2E Test Corp')).toBeVisible();
+  });
+
+  test('status filter buttons are displayed', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+
+    // Wait for content to load
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Filter group
+    const filterGroup = page.getByRole('group', { name: 'Filter by status' });
+    await expect(filterGroup).toBeVisible({ timeout: 10000 });
+
+    // Each filter button
+    for (const label of ['All', 'Draft', 'Active', 'Submitted', 'Completed']) {
+      await expect(
+        filterGroup.getByRole('button', { name: label }),
+      ).toBeVisible();
+    }
+  });
+
+  test('status filter: Active shows only active bids', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    // The worker bid is in "drafting" state which maps to "Active" filter.
+    // Create a "draft" state bid to verify it is hidden when Active is selected.
+    const draftBidId = await createTestBid(workerData.prefix, {
+      name: `${workerData.prefix} Draft Filter Test ${Date.now()}`,
+    });
+
+    try {
+      await page.goto('/bid');
+
+      const filterGroup = page.getByRole('group', { name: 'Filter by status' });
+      await expect(filterGroup).toBeVisible({ timeout: 10000 });
+
+      // Click "Active" filter
+      await filterGroup.getByRole('button', { name: 'Active' }).click();
+
+      // Worker bid (drafting state = Active) should remain visible
+      const workerCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+      await expect(workerCard).toBeVisible();
+
+      // Draft bid should be hidden
+      const draftCard = page.locator(`a[href="/bid/${draftBidId}"]`);
+      await expect(draftCard).not.toBeVisible();
+    } finally {
+      // Clean up the temporary bid
+      const supabase = createServiceClient();
+      await supabase.from('workspaces').delete().eq('id', draftBidId);
+    }
+  });
+
+  test('status filter: shows empty message when no matches', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+
+    const filterGroup = page.getByRole('group', { name: 'Filter by status' });
+    await expect(filterGroup).toBeVisible({ timeout: 10000 });
+
+    // Click "Completed" filter — no won/lost/withdrawn bids exist in worker data
+    await filterGroup.getByRole('button', { name: 'Completed' }).click();
+
+    await expect(
+      page.getByText('No bids match the selected filter.'),
+    ).toBeVisible();
+  });
+
+  test('bid card links to detail page', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto('/bid');
+
+    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    await expect(bidCard).toBeVisible({ timeout: 10000 });
+
+    await bidCard.click();
+
+    await expect(page).toHaveURL(`/bid/${workerData.bidId}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. Bid Creation Form
+// ---------------------------------------------------------------------------
+
+test.describe('Bid creation form', () => {
+  test('create dialog opens on New Bid click', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.getByRole('button', { name: 'New Bid' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('heading', { name: 'Create New Bid' }),
+    ).toBeVisible();
+  });
+
+  test('create dialog has required fields', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.getByRole('button', { name: 'New Bid' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Required fields (marked with *)
+    await expect(dialog.getByLabel(/Bid Name/)).toBeVisible();
+    await expect(dialog.getByLabel(/Buyer/)).toBeVisible();
+
+    // Optional fields
+    await expect(dialog.getByLabel('Submission Deadline')).toBeVisible();
+    await expect(dialog.getByLabel('Reference Number')).toBeVisible();
+    await expect(dialog.getByLabel('Estimated Value')).toBeVisible();
+    await expect(dialog.getByLabel('Notes')).toBeVisible();
+  });
+
+  test('create button disabled without required fields', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await page.getByRole('button', { name: 'New Bid' }).click();
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+
+    // Create Bid button should be disabled when name and buyer are empty
+    const createButton = dialog.getByRole('button', { name: 'Create Bid' });
+    await expect(createButton).toBeDisabled();
+
+    // Fill only name — still disabled
+    await dialog.getByLabel(/Bid Name/).fill('Test Bid');
+    await expect(createButton).toBeDisabled();
+
+    // Fill buyer too — now enabled
+    await dialog.getByLabel(/Buyer/).fill('Test Buyer');
+    await expect(createButton).toBeEnabled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Bid Detail Page (/bid/[id])
+// ---------------------------------------------------------------------------
+
+test.describe('Bid detail page', () => {
+  test('detail page loads with bid name and status', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    // Heading with bid name
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // BidStateBadge with "Drafting" label (bid is in drafting state)
+    await expect(page.getByText('Drafting').first()).toBeVisible();
+  });
+
+  test('detail page shows buyer and deadline', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Buyer
+    await expect(page.getByText('E2E Test Corp')).toBeVisible();
+
+    // Deadline — formatted in UK date format (DD/MM/YYYY)
+    // The deadline is 14 days from fixture seeding time; just verify
+    // a date-like string is present near the calendar icon
+    const deadlineSpan = page.locator('span').filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ });
+    await expect(deadlineSpan.first()).toBeVisible();
+  });
+
+  test('state stepper is displayed', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // BidStateStepper has role="list" with aria-label="Bid progress"
+    const stepper = page.getByRole('list', { name: 'Bid progress' });
+    await expect(stepper).toBeVisible();
+
+    // Should have step indicators (listitems)
+    const steps = stepper.getByRole('listitem');
+    await expect(steps.first()).toBeVisible();
+  });
+
+  test('tab navigation shows Overview, Questions, Responses, Documents', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Tab nav with aria-label "Bid sections"
+    const tabNav = page.getByRole('navigation', { name: 'Bid sections' });
+    await expect(tabNav).toBeVisible();
+
+    // Tab buttons
+    for (const tabName of ['Overview', 'Questions', 'Responses', 'Documents']) {
+      await expect(
+        tabNav.getByRole('button', { name: tabName }),
+      ).toBeVisible();
+    }
+  });
+
+  test('overview tab shows progress section', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Overview is the default tab — "Progress" heading should be visible
+    await expect(
+      page.getByRole('heading', { name: 'Progress' }),
+    ).toBeVisible();
+
+    // Should show question progress text (bid has 4 questions)
+    await expect(
+      page.getByText(/of \d+ questions drafted/),
+    ).toBeVisible();
+  });
+
+  test('questions tab shows question list', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Click the Questions tab
+    const tabNav = page.getByRole('navigation', { name: 'Bid sections' });
+    await tabNav.getByRole('button', { name: 'Questions' }).click();
+
+    // Verify one of the seeded questions is visible
+    await expect(
+      page.getByText('Describe your approach to providing IT support services.'),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test('back to bids link works', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // "Back to Bids" link
+    const backLink = page.getByRole('link', { name: 'Back to Bids' });
+    await expect(backLink).toBeVisible();
+
+    await backLink.click();
+
+    await expect(page).toHaveURL('/bid');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. Role-Based Behaviour
+// ---------------------------------------------------------------------------
+
+test.describe('Bid role gating', () => {
+  test('New Bid button visible for admin', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await expect(
+      page.getByRole('button', { name: 'New Bid' }),
+    ).toBeVisible();
+  });
+
+  test('New Bid button visible for editor', async ({ editorPage: page }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await expect(
+      page.getByRole('button', { name: 'New Bid' }),
+    ).toBeVisible();
+  });
+
+  test('New Bid button hidden for viewer', async ({ viewerPage: page }) => {
+    await page.goto('/bid');
+    await expect(
+      page.getByRole('heading', { name: 'Bids' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    await expect(
+      page.getByRole('button', { name: 'New Bid' }),
+    ).not.toBeVisible();
+  });
+
+  test('viewer cannot see action buttons on detail page', async ({
+    viewerPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Viewer should not see state transition buttons, Open Session, or More actions
+    await expect(
+      page.getByRole('button', { name: 'Open Session' }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('link', { name: 'Open Session' }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'More actions' }),
+    ).not.toBeVisible();
+  });
+
+  test('admin sees delete option in more actions menu', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // "More actions" button (the icon button with sr-only text)
+    const moreButton = page.getByRole('button', { name: 'More actions' });
+    await expect(moreButton).toBeVisible();
+
+    await moreButton.click();
+
+    // Dropdown menu item "Delete bid"
+    await expect(
+      page.getByRole('menuitem', { name: 'Delete bid' }),
+    ).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. Mobile-Specific
+// ---------------------------------------------------------------------------
+
+test.describe('Bid mobile layout', () => {
+  test('bid cards stack vertically on mobile', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    // Only meaningful on mobile viewport
+    if (!isMobileViewport(page)) {
+      test.skip();
+      return;
+    }
+
+    await page.goto('/bid');
+
+    const bidCard = page.locator(`a[href="/bid/${workerData.bidId}"]`);
+    await expect(bidCard).toBeVisible({ timeout: 10000 });
+
+    // On mobile, the grid should be single column (no sm:grid-cols-2).
+    // Verify the grid container does not have the multi-column class applied.
+    const grid = page.locator('.grid.gap-4').first();
+    const gridBox = await grid.boundingBox();
+    const cardBox = await bidCard.boundingBox();
+
+    // Card should be nearly full-width of the grid (single column)
+    if (gridBox && cardBox) {
+      const widthRatio = cardBox.width / gridBox.width;
+      expect(widthRatio).toBeGreaterThan(0.9);
+    }
+  });
+});

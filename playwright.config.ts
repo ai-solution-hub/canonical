@@ -43,6 +43,7 @@ export default defineConfig({
       name: 'chromium-mobile',
       use: {
         ...devices['Pixel 5'],
+        hasTouch: false, // Use mouse events — testing layout, not touch gestures
         storageState: authFile,
       },
       dependencies: ['setup'],
