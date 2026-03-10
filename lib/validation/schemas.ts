@@ -610,6 +610,58 @@ export const XlsxExportBodySchema = z.object({
 
 const VALID_TAG_TYPES = ['user', 'ai'] as const;
 
+/**
+ * Proper nouns, acronyms, and named standards that preserve their casing.
+ * Mirrors the Python PROPER_NOUN_ALLOWLIST in classify.py.
+ */
+const TAG_PROPER_NOUN_ALLOWLIST: ReadonlyMap<string, string> = new Map([
+  ['iso 27001', 'ISO 27001'],
+  ['iso 9001', 'ISO 9001'],
+  ['iso 14001', 'ISO 14001'],
+  ['iso 22301', 'ISO 22301'],
+  ['gdpr', 'GDPR'],
+  ['itil', 'ITIL'],
+  ['prince2', 'PRINCE2'],
+  ['cyber essentials', 'Cyber Essentials'],
+  ['cyber essentials plus', 'Cyber Essentials Plus'],
+  ['companies house', 'Companies House'],
+  ['nhs', 'NHS'],
+  ['ncsc', 'NCSC'],
+  ['ico', 'ICO'],
+  ['fca', 'FCA'],
+  ['hmrc', 'HMRC'],
+  ['pci dss', 'PCI DSS'],
+  ['soc 2', 'SOC 2'],
+  ['nist', 'NIST'],
+  ['owasp', 'OWASP'],
+]);
+
+/**
+ * Normalise a tag for consistent storage.
+ * - Trims whitespace
+ * - Preserves known proper nouns/acronyms
+ * - Lowercases everything else
+ * - Converts simple English plurals to singular (trailing 's')
+ */
+export function normaliseTag(tag: string): string {
+  tag = tag.trim();
+  if (!tag) return tag;
+
+  // Check if it is a known proper noun (case-insensitive)
+  const canonical = TAG_PROPER_NOUN_ALLOWLIST.get(tag.toLowerCase());
+  if (canonical !== undefined) return canonical;
+
+  // Lowercase
+  tag = tag.toLowerCase();
+
+  // Simple singular: strip trailing 's' unless word is short, ends in 'ss', or 'us'
+  if (tag.length > 3 && tag.endsWith('s') && !tag.endsWith('ss') && !tag.endsWith('us')) {
+    tag = tag.slice(0, -1);
+  }
+
+  return tag;
+}
+
 /** DELETE /api/tags */
 export const TagDeleteBodySchema = z.object({
   tag: z.string().trim().min(1, 'Tag is required').max(100),
@@ -619,14 +671,14 @@ export const TagDeleteBodySchema = z.object({
 /** POST /api/tags/rename */
 export const TagRenameBodySchema = z.object({
   old: z.string().trim().min(1, 'Old tag name is required').max(100),
-  new: z.string().trim().min(1, 'New tag name is required').max(100),
+  new: z.string().trim().min(1, 'New tag name is required').max(100).transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 
 /** POST /api/tags/merge */
 export const TagMergeBodySchema = z.object({
   source: z.string().trim().min(1, 'Source tag is required').max(100),
-  target: z.string().trim().min(1, 'Target tag is required').max(100),
+  target: z.string().trim().min(1, 'Target tag is required').max(100).transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 

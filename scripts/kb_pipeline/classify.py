@@ -23,6 +23,75 @@ logger = logging.getLogger(__name__)
 _valid_domains: Optional[List[str]] = None
 _valid_subtopics: Optional[List[str]] = None
 
+# ──────────────────────────────────────────
+# Keyword normalisation
+# ──────────────────────────────────────────
+
+# Proper nouns, acronyms, and named standards that must preserve their casing.
+# Checked via case-insensitive exact match against the full keyword string.
+PROPER_NOUN_ALLOWLIST = frozenset([
+    "ISO 27001",
+    "ISO 9001",
+    "ISO 14001",
+    "ISO 22301",
+    "GDPR",
+    "ITIL",
+    "PRINCE2",
+    "Cyber Essentials",
+    "Cyber Essentials Plus",
+    "Companies House",
+    "NHS",
+    "NCSC",
+    "ICO",
+    "FCA",
+    "HMRC",
+    "PCI DSS",
+    "SOC 2",
+    "NIST",
+    "OWASP",
+])
+
+# Build a lookup from lowered form → canonical form for O(1) matching
+_PROPER_NOUN_LOOKUP = {pn.lower(): pn for pn in PROPER_NOUN_ALLOWLIST}
+
+
+def _to_singular(kw: str) -> str:
+    """Convert simple English plurals to singular form.
+
+    Handles trailing 's' only — does not attempt irregular plurals
+    (e.g. 'policies' → 'policy'). Short words (<=3 chars) are left unchanged
+    to avoid mangling words like 'bus', 'gas', 'SaaS'.
+    """
+    # Don't singularise very short words or words ending in 'ss' (e.g. 'access')
+    if len(kw) <= 3 or kw.endswith("ss"):
+        return kw
+    if kw.endswith("s") and not kw.endswith("us"):
+        return kw[:-1]
+    return kw
+
+
+def normalise_keyword(kw: str) -> str:
+    """Normalise an AI keyword for consistent storage.
+
+    - Strips whitespace
+    - Preserves known proper nouns/acronyms (hardcoded allowlist)
+    - Lowercases everything else
+    - Converts to singular form for simple English plurals (trailing 's')
+    """
+    kw = kw.strip()
+    if not kw:
+        return kw
+
+    # Check if the entire keyword is a known proper noun (case-insensitive)
+    canonical = _PROPER_NOUN_LOOKUP.get(kw.lower())
+    if canonical is not None:
+        return canonical
+
+    # Lowercase and singularise
+    kw = kw.lower()
+    kw = _to_singular(kw)
+    return kw
+
 
 @dataclass
 class ClassificationResult:
@@ -138,7 +207,7 @@ def classify(
         secondary_subtopic=parsed.get("secondary_subtopic"),
         suggested_title=parsed.get("suggested_title", ""),
         ai_summary=parsed.get("ai_summary", ""),
-        ai_keywords=parsed.get("ai_keywords", []),
+        ai_keywords=[normalise_keyword(kw) for kw in parsed.get("ai_keywords", [])],
         reasoning=parsed.get("reasoning", ""),
         is_fragment=flags.get("is_fragment", False),
         uncertain=flags.get("uncertain", False),
