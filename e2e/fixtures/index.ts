@@ -1,7 +1,22 @@
 /* eslint-disable react-hooks/rules-of-hooks -- Playwright fixture `use()` is not a React hook */
-import { test as base, type Page, type BrowserContext } from '@playwright/test';
+import { test as testDataTest, type WorkerData } from './test-data-fixture';
+import type { Page, BrowserContext } from '@playwright/test';
 
-type AuthFixtures = {
+/**
+ * Combined test fixture merging auth + worker-scoped test data.
+ *
+ * Provides:
+ * - `authenticatedPage` — admin page (from storageState, default)
+ * - `editorPage` — editor role page (separate browser context)
+ * - `viewerPage` — viewer role page (separate browser context)
+ * - `workerData` — per-worker isolated test data (3 items, 1 workspace, 1 bid)
+ *
+ * Usage:
+ *   import { test, expect } from '../fixtures';
+ *   test('my test', async ({ authenticatedPage, workerData }) => { ... });
+ */
+
+type CombinedFixtures = {
   /** A page with an authenticated admin session (default). */
   authenticatedPage: Page;
   /** A page with an authenticated editor session. */
@@ -10,17 +25,7 @@ type AuthFixtures = {
   viewerPage: Page;
 };
 
-/**
- * Extended test fixture that provides authenticated pages for all 3 roles.
- *
- * The setup project (auth.setup.ts) runs first and saves authenticated
- * browser state for admin, editor, and viewer to e2e/.auth/*.json.
- *
- * - `authenticatedPage` uses admin state (loaded via project storageState)
- * - `editorPage` creates a new context with editor state
- * - `viewerPage` creates a new context with viewer state
- */
-export const test = base.extend<AuthFixtures>({
+export const test = testDataTest.extend<CombinedFixtures>({
   authenticatedPage: async ({ page }, use) => {
     // Storage state is already loaded by the project config —
     // just navigate to the app.
@@ -53,3 +58,4 @@ export const test = base.extend<AuthFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { WorkerData };

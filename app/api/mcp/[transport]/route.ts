@@ -63,14 +63,14 @@ async function verifyToken(bearerToken?: string): Promise<AuthInfo | undefined> 
 // Server factory — creates a fresh McpServer with all tools/resources/prompts
 // ---------------------------------------------------------------------------
 
-function createMcpServer(): McpServer {
+async function createMcpServer(): Promise<McpServer> {
   const server = new McpServer(
     { name: 'knowledge-hub', version: '1.0.0' },
     { capabilities: { tools: {}, resources: {}, prompts: {} } },
   );
 
-  registerTools(server);
-  registerResources(server);
+  await registerTools(server);
+  await registerResources(server);
   registerPrompts(server);
 
   return server;
@@ -107,7 +107,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
   // Create fresh server + transport for each request.
   // This avoids the mcp-handler bug where shared transports get corrupted
   // on warm Vercel serverless instances.
-  const server = createMcpServer();
+  const server = await createMcpServer();
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // stateless mode
     enableJsonResponse: true,

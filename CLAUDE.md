@@ -295,6 +295,7 @@ exists for your use case, define one in `app/globals.css` first.
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 | AI integration layers | `docs/reference/ai-integration-layers.md` | 5-layer architecture: how MCP, plugin, skills, CopilotKit interconnect |
+| MCP App build guide | `docs/reference/mcp-app-build-guide.md` | How to create, build, test, and deploy MCP Apps (lifecycle, patterns, Vercel) |
 
 ### Remaining Roadmap
 

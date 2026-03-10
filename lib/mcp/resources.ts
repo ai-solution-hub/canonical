@@ -1,7 +1,7 @@
 /**
  * MCP resource and prompt registrations for the Knowledge Hub server.
  *
- * Resources (7):
+ * Resources (9):
  *   - kb://items/{id}    — Full content item with metadata
  *   - kb://bids/{id}     — Bid with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
@@ -9,6 +9,8 @@
  *   - kb://dashboard     — Current dashboard state
  *   - kb://taxonomy      — Domains and subtopics
  *   - kb://entities      — Entity overview with types, counts, and top entities
+ *   - ui://coverage-matrix/app.html   — Coverage Matrix MCP App (interactive UI)
+ *   - ui://bid-dashboard/app.html     — Bid Dashboard MCP App (interactive UI)
  *
  * Prompts (5):
  *   - reorient           — "What has changed since I was last active?"
@@ -37,7 +39,7 @@ type Extra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 // Resources
 // ---------------------------------------------------------------------------
 
-export function registerResources(server: McpServer): void {
+export async function registerResources(server: McpServer): Promise<void> {
   // 1. kb://items/{id} — Content item
   server.registerResource(
     'content_item',
@@ -455,6 +457,67 @@ export function registerResources(server: McpServer): void {
           }],
         };
       }
+    },
+  );
+
+  // 8. ui://coverage-matrix/app.html — Coverage Matrix MCP App
+  const { registerAppResource, RESOURCE_MIME_TYPE } = await import('@modelcontextprotocol/ext-apps/server');
+
+  // Lazy import — keeps the ~400 KB HTML string out of module evaluation
+  async function getAppBundles() {
+    return await import('@/lib/mcp/app-bundles');
+  }
+
+  registerAppResource(
+    server,
+    'Coverage Matrix App',
+    'ui://coverage-matrix/app.html',
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => {
+      const { COVERAGE_MATRIX_HTML } = await getAppBundles();
+      if (!COVERAGE_MATRIX_HTML) {
+        return {
+          contents: [{
+            uri: 'ui://coverage-matrix/app.html',
+            mimeType: 'text/plain',
+            text: 'Coverage Matrix app not built. Run: bun run build:mcp-apps',
+          }],
+        };
+      }
+      return {
+        contents: [{
+          uri: 'ui://coverage-matrix/app.html',
+          mimeType: RESOURCE_MIME_TYPE,
+          text: COVERAGE_MATRIX_HTML,
+        }],
+      };
+    },
+  );
+
+  // 9. ui://bid-dashboard/app.html — Bid Dashboard MCP App
+  registerAppResource(
+    server,
+    'Bid Dashboard App',
+    'ui://bid-dashboard/app.html',
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => {
+      const { BID_DASHBOARD_HTML } = await getAppBundles();
+      if (!BID_DASHBOARD_HTML) {
+        return {
+          contents: [{
+            uri: 'ui://bid-dashboard/app.html',
+            mimeType: 'text/plain',
+            text: 'Bid Dashboard app not built.',
+          }],
+        };
+      }
+      return {
+        contents: [{
+          uri: 'ui://bid-dashboard/app.html',
+          mimeType: RESOURCE_MIME_TYPE,
+          text: BID_DASHBOARD_HTML,
+        }],
+      };
     },
   );
 }

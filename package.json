@@ -14,7 +14,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build"
+    "bundle:mcp-apps": "bun run scripts/bundle-mcp-apps.ts",
+    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
+    "build:plugin": "bun run scripts/bundle-plugin.ts",
+    "vercel-build": "bun run build:mcp-apps && bun run build:plugin && next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.78.0",
