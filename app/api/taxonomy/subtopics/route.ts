@@ -55,8 +55,9 @@ export async function POST(request: NextRequest) {
         name,
         display_order: order,
         is_active: true,
+        provenance: 'client',
       })
-      .select('id, domain_id, name, display_order, is_active')
+      .select('id, domain_id, name, display_order, is_active, provenance')
       .single();
 
     if (error) {

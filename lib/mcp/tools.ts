@@ -158,12 +158,12 @@ export async function registerTools(server: McpServer): Promise<void> {
     'search_knowledge_base',
     {
       title: 'Search Knowledge Base',
-      description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: Security, IT & Infrastructure, Compliance & Governance, Quality & Standards, People & Culture, Operations, Commercial, Sustainability. Use the kb://taxonomy resource for the full subtopic list.',
+      description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: security, compliance, implementation, support, corporate, product-feature, methodology. Use the kb://taxonomy resource for the full subtopic list.',
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
         offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-        domain: z.string().optional().describe('Filter results to a specific domain. Valid values: Security, IT & Infrastructure, Compliance & Governance, Quality & Standards, People & Culture, Operations, Commercial, Sustainability'),
+        domain: z.string().optional().describe('Filter results to a specific domain. Valid values: security, compliance, implementation, support, corporate, product-feature, methodology'),
       },
       annotations: {
         readOnlyHint: true,

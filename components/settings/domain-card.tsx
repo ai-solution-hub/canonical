@@ -105,7 +105,7 @@ export function DomainCard({
             >
               {domain.is_active ? 'Active' : 'Inactive'}
             </Badge>
-            {domain.provenance && (
+            {domain.provenance && domain.provenance !== 'baseline' && (
               <ProvenanceBadge provenance={domain.provenance} />
             )}
           </div>
@@ -206,7 +206,7 @@ export function DomainCard({
                       >
                         {sub.is_active ? 'Active' : 'Inactive'}
                       </Badge>
-                      {sub.provenance && (
+                      {sub.provenance && sub.provenance !== 'baseline' && (
                         <ProvenanceBadge provenance={sub.provenance} />
                       )}
                     </div>

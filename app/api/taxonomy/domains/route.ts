@@ -85,8 +85,9 @@ export async function POST(request: NextRequest) {
         colour: colour ?? null,
         display_order: order,
         is_active: true,
+        provenance: 'client',
       })
-      .select('id, name, display_order, colour, is_active')
+      .select('id, name, display_order, colour, is_active, provenance')
       .single();
 
     if (error) {

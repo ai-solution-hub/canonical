@@ -247,9 +247,14 @@ export function buildCoreWorkspaces(bidDeadline: string): WorkspaceShape[] {
       },
     },
     {
-      name: 'Cloud Migration Project',
-      description: 'E2E worker-scoped project workspace.',
-      type: 'project',
+      name: 'Cloud Migration RFP',
+      description: 'E2E worker-scoped second bid workspace.',
+      type: 'bid',
+      domain_metadata: {
+        buyer: 'E2E Cloud Corp',
+        status: 'draft',
+        deadline: bidDeadline,
+      },
     },
   ];
 }
