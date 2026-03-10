@@ -58,6 +58,7 @@ export function CoverageCell({ data, formatSubtopic }: CoverageCellProps) {
   const searchParams = new URLSearchParams({
     domain: data.domain_name,
     subtopic: data.subtopic_name,
+    include_qa: 'true',
   });
 
   return (

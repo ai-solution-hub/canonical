@@ -11,6 +11,7 @@ import {
   FileText,
   BarChart3,
   Download,
+  Terminal,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,6 +25,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { ConnectedAppsSection } from '@/components/settings/connected-apps-section';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -206,6 +208,11 @@ export function IntegrationsSection() {
         </CardContent>
       </Card>
 
+      {/* Connected apps (OAuth grants) */}
+      <ConnectedAppsSection />
+
+      <Separator />
+
       {/* Download plugin */}
       <Card>
         <CardHeader>
@@ -265,6 +272,123 @@ export function IntegrationsSection() {
         </CardContent>
       </Card>
 
+      {/* Claude Code setup */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Terminal className="size-5" aria-hidden="true" />
+            Claude Code
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-sm text-muted-foreground">
+            Using Claude Code? The MCP connector works there too. Add it to your
+            project&apos;s MCP configuration to access Knowledge Hub tools
+            directly from the terminal.
+          </p>
+
+          <div className="flex flex-col gap-1.5">
+            <p id="mcp-config-label" className="text-sm font-medium leading-none">MCP configuration (paste into <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">.mcp.json</code>)</p>
+            <div className="flex items-start gap-2">
+              <pre
+                aria-labelledby="mcp-config-label"
+                className="flex-1 overflow-x-auto rounded-md border border-border bg-muted px-4 py-3 font-mono text-sm"
+              >{`{
+  "mcpServers": {
+    "knowledge-hub": {
+      "type": "http",
+      "url": "${mcpUrl}"
+    }
+  }
+}`}</pre>
+              <CopyButton
+                value={`{\n  "mcpServers": {\n    "knowledge-hub": {\n      "type": "http",\n      "url": "${mcpUrl}"\n    }\n  }\n}`}
+                label="Copy MCP configuration"
+              />
+            </div>
+          </div>
+
+          <Accordion type="single" collapsible>
+            <AccordionItem value="claude-code-setup" className="border-b-0">
+              <AccordionTrigger>Step-by-step instructions</AccordionTrigger>
+              <AccordionContent>
+                <ol className="flex list-none flex-col gap-3 text-sm text-muted-foreground" role="list">
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      1
+                    </span>
+                    <span>
+                      Create a{' '}
+                      <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
+                        .mcp.json
+                      </code>{' '}
+                      file in your project root (or add to an existing one)
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      2
+                    </span>
+                    <span>
+                      Paste the configuration above
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      3
+                    </span>
+                    <span>
+                      Start Claude Code &mdash; run{' '}
+                      <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
+                        claude
+                      </code>{' '}
+                      in your terminal
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      4
+                    </span>
+                    <span>
+                      Approve the MCP server connection when prompted
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      5
+                    </span>
+                    <span>
+                      Authenticate via the browser when the OAuth consent page opens
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium text-foreground">
+                      6
+                    </span>
+                    <span>
+                      Knowledge Hub tools are now available &mdash; try{' '}
+                      <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground">
+                        /mcp
+                      </code>{' '}
+                      to see connected tools
+                    </span>
+                  </li>
+                </ol>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          <p className="text-xs text-muted-foreground">
+            Optionally, download the plugin above for slash commands and
+            bid-writing skills. Place the extracted plugin folder in{' '}
+            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
+              ~/.claude/plugins/marketplaces/local/plugins/knowledge-hub/
+            </code>{' '}
+            and restart Claude Code.
+          </p>
+        </CardContent>
+      </Card>
+
       <Separator />
 
       {/* Quick start prompts */}
@@ -277,6 +401,7 @@ export function IntegrationsSection() {
           {QUICK_START_PROMPTS.map((prompt) => (
             <div
               key={prompt}
+              role="listitem"
               className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/50 px-4 py-3"
             >
               <p className="text-sm italic text-foreground">

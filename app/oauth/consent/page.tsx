@@ -136,7 +136,14 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
           </form>
 
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            You can revoke this access at any time from your settings.
+            You can revoke this access at any time from{' '}
+            <a
+              href="/settings?section=integrations"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              your settings
+            </a>
+            .
           </p>
         </CardContent>
       </Card>
