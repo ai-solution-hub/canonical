@@ -95,12 +95,12 @@ describe('Tags API', () => {
     it('returns 403 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
-      const response = await getTags();
+      const request = createTestRequest('/api/tags');
+      const response = await getTags(request);
       expect(response.status).toBe(403);
     });
 
     it('returns tag counts for authenticated user', async () => {
-      // getAuthorisedClient() defaults to allowing all roles
       configureRole(mockSupabase, 'viewer');
 
       const mockTagData = [
@@ -112,7 +112,8 @@ describe('Tags API', () => {
         error: null,
       });
 
-      const response = await getTags();
+      const request = createTestRequest('/api/tags');
+      const response = await getTags(request);
       expect(response.status).toBe(200);
 
       const body = await response.json();
@@ -127,7 +128,8 @@ describe('Tags API', () => {
         error: { message: 'Database error' },
       });
 
-      const response = await getTags();
+      const request = createTestRequest('/api/tags');
+      const response = await getTags(request);
       expect(response.status).toBe(500);
     });
 
@@ -139,7 +141,8 @@ describe('Tags API', () => {
         error: null,
       });
 
-      const response = await getTags();
+      const request = createTestRequest('/api/tags');
+      const response = await getTags(request);
       expect(response.status).toBe(200);
 
       const body = await response.json();
