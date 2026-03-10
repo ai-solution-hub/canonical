@@ -878,6 +878,7 @@ export type Database = {
       }
       taxonomy_domains: {
         Row: {
+          accepted_at: string | null
           colour: string | null
           created_at: string
           description: string | null
@@ -885,8 +886,12 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          provenance: string
+          recommended_at: string | null
+          recommended_by: string | null
         }
         Insert: {
+          accepted_at?: string | null
           colour?: string | null
           created_at?: string
           description?: string | null
@@ -894,8 +899,12 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          provenance?: string
+          recommended_at?: string | null
+          recommended_by?: string | null
         }
         Update: {
+          accepted_at?: string | null
           colour?: string | null
           created_at?: string
           description?: string | null
@@ -903,11 +912,15 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          provenance?: string
+          recommended_at?: string | null
+          recommended_by?: string | null
         }
         Relationships: []
       }
       taxonomy_subtopics: {
         Row: {
+          accepted_at: string | null
           created_at: string
           description: string | null
           display_order: number
@@ -915,8 +928,12 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          provenance: string
+          recommended_at: string | null
+          recommended_by: string | null
         }
         Insert: {
+          accepted_at?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -924,8 +941,12 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          provenance?: string
+          recommended_at?: string | null
+          recommended_by?: string | null
         }
         Update: {
+          accepted_at?: string | null
           created_at?: string
           description?: string | null
           display_order?: number
@@ -933,6 +954,9 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          provenance?: string
+          recommended_at?: string | null
+          recommended_by?: string | null
         }
         Relationships: [
           {

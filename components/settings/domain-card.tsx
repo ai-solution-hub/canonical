@@ -11,7 +11,7 @@ import { formatDomainName, formatSubtopic } from '@/lib/taxonomy-format';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import type { AdminDomain, AdminSubtopic } from '@/hooks/use-taxonomy-admin';
+import type { AdminDomain, AdminSubtopic, TaxonomyProvenance } from '@/hooks/use-taxonomy-admin';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -31,6 +31,30 @@ export interface DomainCardProps {
   onMoveSubtopic: (domainId: string, subtopicId: string, direction: 'up' | 'down') => Promise<void>;
   onAddSubtopic: (domainId: string) => void;
   onEditSubtopic: (subtopic: AdminSubtopic) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Provenance badge
+// ---------------------------------------------------------------------------
+
+const PROVENANCE_LABELS: Record<TaxonomyProvenance, string> = {
+  baseline: 'Baseline',
+  client: 'Client',
+  recommended: 'Recommended',
+};
+
+const PROVENANCE_VARIANTS: Record<TaxonomyProvenance, 'secondary' | 'outline' | 'default'> = {
+  baseline: 'secondary',
+  client: 'default',
+  recommended: 'outline',
+};
+
+function ProvenanceBadge({ provenance }: { provenance: TaxonomyProvenance }) {
+  return (
+    <Badge variant={PROVENANCE_VARIANTS[provenance]} className="shrink-0 text-[10px]">
+      {PROVENANCE_LABELS[provenance]}
+    </Badge>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +105,9 @@ export function DomainCard({
             >
               {domain.is_active ? 'Active' : 'Inactive'}
             </Badge>
+            {domain.provenance && (
+              <ProvenanceBadge provenance={domain.provenance} />
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             {domain.colour && (
@@ -179,7 +206,15 @@ export function DomainCard({
                       >
                         {sub.is_active ? 'Active' : 'Inactive'}
                       </Badge>
+                      {sub.provenance && (
+                        <ProvenanceBadge provenance={sub.provenance} />
+                      )}
                     </div>
+                    {sub.description && (
+                      <p className="text-xs text-muted-foreground">
+                        {sub.description}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       Order: {sub.display_order}
                     </p>

@@ -20,12 +20,15 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
+export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
+
 export interface TaxonomyDomain {
   id: string;
   name: string;
   display_order: number;
   colour: string | null;
   is_active: boolean;
+  provenance: TaxonomyProvenance;
 }
 
 export interface TaxonomySubtopic {
@@ -34,6 +37,8 @@ export interface TaxonomySubtopic {
   name: string;
   display_order: number;
   is_active: boolean;
+  provenance: TaxonomyProvenance;
+  description: string | null;
 }
 
 interface TaxonomyContextValue {
@@ -86,12 +91,12 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
       const [domainsResult, subtopicsResult] = await Promise.all([
         supabase
           .from('taxonomy_domains')
-          .select('id, name, display_order, colour, is_active')
+          .select('id, name, display_order, colour, is_active, provenance')
           .eq('is_active', true)
           .order('display_order', { ascending: true }),
         supabase
           .from('taxonomy_subtopics')
-          .select('id, domain_id, name, display_order, is_active')
+          .select('id, domain_id, name, display_order, is_active, provenance, description')
           .eq('is_active', true)
           .order('display_order', { ascending: true }),
       ]);

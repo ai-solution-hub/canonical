@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 // Types
 // ---------------------------------------------------------------------------
 
+export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
+
 export interface AdminDomain {
   id: string;
   name: string;
@@ -14,6 +16,7 @@ export interface AdminDomain {
   colour: string | null;
   is_active: boolean;
   subtopic_count: number;
+  provenance: TaxonomyProvenance;
 }
 
 export interface AdminSubtopic {
@@ -22,6 +25,8 @@ export interface AdminSubtopic {
   name: string;
   display_order: number;
   is_active: boolean;
+  provenance: TaxonomyProvenance;
+  description: string | null;
 }
 
 export interface UseTaxonomyAdminParams {
@@ -146,7 +151,7 @@ export function useTaxonomyAdmin({
       const supabase = createClient();
       const { data, error } = await supabase
         .from('taxonomy_subtopics')
-        .select('id, domain_id, name, display_order, is_active')
+        .select('id, domain_id, name, display_order, is_active, provenance, description')
         .eq('domain_id', domainId)
         .order('display_order', { ascending: true });
 
