@@ -1,4 +1,5 @@
-import { test, expect } from '../fixtures/auth';
+import { test, expect } from '../fixtures';
+import { searchFromHeader } from '../helpers/responsive';
 
 /**
  * Flow 2: Content Browse and Search
@@ -66,7 +67,7 @@ test.describe('Browse page', () => {
     const sheet = page.locator('[role="dialog"]');
     await expect(sheet).toBeVisible({ timeout: 5000 });
     await expect(
-      sheet.getByText('Filters').or(sheet.getByText('Content type')),
+      sheet.getByRole('heading', { name: 'Filters' }),
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -75,7 +76,6 @@ test.describe('Browse page', () => {
 
     // The sort control is a Radix Select inside the "View mode" group area.
     // Its trigger has role="combobox" and is inside the filter bar.
-    // Scope to the View mode group's parent to find the right combobox.
     const viewGroup = page.getByRole('group', { name: 'View mode' });
     // The sort select is a sibling of the view group, both inside the same
     // parent container. Find the combobox near the view group.
@@ -95,16 +95,15 @@ test.describe('Browse page', () => {
     }
   });
 
-  test('clicking a content item navigates to the detail page', async ({ authenticatedPage: page }) => {
+  test('clicking a content item navigates to the detail page', async ({ authenticatedPage: page, workerData }) => {
     await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
-    // Content items are rendered as links — find the first one
-    // Items in the grid are links to /item/[id]
-    const firstItemLink = page.getByRole('link', { name: /\[E2E Test\]/ }).first();
+    // Content items are rendered as links — try worker-specific items first
+    const workerItemLink = page.getByRole('link', { name: new RegExp(`\\${workerData.prefix}`) }).first();
 
-    // If E2E test items exist, click one
-    if (await firstItemLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await firstItemLink.click();
+    // If worker test items exist, click one
+    if (await workerItemLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await workerItemLink.click();
       await expect(page).toHaveURL(/\/item\//);
     } else {
       // Fall back to clicking any content link
@@ -131,17 +130,11 @@ test.describe('Search', () => {
     await page.goto('/browse');
     await page.waitForLoadState('networkidle');
 
-    // The site header contains a compact search bar (visible on desktop)
-    const searchInput = page.locator('header').getByRole('searchbox');
+    // Use the responsive helper — works on both mobile and desktop
+    await searchFromHeader(page, 'IT support');
 
-    // If searchbox is visible (desktop viewport), type a query
-    if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await searchInput.fill('IT support');
-      await searchInput.press('Enter');
-
-      // Should navigate to search results
-      await expect(page).toHaveURL(/\/search/);
-    }
+    // Should navigate to search results
+    await expect(page).toHaveURL(/\/search/);
   });
 
   test('search page loads and shows results for a query', async ({ authenticatedPage: page }) => {

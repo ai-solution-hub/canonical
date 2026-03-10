@@ -1,4 +1,5 @@
-import { test, expect } from '../fixtures/auth';
+import { test, expect } from '../fixtures';
+import { navigateViaHeader } from '../helpers/responsive';
 
 /**
  * Flow 8: Content Governance and Review
@@ -255,24 +256,9 @@ test.describe('Review page — queue state', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // On mobile, the Review link is inside the hamburger menu
-    const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
-    const isMobile = await hamburger.isVisible({ timeout: 2000 }).catch(() => false);
+    // Use responsive helper — opens hamburger on mobile, clicks directly on desktop
+    await navigateViaHeader(page, 'Review');
 
-    if (isMobile) {
-      await hamburger.click();
-      const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
-      const reviewLink = mobileNav.getByRole('link', { name: 'Review' });
-      if (await reviewLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await reviewLink.click();
-        await expect(page).toHaveURL(/\/review/);
-      }
-    } else {
-      const reviewLink = page.getByRole('link', { name: 'Review' });
-      if (await reviewLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-        await reviewLink.click();
-        await expect(page).toHaveURL(/\/review/);
-      }
-    }
+    await expect(page).toHaveURL(/\/review/);
   });
 });

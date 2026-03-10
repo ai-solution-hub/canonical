@@ -1,28 +1,36 @@
 import { test as setup, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 
-const authFile = 'e2e/.auth/state.json';
-
-setup('authenticate as admin', async ({ page }) => {
-  // Sign in via Supabase API to get tokens
+/**
+ * Authenticate a test user via the Supabase API and save browser state.
+ * Builds chunked auth cookies matching the @supabase/ssr format.
+ */
+async function loginAndSave(
+  page: import('@playwright/test').Page,
+  emailEnv: string,
+  passwordEnv: string,
+  defaultEmail: string,
+  defaultPassword: string,
+  savePath: string,
+): Promise<void> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error(
       'Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY env vars. ' +
-        'Ensure .env and .env.local are present.'
+        'Ensure .env and .env.local are present.',
     );
   }
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-  const email = process.env.TEST_USER_1_EMAIL || 'test.user1@test-kb-aish.co.uk';
-  const password = process.env.TEST_USER_1_PASSWORD || 'Welcome12391.';
+  const email = process.env[emailEnv] || defaultEmail;
+  const password = process.env[passwordEnv] || defaultPassword;
 
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.session) {
-    throw new Error(`Auth setup failed: ${error?.message ?? 'No session returned'}`);
+    throw new Error(`Auth setup failed for ${email}: ${error?.message ?? 'No session returned'}`);
   }
 
   // Build session cookies matching @supabase/ssr chunked format
@@ -63,6 +71,41 @@ setup('authenticate as admin', async ({ page }) => {
   // Verify we are NOT on the login page (auth succeeded)
   await expect(page).not.toHaveURL(/\/login/);
 
-  // Save the authenticated browser state (cookies + localStorage)
-  await page.context().storageState({ path: authFile });
+  // Save the authenticated browser state
+  await page.context().storageState({ path: savePath });
+}
+
+// --- Authenticate all 3 test users ---
+
+setup('authenticate as admin', async ({ page }) => {
+  await loginAndSave(
+    page,
+    'TEST_USER_1_EMAIL',
+    'TEST_USER_1_PASSWORD',
+    'test.user1@test-kb-aish.co.uk',
+    'Welcome12391.',
+    'e2e/.auth/admin.json',
+  );
+});
+
+setup('authenticate as editor', async ({ page }) => {
+  await loginAndSave(
+    page,
+    'TEST_USER_2_EMAIL',
+    'TEST_USER_2_PASSWORD',
+    'test.user2@test-kb-aish.co.uk',
+    'Welcome12391.',
+    'e2e/.auth/editor.json',
+  );
+});
+
+setup('authenticate as viewer', async ({ page }) => {
+  await loginAndSave(
+    page,
+    'TEST_USER_3_EMAIL',
+    'TEST_USER_3_PASSWORD',
+    'test.user3@test-kb-aish.co.uk',
+    'Welcome12391.',
+    'e2e/.auth/viewer.json',
+  );
 });

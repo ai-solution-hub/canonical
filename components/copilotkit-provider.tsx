@@ -167,7 +167,11 @@ export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
 
   return (
     <CopilotKitErrorBoundary>
-      <CopilotKit runtimeUrl="/api/copilotkit">
+      <CopilotKit
+        runtimeUrl="/api/copilotkit"
+        showDevConsole={false}
+        enableInspector={false}
+      >
         {health === 'unavailable' && <UnavailableBanner />}
         {children}
       </CopilotKit>

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "convert-web-app": {
+      "source": "modelcontextprotocol/ext-apps",
+      "sourceType": "github",
+      "computedHash": "9e2171bff4ea0d0cf82c8cae3ec6c600c8f3ebd41de73cc8a778ef2cd694ade0"
+    },
+    "create-mcp-app": {
+      "source": "modelcontextprotocol/ext-apps",
+      "sourceType": "github",
+      "computedHash": "39f1ce1c5d4c43b8281e7e51332f9a05f4b689ddd9bf426b4833fb671237f757"
+    }
+  }
+}

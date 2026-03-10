@@ -8,7 +8,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 require('dotenv').config({ path: path.resolve(__dirname, '.env.local'), override: true });
 
-const authFile = 'e2e/.auth/state.json';
+const authFile = 'e2e/.auth/admin.json';
 
 export default defineConfig({
   testDir: './e2e/tests',

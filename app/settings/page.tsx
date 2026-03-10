@@ -153,9 +153,9 @@ function SettingsContent() {
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
         />
-        <main className="min-w-0 flex-1">
+        <section className="min-w-0 flex-1" aria-label="Settings content">
           <SectionContent section={activeSection} />
-        </main>
+        </section>
       </div>
     </div>
   );

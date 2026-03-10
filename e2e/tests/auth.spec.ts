@@ -1,5 +1,7 @@
 import { test as baseTest, expect } from '@playwright/test';
-import { test as authTest } from '../fixtures/auth';
+import { test as authTest } from '../fixtures';
+import { getVisibleNavLinks } from '../helpers/responsive';
+import { hideDevOverlays } from '../helpers/dev-overlays';
 
 /**
  * Flow 0: Authentication
@@ -10,6 +12,14 @@ import { test as authTest } from '../fixtures/auth';
  */
 
 baseTest.describe('Authentication — unauthenticated access', () => {
+  // Override project storageState to get a fresh, unauthenticated context
+  baseTest.use({ storageState: { cookies: [], origins: [] } });
+
+  // Hide CopilotKit overlays that block pointer events (401 banners on unauthenticated pages)
+  baseTest.beforeEach(async ({ page }) => {
+    await hideDevOverlays(page);
+  });
+
   baseTest('redirects unauthenticated users to /login', async ({ page }) => {
     // The proxy.ts middleware redirects all unauthenticated non-API
     // requests to /login
@@ -148,27 +158,13 @@ authTest.describe('Authentication — authenticated session', () => {
   authTest('navigation header is visible with all expected links', async ({ authenticatedPage: page }) => {
     await page.goto('/');
 
-    // On mobile (Pixel 5), the desktop nav links are hidden behind a
-    // hamburger menu. Detect and open the mobile drawer if necessary.
-    const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
-    const isMobile = await hamburger.isVisible({ timeout: 2000 }).catch(() => false);
+    // Use the responsive helper to get the correct nav element
+    const nav = await getVisibleNavLinks(page);
 
-    if (isMobile) {
-      await hamburger.click();
-      // Mobile nav drawer — links are inside the "Mobile navigation" nav
-      const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
-      await expect(mobileNav.getByRole('link', { name: 'Browse' })).toBeVisible();
-      await expect(mobileNav.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
-      await expect(mobileNav.getByRole('link', { name: 'Coverage' })).toBeVisible();
-      await expect(mobileNav.getByRole('link', { name: 'Bids' })).toBeVisible();
-    } else {
-      // Desktop — links are in the "Main navigation" nav
-      const nav = page.getByRole('navigation', { name: 'Main navigation' });
-      await expect(nav.getByRole('link', { name: 'Browse' })).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Coverage' })).toBeVisible();
-      await expect(nav.getByRole('link', { name: 'Bids' })).toBeVisible();
-    }
+    await expect(nav.getByRole('link', { name: 'Browse' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Coverage' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Bids' })).toBeVisible();
 
     // Settings button (icon button in header, navigates to /settings)
     // Scope to <header> and use exact: true to avoid matching the
