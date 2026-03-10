@@ -122,7 +122,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   template filling)
 - **E2E:** Playwright — 5 spec files in `e2e/tests/` (auth, browse-search,
   settings, governance-review, role-gating). Config: `playwright.config.ts`.
-  100/111 tests pass. Worker-scoped fixtures with `[E2E-W{index}]` prefix for
+  111/111 tests pass. Worker-scoped fixtures with `[E2E-W{index}]` prefix for
   data isolation. Multi-role auth (admin/editor/viewer storage states).
   Shared responsive helpers in `e2e/helpers/responsive.ts`. Dev overlay
   suppression in `e2e/helpers/dev-overlays.ts`.
@@ -189,7 +189,7 @@ When adding or modifying UI elements, use these semantic tokens:
 | Template review | `template-*` | `text-template-confirmed`, `bg-template-unmapped-bg` |
 | Quality scoring | `quality-*` | `text-quality-good`, `bg-quality-moderate-bg` |
 | General status | `status-*` | `text-status-success`, `text-status-warning` |
-| Domain categories | `[var(--domain-{name}-text)]` | Already semantic in globals.css |
+| Domain categories | `[var(--domain-{name}-text)]` | Per-domain tokens in globals.css |
 
 **Rule:** Never use raw Tailwind colour classes (`text-green-600`,
 `bg-amber-50`, etc.) in components. Always use a semantic token. If no token
@@ -291,13 +291,25 @@ when needed.
   `.claude/` directory is gitignored, so Vercel cannot regenerate it. After
   changing plugin files (commands, skills, plugin.json), run
   `bun run build:plugin` and commit the updated `plugin-bundle.ts`.
-- **Tailwind v4 scans comments:** Tailwind extracts class names from code
-  comments. Never put wildcard class patterns (e.g. bg-[var(--domain-STAR-text)])
-  in backticks — Tailwind generates invalid CSS from them.
+- **Tailwind v4 scans ALL project files:** Tailwind v4 extracts class names
+  from every file it can find — not just source code, but also `.md` files,
+  `docs/`, and `CLAUDE.md` itself. Wildcard-like patterns (e.g.
+  `domain-*-text`) in any file can be extracted as class names, generating
+  invalid CSS that breaks the build or causes runtime layout failures (S76:
+  this was the root cause of 82 E2E failures). Never put wildcard class
+  patterns in backticks in any project file. Use placeholder names like
+  `{name}` instead of `*` in documentation examples.
 - **CopilotKit Web Inspector blocks E2E:** The `cpk-web-inspector` element
   and 429/401 runtime banners intercept pointer events. Set
   `showDevConsole={false}` and `enableInspector={false}` on `<CopilotKit>`,
   and stub `/api/copilotkit/` requests in E2E via `e2e/helpers/dev-overlays.ts`.
+- **E2E mobile interactions:** Pixel 5 viewport may need
+  `click({ force: true })` or `dispatchEvent('click')` for buttons that do
+  not respond to standard Playwright click — particularly in responsive
+  layouts where elements may be partially obscured or overlapping.
+- **E2E auth input timing:** Always use `waitFor({ state: 'visible' })`
+  before `fill()` on login page inputs — CopilotKit initialisation scripts
+  can intercept focus and cause fill operations to silently fail.
 - **notifications_type_check constraint:** Valid notification types are:
   `governance_review_needed`, `governance_approve`,
   `governance_request_changes`, `governance_revert`, `quality_flag`,
