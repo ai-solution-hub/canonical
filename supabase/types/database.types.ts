@@ -1229,6 +1229,14 @@ export type Database = {
       }
     }
     Functions: {
+      bulk_delete_tags: {
+        Args: { p_tags: string[]; p_type: string }
+        Returns: number
+      }
+      bulk_merge_tags: {
+        Args: { p_sources: string[]; p_target: string; p_type: string }
+        Returns: number
+      }
       check_content_exists: {
         Args: { ids: string[] }
         Returns: {
@@ -1265,6 +1273,15 @@ export type Database = {
       filter_by_keywords: {
         Args: { search_terms: string[] }
         Returns: string[]
+      }
+      find_duplicate_tags: {
+        Args: { p_type: string }
+        Returns: {
+          canonical: string
+          total_usage: number
+          variant_count: number
+          variants: string[]
+        }[]
       }
       find_similar_content: {
         Args: {
@@ -1466,6 +1483,29 @@ export type Database = {
         Returns: {
           count: number
           source_document: string
+        }[]
+      }
+      get_tag_counts_filtered: {
+        Args: {
+          p_limit?: number
+          p_min_count?: number
+          p_offset?: number
+          p_search?: string
+          p_type: string
+        }
+        Returns: {
+          count: number
+          source: string
+          tag: string
+          total_count: number
+        }[]
+      }
+      get_tags_by_domain: {
+        Args: { p_type: string }
+        Returns: {
+          count: number
+          domain: string
+          tag: string
         }[]
       }
       get_template_summary: {

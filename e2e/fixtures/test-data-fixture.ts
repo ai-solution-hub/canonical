@@ -1,6 +1,16 @@
 /* eslint-disable @typescript-eslint/no-empty-object-type -- Playwright fixture API requires {} for test-scoped type parameter */
 import { test as base } from '@playwright/test';
 import { createServiceClient } from './supabase';
+import {
+  FRESHNESS_OFFSETS,
+  buildCoreContentItems,
+  buildCoreWorkspaces,
+  CORE_BID_QUESTIONS,
+  CORE_BID_RESPONSES,
+  BID_STATE_TRANSITIONS,
+  EMBEDDING_ITEM_INDICES,
+} from './test-data';
+import precomputedEmbeddings from './embeddings.json';
 
 /**
  * Schema compatibility: migrations up to 20260310
@@ -9,6 +19,9 @@ import { createServiceClient } from './supabase';
  * Phase 1 expansion (S75): full 12-item core dataset, 3 workspaces,
  * 4 bid questions, 2 bid responses, workspace-item assignments,
  * notifications, read marks. Bid advanced to drafting state.
+ *
+ * Phase 3 (S75): pre-computed embeddings for 5 items (search tests).
+ * Phase 5 (S75): data shapes centralised in test-data.ts.
  */
 
 /**
@@ -56,6 +69,8 @@ export interface WorkerData {
   notificationIds: string[];
   /** Worker-unique prefix (e.g. "[E2E-W0]") for data isolation. */
   prefix: string;
+  /** Indices of content items that have pre-computed embeddings. */
+  embeddedItemIndices: readonly number[];
 }
 
 /**
@@ -70,9 +85,10 @@ export interface WorkerData {
  *   methodology, 4 policies, note) across 7 domains
  * - 3 workspaces (kb_section, bid, project)
  * - 1 bid with 4 questions and 2 responses, advanced to drafting state
- * - 4 workspace-item assignments (items 1-4 → kb_section)
+ * - 4 workspace-item assignments (items 1-4 -> kb_section)
  * - 2 notifications (freshness_alert + governance_review)
  * - 2 read marks (admin user)
+ * - 5 pre-computed embeddings (items 0, 1, 2, 3, 7)
  */
 export const test = base.extend<{}, { workerData: WorkerData }>({
   workerData: [
@@ -80,165 +96,24 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const supabase = createServiceClient();
       const prefix = `[E2E-W${workerInfo.workerIndex}]`;
 
-      // --- Seed per-worker data ---
+      // --- Compute timestamps ---
+      const now = Date.now();
+      const timestamps = {
+        thirtyDaysAgo: new Date(now - FRESHNESS_OFFSETS.THIRTY_DAYS_MS).toISOString(),
+        sixtyDaysAgo: new Date(now - FRESHNESS_OFFSETS.SIXTY_DAYS_MS).toISOString(),
+        ninetyDaysAgo: new Date(now - FRESHNESS_OFFSETS.NINETY_DAYS_MS).toISOString(),
+        now: new Date(now).toISOString(),
+        expiredDate: new Date(now - FRESHNESS_OFFSETS.THIRTY_DAYS_MS)
+          .toISOString()
+          .split('T')[0],
+      };
 
-      // Timestamps for freshness testing — set in the past to prevent
-      // freshness recalculation from overwriting values to 'fresh'.
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
-      const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
-      const sixtyDaysAgo = new Date(Date.now() - 60 * 86400000).toISOString();
-
-      const contentItems = [
-        // [0] Article — Service Delivery (ai_summary, progressive depth layers)
-        {
-          title: `${prefix} IT Support Policy`,
-          content_type: 'article' as const,
-          primary_domain: 'Service Delivery',
-          ai_summary: 'E2E test article about IT support policies and procedures.',
-          platform: 'manual' as const,
-          source_url: 'https://e2e-test.example.com/it-support',
-          content: 'This is an E2E test content item covering IT support policies.',
-          brief: 'IT support policy overview covering response times and escalation procedures.',
-          detail: 'Our IT support policy defines tiered response times: P1 critical issues receive a 15-minute response, P2 high-priority issues within 1 hour, and P3 standard issues within 4 hours. The policy covers escalation procedures, on-call rotations, and service desk operating hours.',
-          reference: 'Full IT Support Policy v3.2 — includes appendices on ITIL alignment, service catalogue definitions, and change management procedures. Approved by the IT Director on 15 January 2026. Next review due July 2026.',
-        },
-        // [1] Q&A pair — Service Delivery (answer_standard only)
-        {
-          title: `${prefix} What is your SLA?`,
-          content_type: 'q_a_pair' as const,
-          primary_domain: 'Service Delivery',
-          ai_summary: 'Q&A pair about service level agreements.',
-          platform: 'manual' as const,
-          content:
-            'Q: What is your SLA?\nA: We provide tiered SLAs with 15-minute P1 response.',
-          answer_standard:
-            'We provide tiered SLAs with 15-minute P1 response, 1-hour P2 response, and 4-hour P3 response.',
-        },
-        // [2] Q&A pair — Technical Capability (both answer fields)
-        {
-          title: `${prefix} Project Management Approach`,
-          content_type: 'q_a_pair' as const,
-          primary_domain: 'Technical Capability',
-          ai_summary: 'Q&A pair about project management methodology and governance.',
-          platform: 'manual' as const,
-          content:
-            'Q: Describe your project management approach.\nA: We follow PRINCE2 with agile delivery sprints.',
-          answer_standard:
-            'We follow PRINCE2 methodology adapted for agile delivery, with dedicated project managers for each engagement and weekly governance reporting.',
-          answer_advanced:
-            'Our project management framework combines PRINCE2 governance with agile delivery sprints. Each project has a dedicated PRINCE2 Practitioner as project manager, supported by a PMO that provides cross-project oversight. We use weekly RAG status reporting, monthly steering committees, and quarterly programme boards. Our methodology includes mandatory stage-gate reviews, risk registers maintained in real-time, and benefits realisation tracking throughout the project lifecycle and into BAU.',
-        },
-        // [3] Policy — Security & Compliance (stale, regulation)
-        {
-          title: `${prefix} Cyber Essentials Compliance`,
-          content_type: 'policy' as const,
-          primary_domain: 'Security & Compliance',
-          ai_summary: 'Policy document covering Cyber Essentials certification requirements.',
-          platform: 'manual' as const,
-          content:
-            'This policy outlines our approach to maintaining Cyber Essentials Plus certification, including annual reassessment procedures and remediation workflows.',
-          freshness: 'stale' as const,
-          freshness_checked_at: thirtyDaysAgo,
-          lifecycle_type: 'regulation' as const,
-        },
-        // [4] Note — Commercial (expired, date_bound)
-        {
-          title: `${prefix} Pricing Model Template`,
-          content_type: 'note' as const,
-          primary_domain: 'Commercial',
-          ai_summary: 'Template for pricing model breakdowns in bid responses.',
-          platform: 'manual' as const,
-          content:
-            'Standard pricing model template: Day rates, fixed-price deliverables, managed service charges, and optional extras.',
-          freshness: 'expired' as const,
-          freshness_checked_at: ninetyDaysAgo,
-          lifecycle_type: 'date_bound' as const,
-          expiry_date: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
-        },
-        // [5] Certification — Security & Compliance (fresh, verified_at set)
-        {
-          title: `${prefix} ISO 27001 Certification`,
-          content_type: 'certification' as const,
-          primary_domain: 'Security & Compliance',
-          ai_summary: 'ISO 27001 information security management system certification details.',
-          platform: 'manual' as const,
-          content:
-            'We hold ISO 27001:2022 certification for our information security management system, covering all managed service operations. Certificate number: IS 12345. Certified by BSI. Valid until December 2027.',
-          freshness: 'fresh' as const,
-          verified_at: new Date().toISOString(),
-        },
-        // [6] Case Study — Experience & Track Record (ai_summary, metadata)
-        {
-          title: `${prefix} Case Study: NHS Digital`,
-          content_type: 'case_study' as const,
-          primary_domain: 'Experience & Track Record',
-          ai_summary: 'Case study demonstrating NHS Digital infrastructure modernisation project delivery.',
-          platform: 'manual' as const,
-          content:
-            'NHS Digital engaged us to modernise their legacy IT infrastructure across 12 sites. The project delivered a cloud-first architecture, reducing operational costs by 35% and improving system availability from 97.5% to 99.95%. Delivered on time and within budget over 18 months.',
-          metadata: {
-            client: 'NHS Digital',
-            value: '2.4M',
-            duration: '18 months',
-            sector: 'Healthcare',
-          },
-        },
-        // [7] Methodology — Technical Capability
-        {
-          title: `${prefix} Cloud Migration Methodology`,
-          content_type: 'methodology' as const,
-          primary_domain: 'Technical Capability',
-          ai_summary: 'Our structured approach to cloud migration using the 6R framework.',
-          platform: 'manual' as const,
-          content:
-            'Our cloud migration methodology follows the 6R framework (Rehost, Replatform, Repurchase, Refactor, Retain, Retire). Each migration begins with a discovery phase to assess application dependencies, followed by a proof of concept, pilot migration, and full rollout with rollback procedures.',
-        },
-        // [8] Policy — Social Value (aging)
-        {
-          title: `${prefix} Social Value Framework`,
-          content_type: 'policy' as const,
-          primary_domain: 'Social Value',
-          ai_summary: 'Framework for delivering social value through public sector contracts.',
-          platform: 'manual' as const,
-          content:
-            'Our Social Value Framework aligns with the Social Value Act 2012 and the PPN 06/20 Social Value Model. We commit to local employment, apprenticeships, environmental sustainability, and community engagement on every public sector contract.',
-          freshness: 'aging' as const,
-          freshness_checked_at: sixtyDaysAgo,
-        },
-        // [9] Policy — Security & Compliance (regulation)
-        {
-          title: `${prefix} Data Protection Policy`,
-          content_type: 'policy' as const,
-          primary_domain: 'Security & Compliance',
-          ai_summary: 'Data protection policy covering GDPR compliance and data handling procedures.',
-          platform: 'manual' as const,
-          content:
-            'This policy sets out our approach to data protection in compliance with UK GDPR and the Data Protection Act 2018. It covers data processing principles, lawful bases for processing, data subject rights, breach notification procedures, and international transfer safeguards.',
-          lifecycle_type: 'regulation' as const,
-        },
-        // [10] Other — People & Skills
-        {
-          title: `${prefix} Staff CVs and Experience`,
-          content_type: 'other' as const,
-          primary_domain: 'People & Skills',
-          ai_summary: 'Overview of key staff qualifications and experience for bid submissions.',
-          platform: 'manual' as const,
-          content:
-            'Our team includes 45 certified engineers across ITIL, PRINCE2, AWS, Azure, and Cisco disciplines. Key personnel have an average of 12 years public sector IT experience.',
-        },
-        // [11] Policy — Sustainability (aging)
-        {
-          title: `${prefix} Environmental Policy`,
-          content_type: 'policy' as const,
-          primary_domain: 'Sustainability',
-          ai_summary: 'Environmental policy covering carbon reduction and sustainable operations.',
-          platform: 'manual' as const,
-          content:
-            'We are committed to achieving net zero carbon emissions by 2030. Our environmental policy covers energy efficiency in data centres, sustainable procurement, waste reduction, and carbon offset programmes. We report annually against the GHG Protocol Scope 1-3 framework.',
-          freshness: 'aging' as const,
-          freshness_checked_at: sixtyDaysAgo,
-        },
-      ];
+      // --- Seed content items (from centralised shapes) ---
+      const contentItemShapes = buildCoreContentItems(timestamps);
+      const contentItems = contentItemShapes.map((shape) => ({
+        ...shape,
+        title: `${prefix} ${shape.title}`,
+      }));
 
       const { data: items } = await supabase
         .from('content_items')
@@ -248,34 +123,31 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const itemIds = (items ?? []).map((i) => i.id);
 
-      // --- Workspaces: kb_section, bid, project ---
+      // --- Insert pre-computed embeddings for search tests ---
+      for (const embeddingData of precomputedEmbeddings) {
+        const itemId = itemIds[embeddingData.itemIndex];
+        if (itemId) {
+          await supabase
+            .from('content_items')
+            .update({ embedding: JSON.stringify(embeddingData.embedding) })
+            .eq('id', itemId)
+            .throwOnError();
+        }
+      }
+
+      // --- Seed workspaces (from centralised shapes) ---
+      const bidDeadline = new Date(now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS)
+        .toISOString()
+        .split('T')[0];
+      const workspaceShapes = buildCoreWorkspaces(bidDeadline);
+      const workspaceInserts = workspaceShapes.map((shape) => ({
+        ...shape,
+        name: `${prefix} ${shape.name}`,
+      }));
 
       const { data: workspaces } = await supabase
         .from('workspaces')
-        .insert([
-          {
-            name: `${prefix} Test KB Section`,
-            description: 'E2E worker-scoped KB section workspace.',
-            type: 'kb_section',
-          },
-          {
-            name: `${prefix} IT Support Services`,
-            description: 'E2E worker-scoped bid.',
-            type: 'bid',
-            domain_metadata: {
-              buyer: 'E2E Test Corp',
-              status: 'draft',
-              deadline: new Date(Date.now() + 14 * 86400000)
-                .toISOString()
-                .split('T')[0],
-            },
-          },
-          {
-            name: `${prefix} Cloud Migration Project`,
-            description: 'E2E worker-scoped project workspace.',
-            type: 'project',
-          },
-        ])
+        .insert(workspaceInserts)
         .select('id')
         .throwOnError();
 
@@ -285,7 +157,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const projectId = workspaceIds[2];
 
       // --- Workspace-item assignments: link items 0-3 to kb_section ---
-
       const junctionRecords = itemIds.slice(0, 4).map((contentItemId) => ({
         content_item_id: contentItemId,
         workspace_id: kbSectionId,
@@ -296,45 +167,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .insert(junctionRecords)
         .throwOnError();
 
-      // --- Bid questions: 4 questions ---
-
-      const questions = [
-        {
-          project_id: bidId,
-          section_name: 'Technical',
-          section_sequence: 1,
-          question_sequence: 1,
-          question_text: 'Describe your approach to providing IT support services.',
-          word_limit: 500,
-        },
-        {
-          project_id: bidId,
-          section_name: 'Experience',
-          section_sequence: 2,
-          question_sequence: 1,
-          question_text:
-            'What experience does your organisation have in public sector IT?',
-          word_limit: 400,
-        },
-        {
-          project_id: bidId,
-          section_name: 'Social Value',
-          section_sequence: 3,
-          question_sequence: 1,
-          question_text:
-            'How will you deliver social value through this contract?',
-          word_limit: 300,
-        },
-        {
-          project_id: bidId,
-          section_name: 'Commercial',
-          section_sequence: 4,
-          question_sequence: 1,
-          question_text:
-            'Provide your pricing model breakdown including day rates and fixed-price options.',
-          word_limit: 600,
-        },
-      ];
+      // --- Bid questions (from centralised shapes) ---
+      const questions = CORE_BID_QUESTIONS.map((q) => ({
+        ...q,
+        project_id: bidId,
+      }));
 
       const { data: qs } = await supabase
         .from('bid_questions')
@@ -344,24 +181,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const questionIds = (qs ?? []).map((q) => q.id);
 
-      // --- Bid responses: 1 approved, 1 draft ---
-
-      const responses = [
-        {
-          question_id: questionIds[0],
-          response_text:
-            'Our IT support approach combines proactive monitoring with a dedicated service desk operating 24/7. We use ITIL-aligned processes with automated ticket routing, SLA-driven escalation, and root cause analysis for recurring incidents. Our team of 45 certified engineers provides L1-L3 support across all major platforms.',
-          review_status: 'approved',
-          version: 1,
-        },
-        {
-          question_id: questionIds[1],
-          response_text:
-            'We have delivered IT services to over 30 public sector organisations including NHS trusts, local authorities, and central government departments. Notable contracts include a 5-year managed service for a London borough and infrastructure modernisation for an NHS integrated care board.',
-          review_status: 'draft',
-          version: 1,
-        },
-      ];
+      // --- Bid responses (from centralised shapes) ---
+      const responses = CORE_BID_RESPONSES.map((r, i) => ({
+        ...r,
+        question_id: questionIds[i],
+      }));
 
       const { data: resps } = await supabase
         .from('bid_responses')
@@ -372,16 +196,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       const responseIds = (resps ?? []).map((r) => r.id);
 
       // --- Advance bid to drafting state ---
-      // State machine requires sequential transitions:
-      // draft → questions_extracted → matching → drafting
-      const bidStateTransitions = [
-        'questions_extracted',
-        'matching',
-        'drafting',
-      ];
-
-      for (const state of bidStateTransitions) {
-        // Read current domain_metadata, then update status
+      for (const state of BID_STATE_TRANSITIONS) {
         const { data: current } = await supabase
           .from('workspaces')
           .select('domain_metadata')
@@ -402,7 +217,6 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       }
 
       // --- Notifications and read marks require admin user_id ---
-      // Look up the admin user by email from auth.users via user_roles
       const { data: adminRole } = await supabase
         .from('user_roles')
         .select('user_id')
@@ -414,11 +228,11 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       let notificationIds: string[] = [];
       if (adminUserId) {
-        // --- Notifications: 1 unread freshness alert, 1 read governance review ---
+        // --- Notifications: 1 unread quality flag, 1 read governance review ---
         const notifications = [
           {
             user_id: adminUserId,
-            type: 'freshness_alert',
+            type: 'quality_flag',
             entity_type: 'content_item',
             entity_id: itemIds[3], // stale item (Cyber Essentials)
             title: `${prefix} Content needs review`,
@@ -426,11 +240,12 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           },
           {
             user_id: adminUserId,
-            type: 'governance_review',
+            type: 'governance_review_needed',
             entity_type: 'content_item',
             entity_id: itemIds[4], // expired item (Pricing Model)
             title: `${prefix} Item expired`,
-            message: 'This content item has expired and should be updated or archived.',
+            message:
+              'This content item has expired and should be updated or archived.',
             read_at: new Date().toISOString(),
           },
         ];
@@ -457,10 +272,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
           },
         ];
 
-        await supabase
-          .from('read_marks')
-          .insert(readMarks)
-          .throwOnError();
+        await supabase.from('read_marks').insert(readMarks).throwOnError();
       }
 
       const data: WorkerData = {
@@ -484,10 +296,12 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         responseIds,
         notificationIds,
         prefix,
+        embeddedItemIndices: EMBEDDING_ITEM_INDICES,
       };
 
       console.log(
-        `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items, ` +
+        `[Worker ${workerInfo.workerIndex}] Seeded: ${data.contentItemIds.length} items ` +
+          `(${precomputedEmbeddings.length} with embeddings), ` +
           `3 workspaces, 1 bid (drafting) with ${data.questionIds.length} questions and ` +
           `${data.responseIds.length} responses, ${data.notificationIds.length} notifications ` +
           `(prefix: ${prefix})`,
@@ -496,11 +310,13 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       await use(data);
 
       // --- Teardown: clean up this worker's data ---
-      console.log(`[Worker ${workerInfo.workerIndex}] Cleaning up ${prefix} data...`);
+      console.log(
+        `[Worker ${workerInfo.workerIndex}] Cleaning up ${prefix} data...`,
+      );
 
       // Delete in dependency order to avoid FK constraint violations.
 
-      // 1. Read marks (FK → content_items)
+      // 1. Read marks (FK -> content_items)
       if (adminUserId) {
         await supabase
           .from('read_marks')
@@ -526,8 +342,14 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         .eq('workspace_id', kbSectionId);
 
       // 5. Content items and workspaces (by prefix)
-      await supabase.from('content_items').delete().like('title', `${prefix}%`);
-      await supabase.from('workspaces').delete().like('name', `${prefix}%`);
+      await supabase
+        .from('content_items')
+        .delete()
+        .like('title', `${prefix}%`);
+      await supabase
+        .from('workspaces')
+        .delete()
+        .like('name', `${prefix}%`);
     },
     { scope: 'worker' },
   ],

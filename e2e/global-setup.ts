@@ -1,14 +1,18 @@
-import { seedTestData } from './fixtures/test-data';
-
 /**
  * Global setup runs once before all test files.
  *
  * Responsibilities:
- * 1. Verify required environment variables are present
- * 2. Seed test data into the database
+ * 1. Verify required environment variables are present.
+ * 2. Verify test users exist with correct roles (Phase 4).
+ *
+ * Test data seeding is handled by the worker-scoped workerData fixture
+ * in e2e/fixtures/test-data-fixture.ts.
  */
+import { createServiceClient } from './fixtures/supabase';
+import { TEST_USERS } from './fixtures/test-data';
+
 async function globalSetup(): Promise<void> {
-  // --- Verify required env vars ---
+  // --- Step 1: Environment variables ---
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
     'NEXT_PUBLIC_SUPABASE_ANON_KEY',
@@ -19,7 +23,7 @@ async function globalSetup(): Promise<void> {
   if (missing.length > 0) {
     throw new Error(
       `E2E setup: missing required environment variables: ${missing.join(', ')}. ` +
-        'Ensure .env.local is loaded or these are set in the environment.'
+        'Ensure .env.local is loaded or these are set in the environment.',
     );
   }
 
@@ -29,23 +33,92 @@ async function globalSetup(): Promise<void> {
   if (!hasTestCreds) {
     console.warn(
       'E2E setup: no test user credentials found (E2E_TEST_EMAIL or TEST_USER_1_EMAIL). ' +
-        'Auth fixtures will use hardcoded defaults which may not work.'
+        'Auth fixtures will use hardcoded defaults which may not work.',
     );
   }
 
-  // --- Seed test data ---
-  console.log('E2E setup: seeding test data...');
-  try {
-    const seeded = await seedTestData();
-    console.log(
-      `E2E setup: seeded ${seeded.contentItemIds.length} content items, ` +
-        `${seeded.workspaceId ? '1 workspace' : '0 workspaces'}, ` +
-        `${seeded.bidId ? '1 bid' : '0 bids'} with ${seeded.questionIds.length} questions.`
+  console.log('E2E setup: environment validated.');
+
+  // --- Step 2: Verify test users exist with correct roles ---
+  const supabase = createServiceClient();
+
+  // Query user_roles to get all roles, then cross-reference with auth.users
+  // via the admin API to verify emails match expected roles.
+  const { data: allRoles, error: rolesError } = await supabase
+    .from('user_roles')
+    .select('user_id, role');
+
+  if (rolesError) {
+    throw new Error(
+      `E2E setup: failed to query user_roles: ${rolesError.message}. ` +
+        'Ensure the SUPABASE_SECRET_KEY has service_role permissions.',
     );
-  } catch (error) {
-    console.error('E2E setup: failed to seed test data:', error);
-    throw error;
   }
+
+  if (!allRoles || allRoles.length === 0) {
+    throw new Error(
+      'E2E setup: user_roles table is empty. ' +
+        'Test users must be created before running E2E tests. ' +
+        'See docs/reference/e2e-test-setup.md for setup instructions.',
+    );
+  }
+
+  // Use the Supabase admin API to list auth users and match by email
+  const { data: authData, error: authError } =
+    await supabase.auth.admin.listUsers({ perPage: 100 });
+
+  if (authError) {
+    throw new Error(
+      `E2E setup: failed to list auth users: ${authError.message}. ` +
+        'Ensure the SUPABASE_SECRET_KEY is a service_role key.',
+    );
+  }
+
+  const authUsers = authData?.users ?? [];
+  const missingUsers: string[] = [];
+  const wrongRoles: string[] = [];
+
+  for (const [label, testUser] of Object.entries(TEST_USERS)) {
+    const authUser = authUsers.find((u) => u.email === testUser.email);
+
+    if (!authUser) {
+      missingUsers.push(`${label} (${testUser.email})`);
+      continue;
+    }
+
+    const userRole = allRoles.find((r) => r.user_id === authUser.id);
+
+    if (!userRole) {
+      wrongRoles.push(
+        `${label} (${testUser.email}): no role assigned — expected '${testUser.expectedRole}'`,
+      );
+    } else if (userRole.role !== testUser.expectedRole) {
+      wrongRoles.push(
+        `${label} (${testUser.email}): role is '${userRole.role}' — expected '${testUser.expectedRole}'`,
+      );
+    }
+  }
+
+  if (missingUsers.length > 0) {
+    throw new Error(
+      `E2E setup: test users not found in auth.users:\n` +
+        missingUsers.map((u) => `  - ${u}`).join('\n') +
+        '\n\nCreate these users before running E2E tests. ' +
+        'See docs/reference/e2e-test-setup.md for setup instructions.',
+    );
+  }
+
+  if (wrongRoles.length > 0) {
+    throw new Error(
+      `E2E setup: test users have incorrect roles:\n` +
+        wrongRoles.map((r) => `  - ${r}`).join('\n') +
+        '\n\nFix roles in the user_roles table before running E2E tests.',
+    );
+  }
+
+  console.log(
+    `E2E setup: verified ${Object.keys(TEST_USERS).length} test users with correct roles.`,
+  );
 }
 
 export default globalSetup;

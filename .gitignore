@@ -77,3 +77,4 @@ logs/
 
 # Database backups
 backups/
+test-data/

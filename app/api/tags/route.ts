@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
         const { data, error } = await supabase.rpc('get_tag_counts_filtered', {
           p_type: type,
           p_min_count: min_count ?? 1,
-          p_search: search ?? null,
+          p_search: search,
           p_limit: limit ?? 50,
           p_offset: offset ?? 0,
         });
@@ -77,14 +77,14 @@ export async function GET(request: NextRequest) {
         supabase.rpc('get_tag_counts_filtered', {
           p_type: 'ai',
           p_min_count: min_count ?? 1,
-          p_search: search ?? null,
+          p_search: search,
           p_limit: limit ?? 50,
           p_offset: offset ?? 0,
         }),
         supabase.rpc('get_tag_counts_filtered', {
           p_type: 'user',
           p_min_count: min_count ?? 1,
-          p_search: search ?? null,
+          p_search: search,
           p_limit: limit ?? 50,
           p_offset: offset ?? 0,
         }),
