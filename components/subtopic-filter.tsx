@@ -9,6 +9,8 @@ interface SubtopicFilterProps {
   subtopics: readonly string[] | string[];
   selectedSubtopic: string;
   onToggle: (subtopic: string) => void;
+  /** Whether the section starts expanded (defaults to true) */
+  defaultOpen?: boolean;
 }
 
 export function SubtopicFilter({
@@ -16,11 +18,12 @@ export function SubtopicFilter({
   subtopics,
   selectedSubtopic,
   onToggle,
+  defaultOpen = true,
 }: SubtopicFilterProps) {
   const { formatSubtopic, formatDomainName } = useTaxonomy();
 
   return (
-    <FilterSection title={`Subtopic (${formatDomainName(domainName)})`}>
+    <FilterSection title={`Subtopic (${formatDomainName(domainName)})`} defaultOpen={defaultOpen}>
       <div className="flex flex-col gap-2">
         {subtopics.map((subtopic) => (
           <label

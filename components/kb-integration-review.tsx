@@ -276,7 +276,7 @@ export function KBIntegrationReview({
 
         {/* Candidate list */}
         <div
-          className="max-h-[400px] space-y-1 overflow-y-auto rounded-md border p-2"
+          className="max-h-[300px] sm:max-h-[400px] space-y-1 overflow-y-auto rounded-md border p-2"
           role="list"
           aria-label="Integration candidates"
         >

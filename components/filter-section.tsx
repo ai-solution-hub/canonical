@@ -26,12 +26,22 @@ export function FilterSection({ title, children, defaultOpen = true }: FilterSec
       >
         {title}
         <ChevronDown
-          className={`size-3.5 transition-transform ${isOpen ? '' : '-rotate-90'}`}
+          className={`size-3.5 motion-safe:transition-transform ${isOpen ? '' : '-rotate-90'}`}
           aria-hidden="true"
         />
       </button>
-      <div id={contentId} role="group" aria-label={title} hidden={!isOpen}>
-        {children}
+      <div
+        id={contentId}
+        role="group"
+        aria-label={title}
+        aria-hidden={!isOpen}
+        className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 ${
+          isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className={`overflow-hidden${!isOpen ? ' invisible' : ''}`}>
+          {children}
+        </div>
       </div>
     </div>
   );

@@ -544,11 +544,18 @@ describe('useBidActions', () => {
   // -------------------------------------------------------------------------
 
   describe('actions', () => {
-    it('handleDelete calls DELETE and navigates to /bid', async () => {
+    it('handleDelete opens confirm dialog, handleDeleteConfirmed calls DELETE and navigates', async () => {
       const { result } = await renderAndWait();
 
+      // handleDelete should open the confirmation dialog
+      act(() => {
+        result.current.handleDelete();
+      });
+      expect(result.current.deleteConfirmOpen).toBe(true);
+
+      // handleDeleteConfirmed should perform the actual deletion
       await act(async () => {
-        await result.current.handleDelete();
+        await result.current.handleDeleteConfirmed();
       });
 
       const deleteCall = mockFetch.mock.calls.find(
@@ -558,26 +565,10 @@ describe('useBidActions', () => {
       expect(deleteCall![0]).toBe('/api/bids/bid-1');
       expect(toast.success).toHaveBeenCalledWith('Bid deleted');
       expect(mockPush).toHaveBeenCalledWith('/bid');
+      expect(result.current.deleteConfirmOpen).toBe(false);
     });
 
-    it('handleDelete does nothing if confirm returns false', async () => {
-      const { result } = await renderAndWait();
-
-      vi.stubGlobal('confirm', vi.fn(() => false));
-      const fetchCountBefore = mockFetch.mock.calls.length;
-
-      await act(async () => {
-        await result.current.handleDelete();
-      });
-
-      const deleteCall = mockFetch.mock.calls
-        .slice(fetchCountBefore)
-        .find((call: [string, RequestInit?]) => call[1]?.method === 'DELETE');
-      expect(deleteCall).toBeUndefined();
-      expect(mockPush).not.toHaveBeenCalledWith('/bid');
-    });
-
-    it('handleDelete shows error toast on DELETE failure', async () => {
+    it('handleDeleteConfirmed shows error toast on DELETE failure', async () => {
       const { result } = await renderAndWait();
 
       vi.stubGlobal(
@@ -592,7 +583,7 @@ describe('useBidActions', () => {
       );
 
       await act(async () => {
-        await result.current.handleDelete();
+        await result.current.handleDeleteConfirmed();
       });
 
       expect(toast.error).toHaveBeenCalledWith('Cannot delete');

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
   Filter,
@@ -43,6 +44,67 @@ import { useLibraryBulkActions } from '@/hooks/use-library-bulk-actions';
 import { QARow } from '@/components/qa-row';
 import { BulkActionToolbar } from '@/components/bulk-action-toolbar';
 import { CollapsibleGroup, groupItems } from '@/components/collapsible-group';
+
+// ---------------------------------------------------------------------------
+// VirtualisedQAList — renders the flat Q&A list with window-based virtualisation
+// ---------------------------------------------------------------------------
+
+const ROW_GAP = 8; // matches space-y-2 (0.5rem = 8px)
+const ESTIMATED_ROW_HEIGHT = 72; // collapsed row ~72px including border + padding
+
+function VirtualisedQAList({
+  items,
+  selectedIds,
+  onToggleSelect,
+}: {
+  items: ContentListItem[];
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const virtualiser = useWindowVirtualizer({
+    count: items.length,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 5,
+    gap: ROW_GAP,
+  });
+
+  const virtualItems = virtualiser.getVirtualItems();
+
+  if (items.length === 0) return null;
+
+  return (
+    <div
+      ref={listRef}
+      style={{ height: `${virtualiser.getTotalSize()}px`, position: 'relative' }}
+    >
+      {virtualItems.map((virtualRow) => {
+        const item = items[virtualRow.index];
+        return (
+          <div
+            key={item.id}
+            data-index={virtualRow.index}
+            ref={virtualiser.measureElement}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${virtualRow.start}px)`,
+            }}
+          >
+            <QARow
+              item={item}
+              selected={selectedIds.has(item.id)}
+              onToggleSelect={onToggleSelect}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // LibraryContent
@@ -471,14 +533,11 @@ export function LibraryContent() {
             ))}
           </div>
         ) : (
-          items.map((item) => (
-            <QARow
-              key={item.id}
-              item={item}
-              selected={bulk.selectedIds.has(item.id)}
-              onToggleSelect={bulk.toggleSelect}
-            />
-          ))
+          <VirtualisedQAList
+            items={items}
+            selectedIds={bulk.selectedIds}
+            onToggleSelect={bulk.toggleSelect}
+          />
         )}
       </div>
 

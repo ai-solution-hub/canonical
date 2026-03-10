@@ -1,16 +1,11 @@
 'use client';
 
-import { Suspense } from 'react';
+import { lazy, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Settings, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserRole } from '@/hooks/use-user-role';
 import { ProfileSection } from '@/components/settings/profile-section';
-import { TeamSection } from '@/components/settings/team-section';
-import { GovernanceSection } from '@/components/settings/governance-section';
-import { ActivitySection } from '@/components/settings/activity-section';
-import { TaxonomySection } from '@/components/settings/taxonomy-section';
-import { TagsSection } from '@/components/settings/tags-section';
 import { IntegrationsSection } from '@/components/settings/integrations-section';
 import {
   SettingsSidebar,
@@ -18,6 +13,46 @@ import {
   getValidSection,
 } from '@/components/settings/settings-sidebar';
 import type { SettingsSection } from '@/components/settings/settings-sidebar';
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded admin-only sections — kept out of the main bundle for non-admin
+// users. lazy() requires a default export, so we re-export the named
+// export from each module.
+// ---------------------------------------------------------------------------
+
+const LazyTeamSection = lazy(() =>
+  import('@/components/settings/team-section').then((m) => ({ default: m.TeamSection }))
+);
+const LazyGovernanceSection = lazy(() =>
+  import('@/components/settings/governance-section').then((m) => ({ default: m.GovernanceSection }))
+);
+const LazyActivitySection = lazy(() =>
+  import('@/components/settings/activity-section').then((m) => ({ default: m.ActivitySection }))
+);
+const LazyTaxonomySection = lazy(() =>
+  import('@/components/settings/taxonomy-section').then((m) => ({ default: m.TaxonomySection }))
+);
+const LazyTagsSection = lazy(() =>
+  import('@/components/settings/tags-section').then((m) => ({ default: m.TagsSection }))
+);
+
+// ---------------------------------------------------------------------------
+// Section loading skeleton — shown briefly while a lazy section chunk loads
+// ---------------------------------------------------------------------------
+
+function SectionSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="h-6 w-48 animate-pulse rounded bg-muted" />
+      <div className="h-4 w-72 animate-pulse rounded bg-muted" />
+      <div className="mt-6 space-y-3">
+        <div className="h-10 w-full animate-pulse rounded bg-muted" />
+        <div className="h-10 w-full animate-pulse rounded bg-muted" />
+        <div className="h-10 w-3/4 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Section renderer
@@ -30,15 +65,35 @@ function SectionContent({ section }: { section: SettingsSection }) {
     case 'integrations':
       return <IntegrationsSection />;
     case 'taxonomy':
-      return <TaxonomySection />;
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyTaxonomySection />
+        </Suspense>
+      );
     case 'tags':
-      return <TagsSection />;
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyTagsSection />
+        </Suspense>
+      );
     case 'team':
-      return <TeamSection />;
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyTeamSection />
+        </Suspense>
+      );
     case 'governance':
-      return <GovernanceSection />;
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyGovernanceSection />
+        </Suspense>
+      );
     case 'activity':
-      return <ActivitySection />;
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyActivitySection />
+        </Suspense>
+      );
     default:
       return <ProfileSection />;
   }

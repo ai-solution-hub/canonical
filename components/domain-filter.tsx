@@ -8,18 +8,21 @@ interface DomainFilterProps {
   selectedDomains: string[];
   counts: Record<string, number>;
   onToggle: (domain: string) => void;
+  /** Whether the section starts expanded (defaults to true) */
+  defaultOpen?: boolean;
 }
 
 export function DomainFilter({
   selectedDomains,
   counts,
   onToggle,
+  defaultOpen = true,
 }: DomainFilterProps) {
   const { getDomainNames, formatDomainName } = useTaxonomy();
   const domainNames = getDomainNames();
 
   return (
-    <FilterSection title="Domain">
+    <FilterSection title="Domain" defaultOpen={defaultOpen}>
       <div className="flex flex-col gap-2">
         {domainNames.map((domain) => (
           <label

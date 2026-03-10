@@ -218,7 +218,7 @@ export default function BidSessionPage({
 
           {/* Current question display */}
           {currentQuestion && (
-            <div className="mt-4 rounded-lg border bg-card p-4">
+            <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
               <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Current Question
               </h3>
@@ -272,7 +272,13 @@ export default function BidSessionPage({
                       className="shrink-0 gap-1.5"
                       title="View version history"
                     >
-                      <Badge variant="secondary" className="text-[10px] tabular-nums">
+                      <span className="text-xs text-muted-foreground">
+                        History
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="text-[10px] tabular-nums"
+                      >
                         v{response.version}
                       </Badge>
                     </Button>

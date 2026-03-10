@@ -7,7 +7,7 @@
  * useBrowseFilters, useFilterData, and useFilterDraft.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
 // ---------------------------------------------------------------------------
@@ -210,6 +210,8 @@ describe('FilterPanel', () => {
     render(<FilterPanel open={true} onOpenChange={mockOnOpenChange} />);
 
     expect(screen.getByText('Freshness')).toBeInTheDocument();
+    // Freshness is collapsed by default — expand it first
+    fireEvent.click(screen.getByText('Freshness'));
     // The text labels within the freshness buttons
     const freshTexts = ['fresh', 'aging', 'stale', 'expired'];
     for (const text of freshTexts) {

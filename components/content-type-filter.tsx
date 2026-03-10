@@ -10,15 +10,18 @@ interface ContentTypeFilterProps {
   selectedTypes: string[];
   counts: Record<string, number>;
   onToggle: (type: string) => void;
+  /** Whether the section starts expanded (defaults to true) */
+  defaultOpen?: boolean;
 }
 
 export function ContentTypeFilter({
   selectedTypes,
   counts,
   onToggle,
+  defaultOpen = true,
 }: ContentTypeFilterProps) {
   return (
-    <FilterSection title="Content Type">
+    <FilterSection title="Content Type" defaultOpen={defaultOpen}>
       <div className="flex flex-col gap-2">
         {CONTENT_TYPES.map((type) => (
           <label

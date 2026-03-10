@@ -9,15 +9,18 @@ interface PlatformFilterProps {
   selectedPlatforms: string[];
   counts: Record<string, number>;
   onToggle: (platform: string) => void;
+  /** Whether the section starts expanded (defaults to true) */
+  defaultOpen?: boolean;
 }
 
 export function PlatformFilter({
   selectedPlatforms,
   counts,
   onToggle,
+  defaultOpen = true,
 }: PlatformFilterProps) {
   return (
-    <FilterSection title="Platform">
+    <FilterSection title="Platform" defaultOpen={defaultOpen}>
       <div className="flex flex-col gap-2">
         {PLATFORMS.map((platform) => (
           <label

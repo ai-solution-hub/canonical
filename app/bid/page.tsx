@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,26 @@ import { BidListCard } from '@/components/bid-list-card';
 import { BidCreationForm } from '@/components/bid-creation-form';
 import { useUserRole } from '@/hooks/use-user-role';
 import { toast } from 'sonner';
-import type { Bid } from '@/types/bid';
+import type { Bid, BidMetadata, BidState } from '@/types/bid';
+
+type StatusFilter = 'all' | 'draft' | 'active' | 'submitted' | 'completed';
+
+const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'draft', label: 'Draft' },
+  { id: 'active', label: 'Active' },
+  { id: 'submitted', label: 'Submitted' },
+  { id: 'completed', label: 'Completed' },
+];
+
+/** Maps each filter to the bid states it includes */
+const FILTER_STATES: Record<StatusFilter, BidState[] | null> = {
+  all: null,
+  draft: ['draft', 'questions_extracted'],
+  active: ['matching', 'drafting', 'in_review', 'ready_for_export'],
+  submitted: ['submitted'],
+  completed: ['won', 'lost', 'withdrawn'],
+};
 
 export default function BidsPage() {
   const router = useRouter();
@@ -16,6 +35,7 @@ export default function BidsPage() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const fetchBids = useCallback(async () => {
     try {
@@ -34,6 +54,16 @@ export default function BidsPage() {
   useEffect(() => {
     fetchBids();
   }, [fetchBids]);
+
+  const filteredBids = useMemo(() => {
+    const allowedStates = FILTER_STATES[statusFilter];
+    if (!allowedStates) return bids;
+    return bids.filter((bid) => {
+      const bidStatus = (bid.status ??
+        (bid.domain_metadata as BidMetadata).status) as BidState;
+      return allowedStates.includes(bidStatus);
+    });
+  }, [bids, statusFilter]);
 
   function handleBidCreated(bid: { id: string; name: string }) {
     toast.success(`Bid "${bid.name}" created`);
@@ -58,15 +88,47 @@ export default function BidsPage() {
         )}
       </div>
 
+      {/* Status filter */}
+      {!loading && bids.length > 0 && (
+        <div
+          className="mt-4 flex flex-wrap gap-2"
+          role="group"
+          aria-label="Filter by status"
+        >
+          {STATUS_FILTERS.map((filter) => (
+            <button
+              key={filter.id}
+              type="button"
+              aria-pressed={statusFilter === filter.id}
+              onClick={() => setStatusFilter(filter.id)}
+              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                statusFilter === filter.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Content */}
       <div className="mt-6">
         {loading ? (
           <BidListSkeleton />
         ) : bids.length === 0 ? (
-          <EmptyState canEdit={canEdit} onCreateClick={() => setShowCreate(true)} />
+          <EmptyState
+            canEdit={canEdit}
+            onCreateClick={() => setShowCreate(true)}
+          />
+        ) : filteredBids.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            No bids match the selected filter.
+          </p>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {bids.map((bid) => (
+            {filteredBids.map((bid) => (
               <BidListCard key={bid.id} bid={bid} />
             ))}
           </div>

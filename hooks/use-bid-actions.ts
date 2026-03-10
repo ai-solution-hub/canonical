@@ -34,32 +34,18 @@ interface UseBidActionsParams {
   id: string;
 }
 
-export function useBidActions({ id }: UseBidActionsParams) {
+// ---------------------------------------------------------------------------
+// useBidData — fetching bid and questions, loading state, error handling
+// ---------------------------------------------------------------------------
+
+function useBidData(id: string) {
   const router = useRouter();
 
-  // Core state
   const [bid, setBid] = useState<Bid | null>(null);
   const [questions, setQuestions] = useState<BidQuestion[]>([]);
   const [stats, setStats] = useState<BidQuestionStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
 
-  // Transition state
-  const [transitioning, setTransitioning] = useState(false);
-
-  // Question review state
-  const [showQuestionReview, setShowQuestionReview] = useState(false);
-  const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
-
-  // UI dialog state
-  const [showCostEstimate, setShowCostEstimate] = useState(false);
-  const [draftingAll, setDraftingAll] = useState(false);
-  const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
-  const [showKBReview, setShowKBReview] = useState(false);
-  const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
-  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
-
-  // Data fetching
   const fetchBid = useCallback(async () => {
     try {
       const response = await fetch(`/api/bids/${id}`);
@@ -101,7 +87,27 @@ export function useBidActions({ id }: UseBidActionsParams) {
     fetchQuestions();
   }, [fetchBid, fetchQuestions]);
 
-  // Handlers
+  return {
+    bid,
+    questions,
+    stats,
+    loading,
+    fetchBid,
+    fetchQuestions,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useBidTransitions — status transition handlers
+// ---------------------------------------------------------------------------
+
+function useBidTransitions(
+  bid: Bid | null,
+  id: string,
+  fetchBid: () => Promise<void>,
+) {
+  const [transitioning, setTransitioning] = useState(false);
+
   async function handleStatusTransition(newStatus: BidState) {
     if (!bid) return;
     const currentStatus = (bid.status ?? (bid.domain_metadata as BidMetadata).status) as BidState;
@@ -136,6 +142,54 @@ export function useBidActions({ id }: UseBidActionsParams) {
       setTransitioning(false);
     }
   }
+
+  return {
+    transitioning,
+    handleStatusTransition,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useBidDialogs — dialog open/close state
+// ---------------------------------------------------------------------------
+
+function useBidDialogs() {
+  const [showCostEstimate, setShowCostEstimate] = useState(false);
+  const [showOutcomeDialog, setShowOutcomeDialog] = useState(false);
+  const [showKBReview, setShowKBReview] = useState(false);
+  const [kbCandidates, setKBCandidates] = useState<KBCandidate[]>([]);
+  const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  return {
+    showCostEstimate,
+    setShowCostEstimate,
+    showOutcomeDialog,
+    setShowOutcomeDialog,
+    showKBReview,
+    setShowKBReview,
+    kbCandidates,
+    setKBCandidates,
+    extractedMetadata,
+    setExtractedMetadata,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// useQuestionExtraction — upload, extraction, question review flow
+// ---------------------------------------------------------------------------
+
+function useQuestionExtraction(
+  id: string,
+  fetchBid: () => Promise<void>,
+  fetchQuestions: () => Promise<void>,
+  setActiveTab: (tab: Tab) => void,
+  setExtractedMetadata: (metadata: TenderExtractedMetadata | null) => void,
+) {
+  const [showQuestionReview, setShowQuestionReview] = useState(false);
+  const [extractedQuestions, setExtractedQuestions] = useState<ExtractedQuestion[]>([]);
 
   function handleUploadComplete(result?: ExtractionResult) {
     fetchBid();
@@ -175,9 +229,77 @@ export function useBidActions({ id }: UseBidActionsParams) {
     setExtractedQuestions([]);
   }
 
-  async function handleDelete() {
-    if (!confirm('Are you sure you want to delete this bid? This cannot be undone.')) return;
+  return {
+    showQuestionReview,
+    extractedQuestions,
+    handleUploadComplete,
+    handleQuestionReviewConfirmed,
+    handleQuestionReviewCancelled,
+  };
+}
 
+// ---------------------------------------------------------------------------
+// useBidActions — composes the sub-hooks, preserving the original API
+// ---------------------------------------------------------------------------
+
+export function useBidActions({ id }: UseBidActionsParams) {
+  const router = useRouter();
+
+  // Data fetching
+  const {
+    bid,
+    questions,
+    stats,
+    loading,
+    fetchBid,
+    fetchQuestions,
+  } = useBidData(id);
+
+  // Tab state (kept here as it bridges data and extraction concerns)
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  // Status transitions
+  const {
+    transitioning,
+    handleStatusTransition,
+  } = useBidTransitions(bid, id, fetchBid);
+
+  // Dialog state
+  const {
+    showCostEstimate,
+    setShowCostEstimate,
+    showOutcomeDialog,
+    setShowOutcomeDialog,
+    showKBReview,
+    setShowKBReview,
+    kbCandidates,
+    setKBCandidates,
+    extractedMetadata,
+    setExtractedMetadata,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+  } = useBidDialogs();
+
+  // Question extraction flow
+  const {
+    showQuestionReview,
+    extractedQuestions,
+    handleUploadComplete,
+    handleQuestionReviewConfirmed,
+    handleQuestionReviewCancelled,
+  } = useQuestionExtraction(id, fetchBid, fetchQuestions, setActiveTab, setExtractedMetadata);
+
+  // Drafting state (lives here as it uses dialog + data concerns)
+  const [draftingAll, setDraftingAll] = useState(false);
+
+  // Handlers that coordinate across concerns
+
+  function handleDelete() {
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleDeleteConfirmed() {
+    setDeleteConfirmOpen(false);
     try {
       const response = await fetch(`/api/bids/${id}`, { method: 'DELETE' });
       if (!response.ok) {
@@ -320,6 +442,11 @@ export function useBidActions({ id }: UseBidActionsParams) {
     setShowKBReview,
     kbCandidates,
     extractedMetadata,
+
+    // Delete confirmation
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+    handleDeleteConfirmed,
 
     // Handlers
     handleStatusTransition,

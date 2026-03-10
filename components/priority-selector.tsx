@@ -161,9 +161,14 @@ export function PriorityBadge({ priority }: { priority: string | null }) {
   const config = PRIORITY_CONFIG[priority as keyof typeof PRIORITY_CONFIG];
   return (
     <span
-      className={cn('size-2 shrink-0 rounded-full', config.dot)}
-      aria-label={`${config.label} priority`}
+      className="inline-flex items-center gap-1 shrink-0"
       title={`${config.label} priority`}
-    />
+    >
+      <span
+        className={cn('size-2 rounded-full', config.dot)}
+        aria-hidden="true"
+      />
+      <span className="text-[11px] text-muted-foreground">{config.label}</span>
+    </span>
   );
 }

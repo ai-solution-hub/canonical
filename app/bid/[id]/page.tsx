@@ -13,9 +13,26 @@ import {
   Trash2,
   Loader2,
   Sparkles,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid-export-menu';
 import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
@@ -65,6 +82,9 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     handleOutcomeRecorded,
     clearExtractedMetadata,
     handleKBIntegrationComplete,
+    deleteConfirmOpen,
+    setDeleteConfirmOpen,
+    handleDeleteConfirmed,
     fetchBid,
     fetchQuestions,
     metadata,
@@ -169,10 +189,33 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               </Link>
             </Button>
             {role === 'admin' && (
-              <Button variant="ghost" size="icon-sm" onClick={handleDelete} title="Delete bid">
-                <Trash2 className="size-4 text-destructive" aria-hidden="true" />
-                <span className="sr-only">Delete bid</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    title="More actions"
+                  >
+                    <MoreHorizontal
+                      className="size-4"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">More actions</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={handleDelete}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2
+                      className="mr-2 size-4"
+                      aria-hidden="true"
+                    />
+                    Delete bid
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
         )}
@@ -180,7 +223,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Extracted metadata prompt */}
       {extractedMetadata && (
-        <div className="mt-4">
+        <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
           <TenderMetadataPrompt
             metadata={extractedMetadata}
             bidId={id}
@@ -302,6 +345,31 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         candidates={kbCandidates}
         onIntegrationComplete={handleKBIntegrationComplete}
       />
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete bid</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this bid? This cannot be
+              undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirmed}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

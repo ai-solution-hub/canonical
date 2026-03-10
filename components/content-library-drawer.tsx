@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentLibraryResult } from '@/components/content-library-result';
 import { useSearch } from '@/hooks/use-search';
@@ -206,26 +205,28 @@ export function ContentLibraryDrawer({
 
         {/* Filter chips */}
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <Badge
-            variant={typeFilter === 'all' ? 'default' : 'secondary'}
-            className="cursor-pointer text-xs"
+          <button
+            type="button"
             onClick={() => setTypeFilter('all')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter('all'); } }}
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+              typeFilter === 'all'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            }`}
           >
             All types
-          </Badge>
-          <Badge
-            variant={typeFilter === 'q_a_pair' ? 'default' : 'secondary'}
-            className="cursor-pointer text-xs"
+          </button>
+          <button
+            type="button"
             onClick={() => setTypeFilter('q_a_pair')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTypeFilter('q_a_pair'); } }}
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+              typeFilter === 'q_a_pair'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+            }`}
           >
             Q&A pairs
-          </Badge>
+          </button>
           {hasSearched && results.length > 0 && (
             <Select value={domainFilter} onValueChange={setDomainFilter}>
               <SelectTrigger size="sm" className="h-6 gap-1 px-2 text-xs">

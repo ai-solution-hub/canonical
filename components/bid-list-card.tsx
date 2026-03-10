@@ -40,18 +40,52 @@ export function BidListCard({ bid, className }: BidListCardProps) {
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);
   const progressPercent = totalQuestions > 0 ? Math.round((completedCount / totalQuestions) * 100) : 0;
 
-  const postureBreakdown = stats ? ([
-    { posture: 'strong_match' as ConfidencePosture, count: stats.strong_match_count },
-    { posture: 'partial_match' as ConfidencePosture, count: stats.partial_match_count },
-    { posture: 'needs_sme' as ConfidencePosture, count: stats.needs_sme_count },
-    { posture: 'no_content' as ConfidencePosture, count: stats.no_content_count },
-  ]).filter(p => p.count > 0) : [];
+  const postureBreakdown = stats
+    ? [
+        {
+          posture: 'strong_match' as ConfidencePosture,
+          count: stats.strong_match_count,
+        },
+        {
+          posture: 'partial_match' as ConfidencePosture,
+          count: stats.partial_match_count,
+        },
+        {
+          posture: 'needs_sme' as ConfidencePosture,
+          count: stats.needs_sme_count,
+        },
+        {
+          posture: 'no_content' as ConfidencePosture,
+          count: stats.no_content_count,
+        },
+      ].filter((p) => p.count > 0)
+    : [];
+
+  // Deadline proximity calculation
+  const deadlineProximity = (() => {
+    if (!metadata.deadline) return null;
+    const deadlineDate = new Date(metadata.deadline);
+    const now = new Date();
+    deadlineDate.setHours(0, 0, 0, 0);
+    now.setHours(0, 0, 0, 0);
+    const diffMs = deadlineDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays < 0)
+      return { label: 'Overdue', isOverdue: true, daysLeft: diffDays };
+    if (diffDays <= 7)
+      return {
+        label: `${diffDays} day${diffDays !== 1 ? 's' : ''} left`,
+        isOverdue: false,
+        daysLeft: diffDays,
+      };
+    return null;
+  })();
 
   return (
     <Link
       href={`/bid/${bid.id}`}
       className={cn(
-        'group block rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
+        'group block rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
         STATUS_BORDER_CLASS[bidStatus] ?? 'border-l-bid-draft-border',
         className,
       )}
@@ -77,6 +111,18 @@ export function BidListCard({ bid, className }: BidListCardProps) {
             <span className="inline-flex items-center gap-1.5">
               <Calendar className="size-3.5" aria-hidden="true" />
               {formatDateUK(metadata.deadline)}
+            </span>
+          )}
+          {deadlineProximity && (
+            <span
+              className={cn(
+                'inline-flex items-center text-xs font-medium',
+                deadlineProximity.isOverdue
+                  ? 'text-bid-overdue'
+                  : 'text-status-warning',
+              )}
+            >
+              {deadlineProximity.label}
             </span>
           )}
         </div>

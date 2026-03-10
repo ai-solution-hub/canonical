@@ -101,15 +101,17 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-4 -mx-0">
+          {/* Domain — open by default (commonly used) */}
           <DomainFilter
             selectedDomains={draft.domains}
             counts={counts.domain}
             onToggle={handleDomainToggle}
+            defaultOpen
           />
 
           <Separator className="my-3" />
 
-          {/* Subtopic (conditional -- exactly one domain selected) */}
+          {/* Subtopic (conditional — exactly one domain selected) */}
           {singleDomain && availableSubtopics.length > 0 && (
             <>
               <SubtopicFilter
@@ -117,28 +119,34 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                 subtopics={availableSubtopics}
                 selectedSubtopic={draft.subtopic}
                 onToggle={handleSubtopicToggle}
+                defaultOpen
               />
 
               <Separator className="my-3" />
             </>
           )}
 
+          {/* Content Type — open by default (commonly used) */}
           <ContentTypeFilter
             selectedTypes={draft.content_types}
             counts={counts.content_type}
             onToggle={handleContentTypeToggle}
+            defaultOpen
           />
 
           <Separator className="my-3" />
 
+          {/* Platform — collapsed by default */}
           <PlatformFilter
             selectedPlatforms={draft.platforms}
             counts={counts.platform}
             onToggle={handlePlatformToggle}
+            defaultOpen={false}
           />
 
           <Separator className="my-3" />
 
+          {/* Author — collapsed by default */}
           <AuthorFilter
             selectedAuthors={draft.authors}
             authorSearch={authorSearch}
@@ -146,12 +154,13 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             onAuthorSearchChange={setAuthorSearch}
             onAddAuthor={handleAddAuthor}
             onRemoveAuthor={handleRemoveAuthor}
+            defaultOpen={false}
           />
 
           <Separator className="my-3" />
 
-          {/* Date Range */}
-          <FilterSection title="Date Range">
+          {/* Date Range — collapsed by default */}
+          <FilterSection title="Date Range" defaultOpen={false}>
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-1">
                 <label
@@ -194,8 +203,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Priority */}
-          <FilterSection title="Priority">
+          {/* Priority — collapsed by default */}
+          <FilterSection title="Priority" defaultOpen={false}>
             <div className="flex flex-wrap gap-2">
               {[
                 { value: 'high', label: 'High', colour: 'bg-priority-high' },
@@ -225,10 +234,10 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Workspaces */}
+          {/* Workspaces — collapsed by default */}
           {allWorkspaces.length > 0 && (
             <>
-              <FilterSection title="Workspaces">
+              <FilterSection title="Workspaces" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {allWorkspaces.map((workspace) => {
                     const isActive = draft.workspace === workspace.id;
@@ -259,10 +268,10 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
-          {/* User Tags */}
+          {/* User Tags — collapsed by default */}
           {allUserTags.length > 0 && (
             <>
-              <FilterSection title="User Tags">
+              <FilterSection title="User Tags" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {allUserTags.map(({ tag, count }) => {
                     const isActive = draft.user_tags.includes(tag);
@@ -290,10 +299,10 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
-          {/* Entities */}
+          {/* Entities — collapsed by default */}
           {allEntities.length > 0 && (
             <>
-              <FilterSection title="Entities">
+              <FilterSection title="Entities" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {allEntities.map(({ name, count }) => {
                     const isActive = draft.entity === name;
@@ -324,8 +333,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
-          {/* Freshness */}
-          <FilterSection title="Freshness">
+          {/* Freshness — collapsed by default */}
+          <FilterSection title="Freshness" defaultOpen={false}>
             <div className="flex flex-wrap gap-2">
               {(['fresh', 'aging', 'stale', 'expired'] as const).map((state) => {
                 const isActive = draft.freshness.includes(state);
@@ -353,8 +362,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             <>
               <Separator className="my-3" />
 
-              {/* Content Layer */}
-              <FilterSection title="Content Layer">
+              {/* Content Layer — collapsed by default */}
+              <FilterSection title="Content Layer" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
                     const isActive = draft.layer === layer.key;
@@ -384,8 +393,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Quality Issues */}
-          <FilterSection title="Quality">
+          {/* Quality Issues — collapsed by default */}
+          <FilterSection title="Quality" defaultOpen={false}>
             <label htmlFor="filter-quality" className="flex cursor-pointer items-center gap-2">
               <Checkbox
                 id="filter-quality"
@@ -400,8 +409,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Include Drafts */}
-          <FilterSection title="Drafts">
+          {/* Include Drafts — collapsed by default */}
+          <FilterSection title="Drafts" defaultOpen={false}>
             <label htmlFor="filter-drafts" className="flex cursor-pointer items-center gap-2">
               <Checkbox
                 id="filter-drafts"
@@ -419,8 +428,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Include Q&A pairs */}
-          <FilterSection title="Q&A Pairs">
+          {/* Include Q&A pairs — collapsed by default */}
+          <FilterSection title="Q&A Pairs" defaultOpen={false}>
             <label htmlFor="filter-qa" className="flex cursor-pointer items-center gap-2">
               <Checkbox
                 id="filter-qa"
@@ -438,8 +447,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Starred */}
-          <FilterSection title="Starred">
+          {/* Starred — collapsed by default */}
+          <FilterSection title="Starred" defaultOpen={false}>
             <label htmlFor="filter-starred" className="flex cursor-pointer items-center gap-2">
               <Checkbox
                 id="filter-starred"
@@ -454,8 +463,8 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
 
           <Separator className="my-3" />
 
-          {/* Keywords */}
-          <FilterSection title="Keywords">
+          {/* Keywords — collapsed by default */}
+          <FilterSection title="Keywords" defaultOpen={false}>
             <Input
               placeholder="e.g. ISO 27001, security, SLA"
               value={draft.keywords}

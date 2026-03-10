@@ -13,6 +13,8 @@ interface AuthorFilterProps {
   onAuthorSearchChange: (search: string) => void;
   onAddAuthor: (name: string) => void;
   onRemoveAuthor: (name: string) => void;
+  /** Whether the section starts expanded (defaults to true) */
+  defaultOpen?: boolean;
 }
 
 export function AuthorFilter({
@@ -22,6 +24,7 @@ export function AuthorFilter({
   onAuthorSearchChange,
   onAddAuthor,
   onRemoveAuthor,
+  defaultOpen = true,
 }: AuthorFilterProps) {
   // Compute filtered author suggestions
   const authorSuggestions = useMemo(() => {
@@ -39,7 +42,7 @@ export function AuthorFilter({
     authorSuggestions.length > 0;
 
   return (
-    <FilterSection title="Author">
+    <FilterSection title="Author" defaultOpen={defaultOpen}>
       <div className="relative">
         <Input
           placeholder="Search authors..."
