@@ -74,3 +74,6 @@ logs/
 *.csv
 !supabase/**/*.csv
 .firecrawl/
+
+# Database backups
+backups/

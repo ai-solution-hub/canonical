@@ -636,6 +636,38 @@ export const TagSuggestParamsSchema = z.object({
   type: z.enum(VALID_TAG_TYPES),
 });
 
+/** GET /api/tags/duplicates?type=... */
+export const TagDuplicatesParamsSchema = z.object({
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** GET /api/tags/by-domain?type=... */
+export const TagByDomainParamsSchema = z.object({
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** GET /api/tags with filtering — query params */
+export const TagFilteredParamsSchema = z.object({
+  type: z.enum(VALID_TAG_TYPES).optional(),
+  min_count: z.coerce.number().int().min(1).optional(),
+  search: z.string().trim().max(100).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+});
+
+/** POST /api/tags/bulk-delete */
+export const TagBulkDeleteBodySchema = z.object({
+  tags: z.array(z.string().trim().min(1).max(100)).min(1, 'At least one tag is required').max(200),
+  type: z.enum(VALID_TAG_TYPES),
+});
+
+/** POST /api/tags/bulk-merge */
+export const TagBulkMergeBodySchema = z.object({
+  sources: z.array(z.string().trim().min(1).max(100)).min(1, 'At least one source tag is required').max(200),
+  target: z.string().trim().min(1, 'Target tag is required').max(100),
+  type: z.enum(VALID_TAG_TYPES),
+});
+
 // ──────────────────────────────────────────
 // Taxonomy Admin Schemas
 // ──────────────────────────────────────────
