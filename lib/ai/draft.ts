@@ -212,20 +212,26 @@ export async function draftResponse(
     // Skill not available — proceed without it
   }
 
-  // Build search result blocks from KB entries with citations enabled
-  const sourceBlocks = matchedContent.map((item) => ({
+  // Build search result blocks from KB entries with citations enabled.
+  // Claude API allows max 4 cache_control blocks total. We use 1 for the system
+  // prompt, so only the last 3 source blocks get cache_control.
+  const MAX_CACHED_SOURCES = 3;
+  const uncachedBlocks = matchedContent.slice(0, Math.max(0, matchedContent.length - MAX_CACHED_SOURCES)).map((item) => ({
     type: 'search_result' as const,
     source: `/item/${item.id}`,
     title: item.title ?? 'Untitled',
-    content: [
-      {
-        type: 'text' as const,
-        text: item.content ?? '',
-      },
-    ],
+    content: [{ type: 'text' as const, text: item.content ?? '' }],
+    citations: { enabled: true },
+  }));
+  const cachedBlocks = matchedContent.slice(Math.max(0, matchedContent.length - MAX_CACHED_SOURCES)).map((item) => ({
+    type: 'search_result' as const,
+    source: `/item/${item.id}`,
+    title: item.title ?? 'Untitled',
+    content: [{ type: 'text' as const, text: item.content ?? '' }],
     citations: { enabled: true },
     cache_control: { type: 'ephemeral' as const },
   }));
+  const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
   const wordLimitInstruction = question.word_limit
     ? `Aim for 90-95% of the ${question.word_limit}-word limit`
@@ -324,19 +330,25 @@ export async function draftResponseStreaming(
     // Skill not available — proceed without it
   }
 
-  const sourceBlocks = matchedContent.map((item) => ({
+  // Claude API allows max 4 cache_control blocks total. We use 1 for the system
+  // prompt, so only the last 3 source blocks get cache_control.
+  const STREAM_MAX_CACHED = 3;
+  const uncachedBlocks = matchedContent.slice(0, Math.max(0, matchedContent.length - STREAM_MAX_CACHED)).map((item) => ({
     type: 'search_result' as const,
     source: `/item/${item.id}`,
     title: item.title ?? 'Untitled',
-    content: [
-      {
-        type: 'text' as const,
-        text: item.content ?? '',
-      },
-    ],
+    content: [{ type: 'text' as const, text: item.content ?? '' }],
+    citations: { enabled: true },
+  }));
+  const cachedBlocks = matchedContent.slice(Math.max(0, matchedContent.length - STREAM_MAX_CACHED)).map((item) => ({
+    type: 'search_result' as const,
+    source: `/item/${item.id}`,
+    title: item.title ?? 'Untitled',
+    content: [{ type: 'text' as const, text: item.content ?? '' }],
     citations: { enabled: true },
     cache_control: { type: 'ephemeral' as const },
   }));
+  const sourceBlocks = [...uncachedBlocks, ...cachedBlocks];
 
   const wordLimitInstruction = question.word_limit
     ? `Aim for 90-95% of the ${question.word_limit}-word limit`
