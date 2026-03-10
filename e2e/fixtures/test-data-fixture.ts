@@ -37,11 +37,11 @@ export interface WorkerData {
   qaPairId: string;
   /** ID of the second Q&A pair ("Project Management Approach") — different domain, has answer_advanced. */
   qaPairTechId: string;
-  /** ID of the note content item ("Test Note" — now "Pricing Model Template"). */
+  /** ID of the "Pricing Model Template" (note type, expired). Same record as expiredItemId. */
   noteId: string;
   /** ID of the stale content item ("Cyber Essentials Compliance"). */
   staleItemId: string;
-  /** ID of the expired content item ("Pricing Model Template"). */
+  /** ID of the expired content item ("Pricing Model Template"). Same record as noteId. */
   expiredItemId: string;
   /** ID of the certification item ("ISO 27001 Certification"). */
   certificationId: string;
@@ -53,6 +53,8 @@ export interface WorkerData {
   socialValueId: string;
   /** ID of the Data Protection Policy (regulation). */
   dataProtectionId: string;
+  /** ID of "Staff CVs and Experience" (People & Skills domain). */
+  peopleSkillsId: string;
   /** ID of the Environmental Policy (aging). */
   environmentalId: string;
   /** ID of the seeded kb_section workspace. */
@@ -123,17 +125,18 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
 
       const itemIds = (items ?? []).map((i) => i.id);
 
-      // --- Insert pre-computed embeddings for search tests ---
-      for (const embeddingData of precomputedEmbeddings) {
-        const itemId = itemIds[embeddingData.itemIndex];
-        if (itemId) {
-          await supabase
-            .from('content_items')
-            .update({ embedding: JSON.stringify(embeddingData.embedding) })
-            .eq('id', itemId)
-            .throwOnError();
-        }
-      }
+      // --- Insert pre-computed embeddings for search tests (parallel) ---
+      await Promise.all(
+        precomputedEmbeddings
+          .filter((e) => itemIds[e.itemIndex])
+          .map((e) =>
+            supabase
+              .from('content_items')
+              .update({ embedding: JSON.stringify(e.embedding) })
+              .eq('id', itemIds[e.itemIndex])
+              .throwOnError(),
+          ),
+      );
 
       // --- Seed workspaces (from centralised shapes) ---
       const bidDeadline = new Date(now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS)
@@ -288,6 +291,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         methodologyId: itemIds[7],
         socialValueId: itemIds[8],
         dataProtectionId: itemIds[9],
+        peopleSkillsId: itemIds[10],
         environmentalId: itemIds[11],
         workspaceId: kbSectionId,
         bidId,

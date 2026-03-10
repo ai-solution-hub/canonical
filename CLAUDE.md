@@ -121,7 +121,13 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
 - **E2E:** Playwright — 5 spec files in `e2e/tests/` (auth, browse-search,
-  settings, governance-review, role-gating). Config: `playwright.config.ts`
+  settings, governance-review, role-gating). Config: `playwright.config.ts`.
+  100/111 tests pass. Worker-scoped fixtures with `[E2E-W{index}]` prefix for
+  data isolation. Multi-role auth (admin/editor/viewer storage states).
+  Shared responsive helpers in `e2e/helpers/responsive.ts`. Dev overlay
+  suppression in `e2e/helpers/dev-overlays.ts`.
+- **E2E test users:** user1=admin, user2=editor, user3=viewer (all in
+  `user_roles` table). Auth setup saves 3 storage states to `e2e/.auth/`.
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
 
@@ -285,3 +291,14 @@ when needed.
   `.claude/` directory is gitignored, so Vercel cannot regenerate it. After
   changing plugin files (commands, skills, plugin.json), run
   `bun run build:plugin` and commit the updated `plugin-bundle.ts`.
+- **Tailwind v4 scans comments:** Tailwind extracts class names from code
+  comments. Never put wildcard class patterns like `bg-[var(--domain-*-text)]`
+  in backticks — Tailwind generates invalid CSS from them.
+- **CopilotKit Web Inspector blocks E2E:** The `cpk-web-inspector` element
+  and 429/401 runtime banners intercept pointer events. Set
+  `showDevConsole={false}` and `enableInspector={false}` on `<CopilotKit>`,
+  and stub `/api/copilotkit/` requests in E2E via `e2e/helpers/dev-overlays.ts`.
+- **notifications_type_check constraint:** Valid notification types are:
+  `governance_review_needed`, `governance_approve`,
+  `governance_request_changes`, `governance_revert`, `quality_flag`,
+  `digest_ready`. Other values will fail the DB check constraint.
