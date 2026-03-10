@@ -227,6 +227,12 @@
   --color-quality-severity-warning: oklch(0.60 0.14 70);
   --color-quality-severity-info: oklch(0.55 0.12 240);
 
+  /* Tag frequency tiers */
+  --color-tag-rare: oklch(0.60 0.014 48);
+  --color-tag-rare-bg: oklch(0.95 0.010 48);
+  --color-tag-core: oklch(0.55 0.15 160);
+  --color-tag-core-bg: oklch(0.93 0.04 160);
+
   /* Verified */
   --color-verified: oklch(0.55 0.15 160);
   --color-verified-bg: oklch(0.93 0.04 160);
@@ -455,6 +461,12 @@
   --color-quality-severity-warning: oklch(0.72 0.12 70);
   --color-quality-severity-info: oklch(0.70 0.10 240);
 
+  /* Tag frequency tiers (dark) */
+  --color-tag-rare: oklch(0.55 0.014 48);
+  --color-tag-rare-bg: oklch(0.22 0.010 48);
+  --color-tag-core: oklch(0.70 0.13 160);
+  --color-tag-core-bg: oklch(0.25 0.06 160);
+
   /* Verified (dark) */
   --color-verified: oklch(0.70 0.13 160);
   --color-verified-bg: oklch(0.25 0.06 160);
@@ -607,6 +619,11 @@
   --color-quality-moderate-bg: var(--color-quality-moderate-bg);
   --color-quality-severity-warning: var(--color-quality-severity-warning);
   --color-quality-severity-info: var(--color-quality-severity-info);
+
+  --color-tag-rare: var(--color-tag-rare);
+  --color-tag-rare-bg: var(--color-tag-rare-bg);
+  --color-tag-core: var(--color-tag-core);
+  --color-tag-core-bg: var(--color-tag-core-bg);
 
   --color-verified: var(--color-verified);
   --color-verified-bg: var(--color-verified-bg);
