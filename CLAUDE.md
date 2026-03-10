@@ -115,14 +115,15 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~111 test files
+- **Location:** `__tests__/` — ~106 test files, ~2,048 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
-- **E2E:** Playwright — 5 spec files in `e2e/tests/` (auth, browse-search,
-  settings, governance-review, role-gating). Config: `playwright.config.ts`.
-  111/111 tests pass. Worker-scoped fixtures with `[E2E-W{index}]` prefix for
+- **E2E:** Playwright — 9 spec files in `e2e/tests/` (auth, browse-search,
+  settings, governance-review, role-gating, item-detail, qa-library,
+  bid-pipeline, coverage-page). Config: `playwright.config.ts`.
+  261 tests (252 pass, 9 skipped). Worker-scoped fixtures with `[E2E-W{index}]` prefix for
   data isolation. Multi-role auth (admin/editor/viewer storage states).
   Shared responsive helpers in `e2e/helpers/responsive.ts`. Dev overlay
   suppression in `e2e/helpers/dev-overlays.ts`.
@@ -215,15 +216,17 @@ exists for your use case, define one in `app/globals.css` first.
 
 | Item | Location | Status |
 |------|----------|--------|
-| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Tags done; `/coverage` API built, page in progress |
-| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Sprints 1-7b done (MCP server 23 tools, OAuth, plugin, entity graph, MCP Apps); Sprint 7c-8 remaining |
+| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Done — tags, API, and `/coverage` page all built |
+| AI Integration | `docs/plans/ai-integration-strategy.md` | Sprints 1-7c done (23 tools, OAuth, plugin, entity graph, 2 MCP Apps, win signal boost); Sprint 7d spec ready, Sprint 8 planned |
+| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Spec complete (S80); Phase 1 migration in progress |
+| UI Design Audit | `docs/plans/ui-design-audit-spec.md` | Sprints A-D done; ~40 uncaptured critique items outstanding |
 
 ### Domain References — consult when working in that area
 
 | Document | Location | Purpose |
 |----------|----------|---------|
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
-| Classification prompt | `docs/reference/classification-prompt.md` | v3.1 classification prompt |
+| Classification prompt | `docs/reference/classification-prompt.md` | v4.1 classification prompt (7 domains, 34 subtopics) |
 | Search evaluation | `docs/reference/search-evaluation-guide.md` + `scripts/search-evaluation.json` | How to run search tests (20 test cases) |
 | Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
 | E2E test flows + setup | `docs/reference/e2e-test-flows.md` + `e2e-test-setup.md` | 12 flows, test data creation runbook |

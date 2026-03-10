@@ -30,6 +30,7 @@ export type Database = {
           section_name: string | null
           section_sequence: number
           status: string
+          template_requirement_id: string | null
           updated_at: string | null
           word_limit: number | null
         }
@@ -48,6 +49,7 @@ export type Database = {
           section_name?: string | null
           section_sequence?: number
           status?: string
+          template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
         }
@@ -66,6 +68,7 @@ export type Database = {
           section_name?: string | null
           section_sequence?: number
           status?: string
+          template_requirement_id?: string | null
           updated_at?: string | null
           word_limit?: number | null
         }
@@ -75,6 +78,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_questions_template_requirement_id_fkey"
+            columns: ["template_requirement_id"]
+            isOneToOne: false
+            referencedRelation: "template_requirements"
             referencedColumns: ["id"]
           },
         ]
@@ -1099,6 +1109,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      template_requirements: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          display_order: number
+          id: string
+          is_current: boolean | null
+          is_mandatory: boolean | null
+          matching_guidance: string | null
+          matching_keywords: string[] | null
+          primary_domain: string | null
+          primary_subtopic: string | null
+          question_number: number | null
+          requirement_embedding: string | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain: string | null
+          secondary_subtopic: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability: string[] | null
+          template_name: string
+          template_type: string
+          template_version: string | null
+          updated_at: string | null
+          word_limit_guidance: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_embedding?: string | null
+          requirement_text: string
+          requirement_type: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name: string
+          section_ref: string
+          sector_applicability?: string[] | null
+          template_name: string
+          template_type: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_current?: boolean | null
+          is_mandatory?: boolean | null
+          matching_guidance?: string | null
+          matching_keywords?: string[] | null
+          primary_domain?: string | null
+          primary_subtopic?: string | null
+          question_number?: number | null
+          requirement_embedding?: string | null
+          requirement_text?: string
+          requirement_type?: string
+          secondary_domain?: string | null
+          secondary_subtopic?: string | null
+          section_name?: string
+          section_ref?: string
+          sector_applicability?: string[] | null
+          template_name?: string
+          template_type?: string
+          template_version?: string | null
+          updated_at?: string | null
+          word_limit_guidance?: number | null
+        }
+        Relationships: []
       }
       templates: {
         Row: {
