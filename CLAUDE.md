@@ -189,7 +189,7 @@ When adding or modifying UI elements, use these semantic tokens:
 | Template review | `template-*` | `text-template-confirmed`, `bg-template-unmapped-bg` |
 | Quality scoring | `quality-*` | `text-quality-good`, `bg-quality-moderate-bg` |
 | General status | `status-*` | `text-status-success`, `text-status-warning` |
-| Domain categories | `[var(--domain-*-text)]` | Already semantic in globals.css |
+| Domain categories | `[var(--domain-{name}-text)]` | Already semantic in globals.css |
 
 **Rule:** Never use raw Tailwind colour classes (`text-green-600`,
 `bg-amber-50`, etc.) in components. Always use a semantic token. If no token
@@ -292,7 +292,7 @@ when needed.
   changing plugin files (commands, skills, plugin.json), run
   `bun run build:plugin` and commit the updated `plugin-bundle.ts`.
 - **Tailwind v4 scans comments:** Tailwind extracts class names from code
-  comments. Never put wildcard class patterns like `bg-[var(--domain-*-text)]`
+  comments. Never put wildcard class patterns (e.g. bg-[var(--domain-STAR-text)])
   in backticks — Tailwind generates invalid CSS from them.
 - **CopilotKit Web Inspector blocks E2E:** The `cpk-web-inspector` element
   and 429/401 runtime banners intercept pointer events. Set

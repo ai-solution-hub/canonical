@@ -169,11 +169,10 @@ test.describe('Settings — section content', () => {
     await page.goto('/settings?section=team');
     await page.waitForLoadState('networkidle');
 
-    // Team section should show the Invite User button or Team Members heading
+    // Team section should show the Team Members heading
     const main = page.locator('main');
     await expect(
-      main.getByRole('button', { name: /invite/i }).first()
-        .or(main.getByRole('heading', { name: /team members/i })),
+      main.getByRole('heading', { name: /team members/i }),
     ).toBeVisible({ timeout: 15000 });
   });
 });

@@ -51,6 +51,7 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('can enter email and proceed to method selection', async ({ page }) => {
     await page.goto('/login');
 
+    await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -65,6 +66,8 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('shows password input after choosing password method', async ({ page }) => {
     await page.goto('/login');
 
+    // Wait for the email input to be ready before interacting
+    await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -99,6 +102,7 @@ baseTest.describe('Authentication — unauthenticated access', () => {
     await page.goto('/login');
 
     const testEmail = 'user@example.co.uk';
+    await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill(testEmail);
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -117,6 +121,8 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   baseTest('back button navigates between login steps', async ({ page }) => {
     await page.goto('/login');
 
+    // Wait for the email input to be ready before interacting
+    await page.getByLabel('Email address').waitFor({ state: 'visible' });
     await page.getByLabel('Email address').fill('user@example.co.uk');
     await page.getByRole('button', { name: 'Continue' }).click();
 
@@ -165,6 +171,17 @@ authTest.describe('Authentication — authenticated session', () => {
     await expect(nav.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Coverage' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Bids' })).toBeVisible();
+
+    // On mobile, close the hamburger menu before checking the Settings button
+    // which lives in the header behind the overlay
+    const viewport = page.viewportSize();
+    if (viewport && viewport.width < 640) {
+      // Close the mobile nav dialog by pressing Escape
+      await page.keyboard.press('Escape');
+      await expect(
+        page.getByRole('navigation', { name: 'Mobile navigation' }),
+      ).not.toBeVisible();
+    }
 
     // Settings button (icon button in header, navigates to /settings)
     // Scope to <header> and use exact: true to avoid matching the

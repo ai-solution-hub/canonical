@@ -10,7 +10,7 @@
 - [ ] New status colours use the correct semantic token prefix:
       freshness-*, confidence-*, bid-*, governance-*, phase-*, template-*,
       quality-*, status-*
-- [ ] Domain category colours use `var(--domain-*-bg/text/surface)` tokens
+- [ ] Domain category colours use var(--domain-{name}-bg/text/surface) tokens
 
 ## Signal principle
 

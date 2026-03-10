@@ -91,15 +91,13 @@ export async function searchFromHeader(
     // Mobile: click search icon to go to /search page
     await page.getByRole('button', { name: 'Search' }).click();
     await expect(page).toHaveURL(/\/search/);
-    // Fill the search input on the search page
-    const searchInput = page.getByRole('searchbox').or(
-      page.locator('input[placeholder*="Search" i]'),
-    );
+    // Fill the search input on the search page (Radix Command input has role="combobox")
+    const searchInput = page.getByRole('combobox', { name: /search/i });
     await searchInput.fill(query);
     await searchInput.press('Enter');
   } else {
-    // Desktop: use the compact search bar in the header
-    const searchInput = page.locator('header').getByRole('searchbox');
+    // Desktop: use the compact search bar in the header (Radix Command input has role="combobox")
+    const searchInput = page.locator('header').getByRole('combobox', { name: /search/i });
     await searchInput.fill(query);
     await searchInput.press('Enter');
   }

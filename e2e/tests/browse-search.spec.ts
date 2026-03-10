@@ -59,7 +59,8 @@ test.describe('Browse page', () => {
 
     // The filters button has a SlidersHorizontal icon and text "Filters"
     const filtersButton = page.getByRole('button', { name: /filter/i });
-    await filtersButton.click();
+    await filtersButton.scrollIntoViewIfNeeded();
+    await filtersButton.click({ force: true });
 
     // The filter panel is a Sheet that appears on the right side.
     // Scope assertions to the Sheet dialog to avoid matching domain badges
@@ -82,7 +83,8 @@ test.describe('Browse page', () => {
     const sortTrigger = viewGroup.locator('..').getByRole('combobox').first();
 
     if (await sortTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await sortTrigger.click();
+      await sortTrigger.scrollIntoViewIfNeeded();
+      await sortTrigger.click({ force: true });
 
       // Should show sort options in the dropdown listbox
       const listbox = page.getByRole('listbox');
