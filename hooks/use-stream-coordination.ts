@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDraftStream } from '@/hooks/use-draft-stream';
 import { insertLibraryContent } from '@/lib/drawer-insert';
+import { responseToHtml } from '@/lib/markdown-to-html';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import type { Editor } from '@/components/response-editor';
@@ -204,7 +205,7 @@ export function useStreamCoordination({
 
       const data: BidResponse = await res.json();
       setResponse(data);
-      setEditorContent(data.response_text ?? '');
+      setEditorContent(responseToHtml(data.response_text));
     } catch (err) {
       console.error('Failed to fetch response:', err);
       setResponse(null);
@@ -230,7 +231,7 @@ export function useStreamCoordination({
 
     // If enough time has passed, update immediately
     if (elapsed >= 60) {
-      setEditorContent(stream.text);
+      setEditorContent(responseToHtml(stream.text));
       lastEditorUpdateRef.current = now;
       return;
     }
@@ -238,7 +239,7 @@ export function useStreamCoordination({
     // Otherwise schedule an update
     if (rafRef.current !== null) return; // Already scheduled
     rafRef.current = window.requestAnimationFrame(() => {
-      setEditorContent(streamTextRef.current);
+      setEditorContent(responseToHtml(streamTextRef.current));
       lastEditorUpdateRef.current = Date.now();
       rafRef.current = null;
     });
@@ -256,9 +257,9 @@ export function useStreamCoordination({
   // Handle stream completion
   useEffect(() => {
     if (stream.phase === 'done') {
-      // Final content sync
+      // Final content sync — convert Markdown from AI to HTML for TipTap
       if (stream.text) {
-        setEditorContent(stream.text);
+        setEditorContent(responseToHtml(stream.text));
       }
       // Refresh data from database
       void fetchResponse();
