@@ -56,32 +56,42 @@ test.describe('Browse page', () => {
   test('filter button opens the filter panel', async ({ authenticatedPage: page }) => {
     await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
-    // The filters button has a SlidersHorizontal icon — look for it by aria-label or text
+    // The filters button has a SlidersHorizontal icon and text "Filters"
     const filtersButton = page.getByRole('button', { name: /filter/i });
     await filtersButton.click();
 
-    // The filter panel is a Sheet/dialog that should appear
-    // It contains domain, content type, and other filter options
-    await expect(page.getByRole('heading', { name: /filter/i }).or(page.getByText('Content type'))).toBeVisible({ timeout: 5000 });
+    // The filter panel is a Sheet that appears on the right side.
+    // Scope assertions to the Sheet dialog to avoid matching domain badges
+    // in the browse content behind it.
+    const sheet = page.locator('[role="dialog"]');
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await expect(
+      sheet.getByText('Filters').or(sheet.getByText('Content type')),
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test('sort dropdown shows available sort options', async ({ authenticatedPage: page }) => {
     await expect(page.getByText(/^\d+ items?$/).first()).toBeVisible({ timeout: 10000 });
 
-    // The sort control is a Select component with sort options
-    // Look for the sort trigger (ArrowUpDown icon button or select trigger)
-    const sortTrigger = page.getByRole('combobox').first();
+    // The sort control is a Radix Select inside the "View mode" group area.
+    // Its trigger has role="combobox" and is inside the filter bar.
+    // Scope to the View mode group's parent to find the right combobox.
+    const viewGroup = page.getByRole('group', { name: 'View mode' });
+    // The sort select is a sibling of the view group, both inside the same
+    // parent container. Find the combobox near the view group.
+    const sortTrigger = viewGroup.locator('..').getByRole('combobox').first();
 
-    if (await sortTrigger.isVisible()) {
+    if (await sortTrigger.isVisible({ timeout: 3000 }).catch(() => false)) {
       await sortTrigger.click();
 
-      // Should show sort options
-      await expect(page.getByText('Date (newest)')).toBeVisible();
-      await expect(page.getByText('Date (oldest)')).toBeVisible();
-      await expect(page.getByText('Domain')).toBeVisible();
+      // Should show sort options in the dropdown listbox
+      const listbox = page.getByRole('listbox');
+      await expect(listbox.getByText('Date (newest)')).toBeVisible();
+      await expect(listbox.getByText('Date (oldest)')).toBeVisible();
+      await expect(listbox.getByText('Domain')).toBeVisible();
 
       // Select a different sort option
-      await page.getByText('Date (oldest)').click();
+      await listbox.getByText('Date (oldest)').click();
     }
   });
 

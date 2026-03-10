@@ -71,7 +71,7 @@ knowledge-hub/
     api/dashboard/            #   GET /api/dashboard (dashboard stats)
     api/quality/              #   GET + summary (quality metrics)
     api/jobs/[id]/status/     #   GET (background job status)
-    api/mcp/                  #   MCP server (Streamable HTTP transport, 21 tools)
+    api/mcp/                  #   MCP server (Streamable HTTP transport, 23 tools)
     api/oauth/                #   OAuth decision endpoint (MCP authorization)
     api/plugin/               #   Plugin download (ZIP for client distribution)
     api/reorient/             #   GET /api/reorient (Reorient Me context summary)
@@ -90,12 +90,15 @@ knowledge-hub/
     auth/                     #   /auth/callback (OAuth callback)
     oauth/                    #   /oauth (MCP OAuth consent)
     page.tsx                  #   / (home: search + recent items)
+  mcp-apps/                    # MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai)
+    coverage-matrix/          #   Coverage Matrix (domains × freshness grid, Warm Meridian)
   components/                 # ~176 custom + copilot-ui/ (2) + reader-cards/ (3) + ui/ (23 shadcn)
   contexts/                   # React contexts (read-marks, taxonomy, client-features)
   hooks/                      # ~33 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.)
   lib/                        # ~69 utility modules (auth, supabase clients, bid-*, copilotkit/,
                               #   embeddings, freshness, validation/, taxonomy-*, etc.)
     mcp/                      #   MCP server subsystem (tools.ts, resources.ts, formatters.ts, auth.ts)
+                              #   23 tools (incl. 2 app trigger), 9 resources (incl. 2 ui://), 5 prompts
     ai/                       #   AI service layer (shared by MCP + CopilotKit)
   types/                      # TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d)
   scripts/
@@ -118,7 +121,8 @@ knowledge-hub/
   docs/
     reference/                # Schema reference, classification, search evaluation, import guide
     continuation-prompts/     # Session handoff documents for cross-session context
-  __tests__/                  # Vitest tests (~75 test files, ~1447 tests)
+  __tests__/                  # Vitest tests (101 test files, ~1916 tests)
+  e2e/                        # Playwright E2E tests (4 spec files)
   proxy.ts                    # Auth middleware (Next.js 16 proxy pattern)
 ```
 
@@ -203,14 +207,15 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~75 test files (~1447 tests)
+- **Location:** `__tests__/` — ~101 test files (~1916 tests)
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
   template filling)
+- **E2E:** Playwright — 4 spec files in `e2e/tests/` (auth, browse-search,
+  settings, governance-review). Config: `playwright.config.ts`
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
-  `.planning/specs/testing-expansion-spec.md` (Waves 1-3 done, Wave 4 E2E
-  remaining)
+  `.planning/specs/testing-expansion-spec.md` (all waves complete)
 
 ## Deployment
 
@@ -296,7 +301,7 @@ exists for your use case, define one in `app/globals.css` first.
 | Item | Location | Status |
 |------|----------|--------|
 | Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Tags done; `/coverage` API built, page in progress |
-| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Sprints 1-6b done (MCP server 16 tools, OAuth, plugin, entity graph); Sprints 7-8 remaining |
+| AI Integration (Spec 4) | `.planning/specs/spec4-ai-integration-architecture.md` | Sprints 1-7b done (MCP server 23 tools, OAuth, plugin, entity graph, MCP Apps); Sprint 7c-8 remaining |
 
 ### Domain References — consult when working in that area
 

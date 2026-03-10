@@ -221,25 +221,28 @@ test.describe('Review page — action bar', () => {
   });
 });
 
-test.describe('Review page — empty and completion states', () => {
-  test('empty queue shows appropriate message', async ({ authenticatedPage: page }) => {
-    // Navigate to review page — if all items are verified, we should see
-    // the completion state
+test.describe('Review page — queue state', () => {
+  test('review page shows queue state (populated or empty)', async ({ authenticatedPage: page }) => {
+    // Navigate to review page — it may show review items or a completion
+    // message depending on the state of the seeded test data
     await page.goto('/review');
     await page.waitForLoadState('networkidle');
 
-    // Wait for either the review content or an empty/completed state
+    // Wait for the page to settle into one of two states:
+    // 1. Populated: the review action toolbar is visible
+    // 2. Empty/completed: a heading like "All caught up!" or "Batch complete"
     const actionBar = page.getByRole('toolbar', { name: 'Review actions' });
-    const emptyMessage = page
+    const emptyHeading = page
       .getByRole('heading', { name: 'All caught up!' })
-      .or(page.getByRole('heading', { name: /items have been verified/ }));
+      .or(page.getByRole('heading', { name: /items have been verified/ }))
+      .or(page.getByRole('heading', { name: 'Batch complete' }));
 
-    const reviewOrEmpty = actionBar.or(emptyMessage);
-    await expect(reviewOrEmpty).toBeVisible({ timeout: 15000 });
+    await expect(
+      actionBar.or(emptyHeading),
+    ).toBeVisible({ timeout: 15000 });
 
     // If we see the empty state, verify it has helpful text
-    if (await emptyMessage.isVisible().catch(() => false)) {
-      // Should show a message about the queue status
+    if (await emptyHeading.isVisible().catch(() => false)) {
       await expect(
         page.getByText(/no unverified items/i)
           .or(page.getByText(/fully reviewed/i))
@@ -252,12 +255,24 @@ test.describe('Review page — empty and completion states', () => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Click the Review link in the main navigation
-    const reviewLink = page.getByRole('link', { name: 'Review' });
+    // On mobile, the Review link is inside the hamburger menu
+    const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
+    const isMobile = await hamburger.isVisible({ timeout: 2000 }).catch(() => false);
 
-    if (await reviewLink.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await reviewLink.click();
-      await expect(page).toHaveURL(/\/review/);
+    if (isMobile) {
+      await hamburger.click();
+      const mobileNav = page.getByRole('navigation', { name: 'Mobile navigation' });
+      const reviewLink = mobileNav.getByRole('link', { name: 'Review' });
+      if (await reviewLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await reviewLink.click();
+        await expect(page).toHaveURL(/\/review/);
+      }
+    } else {
+      const reviewLink = page.getByRole('link', { name: 'Review' });
+      if (await reviewLink.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await reviewLink.click();
+        await expect(page).toHaveURL(/\/review/);
+      }
     }
   });
 });
