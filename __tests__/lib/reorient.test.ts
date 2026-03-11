@@ -67,7 +67,11 @@ vi.mock('@/lib/bid-queries', () => ({
 // Import under test AFTER mocks
 // ---------------------------------------------------------------------------
 
-import { fetchReorientData } from '@/lib/reorient';
+vi.mock('@/lib/supabase/server', () => ({
+  createServiceClient: vi.fn(),
+}));
+
+import { fetchReorientData, resolveDisplayNames } from '@/lib/reorient';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -643,7 +647,7 @@ describe('fetchReorientData', () => {
       }
     });
 
-    it('does not generate quality_flag urgent items (handled by Needs Attention section)', async () => {
+    it('generates quality_flag urgent items for admins', async () => {
       const mock = setupDefaultMock({
         qualityFlagsCount: 4,
       });
@@ -653,6 +657,25 @@ describe('fetchReorientData', () => {
         TEST_USER_ID,
         true, // isAdmin
         'admin',
+      );
+
+      const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
+      expect(qualityItem).toBeDefined();
+      expect(qualityItem!.title).toContain('4 unresolved quality flags');
+      expect(qualityItem!.href).toBe('/browse?quality=flagged');
+      expect(qualityItem!.priority).toBe(3);
+    });
+
+    it('does not generate quality_flag urgent items for non-admins', async () => {
+      const mock = setupDefaultMock({
+        qualityFlagsCount: 4,
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false, // isAdmin
+        'editor',
       );
 
       const qualityItem = result.urgent.find(u => u.type === 'quality_flag');
@@ -1091,6 +1114,8 @@ describe('fetchReorientData', () => {
       expect(bidChange!.entity_title).toBe('NHS Digital Bid');
       expect(bidChange!.action).toBe('updated');
       expect(bidChange!.user_id).toBe('other-user-2');
+      expect(bidChange!.workspace_id).toBe('bid-1');
+      expect(bidChange!.question_id).toBe('q-1');
     });
 
     it('sorts combined team changes by date descending', async () => {
@@ -1174,6 +1199,8 @@ describe('fetchReorientData', () => {
       expect(result.my_recent_work[0].entity_title).toBe('Describe your security approach');
       expect(result.my_recent_work[0].href).toBe('/bid/bid-2/session');
       expect(result.my_recent_work[0].action).toBe('edited');
+      expect(result.my_recent_work[0].workspace_id).toBe('bid-2');
+      expect(result.my_recent_work[0].question_id).toBe('q-2');
     });
 
     it('truncates long question text in entity_title', async () => {
@@ -1259,5 +1286,51 @@ describe('fetchReorientData', () => {
       // Should still produce valid data but governance reviews should resolve to 0
       expect(result.counts.pending_reviews).toBe(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests for resolveDisplayNames
+// ---------------------------------------------------------------------------
+
+describe('resolveDisplayNames', () => {
+  it('returns empty map for empty input', async () => {
+    const map = await resolveDisplayNames([]);
+    expect(map.size).toBe(0);
+  });
+
+  it('resolves names using auth.admin', async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    vi.mocked(createServiceClient).mockReturnValue({
+      auth: {
+        admin: {
+          getUserById: vi.fn().mockImplementation(async (id: string) => {
+            if (id === 'u1') return { data: { user: { user_metadata: { full_name: 'Alice Smith' } } } };
+            if (id === 'u2') return { data: { user: { email: 'bob@test.com' } } };
+            return { data: { user: null } };
+          }),
+        },
+      },
+    } as unknown as ReturnType<typeof createServiceClient>);
+
+    const map = await resolveDisplayNames(['u1', 'u2', 'u3', 'u1']);
+    expect(map.size).toBe(2);
+    expect(map.get('u1')).toBe('Alice');
+    expect(map.get('u2')).toBe('bob');
+    expect(map.has('u3')).toBe(false);
+  });
+
+  it('handles auth errors gracefully', async () => {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    vi.mocked(createServiceClient).mockReturnValue({
+      auth: {
+        admin: {
+          getUserById: vi.fn().mockRejectedValue(new Error('Auth failed')),
+        },
+      },
+    } as unknown as ReturnType<typeof createServiceClient>);
+
+    const map = await resolveDisplayNames(['u1']);
+    expect(map.size).toBe(0);
   });
 });
