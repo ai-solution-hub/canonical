@@ -560,7 +560,9 @@ export type Database = {
           created_at: string | null
           entity_name: string
           entity_type: string
+          entity_type_override: string | null
           id: string
+          normalisation_version: number | null
         }
         Insert: {
           canonical_name: string
@@ -570,7 +572,9 @@ export type Database = {
           created_at?: string | null
           entity_name: string
           entity_type: string
+          entity_type_override?: string | null
           id?: string
+          normalisation_version?: number | null
         }
         Update: {
           canonical_name?: string
@@ -580,7 +584,9 @@ export type Database = {
           created_at?: string | null
           entity_name?: string
           entity_type?: string
+          entity_type_override?: string | null
           id?: string
+          normalisation_version?: number | null
         }
         Relationships: [
           {
