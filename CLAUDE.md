@@ -52,15 +52,15 @@ Key directories:
 |-----------|----------|
 | `app/` | Next.js 16 App Router — ~30 API route groups, ~12 page routes, `proxy.ts` auth middleware |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | ~210 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
+| `components/` | ~180 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
-| `hooks/` | ~33 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
-| `lib/` | ~69 utility modules — includes `mcp/` (23 tools, 9 resources, 5 prompts) and `ai/` (service layer) |
+| `hooks/` | ~34 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
+| `lib/` | ~73 utility modules — includes `mcp/` (23 tools, 9 resources, 5 prompts) and `ai/` (service layer) |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
-| `supabase/` | ~45 migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest — ~111 test files |
-| `e2e/` | Playwright — 5 spec files (auth, browse-search, settings, governance-review, role-gating) |
+| `supabase/` | ~51 migrations + auto-generated types (`database.types.ts` — never edit manually) |
+| `__tests__/` | Vitest — ~106 test files |
+| `e2e/` | Playwright — 9 spec files. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
 ## Environment
@@ -91,7 +91,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-**20 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
+**24 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 
 ### RLS Model
 
@@ -115,20 +115,13 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~106 test files, ~2,048 tests
+- **Location:** `__tests__/` — ~106 test files, ~2,068 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
-- **Python tests:** `python3 -m pytest scripts/tests/` (template analysis,
-  template filling)
-- **E2E:** Playwright — 9 spec files in `e2e/tests/` (auth, browse-search,
-  settings, governance-review, role-gating, item-detail, qa-library,
-  bid-pipeline, coverage-page). Config: `playwright.config.ts`.
-  261 tests (252 pass, 9 skipped). Worker-scoped fixtures with `[E2E-W{index}]` prefix for
-  data isolation. Multi-role auth (admin/editor/viewer storage states).
-  Shared responsive helpers in `e2e/helpers/responsive.ts`. Dev overlay
-  suppression in `e2e/helpers/dev-overlays.ts`.
-- **E2E test users:** user1=admin, user2=editor, user3=viewer (all in
-  `user_roles` table). Auth setup saves 3 storage states to `e2e/.auth/`.
+- **Python tests:** `python3 -m pytest scripts/tests/`
+- **E2E:** Playwright — 9 spec files in `e2e/tests/`, 261 tests (252 pass,
+  9 skipped). Worker-scoped fixtures, multi-role auth (admin/editor/viewer).
+  See `docs/reference/e2e-test-flows.md` for details.
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
 
@@ -171,30 +164,10 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Philosophy:** `docs/design/warm-meridian-philosophy.md`
 - **Implementation spec:** `docs/design/warm-meridian-implementation-spec.md`
 - **Visual reference:** `docs/design/warm-meridian-identity.pdf`
+- **Token reference:** `docs/design/warm-meridian-implementation-spec.md` §Semantic Tokens
 - **Quality checks:** `.claude/checks/` (design-system, accessibility, etc.)
 
-Consult these references for brand personality, aesthetic direction, and design
-principles. Key actionable rules below.
-
-### Token Quick Reference
-
-When adding or modifying UI elements, use these semantic tokens:
-
-| Context | Token prefix | Example |
-|---------|-------------|---------|
-| Freshness states | `freshness-*` | `text-freshness-fresh`, `bg-freshness-aging-bg` |
-| Confidence postures | `confidence-*` | `text-confidence-strong`, `border-confidence-partial-border` |
-| Bid lifecycle | `bid-*` | `text-bid-active`, `bg-bid-won-bg` |
-| Governance status | `governance-*` | `text-governance-approved`, `border-governance-pending-border` |
-| Streaming phases | `phase-*` | `text-phase-drafting`, `bg-phase-done-bg` |
-| Template review | `template-*` | `text-template-confirmed`, `bg-template-unmapped-bg` |
-| Quality scoring | `quality-*` | `text-quality-good`, `bg-quality-moderate-bg` |
-| General status | `status-*` | `text-status-success`, `text-status-warning` |
-| Domain categories | `[var(--domain-{name}-text)]` | Per-domain tokens in globals.css |
-
-**Rule:** Never use raw Tailwind colour classes (`text-green-600`,
-`bg-amber-50`, etc.) in components. Always use a semantic token. If no token
-exists for your use case, define one in `app/globals.css` first.
+Consult these references when adding or modifying UI elements.
 
 ## Key Reference Documents
 
@@ -216,10 +189,9 @@ exists for your use case, define one in `app/globals.css` first.
 
 | Item | Location | Status |
 |------|----------|--------|
-| Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Done — tags, API, and `/coverage` page all built |
-| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprints 1-7c done (23 tools, OAuth, plugin, entity graph, 2 MCP Apps, win signal boost); Sprint 7d spec ready, Sprint 8 planned |
-| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Spec complete (S80); Phase 1 migration in progress |
-| UI Design Audit | `docs/plans/ui-design-audit-spec.md` | Sprints A-D done; ~40 uncaptured critique items outstanding |
+| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprints 1-7d done; Sprint 8 (background automation) spec ready |
+| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Phase 1 complete (S81); Phases 2-6 remaining |
+| Background Automation | `docs/plans/background-automation-spec.md` | Spec complete (S81); 5 implementation phases |
 
 ### Domain References — consult when working in that area
 
@@ -237,6 +209,10 @@ when needed.
 
 ## Gotchas
 
+- **No raw Tailwind colours in components:** Never use `text-green-600`,
+  `bg-amber-50`, etc. Always use a semantic token (e.g. `text-freshness-fresh`,
+  `bg-bid-won-bg`). If no token exists, define one in `app/globals.css` first.
+  See `docs/design/warm-meridian-implementation-spec.md` for the full token map.
 - **Embedding vector serialisation:** Supabase RPC needs
   `JSON.stringify(embedding)` not raw array for vector params
 - **Metadata double-serialisation:** Pass metadata as dict not `json.dumps()`
