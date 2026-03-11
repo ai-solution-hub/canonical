@@ -148,9 +148,8 @@ describe('canonicalise', () => {
       expect(canonicalise('owasp')).toBe('OWASP');
     });
 
-    it('does not alter unknown single words: "example-client" stays "example-client"', () => {
-      // "example-client" is not in the abbreviations map — it stays lowercase
-      // (proper name capitalisation is handled by the slug converter only)
+    it('title-cases unknown single lowercase words: "example-client" becomes "example-client"', () => {
+      // "example-client" is not in the abbreviations map — title-cased by rule 10
       expect(canonicalise('example-client')).toBe('example-client');
     });
   });

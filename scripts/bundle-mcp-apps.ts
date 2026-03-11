@@ -31,6 +31,11 @@ const APPS: AppConfig[] = [
     constName: 'BID_DASHBOARD_HTML',
     htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'bid-dashboard', 'dist', 'app.html'),
   },
+  {
+    name: 'reorient-me',
+    constName: 'REORIENT_ME_HTML',
+    htmlPath: join(PROJECT_ROOT, 'mcp-apps', 'reorient-me', 'dist', 'app.html'),
+  },
 ];
 
 /** Escape a string for safe embedding in a JS template literal */

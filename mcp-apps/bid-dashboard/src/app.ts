@@ -441,7 +441,15 @@ function buildDetailSection(state: ExpandedBidState): HTMLElement {
   viewLink.textContent = "View in Knowledge Hub \u2192";
   viewLink.addEventListener("click", (e: Event) => {
     e.stopPropagation();
-    app.openUrl(`/bid/${detail.id}`);
+    app.sendMessage({
+      role: "user",
+      content: [{
+        type: "text",
+        text: `Show me the full detail for the ${detail.name} bid.`,
+      }],
+    }).catch(() => {
+      // Silently handle — user can ask Claude manually
+    });
   });
   section.appendChild(viewLink);
 

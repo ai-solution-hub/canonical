@@ -402,7 +402,7 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            source_entity: 'Acme Ltd',
+            source_entity: 'Acme Limited',
             relationship_type: 'holds',
             target_entity: 'ISO 27001',
             source_item_id: ITEM_ID,
@@ -560,7 +560,7 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            source_entity: 'Acme Ltd',
+            source_entity: 'Acme Limited',
             target_entity: 'ISO 27001', // canonicalised
           }),
         ]),

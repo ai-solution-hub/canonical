@@ -1,28 +1,19 @@
-export interface ReorientData {
-  /** ISO timestamp of the user's last activity in the system */
+/** Data shape from show_reorient_me trigger tool structuredContent */
+export interface ReorientAppData {
   last_active_at: string | null;
-  /** Human-readable relative time ("2 hours ago", "yesterday") */
   last_active_relative: string;
-  /** Urgent items requiring immediate attention, sorted by priority */
   urgent: UrgentItem[];
-  /** Changes made by others since the user was last active */
   team_changes: TeamChange[];
-  /** The user's own recent work for context continuity */
   my_recent_work: RecentWorkItem[];
-  /** Active bids with deadline proximity and completion gaps */
   bid_summary: BidBriefing[];
-  /** Aggregate counts */
   counts: {
     unread_notifications: number;
     pending_reviews: number;
     stale_or_expired: number;
     quality_flags: number;
   };
-  /** ISO timestamp of when this response was generated */
   generated_at: string;
-  /** User display name for greeting */
   user_display_name: string | null;
-  /** Errors from partial query failures */
   errors: string[];
 }
 
@@ -40,19 +31,12 @@ export interface TeamChange {
   user_id: string;
   user_name: string | null;
   action: 'created' | 'updated' | 'reviewed' | 'flagged';
-  /**
-   * 'content_item' — sourced from `content_history` (tracks content_items edits)
-   * 'bid_response' — sourced from `bid_response_history` (tracks bid response edits)
-   * Q&A pair changes go through `content_history` if stored as content_items.
-   */
   entity_type: 'content_item' | 'bid_response';
   entity_id: string;
   entity_title: string;
   domain?: string;
   created_at: string;
-  /** Workspace ID for bid_response entities (for drill-down) */
   workspace_id?: string;
-  /** Question ID for bid_response entities (for drill-down) */
   question_id?: string;
 }
 
@@ -63,9 +47,7 @@ export interface RecentWorkItem {
   action: 'edited' | 'created' | 'reviewed' | 'drafted';
   href: string;
   created_at: string;
-  /** Workspace ID for bid_response entities (for drill-down) */
   workspace_id?: string;
-  /** Question ID for bid_response entities (for drill-down) */
   question_id?: string;
 }
 

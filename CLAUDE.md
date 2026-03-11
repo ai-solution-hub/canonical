@@ -55,7 +55,7 @@ Key directories:
 | `components/` | ~180 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
 | `hooks/` | ~34 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
-| `lib/` | ~73 utility modules — includes `mcp/` (23 tools, 9 resources, 5 prompts) and `ai/` (service layer) |
+| `lib/` | ~73 utility modules — includes `mcp/` (24 tools, 10 resources, 5 prompts) and `ai/` (service layer) |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
 | `supabase/` | ~51 migrations + auto-generated types (`database.types.ts` — never edit manually) |

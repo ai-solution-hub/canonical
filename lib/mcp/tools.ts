@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 23 tools:
+ * Registers 24 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
@@ -25,6 +25,7 @@
  *  21. get_content_items — Batch fetch multiple content items by ID array
  *  22. show_coverage_matrix — Interactive coverage matrix app (app trigger)
  *  23. show_bid_dashboard — Interactive bid dashboard app (app trigger)
+ *  24. show_reorient_me — Interactive personal briefing app (app trigger)
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -540,8 +541,18 @@ export async function registerTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
-        const { fetchReorientData } = await getReorientModule();
+        const { fetchReorientData, resolveDisplayNames } = await getReorientModule();
         const data = await fetchReorientData(supabase, userId, isAdmin, role);
+
+        // Resolve team member display names server-side
+        const userIds = data.team_changes.map(c => c.user_id).filter(Boolean);
+        const displayNames = await resolveDisplayNames(userIds);
+        for (const change of data.team_changes) {
+          if (change.user_id && displayNames.has(change.user_id)) {
+            change.user_name = displayNames.get(change.user_id)!;
+          }
+        }
+
         const markdown = truncateResponse(formatReorientation(data));
 
         return {
@@ -2151,6 +2162,60 @@ export async function registerTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Bid dashboard failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+  // -------------------------------------------------------------------------
+  // 24. show_reorient_me (App trigger tool — renders Reorient Me MCP App)
+  // -------------------------------------------------------------------------
+  const reorientMeUri = 'ui://reorient-me/app.html';
+  registerAppTool(
+    server,
+    'show_reorient_me',
+    {
+      title: 'Show Reorient Me',
+      description: 'Display an interactive personal briefing showing what has changed since your last visit, urgent items needing attention, team activity, and active bid status. This tool renders a visual briefing inside the conversation. Use it when the user says "reorient me", "catch me up", "what did I miss?", "what should I focus on?", or wants a personal briefing.',
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+      _meta: { ui: { resourceUri: reorientMeUri } },
+    },
+    async (_args: Record<string, unknown>, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const role = await getMcpUserRole(extra.authInfo!);
+        const isAdmin = role === 'admin';
+
+        const { fetchReorientData, resolveDisplayNames } = await getReorientModule();
+        const data = await fetchReorientData(supabase, userId, isAdmin, role);
+
+        // Resolve team member display names server-side
+        // Note: resolveDisplayNames creates its own service-role client internally
+        // — the user-scoped MCP client cannot access auth.admin
+        const userIds = data.team_changes.map(c => c.user_id).filter(Boolean);
+        const displayNames = await resolveDisplayNames(userIds);
+        for (const change of data.team_changes) {
+          if (change.user_id && displayNames.has(change.user_id)) {
+            change.user_name = displayNames.get(change.user_id)!;
+          }
+        }
+
+        const markdown = truncateResponse(formatReorientation(data));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(data),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Reorient Me failed: ${message}.` }],
           isError: true,
         };
       }

@@ -1,0 +1,17 @@
+{
+  "name": "reorient-me",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "INPUT=app.html vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vite": "^6",
+    "vite-plugin-singlefile": "^2"
+  }
+}

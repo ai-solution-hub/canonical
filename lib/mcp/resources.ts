@@ -1,7 +1,7 @@
 /**
  * MCP resource and prompt registrations for the Knowledge Hub server.
  *
- * Resources (9):
+ * Resources (10):
  *   - kb://items/{id}    — Full content item with metadata
  *   - kb://bids/{id}     — Bid with questions and responses
  *   - kb://qa/{id}       — Q&A pair with standard/advanced answers
@@ -11,6 +11,7 @@
  *   - kb://entities      — Entity overview with types, counts, and top entities
  *   - ui://coverage-matrix/app.html   — Coverage Matrix MCP App (interactive UI)
  *   - ui://bid-dashboard/app.html     — Bid Dashboard MCP App (interactive UI)
+ *   - ui://reorient-me/app.html       — Reorient Me MCP App (interactive UI)
  *
  * Prompts (5):
  *   - reorient           — "What has changed since I was last active?"
@@ -516,6 +517,33 @@ export async function registerResources(server: McpServer): Promise<void> {
           uri: 'ui://bid-dashboard/app.html',
           mimeType: RESOURCE_MIME_TYPE,
           text: BID_DASHBOARD_HTML,
+        }],
+      };
+    },
+  );
+
+  // 10. ui://reorient-me/app.html — Reorient Me MCP App
+  registerAppResource(
+    server,
+    'Reorient Me App',
+    'ui://reorient-me/app.html',
+    { mimeType: RESOURCE_MIME_TYPE },
+    async () => {
+      const { REORIENT_ME_HTML } = await getAppBundles();
+      if (!REORIENT_ME_HTML) {
+        return {
+          contents: [{
+            uri: 'ui://reorient-me/app.html',
+            mimeType: 'text/plain',
+            text: 'Reorient Me app not built. Run: bun run build:mcp-apps',
+          }],
+        };
+      }
+      return {
+        contents: [{
+          uri: 'ui://reorient-me/app.html',
+          mimeType: RESOURCE_MIME_TYPE,
+          text: REORIENT_ME_HTML,
         }],
       };
     },

@@ -206,6 +206,8 @@ export async function fetchReorientData(
           entity_title: br?.bid_questions?.workspaces?.name ?? 'Untitled Bid',
           domain: undefined,
           created_at: row.created_at,
+          workspace_id: br?.bid_questions?.project_id,
+          question_id: br?.question_id,
         });
       }
     }
@@ -267,6 +269,8 @@ export async function fetchReorientData(
           action: 'edited',
           href: bidId ? `/bid/${bidId}/session` : '/bid',
           created_at: row.created_at,
+          workspace_id: bidId,
+          question_id: br?.question_id,
         });
       }
     }
@@ -425,6 +429,18 @@ export async function fetchReorientData(
     });
   }
 
+  // Quality flags (admin only)
+  if (qualityFlags > 0) {
+    urgent.push({
+      type: 'quality_flag',
+      priority: 3,
+      title: `${qualityFlags} unresolved quality flag${qualityFlags === 1 ? '' : 's'}`,
+      detail: 'Items flagged during ingestion that need review',
+      href: '/browse?quality=flagged',
+      entity_id: 'quality_flags',
+    });
+  }
+
   // Sort by priority
   urgent.sort((a, b) => a.priority - b.priority);
 
@@ -459,4 +475,41 @@ export async function fetchReorientData(
     user_display_name: userDisplayName,
     errors,
   };
+}
+
+/**
+ * Resolve user UUIDs to display names. Uses Supabase auth.admin to
+ * look up user metadata. Falls back to email-derived names.
+ * Service-role client required for auth.admin access.
+ */
+export async function resolveDisplayNames(
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (userIds.length === 0) return names;
+
+  const uniqueIds = [...new Set(userIds)];
+
+  // IMPORTANT: The MCP auth client (createMcpClient) is USER-scoped, not
+  // service-role. auth.admin.getUserById() requires a service-role client.
+  // Use createServiceClient() from lib/supabase/server.ts instead.
+  const { createServiceClient } = await import('@/lib/supabase/server');
+  const serviceClient = createServiceClient();
+
+  // For each user, try to get display name from auth metadata
+  for (const userId of uniqueIds) {
+    try {
+      const { data: { user } } = await serviceClient.auth.admin.getUserById(userId);
+      if (user?.user_metadata?.full_name) {
+        const fullName = user.user_metadata.full_name as string;
+        names.set(userId, fullName.split(' ')[0] ?? fullName);
+      } else if (user?.email) {
+        names.set(userId, user.email.split('@')[0] ?? 'A team member');
+      }
+    } catch {
+      // Non-critical — fall back to generic name
+    }
+  }
+
+  return names;
 }
