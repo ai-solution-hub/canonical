@@ -506,6 +506,94 @@ export async function fetchContentForMatching(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Gap summary (cross-template aggregation)
+// ---------------------------------------------------------------------------
+
+/** A single gap item in the summary. */
+export interface GapDetail {
+  template_name: string;
+  section_ref: string;
+  section_name: string;
+  requirement_text: string;
+  requirement_type: RequirementType;
+}
+
+/** Aggregated gap summary across all templates. */
+export interface GapSummary {
+  total_gaps: number;
+  total_partial: number;
+  templates_assessed: number;
+  gaps_by_type: Record<string, number>;
+  partial_by_type: Record<string, number>;
+  gaps_by_template: { template_name: string; gap_count: number; partial_count: number; total: number }[];
+  top_gaps: GapDetail[];
+}
+
+/**
+ * Aggregate gap information across multiple template coverage results.
+ * Returns a summary suitable for a dashboard "action required" view.
+ *
+ * @param results  Coverage results for each template
+ * @param maxTopGaps  Maximum number of individual gap details to return (default 10)
+ */
+export function computeGapSummary(
+  results: TemplateCoverageResult[],
+  maxTopGaps = 10,
+): GapSummary {
+  const gapsByType: Record<string, number> = {};
+  const partialByType: Record<string, number> = {};
+  const topGaps: GapDetail[] = [];
+  let totalGaps = 0;
+  let totalPartial = 0;
+
+  const gapsByTemplate: GapSummary['gaps_by_template'] = [];
+
+  for (const result of results) {
+    gapsByTemplate.push({
+      template_name: result.template_name,
+      gap_count: result.gap_count,
+      partial_count: result.partial_count,
+      total: result.total_requirements,
+    });
+
+    for (const section of result.sections) {
+      for (const req of section.requirements) {
+        if (req.coverage_status === 'gap') {
+          totalGaps++;
+          gapsByType[req.requirement_type] = (gapsByType[req.requirement_type] ?? 0) + 1;
+
+          if (topGaps.length < maxTopGaps) {
+            topGaps.push({
+              template_name: result.template_name,
+              section_ref: req.section_ref,
+              section_name: req.section_name,
+              requirement_text: req.requirement_text,
+              requirement_type: req.requirement_type,
+            });
+          }
+        } else if (req.coverage_status === 'partial') {
+          totalPartial++;
+          partialByType[req.requirement_type] = (partialByType[req.requirement_type] ?? 0) + 1;
+        }
+      }
+    }
+  }
+
+  // Sort templates by gap count descending
+  gapsByTemplate.sort((a, b) => b.gap_count - a.gap_count);
+
+  return {
+    total_gaps: totalGaps,
+    total_partial: totalPartial,
+    templates_assessed: results.length,
+    gaps_by_type: gapsByType,
+    partial_by_type: partialByType,
+    gaps_by_template: gapsByTemplate,
+    top_gaps: topGaps,
+  };
+}
+
 /**
  * List available templates with requirement counts.
  * Defaults to current versions only.

@@ -112,6 +112,7 @@ function StatCard({
 const TEMPLATE_TYPE_LABELS: Record<string, string> = {
   sq: 'Selection Questionnaire',
   rfp: 'Request for Proposal',
+  pqq: 'Pre-Qualification Questionnaire',
   eqq: 'Evaluation Quality Questionnaire',
   gcloud: 'G-Cloud',
   method_statement: 'Method Statement',

@@ -1,13 +1,164 @@
 'use client';
 
-import { BarChart3, FileText } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { BarChart3, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/template-coverage-content';
+import type { GapSummary } from '@/lib/template-coverage';
+
+// ---------------------------------------------------------------------------
+// Requirement type labels (UK English)
+// ---------------------------------------------------------------------------
+
+const TYPE_LABELS: Record<string, string> = {
+  policy: 'Policy',
+  statement: 'Statement',
+  evidence: 'Evidence',
+  data: 'Data',
+  narrative: 'Narrative',
+  declaration: 'Declaration',
+  reference: 'Reference',
+};
+
+// ---------------------------------------------------------------------------
+// Gap summary banner
+// ---------------------------------------------------------------------------
+
+function GapSummaryBanner({
+  summary,
+  onViewTemplates,
+}: {
+  summary: GapSummary;
+  onViewTemplates: () => void;
+}) {
+  if (summary.templates_assessed === 0) return null;
+  if (summary.total_gaps === 0 && summary.total_partial === 0) return null;
+
+  const gapTypeEntries = Object.entries(summary.gaps_by_type).sort(
+    ([, a], [, b]) => b - a,
+  );
+  const partialTypeEntries = Object.entries(summary.partial_by_type).sort(
+    ([, a], [, b]) => b - a,
+  );
+
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+      <div className="flex items-start gap-3">
+        <AlertTriangle
+          className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
+          aria-hidden="true"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+            Action required: content gaps detected
+          </p>
+          <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+            {summary.total_gaps > 0 && (
+              <>
+                <strong>{summary.total_gaps}</strong>{' '}
+                {summary.total_gaps === 1 ? 'gap' : 'gaps'}
+              </>
+            )}
+            {summary.total_gaps > 0 && summary.total_partial > 0 && ' and '}
+            {summary.total_partial > 0 && (
+              <>
+                <strong>{summary.total_partial}</strong> partial{' '}
+                {summary.total_partial === 1 ? 'match' : 'matches'}
+              </>
+            )}
+            {' across '}
+            <strong>{summary.templates_assessed}</strong>{' '}
+            {summary.templates_assessed === 1 ? 'template' : 'templates'}
+          </p>
+
+          {/* Gap breakdown by type */}
+          {gapTypeEntries.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {gapTypeEntries.map(([type, count]) => (
+                <span
+                  key={type}
+                  className="inline-flex items-center gap-1 rounded-full bg-confidence-none-bg px-2 py-0.5 text-xs font-medium text-confidence-none"
+                >
+                  <XCircle className="size-3" aria-hidden="true" />
+                  {count} {TYPE_LABELS[type] ?? type}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Partial breakdown by type */}
+          {partialTypeEntries.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {partialTypeEntries.map(([type, count]) => (
+                <span
+                  key={type}
+                  className="inline-flex items-center gap-1 rounded-full bg-confidence-partial-bg px-2 py-0.5 text-xs font-medium text-confidence-partial"
+                >
+                  <AlertCircle className="size-3" aria-hidden="true" />
+                  {count} {TYPE_LABELS[type] ?? type}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Per-template breakdown */}
+          {summary.gaps_by_template.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300">
+              {summary.gaps_by_template.map((t) => (
+                <li key={t.template_name}>
+                  <strong>{t.template_name}</strong>:{' '}
+                  {t.gap_count > 0 && (
+                    <>{t.gap_count} {t.gap_count === 1 ? 'gap' : 'gaps'}</>
+                  )}
+                  {t.gap_count > 0 && t.partial_count > 0 && ', '}
+                  {t.partial_count > 0 && (
+                    <>{t.partial_count} partial</>
+                  )}
+                  {' of '}{t.total}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <button
+            type="button"
+            onClick={onViewTemplates}
+            className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
+          >
+            View template coverage details
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 export function CoveragePageTabs() {
+  const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
+  const [activeTab, setActiveTab] = useState('taxonomy');
+
+  const fetchGapSummary = useCallback(async () => {
+    try {
+      const res = await fetch('/api/coverage/gap-summary');
+      if (!res.ok) return;
+      const data: GapSummary = await res.json();
+      setGapSummary(data);
+    } catch {
+      // Silently fail — the banner is supplementary
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGapSummary();
+  }, [fetchGapSummary]);
+
   return (
-    <Tabs defaultValue="taxonomy">
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">
@@ -29,6 +180,16 @@ export function CoveragePageTabs() {
           </TabsTrigger>
         </TabsList>
       </div>
+
+      {/* Gap summary banner — visible on all tabs */}
+      {gapSummary && (
+        <div className="mt-4">
+          <GapSummaryBanner
+            summary={gapSummary}
+            onViewTemplates={() => setActiveTab('templates')}
+          />
+        </div>
+      )}
 
       <TabsContent value="taxonomy" className="mt-6">
         <CoverageContent />

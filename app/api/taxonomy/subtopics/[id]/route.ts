@@ -38,6 +38,7 @@ export async function PATCH(
     if (parsed.data.name !== undefined) updates.name = parsed.data.name;
     if (parsed.data.display_order !== undefined) updates.display_order = parsed.data.display_order;
     if (parsed.data.is_active !== undefined) updates.is_active = parsed.data.is_active;
+    if (parsed.data.accepted_at !== undefined) updates.accepted_at = parsed.data.accepted_at;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

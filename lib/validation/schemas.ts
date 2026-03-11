@@ -737,6 +737,7 @@ export const TaxonomyDomainUpdateSchema = z.object({
   colour: z.string().trim().max(50).nullable().optional(),
   display_order: z.number().int().min(0).max(999).optional(),
   is_active: z.boolean().optional(),
+  accepted_at: z.string().datetime().nullable().optional(),
 });
 
 /** POST /api/taxonomy/subtopics */
@@ -751,6 +752,7 @@ export const TaxonomySubtopicUpdateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   display_order: z.number().int().min(0).max(999).optional(),
   is_active: z.boolean().optional(),
+  accepted_at: z.string().datetime().nullable().optional(),
 });
 
 /** POST /api/taxonomy/reorder */

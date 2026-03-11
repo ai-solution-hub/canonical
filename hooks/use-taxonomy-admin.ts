@@ -81,6 +81,8 @@ export interface UseTaxonomyAdminReturn {
   confirmDeactivate: (type: 'domain' | 'subtopic', id: string, name: string) => void;
   handleDeactivate: () => Promise<void>;
   handleReactivate: (type: 'domain' | 'subtopic', id: string, domainId?: string) => Promise<void>;
+  handleAcceptRecommended: (type: 'domain' | 'subtopic', id: string, domainId?: string) => Promise<void>;
+  handleRejectRecommended: (type: 'domain' | 'subtopic', id: string, name: string, domainId?: string) => Promise<void>;
   handleMoveDomain: (domainId: string, direction: 'up' | 'down') => Promise<void>;
   handleMoveSubtopic: (domainId: string, subtopicId: string, direction: 'up' | 'down') => Promise<void>;
 }
@@ -454,6 +456,88 @@ export function useTaxonomyAdmin({
   }
 
   // -----------------------------------------------------------------------
+  // Recommended-to-accepted workflow
+  // -----------------------------------------------------------------------
+
+  async function handleAcceptRecommended(
+    type: 'domain' | 'subtopic',
+    id: string,
+    domainId?: string,
+  ) {
+    const endpoint =
+      type === 'domain'
+        ? `/api/taxonomy/domains/${id}`
+        : `/api/taxonomy/subtopics/${id}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          is_active: true,
+          accepted_at: new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Failed to accept ${type}`);
+      }
+
+      toast.success(`${type === 'domain' ? 'Domain' : 'Subtopic'} accepted and activated`);
+      setAnnouncement(`Recommended ${type} accepted and activated`);
+
+      if (type === 'domain') {
+        fetchDomains();
+      } else if (domainId) {
+        fetchSubtopics(domainId);
+        fetchDomains();
+      }
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to accept ${type}`);
+    }
+  }
+
+  async function handleRejectRecommended(
+    type: 'domain' | 'subtopic',
+    id: string,
+    name: string,
+    domainId?: string,
+  ) {
+    const endpoint =
+      type === 'domain'
+        ? `/api/taxonomy/domains/${id}`
+        : `/api/taxonomy/subtopics/${id}`;
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: false }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || `Failed to reject ${type}`);
+      }
+
+      toast.success(`Recommendation '${name}' rejected`);
+      setAnnouncement(`Recommended ${type} '${name}' rejected`);
+
+      if (type === 'domain') {
+        fetchDomains();
+      } else if (domainId) {
+        fetchSubtopics(domainId);
+        fetchDomains();
+      }
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to reject ${type}`);
+    }
+  }
+
+  // -----------------------------------------------------------------------
   // Reordering
   // -----------------------------------------------------------------------
 
@@ -595,6 +679,8 @@ export function useTaxonomyAdmin({
     confirmDeactivate,
     handleDeactivate,
     handleReactivate,
+    handleAcceptRecommended,
+    handleRejectRecommended,
     handleMoveDomain,
     handleMoveSubtopic,
   };

@@ -27,6 +27,8 @@ export interface DomainCardProps {
   onEdit: (domain: AdminDomain) => void;
   onDeactivate: (type: 'domain' | 'subtopic', id: string, name: string) => void;
   onReactivate: (type: 'domain' | 'subtopic', id: string, domainId?: string) => void;
+  onAcceptRecommended: (type: 'domain' | 'subtopic', id: string, domainId?: string) => void;
+  onRejectRecommended: (type: 'domain' | 'subtopic', id: string, name: string, domainId?: string) => void;
   onMoveDomain: (domainId: string, direction: 'up' | 'down') => Promise<void>;
   onMoveSubtopic: (domainId: string, subtopicId: string, direction: 'up' | 'down') => Promise<void>;
   onAddSubtopic: (domainId: string) => void;
@@ -71,6 +73,8 @@ export function DomainCard({
   onEdit,
   onDeactivate,
   onReactivate,
+  onAcceptRecommended,
+  onRejectRecommended,
   onMoveDomain,
   onMoveSubtopic,
   onAddSubtopic,
@@ -147,7 +151,7 @@ export function DomainCard({
           </Button>
         </div>
 
-        {/* Edit / Activate-Deactivate */}
+        {/* Edit / Activate-Deactivate / Accept-Reject */}
         <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
@@ -156,7 +160,26 @@ export function DomainCard({
           >
             Edit
           </Button>
-          {domain.is_active ? (
+          {domain.provenance === 'recommended' && !domain.is_active ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-confidence-strong hover:text-confidence-strong"
+                onClick={() => onAcceptRecommended('domain', domain.id)}
+              >
+                Accept
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => onRejectRecommended('domain', domain.id, domain.name)}
+              >
+                Reject
+              </Button>
+            </>
+          ) : domain.is_active ? (
             <Button
               variant="ghost"
               size="sm"
@@ -258,7 +281,30 @@ export function DomainCard({
                     >
                       Edit
                     </Button>
-                    {sub.is_active ? (
+                    {sub.provenance === 'recommended' && !sub.is_active ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-confidence-strong hover:text-confidence-strong"
+                          onClick={() =>
+                            onAcceptRecommended('subtopic', sub.id, domain.id)
+                          }
+                        >
+                          Accept
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs text-destructive hover:text-destructive"
+                          onClick={() =>
+                            onRejectRecommended('subtopic', sub.id, sub.name, domain.id)
+                          }
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    ) : sub.is_active ? (
                       <Button
                         variant="ghost"
                         size="sm"

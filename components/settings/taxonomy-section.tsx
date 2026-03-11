@@ -68,6 +68,8 @@ export function TaxonomySection() {
               onEdit={t.openEditDomain}
               onDeactivate={t.confirmDeactivate}
               onReactivate={t.handleReactivate}
+              onAcceptRecommended={t.handleAcceptRecommended}
+              onRejectRecommended={t.handleRejectRecommended}
               onMoveDomain={t.handleMoveDomain}
               onMoveSubtopic={t.handleMoveSubtopic}
               onAddSubtopic={t.openAddSubtopic}
