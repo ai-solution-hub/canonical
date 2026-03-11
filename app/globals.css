@@ -667,6 +667,11 @@
 }
 
 /* Base styles */
+html,
+body {
+  min-height: 100vh;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
@@ -758,11 +763,16 @@ p + p {
 /* ===== CopilotKit Sidebar — Warm Meridian Overrides ===== */
 .global-copilot-sidebar {
   font-family: var(--font-sans);
+  background: transparent !important;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
 /* Ensure sidebar sits above site header (z-40) — both classes are on the same element */
 .global-copilot-sidebar.copilotKitSidebar {
   z-index: 50;
+  background-color: transparent !important;
 }
 
 /* Push CopilotKit chat window below the sticky header (h-14 = 3.5rem).

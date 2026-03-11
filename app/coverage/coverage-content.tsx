@@ -249,45 +249,34 @@ export function CoverageContent() {
   }, [data?.summary]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground">
-            Coverage Dashboard
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Content coverage across domains and subtopics
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <CoverageLayerFilter
-            value={layerFilter}
-            onLayerChange={handleLayerChange}
-          />
-          {data?.matrix && data.matrix.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => exportCoverageCSV(data.matrix, formatSubtopic, formatDomainName)}
-              className="gap-1.5"
-            >
-              <Download className="size-3.5" aria-hidden="true" />
-              Export CSV
-            </Button>
-          )}
+    <div>
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-2">
+        <CoverageLayerFilter
+          value={layerFilter}
+          onLayerChange={handleLayerChange}
+        />
+        {data?.matrix && data.matrix.length > 0 && (
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRetry}
-            disabled={isLoading}
+            onClick={() => exportCoverageCSV(data.matrix, formatSubtopic, formatDomainName)}
             className="gap-1.5"
           >
-            <RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} aria-hidden="true" />
-            Refresh
+            <Download className="size-3.5" aria-hidden="true" />
+            Export CSV
           </Button>
-        </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRetry}
+          disabled={isLoading}
+          className="gap-1.5"
+        >
+          <RefreshCw className={cn('size-3.5', isLoading && 'animate-spin')} aria-hidden="true" />
+          Refresh
+        </Button>
       </div>
 
       {/* Content */}

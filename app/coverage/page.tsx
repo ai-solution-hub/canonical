@@ -1,17 +1,19 @@
 import { Suspense } from 'react';
-import { CoverageContent } from './coverage-content';
+import { CoveragePageTabs } from './coverage-tabs';
 
 export default function CoveragePage() {
   return (
-    <Suspense fallback={<CoveragePageSkeleton />}>
-      <CoverageContent />
-    </Suspense>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <Suspense fallback={<CoveragePageSkeleton />}>
+        <CoveragePageTabs />
+      </Suspense>
+    </div>
   );
 }
 
 function CoveragePageSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div>
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div>

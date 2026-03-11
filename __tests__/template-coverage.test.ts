@@ -85,8 +85,8 @@ describe('Constants', () => {
   });
 
   it('similarity thresholds are in the expected range', () => {
-    expect(SIMILARITY_STRONG_THRESHOLD).toBe(0.7);
-    expect(SIMILARITY_PARTIAL_THRESHOLD).toBe(0.5);
+    expect(SIMILARITY_STRONG_THRESHOLD).toBe(0.55);
+    expect(SIMILARITY_PARTIAL_THRESHOLD).toBe(0.35);
     expect(SIMILARITY_STRONG_THRESHOLD).toBeGreaterThan(SIMILARITY_PARTIAL_THRESHOLD);
   });
 
@@ -161,14 +161,15 @@ describe('matchRequirement', () => {
     expect(result.content_length_met).toBe(false);
   });
 
-  it('returns partial when no taxonomy match but semantic > 0.5', () => {
+  it('returns partial when no taxonomy match but semantic > 0.35', () => {
     const refEmb = [0.1, 0.2, 0.3, 0.4, 0.5];
-    // Analytically computed: ref + t*orth where t chosen so cos(ref, v) ≈ 0.6
-    const partialEmb = [1.08, 0.16, 0.25, 0.33, 0.41];
+    // Analytically computed: ref + t*orth where t chosen so cos(ref, v) ≈ 0.45
+    // (between partial threshold 0.35 and strong threshold 0.55)
+    const partialEmb = [1.54, 0.20, 0.30, 0.40, 0.21];
     const actualSim = cosineSimilarity(refEmb, partialEmb);
     // Verify the crafted vector gives partial-range similarity
-    expect(actualSim).toBeGreaterThan(0.5);
-    expect(actualSim).toBeLessThan(0.7);
+    expect(actualSim).toBeGreaterThan(0.35);
+    expect(actualSim).toBeLessThan(0.55);
 
     const req = makeRequirement({ requirement_embedding: refEmb });
     const content = makeContent({
@@ -182,7 +183,7 @@ describe('matchRequirement', () => {
     expect(result.coverage_status).toBe('partial');
   });
 
-  it('returns strong when no taxonomy match but semantic > 0.7 + sufficient content', () => {
+  it('returns strong when no taxonomy match but semantic > 0.55 + sufficient content', () => {
     const refEmb = [1, 0, 0, 0, 0];
     // Create a vector very close to reference for high similarity
     const strongEmb = [0.99, 0.01, 0.01, 0.01, 0.01];

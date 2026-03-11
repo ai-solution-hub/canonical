@@ -28,11 +28,25 @@ export const CONTENT_LENGTH_THRESHOLDS: Record<string, number> = {
   narrative: 500,
 };
 
-/** Semantic similarity threshold for "strong" coverage. */
-export const SIMILARITY_STRONG_THRESHOLD = 0.7;
+/**
+ * Semantic similarity threshold for "strong" coverage.
+ *
+ * Calibrated from UAT sessions 77 + 83: Standard SQ (66 reqs), Charnwood ITT
+ * (30 reqs), and Method Statement (10 reqs) against 186 KB items. At the
+ * original 0.70 threshold, zero requirements achieved "strong" across all
+ * three templates. The best real-world match (Charnwood company registration)
+ * scored 0.694. Lowering to 0.55 produces a realistic distribution.
+ */
+export const SIMILARITY_STRONG_THRESHOLD = 0.55;
 
-/** Semantic similarity threshold for "partial" coverage. */
-export const SIMILARITY_PARTIAL_THRESHOLD = 0.5;
+/**
+ * Semantic similarity threshold for "partial" coverage.
+ *
+ * Calibrated alongside strong threshold. At 0.35, near-miss questions
+ * (equalities 0.482, safeguarding 0.466, carbon 0.453) correctly classify
+ * as partial rather than gap.
+ */
+export const SIMILARITY_PARTIAL_THRESHOLD = 0.35;
 
 /** Q&A pairs with answers shorter than this are capped at partial. */
 export const QA_FRAGMENT_THRESHOLD = 20;

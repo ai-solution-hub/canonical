@@ -167,9 +167,12 @@ export async function POST(
         created_by: user.id,
       }));
 
+      // Use upsert with ignoreDuplicates to handle re-extraction idempotently.
+      // Claude may produce slightly different question sets on re-extraction,
+      // and partial inserts from a timed-out first attempt may already exist.
       const { error: insertError } = await supabase
         .from('bid_questions')
-        .insert(inserts);
+        .upsert(inserts, { onConflict: 'project_id,question_text', ignoreDuplicates: true });
 
       if (insertError) {
         console.error('Failed to insert extracted questions:', insertError);

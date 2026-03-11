@@ -412,44 +412,44 @@ export function ContentTabs({
   return (
     <div className={cn('rounded-xl border border-border bg-card', className)}>
       <Tabs defaultValue={defaultTab} className="gap-0">
-        <TabsList className="w-full justify-start rounded-b-none border-b border-border bg-muted/50 px-1 flex-wrap">
+        <TabsList className="w-full justify-center items-center rounded-b-none border-b border-border bg-muted/50 px-1 h-14 min-h-14">
           {hasBrief && (
-            <TabsTrigger value="brief" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="brief" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               Summary
             </TabsTrigger>
           )}
           {hasDetail && (
-            <TabsTrigger value="detail" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="detail" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               Detailed
             </TabsTrigger>
           )}
           {hasTakeaways && (
-            <TabsTrigger value="takeaways" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="takeaways" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               Takeaways
             </TabsTrigger>
           )}
           {hasFullText && (
-            <TabsTrigger value="fulltext" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="fulltext" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               {isQAPair ? 'Full Answer' : 'Content'}
             </TabsTrigger>
           )}
           {hasReaderContent && (
-            <TabsTrigger value="reader" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="reader" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               Reader
             </TabsTrigger>
           )}
           {hasReference && (
-            <TabsTrigger value="reference" className="min-h-[44px] px-4 text-sm">
+            <TabsTrigger value="reference" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
               Technical
             </TabsTrigger>
           )}
           {/* Fallback: no content yet — show disabled placeholders */}
           {!hasBrief && !hasFullText && !hasDetail && (
             <>
-              <TabsTrigger value="brief" className="min-h-[44px] px-4 text-sm">
+              <TabsTrigger value="brief" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
                 Summary
               </TabsTrigger>
-              <TabsTrigger value="detail" className="min-h-[44px] px-4 text-sm" disabled>
+              <TabsTrigger value="detail" className="px-6 text-sm" disabled>
                 Detailed
               </TabsTrigger>
             </>
