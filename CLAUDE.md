@@ -189,9 +189,9 @@ Consult these references when adding or modifying UI elements.
 
 | Item | Location | Status |
 |------|----------|--------|
-| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprints 1-7d done; Sprint 8 (background automation) spec ready |
-| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Phase 1 complete (S81); Phases 2-6 remaining |
-| Background Automation | `docs/plans/background-automation-spec.md` | Spec complete (S81); 5 implementation phases |
+| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprint 8 (background automation) spec ready |
+| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Phases 2-6 remaining |
+| Background Automation | `docs/plans/background-automation-spec.md` | 5 implementation phases |
 
 ### Domain References — consult when working in that area
 
