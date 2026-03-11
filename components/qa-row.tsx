@@ -64,7 +64,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
       data-qa-row
       tabIndex={0}
       className={cn(
-        'rounded-lg border border-border bg-card transition-colors hover:border-border/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'rounded-lg border border-border bg-card transition-colors hover:border-border/80 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'ring-2 ring-primary/30 border-primary/40',
       )}
     >
@@ -91,11 +91,11 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
           className="flex flex-1 items-start gap-3 text-left min-w-0"
           aria-expanded={expanded}
         >
-        <span className="mt-0.5 shrink-0 text-muted-foreground">
+        <span className="mt-0.5 shrink-0 text-foreground/60">
           {expanded ? (
-            <ChevronDown className="size-4" />
+            <ChevronDown className="size-5" />
           ) : (
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-5" />
           )}
         </span>
         <div className="min-w-0 flex-1">
@@ -162,6 +162,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                   variant="ghost"
                   size="sm"
                   className="h-6 gap-1 text-xs"
+                  data-copy-answer=""
                   onClick={() => handleCopy(item.answer_standard!, 'Standard answer')}
                 >
                   {copiedField === 'Standard answer' ? (
@@ -170,6 +171,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     <Copy className="size-3" />
                   )}
                   Copy
+                  <kbd className="ml-1 hidden rounded border border-border px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline">C</kbd>
                 </Button>
               </div>
               <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">
@@ -187,6 +189,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                   variant="ghost"
                   size="sm"
                   className="h-6 gap-1 text-xs"
+                  {...(!hasStandard ? { 'data-copy-answer': '' } : {})}
                   onClick={() => handleCopy(item.answer_advanced!, 'Advanced answer')}
                 >
                   {copiedField === 'Advanced answer' ? (
@@ -195,6 +198,9 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                     <Copy className="size-3" />
                   )}
                   Copy
+                  {!hasStandard && (
+                    <kbd className="ml-1 hidden rounded border border-border px-1 py-0.5 text-[10px] font-normal text-muted-foreground sm:inline">C</kbd>
+                  )}
                 </Button>
               </div>
               <p className="text-sm text-foreground whitespace-pre-line leading-relaxed">

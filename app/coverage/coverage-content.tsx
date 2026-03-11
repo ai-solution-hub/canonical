@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, LayoutGrid } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Download } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -88,6 +88,93 @@ function CoverageEmpty() {
       </Button>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Freshness distribution bar for domain section headers
+// ---------------------------------------------------------------------------
+
+interface FreshnessDistribution {
+  fresh: number;
+  aging: number;
+  stale: number;
+  expired: number;
+}
+
+function FreshnessDistributionBar({ dist, total }: { dist: FreshnessDistribution; total: number }) {
+  if (total === 0) return null;
+
+  const segments: { key: string; count: number; bgClass: string; textClass: string; label: string }[] = [
+    { key: 'fresh', count: dist.fresh, bgClass: 'bg-freshness-fresh', textClass: 'text-freshness-fresh', label: 'Fresh' },
+    { key: 'aging', count: dist.aging, bgClass: 'bg-freshness-aging', textClass: 'text-freshness-aging', label: 'Ageing' },
+    { key: 'stale', count: dist.stale, bgClass: 'bg-freshness-stale', textClass: 'text-freshness-stale', label: 'Stale' },
+    { key: 'expired', count: dist.expired, bgClass: 'bg-freshness-expired', textClass: 'text-freshness-expired', label: 'Expired' },
+  ].filter((s) => s.count > 0);
+
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex h-2 w-24 overflow-hidden rounded-full" role="img" aria-label={`Freshness: ${segments.map((s) => `${s.count} ${s.label.toLowerCase()}`).join(', ')}`}>
+        {segments.map((seg) => (
+          <div
+            key={seg.key}
+            className={cn('h-full', seg.bgClass)}
+            style={{ width: `${(seg.count / total) * 100}%` }}
+          />
+        ))}
+      </div>
+      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+        {segments.map((seg) => (
+          <span key={seg.key} className={seg.textClass}>{seg.count}</span>
+        ))}
+      </span>
+    </div>
+  );
+}
+
+function computeDomainFreshness(cells: CoverageCellData[]): FreshnessDistribution {
+  return cells.reduce(
+    (acc, c) => ({
+      fresh: acc.fresh + c.fresh_count,
+      aging: acc.aging + c.aging_count,
+      stale: acc.stale + c.stale_count,
+      expired: acc.expired + c.expired_count,
+    }),
+    { fresh: 0, aging: 0, stale: 0, expired: 0 },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CSV export helper
+// ---------------------------------------------------------------------------
+
+function exportCoverageCSV(
+  matrix: CoverageCellData[],
+  formatSubtopic: (s: string) => string,
+  formatDomainName: (d: string) => string,
+) {
+  const header = 'Domain,Subtopic,Item Count,Fresh,Ageing,Stale,Expired';
+  const rows = matrix.map((cell) =>
+    [
+      `"${formatDomainName(cell.domain_name)}"`,
+      `"${formatSubtopic(cell.subtopic_name)}"`,
+      cell.item_count,
+      cell.fresh_count,
+      cell.aging_count,
+      cell.stale_count,
+      cell.expired_count,
+    ].join(','),
+  );
+
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `coverage-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 // ---------------------------------------------------------------------------
@@ -179,6 +266,17 @@ export function CoverageContent() {
             value={layerFilter}
             onLayerChange={handleLayerChange}
           />
+          {data?.matrix && data.matrix.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportCoverageCSV(data.matrix, formatSubtopic, formatDomainName)}
+              className="gap-1.5"
+            >
+              <Download className="size-3.5" aria-hidden="true" />
+              Export CSV
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -206,24 +304,33 @@ export function CoverageContent() {
           <>
             {/* Summary cards */}
             <CoverageSummaryCards summary={data.summary} />
+            <p className="text-xs text-muted-foreground">Trend data coming soon</p>
 
             {/* Domain sections */}
             <div className="space-y-4">
               {orderedDomains.map((domainName, index) => {
                 const cells = groupedByDomain.get(domainName) ?? [];
                 const allSubtopics = getSubtopics(domainName);
+                const freshnessDist = computeDomainFreshness(cells);
+                const totalItems = cells.reduce((sum, c) => sum + c.item_count, 0);
 
                 return (
-                  <CoverageDomainSection
-                    key={domainName}
-                    domainName={domainName}
-                    displayName={formatDomainName(domainName)}
-                    colourKey={getDomainColourKey(domainName)}
-                    cells={cells}
-                    allSubtopics={allSubtopics}
-                    defaultExpanded={index === 0}
-                    formatSubtopic={formatSubtopic}
-                  />
+                  <div key={domainName}>
+                    {totalItems > 0 && (
+                      <div className="mb-1 flex justify-end px-1">
+                        <FreshnessDistributionBar dist={freshnessDist} total={totalItems} />
+                      </div>
+                    )}
+                    <CoverageDomainSection
+                      domainName={domainName}
+                      displayName={formatDomainName(domainName)}
+                      colourKey={getDomainColourKey(domainName)}
+                      cells={cells}
+                      allSubtopics={allSubtopics}
+                      defaultExpanded={index === 0}
+                      formatSubtopic={formatSubtopic}
+                    />
+                  </div>
                 );
               })}
             </div>

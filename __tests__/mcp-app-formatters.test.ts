@@ -2,8 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
   formatCoverageMatrix,
   formatBidDashboard,
+  formatBidDetail,
   type CoverageMatrixData,
   type BidDashboardData,
+  type BidDetail,
 } from '@/lib/mcp/formatters';
 
 // ──────────────────────────────────────────
@@ -395,5 +397,145 @@ describe('formatBidDashboard', () => {
     expect(result).toContain('**Deadline:** 01/06/2026');
     expect(result).not.toContain('days remaining');
     expect(result).not.toContain('days overdue');
+  });
+});
+
+// ──────────────────────────────────────────
+// formatBidDetail (with sections and breakdowns)
+// ──────────────────────────────────────────
+
+const sampleBidDetail: BidDetail = {
+  id: 'bid-001',
+  name: 'NHS Digital Transformation',
+  buyer: 'NHS England',
+  status: 'active',
+  deadline: '2026-04-15',
+  reference_number: 'NHS-DT-2026',
+  description: 'A digital transformation bid.',
+  question_stats: {
+    total_questions: 10,
+    strong_match_count: 4,
+    partial_match_count: 3,
+    needs_sme_count: 2,
+    no_content_count: 1,
+    unmatched_count: 0,
+    drafted_count: 6,
+    complete_count: 3,
+  },
+  sections: [
+    {
+      name: 'Organisation',
+      questions: [
+        { id: 'q1', question_text: 'Describe your organisation structure', status: 'complete', confidence_posture: 'strong_match', word_limit: 500, has_response: true, review_status: 'approved' },
+        { id: 'q2', question_text: 'How many employees do you have?', status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null, has_response: true, review_status: null },
+      ],
+    },
+    {
+      name: 'Technical',
+      questions: [
+        { id: 'q3', question_text: 'Describe your approach to information security including ISO 27001 certification and ongoing compliance monitoring', status: 'not_started', confidence_posture: 'needs_sme', word_limit: 1000, has_response: false, review_status: null },
+      ],
+    },
+  ],
+  status_breakdown: { complete: 3, ai_drafted: 4, not_started: 3 },
+  confidence_breakdown: { strong_match: 4, partial_match: 3, needs_sme: 2, no_content: 1 },
+};
+
+describe('formatBidDetail', () => {
+  it('returns Markdown with bid name and status', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('# NHS Digital Transformation');
+    expect(result).toContain('**Status:** active');
+    expect(result).toContain('**Buyer:** NHS England');
+  });
+
+  it('includes question stats section', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('## Question Progress');
+    expect(result).toContain('**Total questions:** 10');
+    expect(result).toContain('**Strong KB match:** 4');
+  });
+
+  it('formats bid detail with sections and question list', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('## Questions by Section');
+    expect(result).toContain('### Organisation (2 questions)');
+    expect(result).toContain('### Technical (1 questions)');
+    expect(result).toContain('Describe your organisation structure');
+    expect(result).toContain('How many employees do you have?');
+  });
+
+  it('handles empty sections array', () => {
+    const noSections: BidDetail = {
+      ...sampleBidDetail,
+      sections: [],
+    };
+    const result = formatBidDetail(noSections);
+
+    expect(result).not.toContain('## Questions by Section');
+  });
+
+  it('truncates long question text in Markdown', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    // q3 has 107 characters — should be truncated to 97 + '...'
+    expect(result).toContain('Describe your approach to information security including ISO 27001 certification and ongoing comp...');
+  });
+
+  it('shows response status icon for answered questions', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    // q1 and q2 have responses (has_response: true)
+    // Use check mark for responded, empty square for not
+    expect(result).toContain('\u2705'); // has_response = true
+    expect(result).toContain('\u2B1C'); // has_response = false
+  });
+
+  it('includes confidence posture in question lines', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('[strong match]');
+    expect(result).toContain('[partial match]');
+    expect(result).toContain('[needs sme]');
+  });
+
+  it('includes status breakdown section', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('## Status Breakdown');
+    expect(result).toContain('**complete:** 3');
+    expect(result).toContain('**ai drafted:** 4');
+    expect(result).toContain('**not started:** 3');
+  });
+
+  it('omits status breakdown when empty', () => {
+    const noBreakdown: BidDetail = {
+      ...sampleBidDetail,
+      status_breakdown: {},
+    };
+    const result = formatBidDetail(noBreakdown);
+
+    expect(result).not.toContain('## Status Breakdown');
+  });
+
+  it('includes confidence breakdown section', () => {
+    const result = formatBidDetail(sampleBidDetail);
+
+    expect(result).toContain('## Confidence Breakdown');
+    expect(result).toContain('**strong match:** 4');
+    expect(result).toContain('**partial match:** 3');
+  });
+
+  it('omits confidence breakdown when empty', () => {
+    const noBreakdown: BidDetail = {
+      ...sampleBidDetail,
+      confidence_breakdown: {},
+    };
+    const result = formatBidDetail(noBreakdown);
+
+    expect(result).not.toContain('## Confidence Breakdown');
   });
 });

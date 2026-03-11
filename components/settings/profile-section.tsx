@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -23,17 +23,34 @@ export function ProfileSection() {
   const [changingPassword, setChangingPassword] = useState(false);
   const { role } = useUserRole();
 
+  // Track initial display name for dirty detection
+  const initialDisplayNameRef = useRef('');
+  const isDirty = displayName !== initialDisplayNameRef.current;
+
   useEffect(() => {
     async function loadProfile() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setEmail(user.email ?? '');
-        setDisplayName((user.user_metadata?.display_name as string) ?? '');
+        const name = (user.user_metadata?.display_name as string) ?? '';
+        setDisplayName(name);
+        initialDisplayNameRef.current = name;
       }
       setLoading(false);
     }
     loadProfile();
   }, [supabase]);
+
+  // Unsaved changes warning
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty && !saving) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty, saving]);
 
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +60,7 @@ export function ProfileSection() {
         data: { display_name: displayName.trim() },
       });
       if (error) throw error;
+      initialDisplayNameRef.current = displayName.trim();
       toast.success('Profile updated successfully');
     } catch (err) {
       toast.error(
@@ -93,7 +111,19 @@ export function ProfileSection() {
     <div className="flex flex-col gap-6">
       {/* Profile information */}
       <Card className="p-6">
-        <h3 className="mb-4 text-base font-semibold">Profile Information</h3>
+        <h3 className="mb-1 text-base font-semibold">
+          Profile Information
+          {isDirty && (
+            <span
+              className="ml-2 inline-block size-2 rounded-full bg-primary"
+              aria-label="Unsaved changes"
+            />
+          )}
+        </h3>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Your display name and role within the Knowledge Hub. Email is set at
+          account creation and cannot be changed here.
+        </p>
         <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="email">Email</Label>
@@ -140,7 +170,11 @@ export function ProfileSection() {
 
       {/* Change password */}
       <Card className="p-6">
-        <h3 className="mb-4 text-base font-semibold">Change Password</h3>
+        <h3 className="mb-1 text-base font-semibold">Change Password</h3>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Update your password to keep your account secure. Passwords must be at
+          least 8 characters long.
+        </p>
         <form onSubmit={handleChangePassword} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="new-password">New Password</Label>

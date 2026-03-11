@@ -2,12 +2,23 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, ChevronDown, ChevronRight, FolderOpen } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, FolderOpen, Archive, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace-card';
 import { WorkspaceCreateDialog } from '@/components/workspace-create-dialog';
 import { WorkspaceDetailSheet } from '@/components/workspace-detail-sheet';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 import type { Workspace } from '@/types/content';
@@ -52,6 +63,9 @@ export function WorkspacesContent({
   );
   const [showArchived, setShowArchived] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   const filteredWorkspaces = useMemo(
     () => typeFilter === 'all' ? workspaces : workspaces.filter((w) => w.type === typeFilter),
@@ -139,7 +153,73 @@ export function WorkspacesContent({
 
   const handleDeleted = useCallback((workspaceId: string) => {
     setWorkspaces((prev) => prev.filter((p) => p.id !== workspaceId));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(workspaceId);
+      return next;
+    });
   }, []);
+
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleBulkArchive = useCallback(async () => {
+    setBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/workspaces/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_archived: true }),
+          }),
+        ),
+      );
+      setWorkspaces((prev) =>
+        prev.map((w) => (selectedIds.has(w.id) ? { ...w, is_archived: true } : w)),
+      );
+      toast.success(`Archived ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      clearSelection();
+    } catch {
+      toast.error('Failed to archive some workspaces');
+    } finally {
+      setBulkProcessing(false);
+    }
+  }, [selectedIds, clearSelection]);
+
+  const handleBulkDelete = useCallback(async () => {
+    setBulkProcessing(true);
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/workspaces/${id}`, { method: 'DELETE' }),
+        ),
+      );
+      setWorkspaces((prev) => prev.filter((w) => !selectedIds.has(w.id)));
+      toast.success(`Deleted ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      clearSelection();
+    } catch {
+      toast.error('Failed to delete some workspaces');
+    } finally {
+      setBulkProcessing(false);
+      setBulkDeleteOpen(false);
+    }
+  }, [selectedIds, clearSelection]);
 
   return (
     <>
@@ -186,6 +266,48 @@ export function WorkspacesContent({
         ))}
       </div>
 
+      {/* Bulk action toolbar */}
+      {selectedIds.size > 0 && canEdit && (
+        <div className="mt-4 flex items-center gap-3 rounded-lg border bg-card px-4 py-2">
+          <span className="text-sm font-medium text-foreground">
+            {selectedIds.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={bulkProcessing}
+              onClick={handleBulkArchive}
+            >
+              <Archive className="size-3.5" aria-hidden="true" />
+              Archive
+            </Button>
+            {canAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-destructive hover:text-destructive"
+                disabled={bulkProcessing}
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="size-3.5" aria-hidden="true" />
+                Delete
+              </Button>
+            )}
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={clearSelection}
+            aria-label="Clear selection"
+            className="ml-auto"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Active workspaces */}
       <section id="workspace-tabpanel" role="tabpanel" aria-labelledby={`workspace-tab-${typeFilter}`} className="mt-6">
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -213,19 +335,32 @@ export function WorkspacesContent({
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {activeWorkspaces.map((workspace) => (
-              <WorkspaceCard
-                key={workspace.id}
-                workspace={workspace}
-                onEdit={(ws) => {
-                  if (ws.type === 'bid') {
-                    router.push(`/bid/${ws.id}`);
-                  } else {
-                    setEditWorkspace(ws);
-                  }
-                }}
-                onArchiveToggle={handleArchiveToggle}
-                readOnly={!canEdit}
-              />
+              <div key={workspace.id} className="group/select relative">
+                {canEdit && (
+                  <div className={cn(
+                    'absolute left-2 top-2 z-10 transition-opacity',
+                    selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100',
+                  )}>
+                    <Checkbox
+                      checked={selectedIds.has(workspace.id)}
+                      onCheckedChange={() => toggleSelection(workspace.id)}
+                      aria-label={`Select ${workspace.name}`}
+                    />
+                  </div>
+                )}
+                <WorkspaceCard
+                  workspace={workspace}
+                  onEdit={(ws) => {
+                    if (ws.type === 'bid') {
+                      router.push(`/bid/${ws.id}`);
+                    } else {
+                      setEditWorkspace(ws);
+                    }
+                  }}
+                  onArchiveToggle={handleArchiveToggle}
+                  readOnly={!canEdit}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -252,19 +387,32 @@ export function WorkspacesContent({
           {showArchived && (
             <div id="archived-workspaces" className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {archivedWorkspaces.map((workspace) => (
-                <WorkspaceCard
-                  key={workspace.id}
-                  workspace={workspace}
-                  onEdit={(ws) => {
-                  if (ws.type === 'bid') {
-                    router.push(`/bid/${ws.id}`);
-                  } else {
-                    setEditWorkspace(ws);
-                  }
-                }}
-                  onArchiveToggle={handleArchiveToggle}
-                  readOnly={!canEdit}
-                />
+                <div key={workspace.id} className="group/select relative">
+                  {canEdit && (
+                    <div className={cn(
+                      'absolute left-2 top-2 z-10 transition-opacity',
+                      selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100',
+                    )}>
+                      <Checkbox
+                        checked={selectedIds.has(workspace.id)}
+                        onCheckedChange={() => toggleSelection(workspace.id)}
+                        aria-label={`Select ${workspace.name}`}
+                      />
+                    </div>
+                  )}
+                  <WorkspaceCard
+                    workspace={workspace}
+                    onEdit={(ws) => {
+                      if (ws.type === 'bid') {
+                        router.push(`/bid/${ws.id}`);
+                      } else {
+                        setEditWorkspace(ws);
+                      }
+                    }}
+                    onArchiveToggle={handleArchiveToggle}
+                    readOnly={!canEdit}
+                  />
+                </div>
               ))}
             </div>
           )}
@@ -291,6 +439,29 @@ export function WorkspacesContent({
         readOnly={!canEdit}
         isAdmin={canAdmin}
       />
+
+      {/* Bulk delete confirmation */}
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} workspace{selectedIds.size !== 1 ? 's' : ''}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected workspace{selectedIds.size !== 1 ? 's' : ''} and
+              cannot be undone. Content items within will be unlinked but not deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkProcessing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkDelete}
+              disabled={bulkProcessing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

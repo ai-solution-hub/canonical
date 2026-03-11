@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronUp,
   Loader2,
@@ -23,6 +22,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
+import { BreadcrumbNav } from '@/components/breadcrumb-nav';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 
 const ContentEditor = dynamic(
@@ -250,43 +256,92 @@ export function CreateContentClient() {
     setTags(tags.filter((t) => t !== tag));
   };
 
+  // Mobile step indicator — tracks which section is in view
+  const [activeStep, setActiveStep] = useState(1);
+  const basicsRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    // Only observe on mobile-sized screens
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 639px)');
+    if (!mql.matches) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const step = Number(entry.target.getAttribute('data-step'));
+            if (step) setActiveStep(step);
+          }
+        }
+      },
+      { rootMargin: '-40% 0px -40% 0px', threshold: 0 },
+    );
+
+    const refs = [basicsRef.current, contentRef.current, detailsRef.current];
+    refs.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const FORM_STEPS = [
+    { step: 1, label: 'Basics' },
+    { step: 2, label: 'Content' },
+    { step: 3, label: 'Details' },
+  ] as const;
+
   const saving = isSaving || isSavingAndContinue;
 
   return (
     <section aria-label="Create content" className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="-ml-2 gap-1.5 text-muted-foreground"
-          >
-            <Link href="/browse">
-              <ArrowLeft className="size-4" />
-              Back
-            </Link>
-          </Button>
-          <h1 className="text-xl font-bold">
-            {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
-          </h1>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => handleSave(true)}
-          disabled={!canSave || saving}
-          className="w-full gap-1.5 sm:w-auto"
-        >
-          {isSavingAndContinue ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Save className="size-3.5" />
-          )}
-          Save and Continue Editing
-        </Button>
+      {/* Breadcrumb + Header */}
+      <BreadcrumbNav
+        title={isQAPair ? 'New Q&A Pair' : 'New Item'}
+        className="mb-4"
+      />
+      <div className="mb-6">
+        <h1 className="text-xl font-bold">
+          {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
+        </h1>
       </div>
+
+      {/* Mobile step indicator */}
+      <nav
+        aria-label="Form progress"
+        className="mb-6 flex items-center gap-2 sm:hidden"
+      >
+        {FORM_STEPS.map(({ step, label }, idx) => (
+          <div key={step} className="flex items-center gap-2">
+            {idx > 0 && (
+              <div className="h-px w-4 bg-border" aria-hidden="true" />
+            )}
+            <div className="flex items-center gap-1.5">
+              <span
+                className={`flex size-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${
+                  activeStep === step
+                    ? 'bg-primary text-primary-foreground'
+                    : activeStep > step
+                      ? 'bg-primary/20 text-foreground'
+                      : 'bg-muted text-muted-foreground'
+                }`}
+                aria-current={activeStep === step ? 'step' : undefined}
+              >
+                {step}
+              </span>
+              <span
+                className={`text-xs font-medium transition-colors ${
+                  activeStep === step
+                    ? 'text-foreground'
+                    : 'text-muted-foreground'
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+          </div>
+        ))}
+      </nav>
 
       <form
         onSubmit={(e) => {
@@ -300,7 +355,7 @@ export function CreateContentClient() {
         className="space-y-6"
       >
         {/* Title / Question */}
-        <div className="space-y-2">
+        <div ref={basicsRef} data-step="1" className="space-y-2">
           <Label htmlFor="title">
             {isQAPair ? 'Question' : 'Title'}{' '}
             <span className="text-destructive">*</span>
@@ -369,7 +424,7 @@ export function CreateContentClient() {
         </div>
 
         {/* Content / Answer */}
-        <div className="space-y-2">
+        <div ref={contentRef} data-step="2" className="space-y-2">
           <Label>
             {isQAPair ? 'Answer' : 'Content'}{' '}
             <span className="text-destructive">*</span>
@@ -393,6 +448,8 @@ export function CreateContentClient() {
 
         {/* More details toggle */}
         <button
+          ref={detailsRef as React.RefObject<HTMLButtonElement>}
+          data-step="3"
           type="button"
           onClick={() => setShowMoreDetails(!showMoreDetails)}
           aria-expanded={showMoreDetails}
@@ -479,7 +536,7 @@ export function CreateContentClient() {
             </fieldset>
 
             {/* Provenance */}
-            <fieldset className="space-y-4 rounded-lg border border-border p-4">
+            <fieldset className="space-y-4 rounded-lg border border-border bg-accent/30 p-4">
               <legend className="px-2 text-sm font-semibold text-muted-foreground">
                 Provenance
               </legend>
@@ -582,6 +639,9 @@ export function CreateContentClient() {
                   rows={3}
                   maxLength={5000}
                 />
+                <p className="text-xs text-muted-foreground text-right mt-1">
+                  {brief.length.toLocaleString()} / {(5000).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -594,6 +654,9 @@ export function CreateContentClient() {
                   rows={4}
                   maxLength={50000}
                 />
+                <p className="text-xs text-muted-foreground text-right mt-1">
+                  {detail.length.toLocaleString()} / {(50000).toLocaleString()}
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -608,13 +671,16 @@ export function CreateContentClient() {
                   rows={4}
                   maxLength={50000}
                 />
+                <p className="text-xs text-muted-foreground text-right mt-1">
+                  {reference.length.toLocaleString()} / {(50000).toLocaleString()}
+                </p>
               </div>
             </fieldset>
           </div>
         )}
 
-        {/* Bottom bar: Save + AI options */}
-        <div className="flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+        {/* Bottom bar: AI options */}
+        <div className="space-y-6 border-t border-border pt-6">
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
@@ -656,7 +722,8 @@ export function CreateContentClient() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Actions — visually separated from options */}
+          <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
             <Button
               type="button"
               variant="ghost"
@@ -664,16 +731,52 @@ export function CreateContentClient() {
             >
               <Link href="/browse">Cancel</Link>
             </Button>
-            <Button type="submit" disabled={!canSave || saving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save'
-              )}
-            </Button>
+            <div className="inline-flex items-stretch">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!canSave || saving}
+                className="rounded-r-none"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="mr-2 size-4" />
+                    Save
+                  </>
+                )}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="lg"
+                    disabled={!canSave || saving}
+                    className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                    aria-label="More save options"
+                  >
+                    <ChevronDown className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => handleSave(true)}
+                    disabled={!canSave || saving}
+                  >
+                    {isSavingAndContinue ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
+                    Save and Continue Editing
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
       </form>

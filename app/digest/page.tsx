@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -191,7 +192,7 @@ function GenerateControls({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={cn('flex flex-wrap items-center gap-3', variant === 'hero' && 'justify-center')}>
         <ModeSelector mode={mode} onModeChange={onModeChange} />
       </div>
 
@@ -200,7 +201,7 @@ function GenerateControls({
         id="digest-content-panel"
         aria-labelledby={`tab-${mode}`}
       >
-        <div className="flex flex-wrap items-center gap-3">
+        <div className={cn('flex flex-wrap items-center gap-3', variant === 'hero' && 'justify-center')}>
         {mode === 'preset' && (
           <Select value={periodDays} onValueChange={onPeriodDaysChange}>
             <SelectTrigger className="w-[160px]">

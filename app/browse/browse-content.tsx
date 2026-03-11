@@ -66,7 +66,7 @@ export function BrowseContent() {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [multiSelectMode, setMultiSelectMode] = useState(false);
-  const { viewMode, setViewMode } = useViewMode('kb-browse-view');
+  const { viewMode, setViewMode } = useViewMode('kb-view-mode');
   const [hideThumbnails, setHideThumbnails] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('kb-hide-thumbnails') === 'true';

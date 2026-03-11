@@ -76,7 +76,7 @@ export function ItemActionBar({
       <ReadToggleButton itemId={item.id as string} />
       {canEdit && (
         <Button
-          variant="outline"
+          variant={isEditing ? 'outline' : 'default'}
           size="sm"
           onClick={isEditing ? cancelEditMode : enterEditMode}
           className="gap-1.5"

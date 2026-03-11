@@ -20,6 +20,46 @@ export interface BidSummary {
   approved_questions: number;
 }
 
+/** Individual question in a bid section */
+export interface BidQuestionSummary {
+  id: string;
+  question_text: string;
+  status: string;
+  confidence_posture: string | null;
+  word_limit: number | null;
+  has_response: boolean;
+  review_status: string | null;
+}
+
+/** A section grouping questions within a bid */
+export interface BidSection {
+  name: string;
+  questions: BidQuestionSummary[];
+}
+
+/** Data from get_bid_question drill-down (individual question) */
+export interface BidQuestionDetailData {
+  id: string;
+  question_text: string;
+  section_name: string | null;
+  word_limit: number | null;
+  confidence_posture: string | null;
+  status: string | null;
+  response_text: string | null;
+  review_status: string | null;
+}
+
+/** KB search result for "Find KB content" */
+export interface KBSearchResult {
+  id: string;
+  title: string | null;
+  suggested_title: string | null;
+  content_type: string | null;
+  primary_domain: string | null;
+  ai_summary: string | null;
+  similarity: number;
+}
+
 /** Data shape from get_bid_detail drill-down */
 export interface BidDetailData {
   id: string;
@@ -39,10 +79,23 @@ export interface BidDetailData {
     drafted_count: number;
     complete_count: number;
   } | null;
+  sections: BidSection[];
+  status_breakdown: Record<string, number>;
+  confidence_breakdown: Record<string, number>;
 }
 
 /** Urgency level derived from days_until_deadline */
 export type Urgency = "overdue" | "urgent" | "approaching" | "normal" | "none";
+
+/** State for an expanded question within the bid detail */
+export interface ExpandedQuestionState {
+  questionId: string;
+  loading: boolean;
+  detail: BidQuestionDetailData | null;
+  kbResults: KBSearchResult[] | null;
+  kbSearchLoading: boolean;
+  error?: string;
+}
 
 /** State for expanded bid detail */
 export interface ExpandedBidState {
@@ -50,4 +103,5 @@ export interface ExpandedBidState {
   loading: boolean;
   detail: BidDetailData | null;
   error?: string;
+  expandedQuestion: ExpandedQuestionState | null;
 }

@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => {
     select: vi.fn(),
     eq: vi.fn(),
     neq: vi.fn(),
+    in: vi.fn(),
     order: vi.fn(),
     limit: vi.fn(),
     single: vi.fn(),
@@ -30,7 +31,7 @@ const mocks = vi.hoisted(() => {
   };
 
   // All chainable methods return the chain
-  for (const key of ['select', 'eq', 'neq', 'order', 'limit'] as const) {
+  for (const key of ['select', 'eq', 'neq', 'in', 'order', 'limit'] as const) {
     chainMethods[key].mockReturnValue(chainMethods);
   }
 
@@ -159,7 +160,7 @@ describe('MCP App trigger tools #22-23', () => {
     supabase = mocks.mockSupabaseClient;
 
     // Reset chain methods
-    for (const key of ['select', 'eq', 'neq', 'order', 'limit'] as const) {
+    for (const key of ['select', 'eq', 'neq', 'in', 'order', 'limit'] as const) {
       mocks.chainMethods[key].mockReturnValue(mocks.chainMethods);
     }
     mocks.chainMethods.then.mockImplementation((resolve: (v: unknown) => void) =>
@@ -716,10 +717,12 @@ describe('MCP App trigger tools #22-23', () => {
         active_bids: sampleBids,
       });
 
-      // Mock workspace lookup for focused bid
+      // Mock workspace lookup for focused bid — must also handle bid_questions/bid_responses
       const mockChain = {
         select: vi.fn().mockReturnThis(),
         eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
         single: vi.fn().mockResolvedValue({
           data: {
             id: 'bid-001',
@@ -734,6 +737,9 @@ describe('MCP App trigger tools #22-23', () => {
           },
           error: null,
         }),
+        then: vi.fn((resolve: (v: unknown) => void) =>
+          resolve({ data: [], error: null }),
+        ),
       };
       supabase.from.mockReturnValue(mockChain);
 
@@ -761,6 +767,7 @@ describe('MCP App trigger tools #22-23', () => {
       expect(result.structuredContent.focused_bid_detail.buyer).toBe('NHS England');
       expect(result.structuredContent.focused_bid_detail.reference_number).toBe('NHS-DT-2026');
       expect(result.structuredContent.focused_bid_detail.question_stats).toBeDefined();
+      expect(result.structuredContent.focused_bid_detail.sections).toBeDefined();
     });
 
     it('does not include focused_bid_detail when bid_id is omitted', async () => {
@@ -863,6 +870,473 @@ describe('MCP App trigger tools #22-23', () => {
 
       expect(result.structuredContent.bids[0].buyer).toBeNull();
       expect(result.structuredContent.bids[0].deadline).toBeNull();
+    });
+
+    it('should include sections in focused_bid_detail when bid_id provided', async () => {
+      const handler = mockServer.getHandler('show_bid_dashboard')!;
+
+      mocks.fetchDashboardData.mockResolvedValue({
+        ...baseDashboardData,
+        active_bids: sampleBids,
+      });
+
+      // Track which tables are queried
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'bid-001',
+            name: 'NHS Digital Transformation',
+            description: 'A digital transformation bid.',
+            domain_metadata: {
+              buyer: 'NHS England',
+              status: 'active',
+              deadline: '2026-04-15',
+              reference_number: 'NHS-DT-2026',
+            },
+          },
+          error: null,
+        }),
+        then: vi.fn((resolve: (v: unknown) => void) =>
+          resolve({ data: [], error: null }),
+        ),
+      };
+      supabase.from.mockReturnValue(mockChain);
+
+      // Mock RPC for question stats
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{
+          total_questions: 5,
+          strong_match_count: 2,
+          partial_match_count: 1,
+          needs_sme_count: 1,
+          no_content_count: 1,
+          unmatched_count: 0,
+          drafted_count: 3,
+          complete_count: 2,
+        }],
+        error: null,
+      });
+
+      const result = await handler({ bid_id: 'bid-001' }, extra) as {
+        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      };
+
+      const detail = result.structuredContent.focused_bid_detail;
+      expect(detail).toBeDefined();
+      expect(detail.sections).toBeDefined();
+      expect(Array.isArray(detail.sections)).toBe(true);
+      expect(detail.status_breakdown).toBeDefined();
+      expect(detail.confidence_breakdown).toBeDefined();
+    });
+
+    it('should compute status_breakdown from questions', async () => {
+      const handler = mockServer.getHandler('show_bid_dashboard')!;
+
+      mocks.fetchDashboardData.mockResolvedValue({
+        ...baseDashboardData,
+        active_bids: sampleBids,
+      });
+
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'bid-001', name: 'Test Bid', description: null,
+            domain_metadata: { buyer: null, status: 'active', deadline: null, reference_number: null },
+          },
+          error: null,
+        }),
+        then: vi.fn((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null },
+              { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
+              { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+            ],
+            error: null,
+          }),
+        ),
+      };
+      supabase.from.mockReturnValue(mockChain);
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 1, needs_sme_count: 1, no_content_count: 0, unmatched_count: 0, drafted_count: 1, complete_count: 1 }],
+        error: null,
+      });
+
+      const result = await handler({ bid_id: 'bid-001' }, extra) as {
+        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      };
+
+      const breakdown = result.structuredContent.focused_bid_detail.status_breakdown as Record<string, number>;
+      expect(breakdown.ai_drafted).toBe(1);
+      expect(breakdown.complete).toBe(1);
+      expect(breakdown.not_started).toBe(1);
+    });
+
+    it('should compute confidence_breakdown from questions', async () => {
+      const handler = mockServer.getHandler('show_bid_dashboard')!;
+
+      mocks.fetchDashboardData.mockResolvedValue({
+        ...baseDashboardData,
+        active_bids: sampleBids,
+      });
+
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'bid-001', name: 'Test Bid', description: null,
+            domain_metadata: { buyer: null, status: 'active', deadline: null, reference_number: null },
+          },
+          error: null,
+        }),
+        then: vi.fn((resolve: (v: unknown) => void) =>
+          resolve({
+            data: [
+              { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'not_started', confidence_posture: 'strong_match', word_limit: null },
+              { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+              { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+            ],
+            error: null,
+          }),
+        ),
+      };
+      supabase.from.mockReturnValue(mockChain);
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 0, needs_sme_count: 2, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }],
+        error: null,
+      });
+
+      const result = await handler({ bid_id: 'bid-001' }, extra) as {
+        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      };
+
+      const breakdown = result.structuredContent.focused_bid_detail.confidence_breakdown as Record<string, number>;
+      expect(breakdown.strong_match).toBe(1);
+      expect(breakdown.needs_sme).toBe(2);
+    });
+
+    it('should handle bid with no questions gracefully', async () => {
+      const handler = mockServer.getHandler('show_bid_dashboard')!;
+
+      mocks.fetchDashboardData.mockResolvedValue({
+        ...baseDashboardData,
+        active_bids: sampleBids,
+      });
+
+      const mockChain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: {
+            id: 'bid-001', name: 'Empty Bid', description: null,
+            domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+          },
+          error: null,
+        }),
+        then: vi.fn((resolve: (v: unknown) => void) =>
+          resolve({ data: [], error: null }),
+        ),
+      };
+      supabase.from.mockReturnValue(mockChain);
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{ total_questions: 0, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }],
+        error: null,
+      });
+
+      const result = await handler({ bid_id: 'bid-001' }, extra) as {
+        structuredContent: BidDashboardData & { focused_bid_detail: Record<string, unknown> };
+      };
+
+      const detail = result.structuredContent.focused_bid_detail;
+      expect(detail.sections).toEqual([]);
+      expect(detail.status_breakdown).toEqual({});
+      expect(detail.confidence_breakdown).toEqual({});
+    });
+  });
+
+  // ─────────────────────────────────────────
+  // 6. get_bid_detail (enhanced with sections)
+  // ─────────────────────────────────────────
+
+  describe('get_bid_detail', () => {
+    it('should return sections grouped by section_name', async () => {
+      const handler = mockServer.getHandler('get_bid_detail')!;
+      expect(handler).toBeDefined();
+
+      // Mock workspace lookup
+      supabase.from.mockImplementation((table: string) => {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: 'bid-001',
+              name: 'Test Bid',
+              description: null,
+              domain_metadata: { buyer: 'Test Corp', status: 'active', deadline: null, reference_number: null },
+              is_archived: false,
+            },
+            error: null,
+          }),
+          then: vi.fn(),
+        };
+
+        if (table === 'bid_questions') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { id: 'q1', question_text: 'Question A', section_name: 'Section 1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: 500 },
+                { id: 'q2', question_text: 'Question B', section_name: 'Section 1', section_sequence: 1, question_sequence: 2, status: 'ai_drafted', confidence_posture: 'partial_match', word_limit: null },
+                { id: 'q3', question_text: 'Question C', section_name: 'Section 2', section_sequence: 2, question_sequence: 1, status: 'not_started', confidence_posture: null, word_limit: 1000 },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'bid_responses') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { question_id: 'q1', response_text: 'Response for q1', review_status: 'approved' },
+                { question_id: 'q2', response_text: 'Draft for q2', review_status: null },
+              ],
+              error: null,
+            }),
+          );
+        }
+
+        return chain;
+      });
+
+      // Mock RPC for question stats
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{ total_questions: 3, strong_match_count: 1, partial_match_count: 1, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 2, complete_count: 1 }],
+        error: null,
+      });
+
+      const result = await handler({ id: 'bid-001' }, extra) as {
+        structuredContent: { sections: Array<{ name: string; questions: Array<{ id: string }> }> };
+      };
+
+      const sections = result.structuredContent.sections;
+      expect(sections).toHaveLength(2);
+      expect(sections[0].name).toBe('Section 1');
+      expect(sections[0].questions).toHaveLength(2);
+      expect(sections[1].name).toBe('Section 2');
+      expect(sections[1].questions).toHaveLength(1);
+    });
+
+    it('should map responses to questions correctly', async () => {
+      const handler = mockServer.getHandler('get_bid_detail')!;
+
+      supabase.from.mockImplementation((table: string) => {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: 'bid-001',
+              name: 'Test Bid',
+              description: null,
+              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              is_archived: false,
+            },
+            error: null,
+          }),
+          then: vi.fn(),
+        };
+
+        if (table === 'bid_questions') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
+                { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'not_started', confidence_posture: null, word_limit: null },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'bid_responses') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { question_id: 'q1', response_text: 'Answer', review_status: 'approved' },
+              ],
+              error: null,
+            }),
+          );
+        }
+
+        return chain;
+      });
+
+      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 2, strong_match_count: 1, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 1, complete_count: 1 }], error: null });
+
+      const result = await handler({ id: 'bid-001' }, extra) as {
+        structuredContent: { sections: Array<{ questions: Array<{ id: string; has_response: boolean; review_status: string | null }> }> };
+      };
+
+      const questions = result.structuredContent.sections[0].questions;
+      expect(questions[0].has_response).toBe(true);
+      expect(questions[0].review_status).toBe('approved');
+      expect(questions[1].has_response).toBe(false);
+      expect(questions[1].review_status).toBeNull();
+    });
+
+    it('should put questions with null section_name into Ungrouped', async () => {
+      const handler = mockServer.getHandler('get_bid_detail')!;
+
+      supabase.from.mockImplementation((table: string) => {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: 'bid-001',
+              name: 'Test Bid',
+              description: null,
+              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              is_archived: false,
+            },
+            error: null,
+          }),
+          then: vi.fn(),
+        };
+
+        if (table === 'bid_questions') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { id: 'q1', question_text: 'Orphan Q', section_name: null, section_sequence: 0, question_sequence: 1, status: 'not_started', confidence_posture: null, word_limit: null },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'bid_responses') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({ data: [], error: null }),
+          );
+        }
+
+        return chain;
+      });
+
+      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 1, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 1, drafted_count: 0, complete_count: 0 }], error: null });
+
+      const result = await handler({ id: 'bid-001' }, extra) as {
+        structuredContent: { sections: Array<{ name: string }> };
+      };
+
+      expect(result.structuredContent.sections).toHaveLength(1);
+      expect(result.structuredContent.sections[0].name).toBe('Ungrouped');
+    });
+
+    it('should return empty sections array when no questions exist', async () => {
+      const handler = mockServer.getHandler('get_bid_detail')!;
+
+      supabase.from.mockImplementation((table: string) => {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: 'bid-001',
+              name: 'Empty Bid',
+              description: null,
+              domain_metadata: { buyer: null, status: 'draft', deadline: null, reference_number: null },
+              is_archived: false,
+            },
+            error: null,
+          }),
+          then: vi.fn((resolve: (v: unknown) => void) =>
+            resolve({ data: [], error: null }),
+          ),
+        };
+
+        return chain;
+      });
+
+      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 0, strong_match_count: 0, partial_match_count: 0, needs_sme_count: 0, no_content_count: 0, unmatched_count: 0, drafted_count: 0, complete_count: 0 }], error: null });
+
+      const result = await handler({ id: 'bid-001' }, extra) as {
+        structuredContent: { sections: unknown[]; status_breakdown: Record<string, number>; confidence_breakdown: Record<string, number> };
+      };
+
+      expect(result.structuredContent.sections).toEqual([]);
+      expect(result.structuredContent.status_breakdown).toEqual({});
+      expect(result.structuredContent.confidence_breakdown).toEqual({});
+    });
+
+    it('should include status_breakdown and confidence_breakdown', async () => {
+      const handler = mockServer.getHandler('get_bid_detail')!;
+
+      supabase.from.mockImplementation((table: string) => {
+        const chain = {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          order: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: 'bid-001',
+              name: 'Test Bid',
+              description: null,
+              domain_metadata: { buyer: null, status: 'active', deadline: null, reference_number: null },
+              is_archived: false,
+            },
+            error: null,
+          }),
+          then: vi.fn(),
+        };
+
+        if (table === 'bid_questions') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [
+                { id: 'q1', question_text: 'Q1', section_name: 'S1', section_sequence: 1, question_sequence: 1, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
+                { id: 'q2', question_text: 'Q2', section_name: 'S1', section_sequence: 1, question_sequence: 2, status: 'complete', confidence_posture: 'strong_match', word_limit: null },
+                { id: 'q3', question_text: 'Q3', section_name: 'S1', section_sequence: 1, question_sequence: 3, status: 'not_started', confidence_posture: 'needs_sme', word_limit: null },
+              ],
+              error: null,
+            }),
+          );
+        } else if (table === 'bid_responses') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({ data: [], error: null }),
+          );
+        }
+
+        return chain;
+      });
+
+      supabase.rpc.mockResolvedValueOnce({ data: [{ total_questions: 3, strong_match_count: 2, partial_match_count: 0, needs_sme_count: 1, no_content_count: 0, unmatched_count: 0, drafted_count: 2, complete_count: 2 }], error: null });
+
+      const result = await handler({ id: 'bid-001' }, extra) as {
+        structuredContent: { status_breakdown: Record<string, number>; confidence_breakdown: Record<string, number> };
+      };
+
+      expect(result.structuredContent.status_breakdown).toEqual({ complete: 2, not_started: 1 });
+      expect(result.structuredContent.confidence_breakdown).toEqual({ strong_match: 2, needs_sme: 1 });
     });
   });
 });

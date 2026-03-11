@@ -46,6 +46,7 @@ import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBidActions } from '@/hooks/use-bid-actions';
 import { formatDateUK } from '@/lib/format';
+import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { BID_STATE_LABELS } from '@/lib/bid-state-machine';
 import { cn } from '@/lib/utils';
 import type { Bid, BidMetadata, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult } from '@/types/bid';
@@ -136,6 +137,22 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               <span className="inline-flex items-center gap-1.5">
                 <Calendar className="size-3.5" aria-hidden="true" />
                 {formatDateUK(metadata.deadline)}
+                {(() => {
+                  const proximity = getDeadlineProximity(metadata.deadline);
+                  if (!proximity) return null;
+                  return (
+                    <span
+                      className={cn(
+                        'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+                        proximity.isOverdue
+                          ? 'bg-bid-overdue-bg text-bid-overdue border border-bid-overdue-border'
+                          : 'bg-status-warning/10 text-status-warning',
+                      )}
+                    >
+                      {proximity.label}
+                    </span>
+                  );
+                })()}
               </span>
             )}
             {metadata?.reference_number && (
@@ -258,9 +275,12 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   {tab.count}
                 </span>
               )}
-              {activeTab === tab.id && (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-primary" />
-              )}
+              <span
+                className={cn(
+                  'absolute inset-x-0 bottom-0 h-0.5 bg-primary transition-all duration-200',
+                  activeTab === tab.id ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0',
+                )}
+              />
             </button>
           ))}
         </nav>
@@ -293,6 +313,44 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   questions={extractedQuestions}
                   onConfirmed={handleQuestionReviewConfirmed}
                   onCancelled={handleQuestionReviewCancelled}
+                />
+              </div>
+            )}
+            {/* Bulk actions for question list tab */}
+            {canEdit && totalQuestions > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                {stats && stats.unmatched_count > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleMatchQuestions}
+                  >
+                    <RefreshCw className="size-3.5" aria-hidden="true" />
+                    Match {stats.unmatched_count} Unmatched
+                  </Button>
+                )}
+                {['drafting', 'in_review'].includes(bidStatus) && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={draftingAll}
+                    onClick={() => setShowCostEstimate(true)}
+                  >
+                    {draftingAll ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Sparkles className="size-3.5" aria-hidden="true" />
+                    )}
+                    {draftingAll ? 'Drafting...' : 'Draft All'}
+                  </Button>
+                )}
+                <CostEstimateDialog
+                  open={showCostEstimate}
+                  onOpenChange={setShowCostEstimate}
+                  bidId={id}
+                  onProceed={handleDraftAll}
                 />
               </div>
             )}
@@ -484,8 +542,11 @@ function OverviewTab({
         </div>
       )}
 
-      {/* Bid details */}
-      <div className="rounded-lg border bg-card p-4">
+      {/* Bid details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
+      <div className={cn(
+        'rounded-lg border bg-card p-4',
+        postureBreakdown.length === 0 && 'lg:col-span-2',
+      )}>
         <h2 className="text-sm font-medium text-foreground">Details</h2>
         <dl className="mt-3 space-y-2 text-sm">
           {metadata.estimated_value && (

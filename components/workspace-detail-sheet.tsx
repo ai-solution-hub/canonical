@@ -119,7 +119,7 @@ export function WorkspaceDetailSheet({
         }
         if (!res.ok) throw new Error();
         const updated = await res.json();
-        toast('Workspace updated', { duration: 1500 });
+        toast.success('Changes saved', { duration: 1500 });
         onUpdated({
           ...workspace,
           ...updated,

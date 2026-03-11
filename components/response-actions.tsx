@@ -8,8 +8,15 @@ import {
   PenLine,
   Flag,
   Loader2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -128,46 +135,44 @@ export function ResponseActions({
             <TooltipContent>Re-draft with different instructions</TooltipContent>
           </Tooltip>
 
-          {/* Author Manually */}
-          {!hasDraft && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  onClick={() => onAction('author_manually')}
-                  disabled={isLoading}
-                  size="sm"
-                  type="button"
-                >
-                  <PenLine className="size-4" />
-                  Author Manually
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Write this response from scratch</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* Flag for Review */}
-          {hasDraft && !isApproved && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  onClick={() => onAction('flag_for_review')}
-                  disabled={isLoading}
-                  size="sm"
-                  type="button"
-                >
-                  {loadingAction === 'flag_for_review' ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Flag className="size-4" />
-                  )}
-                  Flag
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Flag for another reviewer</TooltipContent>
-            </Tooltip>
+          {/* More actions (Author Manually / Flag) */}
+          {((!hasDraft) || (hasDraft && !isApproved)) && (
+            <DropdownMenu>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isLoading}
+                      type="button"
+                    >
+                      <MoreHorizontal className="size-4" />
+                      More
+                    </Button>
+                  </DropdownMenuTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More actions</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="end">
+                {!hasDraft && (
+                  <DropdownMenuItem onClick={() => onAction('author_manually')}>
+                    <PenLine className="mr-2 size-4" aria-hidden="true" />
+                    Author Manually
+                  </DropdownMenuItem>
+                )}
+                {hasDraft && !isApproved && (
+                  <DropdownMenuItem onClick={() => onAction('flag_for_review')}>
+                    {loadingAction === 'flag_for_review' ? (
+                      <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Flag className="mr-2 size-4" aria-hidden="true" />
+                    )}
+                    Flag for Review
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 

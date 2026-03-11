@@ -15,7 +15,7 @@ import { getDisplayTitle } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { ReviewQueueItem } from '@/types/review';
 
-export type QueueSortField = 'default' | 'domain' | 'content_type' | 'confidence' | 'date';
+export type QueueSortField = 'default' | 'flagged' | 'domain' | 'content_type' | 'confidence' | 'date';
 
 interface ReviewQueuePanelProps {
   items: ReviewQueueItem[];
@@ -49,6 +49,7 @@ export function ReviewQueuePanel({
           </SelectTrigger>
           <SelectContent position="popper">
             <SelectItem value="default">Default order</SelectItem>
+            <SelectItem value="flagged">Flagged first</SelectItem>
             <SelectItem value="domain">Domain</SelectItem>
             <SelectItem value="content_type">Content type</SelectItem>
             <SelectItem value="confidence">Confidence</SelectItem>

@@ -127,7 +127,7 @@ export function MetadataSidebar({
 
   return (
     <aside className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="bg-transparent border-l border-border pl-4">
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Metadata
         </h2>

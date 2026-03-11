@@ -102,6 +102,8 @@ import type {
   ContentItemDetail,
   BidDetail,
   BidQuestionDetail,
+  BidQuestionSummary,
+  BidSection,
   QualitySummary,
   FreshnessReport,
   CreatedItem,
@@ -150,6 +152,80 @@ export async function registerTools(server: McpServer): Promise<void> {
   // users won't have multiple KB servers. Adding prefixes would make names
   // unnecessarily verbose for Claude. Revisit if multi-server scenarios arise.
   // -------------------------------------------------------------------------
+
+  // -------------------------------------------------------------------------
+  // Shared helper: fetch questions and responses for a bid, returning
+  // sections grouped by section_name plus status/confidence breakdowns.
+  // Used by both tool #6 (get_bid_detail) and tool #23 (show_bid_dashboard).
+  // -------------------------------------------------------------------------
+
+  async function fetchBidSections(
+    supabase: ReturnType<typeof createMcpClient>,
+    bidId: string,
+  ): Promise<{
+    sections: BidSection[];
+    status_breakdown: Record<string, number>;
+    confidence_breakdown: Record<string, number>;
+  }> {
+    // Fetch individual questions with ordering
+    const { data: questions } = await supabase
+      .from('bid_questions')
+      .select('id, question_text, section_name, section_sequence, question_sequence, status, confidence_posture, word_limit')
+      .eq('project_id', bidId)
+      .order('section_sequence')
+      .order('question_sequence');
+
+    // Fetch responses for all questions in this bid (avoids N+1)
+    const questionIds = (questions ?? []).map((q: { id: string }) => q.id);
+    const { data: responses } = questionIds.length > 0
+      ? await supabase
+          .from('bid_responses')
+          .select('question_id, response_text, review_status')
+          .in('question_id', questionIds)
+      : { data: [] as Array<{ question_id: string; response_text: string | null; review_status: string | null }> };
+
+    // Build a response lookup map
+    const responseMap = new Map<string, { response_text: string | null; review_status: string | null }>();
+    for (const r of (responses ?? [])) {
+      responseMap.set(r.question_id, r);
+    }
+
+    // Group questions into sections
+    const sectionMap = new Map<string, BidQuestionSummary[]>();
+    for (const q of (questions ?? [])) {
+      const sectionName = q.section_name ?? 'Ungrouped';
+      if (!sectionMap.has(sectionName)) {
+        sectionMap.set(sectionName, []);
+      }
+      const resp = responseMap.get(q.id);
+      sectionMap.get(sectionName)!.push({
+        id: q.id,
+        question_text: q.question_text,
+        status: q.status ?? 'not_started',
+        confidence_posture: q.confidence_posture ?? null,
+        word_limit: q.word_limit ?? null,
+        has_response: !!resp?.response_text,
+        review_status: resp?.review_status ?? null,
+      });
+    }
+
+    const sections: BidSection[] = [];
+    for (const [name, qs] of sectionMap) {
+      sections.push({ name, questions: qs });
+    }
+
+    // Compute breakdowns
+    const status_breakdown: Record<string, number> = {};
+    const confidence_breakdown: Record<string, number> = {};
+    for (const q of (questions ?? [])) {
+      const s = q.status ?? 'not_started';
+      status_breakdown[s] = (status_breakdown[s] ?? 0) + 1;
+      const c = q.confidence_posture ?? 'unmatched';
+      confidence_breakdown[c] = (confidence_breakdown[c] ?? 0) + 1;
+    }
+
+    return { sections, status_breakdown, confidence_breakdown };
+  }
 
   // -------------------------------------------------------------------------
   // 1. search_knowledge_base
@@ -523,6 +599,9 @@ export async function registerTools(server: McpServer): Promise<void> {
           p_project_id: args.id,
         });
 
+        // Fetch individual questions grouped by section
+        const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.id);
+
         const meta = workspace.domain_metadata as Record<string, unknown> | null;
         const bidDetail: BidDetail = {
           id: workspace.id,
@@ -533,6 +612,9 @@ export async function registerTools(server: McpServer): Promise<void> {
           reference_number: (meta?.reference_number as string) ?? null,
           description: workspace.description,
           question_stats: stats?.[0] ?? null,
+          sections,
+          status_breakdown,
+          confidence_breakdown,
         };
 
         const markdown = truncateResponse(formatBidDetail(bidDetail));
@@ -2042,6 +2124,7 @@ export async function registerTools(server: McpServer): Promise<void> {
             const { data: stats } = await supabase.rpc('get_bid_question_stats', {
               p_project_id: args.bid_id,
             });
+            const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.bid_id);
             const meta = workspace.domain_metadata as Record<string, unknown> | null;
             (result as unknown as Record<string, unknown>).focused_bid_detail = {
               id: workspace.id,
@@ -2052,6 +2135,9 @@ export async function registerTools(server: McpServer): Promise<void> {
               reference_number: (meta?.reference_number as string) ?? null,
               description: workspace.description,
               question_stats: stats?.[0] ?? null,
+              sections,
+              status_breakdown,
+              confidence_breakdown,
             };
           }
         }

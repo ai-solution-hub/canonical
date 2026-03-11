@@ -408,6 +408,23 @@ export function formatReorientation(data: ReorientData): string {
 // Bid detail
 // ---------------------------------------------------------------------------
 
+/** Individual question summary within a bid detail view */
+export interface BidQuestionSummary {
+  id: string;
+  question_text: string;
+  status: string;
+  confidence_posture: string | null;
+  word_limit: number | null;
+  has_response: boolean;
+  review_status: string | null;
+}
+
+/** A section grouping questions within a bid */
+export interface BidSection {
+  name: string;
+  questions: BidQuestionSummary[];
+}
+
 export interface BidDetail {
   id: string;
   name: string;
@@ -426,6 +443,9 @@ export interface BidDetail {
     drafted_count: number;
     complete_count: number;
   } | null;
+  sections: BidSection[];
+  status_breakdown: Record<string, number>;
+  confidence_breakdown: Record<string, number>;
 }
 
 export function formatBidDetail(bid: BidDetail): string {
@@ -453,6 +473,38 @@ export function formatBidDetail(bid: BidDetail): string {
     lines.push(`- **Partial match:** ${qs.partial_match_count}`);
     lines.push(`- **Needs SME:** ${qs.needs_sme_count}`);
     lines.push(`- **No content:** ${qs.no_content_count}`);
+  }
+
+  if (bid.sections && bid.sections.length > 0) {
+    lines.push('', '## Questions by Section', '');
+    for (const section of bid.sections) {
+      lines.push(`### ${section.name} (${section.questions.length} questions)`, '');
+      for (const q of section.questions) {
+        const statusIcon = q.has_response ? '\u2705' : '\u2B1C';
+        const confidence = q.confidence_posture
+          ? ` [${q.confidence_posture.replace(/_/g, ' ')}]`
+          : '';
+        const truncatedText = q.question_text.length > 100
+          ? q.question_text.slice(0, 97) + '...'
+          : q.question_text;
+        lines.push(`- ${statusIcon} ${truncatedText}${confidence} (ID: ${q.id})`);
+      }
+      lines.push('');
+    }
+  }
+
+  if (bid.status_breakdown && Object.keys(bid.status_breakdown).length > 0) {
+    lines.push('## Status Breakdown', '');
+    for (const [status, count] of Object.entries(bid.status_breakdown)) {
+      lines.push(`- **${status.replace(/_/g, ' ')}:** ${count}`);
+    }
+  }
+
+  if (bid.confidence_breakdown && Object.keys(bid.confidence_breakdown).length > 0) {
+    lines.push('', '## Confidence Breakdown', '');
+    for (const [posture, count] of Object.entries(bid.confidence_breakdown)) {
+      lines.push(`- **${posture.replace(/_/g, ' ')}:** ${count}`);
+    }
   }
 
   return lines.join('\n');

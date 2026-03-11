@@ -292,6 +292,9 @@ export default function BidSessionPage({
                   >
                     <Library className="size-3.5" aria-hidden="true" />
                     <span className="hidden sm:inline">Library</span>
+                    <kbd className="ml-1 hidden rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground sm:inline">
+                      {modKey}L
+                    </kbd>
                   </Button>
                 </div>
               )}

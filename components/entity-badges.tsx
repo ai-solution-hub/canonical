@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { FileX } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Badge } from '@/components/ui/badge';
 
@@ -77,9 +78,26 @@ export function EntityBadges({ contentItemId, className }: EntityBadgesProps) {
     fetchEntities();
   }, [contentItemId]);
 
-  // Don't render anything until loaded, and render nothing if empty
-  if (!loaded || entities.length === 0) {
+  // Don't render anything until loaded
+  if (!loaded) {
     return null;
+  }
+
+  // Empty state
+  if (entities.length === 0) {
+    return (
+      <section className={className} aria-label="Entities mentioned in this content">
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          Entities
+        </h3>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">
+            No entities detected in this content.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   // Group by entity type

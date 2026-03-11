@@ -79,6 +79,21 @@ interface ClientBidDashboardData {
   focused_bid_detail?: ClientBidDetailData;
 }
 
+interface ClientBidQuestionSummary {
+  id: string;
+  question_text: string;
+  status: string;
+  confidence_posture: string | null;
+  word_limit: number | null;
+  has_response: boolean;
+  review_status: string | null;
+}
+
+interface ClientBidSection {
+  name: string;
+  questions: ClientBidQuestionSummary[];
+}
+
 interface ClientBidDetailData {
   id: string;
   name: string;
@@ -97,6 +112,9 @@ interface ClientBidDetailData {
     drafted_count: number;
     complete_count: number;
   } | null;
+  sections: ClientBidSection[];
+  status_breakdown: Record<string, number>;
+  confidence_breakdown: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +202,16 @@ function makeBidDetail(): ServerBidDetail & ClientBidDetailData {
       drafted_count: 15,
       complete_count: 10,
     },
+    sections: [
+      {
+        name: 'Organisation',
+        questions: [
+          { id: 'q1', question_text: 'Describe your organisation', status: 'complete', confidence_posture: 'strong_match', word_limit: 500, has_response: true, review_status: 'approved' },
+        ],
+      },
+    ],
+    status_breakdown: { complete: 10, ai_drafted: 5, not_started: 10 },
+    confidence_breakdown: { strong_match: 10, partial_match: 8, needs_sme: 3, no_content: 2, unmatched: 2 },
   };
 }
 
@@ -359,6 +387,9 @@ describe('MCP App contract: BidDetail / BidDetailData', () => {
       reference_number: null,
       description: null,
       question_stats: null,
+      sections: [],
+      status_breakdown: {},
+      confidence_breakdown: {},
     };
     expect(detail.question_stats).toBeNull();
     expect(detail.buyer).toBeNull();
@@ -388,6 +419,9 @@ describe('MCP App contract: BidDetail / BidDetailData', () => {
       reference_number: null,
       description: null,
       question_stats: null,
+      sections: [],
+      status_breakdown: {},
+      confidence_breakdown: {},
     };
     expect(detail.buyer).toBeNull();
     expect(detail.deadline).toBeNull();

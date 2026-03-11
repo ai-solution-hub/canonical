@@ -77,7 +77,7 @@ function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) 
   );
 }
 
-/** Header row: content type icon, domain badge, layer badge, optional similarity, unread dot, star */
+/** Header row: content type icon, domain badge, layer badge, unread dot, star */
 function CardHeaderRow({ item, isRead }: { item: ContentListItem | SearchResult; isRead?: boolean }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -85,7 +85,6 @@ function CardHeaderRow({ item, isRead }: { item: ContentListItem | SearchResult;
       <DomainBadge domain={item.primary_domain ?? ''} />
       <LayerBadge metadata={item.metadata} />
       <div className="ml-auto flex items-center gap-1">
-        {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
         <UnreadDot isRead={isRead} />
         <StarToggle itemId={item.id} metadata={item.metadata} />
       </div>
@@ -151,14 +150,20 @@ function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
   );
 }
 
-/** Status row: date, freshness, governance, quality badges */
+/** Status row: date, freshness always visible; governance, quality, similarity on hover */
 function CardStatusRow({ item, hasQualityFlag, children }: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
   children?: React.ReactNode;
 }) {
+  const hasSecondaryBadges =
+    item.governance_review_status === 'pending' ||
+    item.governance_review_status === 'draft' ||
+    hasQualityFlag ||
+    isSearchResult(item);
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <time className="text-xs text-muted-foreground" dateTime={item.captured_date ?? undefined}>
         {formatSmartDate(item.captured_date)}
       </time>
@@ -166,9 +171,14 @@ function CardStatusRow({ item, hasQualityFlag, children }: {
       {item.freshness && item.freshness !== 'fresh' && (
         <FreshnessBadge freshness={item.freshness} compact />
       )}
-      {item.governance_review_status === 'pending' && <GovernanceBadge status="pending" compact />}
-      {item.governance_review_status === 'draft' && <GovernanceBadge status="draft" compact />}
-      {hasQualityFlag && <QualityFlagBadge />}
+      {hasSecondaryBadges && (
+        <span className="inline-flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+          {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
+          {item.governance_review_status === 'pending' && <GovernanceBadge status="pending" compact />}
+          {item.governance_review_status === 'draft' && <GovernanceBadge status="draft" compact />}
+          {hasQualityFlag && <QualityFlagBadge />}
+        </span>
+      )}
     </div>
   );
 }
@@ -183,7 +193,11 @@ function CardFooter({ item, hasQualityFlag, badgeSlot }: {
     <div className="mt-auto flex flex-col gap-1.5 pt-1">
       <div className="flex items-center gap-1.5 flex-wrap">
         {badgeSlot}
-        {item.verified_at && <VerificationBadge verified={true} size="sm" />}
+        {item.verified_at && (
+          <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+            <VerificationBadge verified={true} size="sm" />
+          </span>
+        )}
       </div>
       {item.author_name && (
         <span className="truncate text-xs font-medium text-foreground">{item.author_name}</span>
@@ -275,7 +289,11 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                   <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
                 </button>
               )}
-              {item.verified_at && <VerificationBadge verified={true} size="sm" />}
+              {item.verified_at && (
+                <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                  <VerificationBadge verified={true} size="sm" />
+                </span>
+              )}
             </CardStatusRow>
           </div>
         </div>
@@ -290,7 +308,6 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
         <div className="flex flex-1 flex-col gap-2 p-3">
           <CardHeaderRow item={item} isRead={isRead} />
           <CardTitle title={title} priority={item.priority} renderText={renderText} />
-          {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
           <SummaryPreview item={item} renderText={renderText} />
           <CardFooter item={item} hasQualityFlag={hasQualityFlag} />
         </div>
@@ -317,7 +334,6 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
       )}
       <div className="flex flex-1 flex-col gap-2 p-3">
         <CardTitle title={title} priority={item.priority} renderText={renderText} />
-        {isSearchResult(item) && <SimilarityBadge score={item.similarity} />}
         <SummaryPreview item={item} renderText={renderText} />
         <CardFooter
           item={item}

@@ -64,10 +64,10 @@ describe('EntityBadges', () => {
     configureFetchResult([]);
   });
 
-  it('renders nothing when no entities are found', async () => {
+  it('renders empty state when no entities are found', async () => {
     configureFetchResult([]);
 
-    const { container } = render(
+    render(
       <EntityBadges contentItemId="item-1" />,
     );
 
@@ -76,8 +76,9 @@ describe('EntityBadges', () => {
       expect(mockFrom).toHaveBeenCalledWith('entity_mentions');
     });
 
-    // Should render nothing
-    expect(container.innerHTML).toBe('');
+    // Should render the empty state with consistent pattern
+    expect(screen.getByText('No entities detected in this content.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Entities mentioned in this content')).toBeInTheDocument();
   });
 
   it('renders entity badges grouped by type when data is returned', async () => {
@@ -182,12 +183,12 @@ describe('EntityBadges', () => {
     expect(screen.getByText('Widgets:')).toBeInTheDocument();
   });
 
-  it('logs error and renders nothing on fetch error', async () => {
+  it('logs error and renders empty state on fetch error', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const fetchError = { message: 'Database error', code: '500' };
     configureFetchResult(null, fetchError);
 
-    const { container } = render(
+    render(
       <EntityBadges contentItemId="item-1" />,
     );
 
@@ -198,8 +199,8 @@ describe('EntityBadges', () => {
       );
     });
 
-    // Should render nothing on error (entities remains empty)
-    expect(container.innerHTML).toBe('');
+    // Should render empty state on error (entities remains empty)
+    expect(screen.getByText('No entities detected in this content.')).toBeInTheDocument();
     consoleSpy.mockRestore();
   });
 

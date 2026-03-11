@@ -430,6 +430,16 @@ export function LibraryContent() {
       <div
         className="mt-6 space-y-2"
         onKeyDown={(e) => {
+          if (e.key === 'c' || e.key === 'C') {
+            const focused = document.activeElement as HTMLElement;
+            if (!focused?.hasAttribute('data-qa-row')) return;
+            const copyBtn = focused.querySelector<HTMLButtonElement>('[data-copy-answer]');
+            if (copyBtn) {
+              copyBtn.click();
+              e.preventDefault();
+            }
+            return;
+          }
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
           const rows = Array.from(
             e.currentTarget.querySelectorAll<HTMLElement>('[data-qa-row]'),
@@ -519,6 +529,14 @@ export function LibraryContent() {
           </div>
         ) : groupBy !== 'none' ? (
           <div className="space-y-3">
+            {(() => {
+              const groups = groupItems(items, groupBy);
+              return (
+                <p className="text-sm text-muted-foreground" aria-live="polite">
+                  {groups.size} {groups.size === 1 ? 'group' : 'groups'}, {items.length} total {items.length === 1 ? 'item' : 'items'}
+                </p>
+              );
+            })()}
             {Array.from(groupItems(items, groupBy).entries()).map(([groupName, groupedItems]) => (
               <CollapsibleGroup key={groupName} label={groupName} count={groupedItems.length}>
                 {groupedItems.map((item) => (

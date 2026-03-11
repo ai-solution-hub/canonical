@@ -176,6 +176,15 @@ export function useReviewQueue(): UseReviewQueueReturn {
 
     const sorted = [...queue];
     switch (queueSort) {
+      case 'flagged':
+        sorted.sort((a, b) => {
+          const aFlagged = a.governance_review_status === 'pending' ? 1 : 0;
+          const bFlagged = b.governance_review_status === 'pending' ? 1 : 0;
+          if (bFlagged !== aFlagged) return bFlagged - aFlagged;
+          // Tiebreaker: default order (by index, already stable)
+          return 0;
+        });
+        break;
       case 'domain':
         sorted.sort((a, b) => (a.primary_domain ?? '').localeCompare(b.primary_domain ?? ''));
         break;

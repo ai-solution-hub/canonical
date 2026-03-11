@@ -2,15 +2,30 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Briefcase } from 'lucide-react';
+import { Plus, Briefcase, LayoutGrid, List, Calendar, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { BidListCard } from '@/components/bid-list-card';
+import { BidStateBadge } from '@/components/bid-state-indicator';
 import { BidCreationForm } from '@/components/bid-creation-form';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useViewMode } from '@/hooks/use-view-mode';
+import { formatDateUK } from '@/lib/format';
+import { getDeadlineProximity } from '@/lib/bid-helpers';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Bid, BidMetadata, BidState } from '@/types/bid';
 
+const BIDS_PER_PAGE = 20;
+
 type StatusFilter = 'all' | 'draft' | 'active' | 'submitted' | 'completed';
+type SortOption = 'newest' | 'deadline' | 'alphabetical';
 
 const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -36,6 +51,9 @@ export default function BidsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const { viewMode, setViewMode } = useViewMode('kb-bid-view', 'grid');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchBids = useCallback(async () => {
     try {
@@ -57,13 +75,49 @@ export default function BidsPage() {
 
   const filteredBids = useMemo(() => {
     const allowedStates = FILTER_STATES[statusFilter];
-    if (!allowedStates) return bids;
-    return bids.filter((bid) => {
-      const bidStatus = (bid.status ??
-        (bid.domain_metadata as BidMetadata).status) as BidState;
-      return allowedStates.includes(bidStatus);
+    const result = allowedStates
+      ? bids.filter((bid) => {
+          const bidStatus = (bid.status ??
+            (bid.domain_metadata as BidMetadata).status) as BidState;
+          return allowedStates.includes(bidStatus);
+        })
+      : [...bids];
+
+    // Apply sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'newest':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'deadline': {
+          const deadlineA = (a.domain_metadata as BidMetadata).deadline;
+          const deadlineB = (b.domain_metadata as BidMetadata).deadline;
+          // Bids without deadlines sort to the end
+          if (!deadlineA && !deadlineB) return 0;
+          if (!deadlineA) return 1;
+          if (!deadlineB) return -1;
+          return new Date(deadlineA).getTime() - new Date(deadlineB).getTime();
+        }
+        case 'alphabetical':
+          return a.name.localeCompare(b.name);
+        default:
+          return 0;
+      }
     });
-  }, [bids, statusFilter]);
+
+    return result;
+  }, [bids, statusFilter, sortBy]);
+
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filteredBids.length / BIDS_PER_PAGE));
+  const paginatedBids = filteredBids.slice(
+    (currentPage - 1) * BIDS_PER_PAGE,
+    currentPage * BIDS_PER_PAGE,
+  );
+
+  // Reset to page 1 when filter or sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, sortBy]);
 
   function handleBidCreated(bid: { id: string; name: string }) {
     toast.success(`Bid "${bid.name}" created`);
@@ -88,28 +142,64 @@ export default function BidsPage() {
         )}
       </div>
 
-      {/* Status filter */}
+      {/* Status filter and sort */}
       {!loading && bids.length > 0 && (
-        <div
-          className="mt-4 flex flex-wrap gap-2"
-          role="group"
-          aria-label="Filter by status"
-        >
-          {STATUS_FILTERS.map((filter) => (
-            <button
-              key={filter.id}
-              type="button"
-              aria-pressed={statusFilter === filter.id}
-              onClick={() => setStatusFilter(filter.id)}
-              className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                statusFilter === filter.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div
+            className="flex flex-wrap gap-2"
+            role="group"
+            aria-label="Filter by status"
+          >
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                aria-pressed={statusFilter === filter.id}
+                onClick={() => setStatusFilter(filter.id)}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  statusFilter === filter.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="inline-flex rounded-md border border-border" role="group" aria-label="View mode">
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={() => setViewMode('grid')}
+                aria-pressed={viewMode === 'grid'}
+                aria-label="Grid view"
+                className="rounded-r-none border-r border-border"
+              >
+                <LayoutGrid className="size-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={() => setViewMode('list')}
+                aria-pressed={viewMode === 'list'}
+                aria-label="List view"
+                className="rounded-l-none"
+              >
+                <List className="size-4" />
+              </Button>
+            </div>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="h-8 w-[160px] text-xs">
+                <SelectValue placeholder="Sort by..." />
+              </SelectTrigger>
+              <SelectContent position="popper">
+                <SelectItem value="newest">Newest first</SelectItem>
+                <SelectItem value="deadline">Deadline soonest</SelectItem>
+                <SelectItem value="alphabetical">Alphabetical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
 
@@ -126,14 +216,47 @@ export default function BidsPage() {
           <p className="py-8 text-center text-sm text-muted-foreground">
             No bids match the selected filter.
           </p>
-        ) : (
+        ) : viewMode === 'grid' ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredBids.map((bid) => (
+            {paginatedBids.map((bid) => (
               <BidListCard key={bid.id} bid={bid} />
+            ))}
+          </div>
+        ) : (
+          <div className="divide-y rounded-lg border">
+            {paginatedBids.map((bid) => (
+              <BidListRow key={bid.id} bid={bid} />
             ))}
           </div>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && filteredBids.length > BIDS_PER_PAGE && (
+        <div className="mt-6 flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => p + 1)}
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Create dialog */}
       <BidCreationForm
@@ -160,6 +283,50 @@ function EmptyState({ canEdit, onCreateClick }: { canEdit: boolean; onCreateClic
         </Button>
       )}
     </div>
+  );
+}
+
+function BidListRow({ bid }: { bid: Bid }) {
+  const metadata = bid.domain_metadata as BidMetadata;
+  const bidStatus = (bid.status ?? metadata.status) as import('@/types/bid').BidState;
+  const proximity = getDeadlineProximity(metadata.deadline);
+
+  return (
+    <a
+      href={`/bid/${bid.id}`}
+      className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{bid.name}</p>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+          {metadata.buyer && (
+            <span className="inline-flex items-center gap-1">
+              <Building2 className="size-3" aria-hidden="true" />
+              {metadata.buyer}
+            </span>
+          )}
+          {metadata.deadline && (
+            <span className="inline-flex items-center gap-1">
+              <Calendar className="size-3" aria-hidden="true" />
+              {formatDateUK(metadata.deadline)}
+            </span>
+          )}
+          {proximity && (
+            <span
+              className={cn(
+                'inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-medium',
+                proximity.isOverdue
+                  ? 'bg-bid-overdue-bg text-bid-overdue'
+                  : 'bg-status-warning/10 text-status-warning',
+              )}
+            >
+              {proximity.label}
+            </span>
+          )}
+        </div>
+      </div>
+      <BidStateBadge state={bidStatus} />
+    </a>
   );
 }
 

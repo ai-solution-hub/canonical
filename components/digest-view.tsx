@@ -87,14 +87,14 @@ export function DigestView({ digest, className }: DigestViewProps) {
       )}
 
       {/* Theme clusters */}
-      {digest.theme_clusters.length > 0 && (
-        <section className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-4 flex items-center gap-2">
-            <Layers className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Cross-Domain Themes
-            </h2>
-          </div>
+      <section className="rounded-xl border border-border bg-card p-6">
+        <div className="mb-4 flex items-center gap-2">
+          <Layers className="size-4 text-primary" />
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Cross-Domain Themes
+          </h2>
+        </div>
+        {digest.theme_clusters.length > 0 ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {digest.theme_clusters.map((cluster) => (
               <div
@@ -115,8 +115,12 @@ export function DigestView({ digest, className }: DigestViewProps) {
               </div>
             ))}
           </div>
-        </section>
-      )}
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No cross-domain themes identified for this period.
+          </p>
+        )}
+      </section>
     </div>
   );
 }

@@ -9,8 +9,12 @@ import type {
   BidDashboardData,
   BidSummary,
   BidDetailData,
+  BidQuestionSummary,
+  BidQuestionDetailData,
+  KBSearchResult,
   Urgency,
   ExpandedBidState,
+  ExpandedQuestionState,
 } from "./types";
 import "./styles.css";
 
@@ -61,6 +65,7 @@ app.ontoolresult = (result) => {
         bidId: detail.id,
         loading: false,
         detail,
+        expandedQuestion: null,
       };
     }
 
@@ -459,7 +464,15 @@ function buildDetailSection(state: ExpandedBidState): HTMLElement {
     section.appendChild(meta);
   }
 
-  // Question stats
+  // Breakdown bars (status + confidence)
+  if (detail.status_breakdown && Object.keys(detail.status_breakdown).length > 0) {
+    section.appendChild(buildBreakdownSection("Status", detail.status_breakdown, "status"));
+  }
+  if (detail.confidence_breakdown && Object.keys(detail.confidence_breakdown).length > 0) {
+    section.appendChild(buildBreakdownSection("Confidence", detail.confidence_breakdown, "confidence"));
+  }
+
+  // Question stats (legacy grid, kept for backward compatibility)
   if (detail.question_stats) {
     const qs = detail.question_stats;
     const statsTitle = createElement("div", {
@@ -502,7 +515,430 @@ function buildDetailSection(state: ExpandedBidState): HTMLElement {
     section.appendChild(stats);
   }
 
+  // Question list grouped by section
+  section.appendChild(buildQuestionList(detail, state));
+
   return section;
+}
+
+// -- Breakdown bar -----------------------------------------------------------
+
+function buildBreakdownSection(
+  title: string,
+  breakdown: Record<string, number>,
+  type: "status" | "confidence"
+): HTMLElement {
+  const container = createElement("div", { className: "breakdown-container" });
+
+  const label = createElement("div", { className: "bid-detail-section-title" });
+  label.textContent = `${title} Breakdown`;
+  container.appendChild(label);
+
+  const total = Object.values(breakdown).reduce((sum, n) => sum + n, 0);
+  if (total === 0) return container;
+
+  const bar = createElement("div", {
+    className: "breakdown-bar",
+    attrs: {
+      role: "img",
+      "aria-label": `${title} breakdown: ${Object.entries(breakdown)
+        .map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`)
+        .join(", ")}`,
+    },
+  });
+
+  for (const [key, count] of Object.entries(breakdown)) {
+    if (count === 0) continue;
+    const pct = (count / total) * 100;
+    const segment = createElement("div", {
+      className: `breakdown-segment breakdown-segment--${type}-${key.replace(/_/g, "-")}`,
+    });
+    segment.style.width = `${pct}%`;
+
+    // Text label inside segment for accessibility (not colour alone)
+    const segLabel = createElement("span", { className: "breakdown-segment-label" });
+    segLabel.textContent = `${key.replace(/_/g, " ")} (${count})`;
+    segment.appendChild(segLabel);
+
+    bar.appendChild(segment);
+  }
+
+  container.appendChild(bar);
+
+  // Legend below bar
+  const legend = createElement("div", { className: "breakdown-legend" });
+  for (const [key, count] of Object.entries(breakdown)) {
+    if (count === 0) continue;
+    const item = createElement("span", { className: "breakdown-legend-item" });
+    const swatch = createElement("span", {
+      className: `breakdown-swatch breakdown-swatch--${type}-${key.replace(/_/g, "-")}`,
+      attrs: { "aria-hidden": "true" },
+    });
+    item.appendChild(swatch);
+    item.appendChild(document.createTextNode(`${key.replace(/_/g, " ")} (${count})`));
+    legend.appendChild(item);
+  }
+  container.appendChild(legend);
+
+  return container;
+}
+
+// -- Question list -----------------------------------------------------------
+
+function buildQuestionList(detail: BidDetailData, state: ExpandedBidState): HTMLElement {
+  const container = createElement("div", { className: "question-sections" });
+
+  if (!detail.sections || detail.sections.length === 0) {
+    const empty = createElement("p", { className: "question-sections-empty" });
+    empty.textContent = "No questions loaded.";
+    container.appendChild(empty);
+    return container;
+  }
+
+  const sectionTitle = createElement("div", { className: "bid-detail-section-title" });
+  sectionTitle.textContent = "Questions by Section";
+  container.appendChild(sectionTitle);
+
+  for (const section of detail.sections) {
+    const sectionEl = createElement("div", { className: "question-section" });
+
+    // Section header
+    const header = createElement("div", { className: "question-section-header" });
+    header.textContent = `${section.name} (${section.questions.length})`;
+    sectionEl.appendChild(header);
+
+    // Question rows
+    for (const q of section.questions) {
+      sectionEl.appendChild(buildQuestionRow(q, state));
+    }
+
+    container.appendChild(sectionEl);
+  }
+
+  return container;
+}
+
+// -- Question row ------------------------------------------------------------
+
+function buildQuestionRow(q: BidQuestionSummary, state: ExpandedBidState): HTMLElement {
+  const isExpanded = state.expandedQuestion?.questionId === q.id;
+
+  const row = createElement("div", {
+    className: `question-row${isExpanded ? " question-row--expanded" : ""}`,
+    attrs: {
+      role: "button",
+      tabindex: "0",
+      "aria-expanded": String(isExpanded),
+      "data-question-id": q.id,
+    },
+  });
+
+  // Status indicator
+  const statusEl = createElement("span", {
+    className: `question-status question-status--${(q.status ?? "not_started").replace(/_/g, "-")}`,
+    attrs: { "aria-label": `Status: ${(q.status ?? "not started").replace(/_/g, " ")}` },
+  });
+  // Use different symbols for different statuses (not colour alone)
+  const statusSymbol = getStatusSymbol(q.status);
+  statusEl.textContent = statusSymbol;
+  row.appendChild(statusEl);
+
+  // Question text (truncated)
+  const textEl = createElement("span", { className: "question-text" });
+  textEl.textContent = q.question_text.length > 80
+    ? q.question_text.slice(0, 77) + "..."
+    : q.question_text;
+  row.appendChild(textEl);
+
+  // Confidence badge
+  if (q.confidence_posture) {
+    row.appendChild(buildConfidenceBadge(q.confidence_posture));
+  }
+
+  // Click handler
+  row.addEventListener("click", (e: Event) => {
+    e.stopPropagation();
+    toggleQuestionExpansion(q.id);
+  });
+  row.addEventListener("keydown", (e: Event) => {
+    const ke = e as KeyboardEvent;
+    if (ke.key === "Enter" || ke.key === " ") {
+      ke.preventDefault();
+      e.stopPropagation();
+      toggleQuestionExpansion(q.id);
+    }
+  });
+
+  // Expanded detail
+  if (isExpanded && state.expandedQuestion) {
+    row.appendChild(buildQuestionDetail(state.expandedQuestion));
+  }
+
+  return row;
+}
+
+function getStatusSymbol(status: string | null): string {
+  switch (status) {
+    case "complete": return "\u2713"; // check mark
+    case "ai_drafted": return "\u270E"; // pencil
+    case "not_started":
+    default: return "\u25CB"; // circle
+  }
+}
+
+// -- Confidence badge --------------------------------------------------------
+
+function buildConfidenceBadge(posture: string): HTMLElement {
+  const validPostures = ["strong_match", "partial_match", "needs_sme", "no_content"];
+  const modifier = validPostures.includes(posture) ? posture.replace(/_/g, "-") : "unmatched";
+  const badge = createElement("span", {
+    className: `confidence-badge confidence-badge--${modifier}`,
+  });
+  badge.textContent = posture.replace(/_/g, " ");
+  return badge;
+}
+
+// -- Question expansion ------------------------------------------------------
+
+async function toggleQuestionExpansion(questionId: string): Promise<void> {
+  if (!expandedBid) return;
+
+  // Collapse if already expanded
+  if (expandedBid.expandedQuestion?.questionId === questionId) {
+    expandedBid = { ...expandedBid, expandedQuestion: null };
+    renderDashboard();
+    return;
+  }
+
+  // Start loading
+  expandedBid = {
+    ...expandedBid,
+    expandedQuestion: {
+      questionId,
+      loading: true,
+      detail: null,
+      kbResults: null,
+      kbSearchLoading: false,
+    },
+  };
+  renderDashboard();
+
+  try {
+    const result = await app.callServerTool({
+      name: "get_bid_question",
+      arguments: { question_id: questionId },
+    });
+
+    const detail = result.structuredContent as unknown as BidQuestionDetailData;
+    expandedBid = {
+      ...expandedBid!,
+      expandedQuestion: {
+        questionId,
+        loading: false,
+        detail: detail?.id ? detail : null,
+        kbResults: null,
+        kbSearchLoading: false,
+      },
+    };
+  } catch (err) {
+    expandedBid = {
+      ...expandedBid!,
+      expandedQuestion: {
+        questionId,
+        loading: false,
+        detail: null,
+        kbResults: null,
+        kbSearchLoading: false,
+        error: err instanceof Error ? err.message : "Failed to load question",
+      },
+    };
+  }
+
+  renderDashboard();
+}
+
+// -- Question detail panel ---------------------------------------------------
+
+function buildQuestionDetail(state: ExpandedQuestionState): HTMLElement {
+  const panel = createElement("div", { className: "question-detail-panel" });
+
+  if (state.loading) {
+    const loading = createElement("div", {
+      className: "question-detail-loading",
+      attrs: { role: "status" },
+    });
+    loading.textContent = "Loading question detail\u2026";
+    panel.appendChild(loading);
+    return panel;
+  }
+
+  if (state.error) {
+    const error = createElement("div", { className: "question-detail-error" });
+    error.textContent = state.error;
+    panel.appendChild(error);
+    return panel;
+  }
+
+  if (!state.detail) return panel;
+
+  const detail = state.detail;
+
+  // Full question text
+  const questionText = createElement("p", { className: "question-detail-text" });
+  questionText.textContent = detail.question_text;
+  panel.appendChild(questionText);
+
+  // Metadata row
+  const metaRow = createElement("div", { className: "question-detail-meta" });
+  if (detail.word_limit) {
+    const wl = createElement("span", { className: "question-meta-tag" });
+    wl.textContent = `Word limit: ${detail.word_limit}`;
+    metaRow.appendChild(wl);
+  }
+  if (detail.review_status) {
+    const rs = createElement("span", { className: "question-meta-tag" });
+    rs.textContent = `Review: ${detail.review_status.replace(/_/g, " ")}`;
+    metaRow.appendChild(rs);
+  }
+  if (detail.confidence_posture) {
+    metaRow.appendChild(buildConfidenceBadge(detail.confidence_posture));
+  }
+  if (metaRow.childNodes.length > 0) panel.appendChild(metaRow);
+
+  // Response preview
+  if (detail.response_text) {
+    const responseSection = createElement("div", { className: "question-response-preview" });
+    const responseLabel = createElement("div", { className: "question-response-label" });
+    responseLabel.textContent = "Response Preview";
+    responseSection.appendChild(responseLabel);
+    const responseText = createElement("p", { className: "question-response-text" });
+    responseText.textContent = detail.response_text.length > 300
+      ? detail.response_text.slice(0, 297) + "..."
+      : detail.response_text;
+    responseSection.appendChild(responseText);
+    panel.appendChild(responseSection);
+  }
+
+  // "Find KB Content" button
+  const findBtn = createElement("button", {
+    className: "find-kb-btn",
+    attrs: {
+      type: "button",
+      "aria-label": "Search knowledge base for relevant content",
+    },
+  });
+  findBtn.textContent = "Find KB Content";
+  findBtn.addEventListener("click", (e: Event) => {
+    e.stopPropagation();
+    searchKBForQuestion(state.questionId, detail.question_text);
+  });
+  panel.appendChild(findBtn);
+
+  // KB search results (if loaded)
+  if (state.kbSearchLoading) {
+    const loading = createElement("div", {
+      className: "kb-results-loading",
+      attrs: { role: "status" },
+    });
+    loading.textContent = "Searching knowledge base\u2026";
+    panel.appendChild(loading);
+  } else if (state.kbResults && state.kbResults.length > 0) {
+    panel.appendChild(buildKBResultsList(state.kbResults));
+  } else if (state.kbResults && state.kbResults.length === 0) {
+    const empty = createElement("p", { className: "kb-results-empty" });
+    empty.textContent = "No matching KB content found.";
+    panel.appendChild(empty);
+  }
+
+  return panel;
+}
+
+// -- KB search ---------------------------------------------------------------
+
+async function searchKBForQuestion(questionId: string, questionText: string): Promise<void> {
+  if (!expandedBid?.expandedQuestion) return;
+
+  expandedBid = {
+    ...expandedBid,
+    expandedQuestion: {
+      ...expandedBid.expandedQuestion,
+      kbSearchLoading: true,
+      kbResults: null,
+    },
+  };
+  renderDashboard();
+
+  try {
+    const result = await app.callServerTool({
+      name: "search_knowledge_base",
+      arguments: { query: questionText, limit: 5 },
+    });
+
+    const data = result.structuredContent as unknown as { results?: KBSearchResult[] };
+    expandedBid = {
+      ...expandedBid!,
+      expandedQuestion: {
+        ...expandedBid!.expandedQuestion!,
+        kbSearchLoading: false,
+        kbResults: data?.results ?? [],
+      },
+    };
+  } catch {
+    expandedBid = {
+      ...expandedBid!,
+      expandedQuestion: {
+        ...expandedBid!.expandedQuestion!,
+        kbSearchLoading: false,
+        kbResults: [],
+      },
+    };
+  }
+
+  renderDashboard();
+}
+
+// -- KB results list ---------------------------------------------------------
+
+function buildKBResultsList(results: KBSearchResult[]): HTMLElement {
+  const container = createElement("div", { className: "kb-results" });
+  const header = createElement("div", { className: "kb-results-header" });
+  header.textContent = `${results.length} matching KB item${results.length !== 1 ? "s" : ""}`;
+  container.appendChild(header);
+
+  for (const item of results) {
+    const row = createElement("div", { className: "kb-result-row" });
+    const title = createElement("div", { className: "kb-result-title" });
+    title.textContent = item.suggested_title ?? item.title ?? "Untitled";
+    row.appendChild(title);
+
+    const meta = createElement("div", { className: "kb-result-meta" });
+    if (item.content_type) {
+      const type = createElement("span", { className: "kb-result-type" });
+      type.textContent = item.content_type.replace(/_/g, " ");
+      meta.appendChild(type);
+    }
+    if (item.primary_domain) {
+      const domain = createElement("span", { className: "kb-result-domain" });
+      domain.textContent = item.primary_domain;
+      meta.appendChild(domain);
+    }
+    const similarity = createElement("span", { className: "kb-result-similarity" });
+    similarity.textContent = `${Math.round(item.similarity * 100)}% match`;
+    meta.appendChild(similarity);
+    row.appendChild(meta);
+
+    if (item.ai_summary) {
+      const summary = createElement("p", { className: "kb-result-summary" });
+      summary.textContent = item.ai_summary.length > 150
+        ? item.ai_summary.slice(0, 147) + "..."
+        : item.ai_summary;
+      row.appendChild(summary);
+    }
+
+    container.appendChild(row);
+  }
+
+  return container;
 }
 
 // -- Bid expansion -----------------------------------------------------------
@@ -516,7 +952,7 @@ async function toggleBidExpansion(bidId: string): Promise<void> {
   }
 
   // Start loading
-  expandedBid = { bidId, loading: true, detail: null };
+  expandedBid = { bidId, loading: true, detail: null, expandedQuestion: null };
   renderDashboard();
 
   try {
@@ -530,6 +966,7 @@ async function toggleBidExpansion(bidId: string): Promise<void> {
       bidId,
       loading: false,
       detail: detail?.id ? detail : null,
+      expandedQuestion: null,
     };
   } catch (err) {
     expandedBid = {
@@ -537,6 +974,7 @@ async function toggleBidExpansion(bidId: string): Promise<void> {
       loading: false,
       detail: null,
       error: err instanceof Error ? err.message : "Failed to load bid detail",
+      expandedQuestion: null,
     };
   }
 

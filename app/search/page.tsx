@@ -89,7 +89,7 @@ function SearchResults() {
     }
   }, [results, checkReadStatus]);
 
-  const { viewMode, setViewMode: handleViewChange } = useViewMode('kb-search-view-mode');
+  const { viewMode, setViewMode: handleViewChange } = useViewMode('kb-view-mode');
 
   // Trigger search when query changes
   useEffect(() => {

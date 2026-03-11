@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Pencil } from 'lucide-react';
+import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
@@ -111,6 +111,44 @@ export interface ItemData {
 interface ItemDetailClientProps {
   item: ItemData;
   relatedItems: Array<ContentListItem & { similarity: number }>;
+}
+
+/**
+ * Collapsible section with chevron trigger for grouping item detail regions.
+ */
+function CollapsibleSection({
+  title,
+  defaultOpen = true,
+  children,
+  className,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        className="flex w-full items-center gap-2 py-2 text-left transition-colors hover:text-foreground"
+      >
+        {isOpen ? (
+          <ChevronDown className="size-4 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-4 text-muted-foreground" />
+        )}
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </span>
+      </button>
+      {isOpen && <div>{children}</div>}
+    </div>
+  );
 }
 
 /**
@@ -231,6 +269,16 @@ export function ItemDetailClient({
   const router = useRouter();
   const { canEdit, canAdmin } = useUserRole();
   const [item, setItem] = useState<ItemData>(initialItem);
+
+  // Detect mobile for collapsible section defaults
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 1023px)');
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
   const {
     segments,
     highlights,
@@ -677,229 +725,237 @@ export function ItemDetailClient({
             setItem={setItem}
           />
 
-          {/* Content-type specific header */}
-          <ContentTypeHeader
-            contentType={item.content_type}
-            platform={item.platform}
-            metadata={item.metadata}
-            sourceUrl={item.source_url}
-            authorName={item.author_name}
-          />
-
-          {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
-          {canEdit && item.content && !isQAPair && (
-            <AiProcessingIndicators
-              item={item}
-              onItemUpdated={setItem}
+          {/* ── Content group (expanded by default) ── */}
+          <CollapsibleSection title="Content" defaultOpen>
+            {/* Content-type specific header */}
+            <ContentTypeHeader
+              contentType={item.content_type}
+              platform={item.platform}
+              metadata={item.metadata}
+              sourceUrl={item.source_url}
+              authorName={item.author_name}
             />
-          )}
 
-          {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
-          {isQAPair ? (
-            <QAAnswerDisplay
-              item={item}
-              isEditing={isEditing}
-              editStandard={editStandard}
-              editAdvanced={editAdvanced}
-              setEditStandard={setEditStandard}
-              setEditAdvanced={setEditAdvanced}
-              setEditDirty={setEditDirty}
-              handleCopyAnswer={handleCopyAnswer}
-            />
-          ) : (
-            contentTabsElement
-          )}
-
-          {/* Q&A provenance: bids using this pair */}
-          {isQAPair && usedInWorkspaces.length > 0 && (
-            <div className="mb-6 rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Used in {usedInWorkspaces.length} bid{usedInWorkspaces.length !== 1 ? 's' : ''}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {usedInWorkspaces.map((w) => (
-                  <Link
-                    key={w.id}
-                    href={`/bid/${w.id}`}
-                    className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground hover:bg-accent transition-colors"
-                  >
-                    {w.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Q&A related pairs from the same source document */}
-          {isQAPair && relatedQA.length > 0 && (
-            <div className="mb-6 rounded-xl border border-border bg-card p-4">
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Related Q&A pairs (same source)
-              </h3>
-              <ul className="space-y-1">
-                {relatedQA.map((q) => (
-                  <li key={q.id}>
-                    <Link
-                      href={`/item/${q.id}`}
-                      className="block rounded px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
-                    >
-                      {q.title ?? 'Untitled'}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Table of Contents (not shown for Q&A pairs) */}
-          {!isQAPair && (
-            <TableOfContents content={getActiveTabContent()} className="mb-6" />
-          )}
-
-          {/* Vision analysis (PDF items) */}
-          {visionAnalysis && (
-            <section className="mb-6">
-              <h2 className="mb-2 text-sm font-semibold">Visual Analysis</h2>
-              <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                {visionAnalysis.analysis}
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Analysed {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} · {visionAnalysis.model} · {visionAnalysis.tokens_used.toLocaleString()} tokens
-              </p>
-            </section>
-          )}
-
-          {/* Extracted images gallery (PDF items) */}
-          {item.content_type === 'pdf' &&
-            (item.file_path || item.source_url) && (
-              <ImageGallery
-                itemId={item.id}
-                hasExtractedImages={
-                  Array.isArray(
-                    (item.metadata as Record<string, unknown> | null)
-                      ?.extracted_images,
-                  )
-                }
-                className="mb-6"
+            {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
+            {canEdit && item.content && !isQAPair && (
+              <AiProcessingIndicators
+                item={item}
+                onItemUpdated={setItem}
               />
             )}
 
-          {/* Transcript reader (for transcripts with chapters) */}
-          {item.content &&
-            item.content_type === 'transcript' &&
-            transcriptChapters &&
-            transcriptChapters.length > 0 && (
-              <section className="mb-8">
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Transcript
-                </h2>
-                <TranscriptReader
-                  content={item.content}
-                  chapters={transcriptChapters}
-                  segments={segments ?? undefined}
-                  highlights={highlights ?? undefined}
-                />
+            {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
+            {isQAPair ? (
+              <QAAnswerDisplay
+                item={item}
+                isEditing={isEditing}
+                editStandard={editStandard}
+                editAdvanced={editAdvanced}
+                setEditStandard={setEditStandard}
+                setEditAdvanced={setEditAdvanced}
+                setEditDirty={setEditDirty}
+                handleCopyAnswer={handleCopyAnswer}
+              />
+            ) : (
+              contentTabsElement
+            )}
+
+            {/* Q&A provenance: bids using this pair */}
+            {isQAPair && usedInWorkspaces.length > 0 && (
+              <div className="mb-6 rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Used in {usedInWorkspaces.length} bid{usedInWorkspaces.length !== 1 ? 's' : ''}
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {usedInWorkspaces.map((w) => (
+                    <Link
+                      key={w.id}
+                      href={`/bid/${w.id}`}
+                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground hover:bg-accent transition-colors"
+                    >
+                      {w.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Q&A related pairs from the same source document */}
+            {isQAPair && relatedQA.length > 0 && (
+              <div className="mb-6 rounded-xl border border-border bg-card p-4">
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Related Q&A pairs (same source)
+                </h3>
+                <ul className="space-y-1">
+                  {relatedQA.map((q) => (
+                    <li key={q.id}>
+                      <Link
+                        href={`/item/${q.id}`}
+                        className="block rounded px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
+                      >
+                        {q.title ?? 'Untitled'}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Table of Contents (not shown for Q&A pairs) */}
+            {!isQAPair && (
+              <TableOfContents content={getActiveTabContent()} className="mb-6" />
+            )}
+
+            {/* Vision analysis (PDF items) */}
+            {visionAnalysis && (
+              <section className="mb-6">
+                <h2 className="mb-2 text-sm font-semibold">Visual Analysis</h2>
+                <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
+                  {visionAnalysis.analysis}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Analysed {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} · {visionAnalysis.model} · {visionAnalysis.tokens_used.toLocaleString()} tokens
+                </p>
               </section>
             )}
 
-          {/* Content Layer selector */}
-          <ContentLayerSelector
-            item={item}
-            canEdit={canEdit}
-            handleLayerChange={handleLayerChange}
-          />
+            {/* Extracted images gallery (PDF items) */}
+            {item.content_type === 'pdf' &&
+              (item.file_path || item.source_url) && (
+                <ImageGallery
+                  itemId={item.id}
+                  hasExtractedImages={
+                    Array.isArray(
+                      (item.metadata as Record<string, unknown> | null)
+                        ?.extracted_images,
+                    )
+                  }
+                  className="mb-6"
+                />
+              )}
 
-          {/* Draft toggle (editors only, when draft_status feature enabled) */}
-          {isFeatureEnabled('draft_status') && canEdit && (
-            <section className="mb-6 border-t border-border pt-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Status
-                </h3>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const isDraft = item.governance_review_status === 'draft';
-                    const newStatus = isDraft ? null : 'draft';
-                    setItem((prev) => ({ ...prev, governance_review_status: newStatus }));
-                    try {
-                      const supabase = createClient();
-                      const { error } = await supabase
-                        .from('content_items')
-                        .update({ governance_review_status: newStatus })
-                        .eq('id', item.id);
-                      if (error) throw error;
-                      toast.success(isDraft ? 'Published' : 'Marked as draft');
-                    } catch (err) {
-                      console.error('Failed to update governance review status:', err);
-                      setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
-                      toast.error('Failed to update status');
-                    }
-                  }}
-                  className={cn(
-                    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                    item.governance_review_status === 'draft'
-                      ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
-                      : 'border-status-success bg-freshness-fresh-bg text-status-success hover:bg-freshness-fresh-bg',
-                  )}
-                >
-                  {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}
-                </button>
-              </div>
-            </section>
-          )}
+            {/* Transcript reader (for transcripts with chapters) */}
+            {item.content &&
+              item.content_type === 'transcript' &&
+              transcriptChapters &&
+              transcriptChapters.length > 0 && (
+                <section className="mb-8">
+                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Transcript
+                  </h2>
+                  <TranscriptReader
+                    content={item.content}
+                    chapters={transcriptChapters}
+                    segments={segments ?? undefined}
+                    highlights={highlights ?? undefined}
+                  />
+                </section>
+              )}
 
-          {/* OrganiseSection (Item 6) — replaces separate keywords/workspaces/tags */}
-          <OrganiseSection
-            itemId={item.id}
-            keywords={(item.ai_keywords as string[]) ?? []}
-            workspaces={[]}
-            tags={(item.user_tags as string[]) ?? []}
-            canEdit={canEdit}
-            onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
-            onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
-            onWorkspacesChanged={() => {}}
-            className="mb-6"
-          />
+            {/* Content Layer selector */}
+            <ContentLayerSelector
+              item={item}
+              canEdit={canEdit}
+              handleLayerChange={handleLayerChange}
+            />
 
-          {/* Entity mentions — shows badges grouped by entity type */}
-          <EntityBadges
-            contentItemId={item.id}
-            className="mb-6"
-          />
+            {/* Draft toggle (editors only, when draft_status feature enabled) */}
+            {isFeatureEnabled('draft_status') && canEdit && (
+              <section className="mb-6 border-t border-border pt-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Status
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const isDraft = item.governance_review_status === 'draft';
+                      const newStatus = isDraft ? null : 'draft';
+                      setItem((prev) => ({ ...prev, governance_review_status: newStatus }));
+                      try {
+                        const supabase = createClient();
+                        const { error } = await supabase
+                          .from('content_items')
+                          .update({ governance_review_status: newStatus })
+                          .eq('id', item.id);
+                        if (error) throw error;
+                        toast.success(isDraft ? 'Published' : 'Marked as draft');
+                      } catch (err) {
+                        console.error('Failed to update governance review status:', err);
+                        setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
+                        toast.error('Failed to update status');
+                      }
+                    }}
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      item.governance_review_status === 'draft'
+                        ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
+                        : 'border-status-success bg-freshness-fresh-bg text-status-success hover:bg-freshness-fresh-bg',
+                    )}
+                  >
+                    {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}
+                  </button>
+                </div>
+              </section>
+            )}
+
+            {/* OrganiseSection — replaces separate keywords/workspaces/tags */}
+            <OrganiseSection
+              itemId={item.id}
+              keywords={(item.ai_keywords as string[]) ?? []}
+              workspaces={[]}
+              tags={(item.user_tags as string[]) ?? []}
+              canEdit={canEdit}
+              onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
+              onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
+              onWorkspacesChanged={() => {}}
+              className="mb-6"
+            />
+          </CollapsibleSection>
+
+          {/* ── Relationships group (collapsed by default) ── */}
+          <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6">
+            {/* Entity mentions — shows badges grouped by entity type */}
+            <EntityBadges
+              contentItemId={item.id}
+              className="mb-6"
+            />
+
+            {/* Version history */}
+            <VersionHistory
+              itemId={item.id}
+              currentContent={item.content ?? ''}
+              currentTitle={getDisplayTitle({
+                suggested_title: item.suggested_title,
+                title: item.title,
+                content: item.content,
+              })}
+              onRollback={() => router.refresh()}
+              className="mb-6"
+            />
+
+            {/* Consolidated related content section */}
+            <RelatedContentSection
+              relatedItems={relatedItems}
+              itemId={item.id}
+              userTags={(item.user_tags as string[]) ?? []}
+            />
+          </CollapsibleSection>
         </article>
 
-        {/* Metadata sidebar */}
-        <MetadataSidebar
-          item={item}
-          editingField={editingField}
-          editValue={editValue}
-          saveSuccess={saveSuccess}
-          startEdit={startEdit}
-          saveEdit={saveEdit}
-          readOnly={!canEdit}
-        />
+        {/* ── Metadata sidebar (expanded on desktop, collapsed on mobile) ── */}
+        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
+          <MetadataSidebar
+            item={item}
+            editingField={editingField}
+            editValue={editValue}
+            saveSuccess={saveSuccess}
+            startEdit={startEdit}
+            saveEdit={saveEdit}
+            readOnly={!canEdit}
+          />
+        </CollapsibleSection>
       </div>
-
-      {/* Version history */}
-      <VersionHistory
-        itemId={item.id}
-        currentContent={item.content ?? ''}
-        currentTitle={getDisplayTitle({
-          suggested_title: item.suggested_title,
-          title: item.title,
-          content: item.content,
-        })}
-        onRollback={() => router.refresh()}
-        className="mt-8"
-      />
-
-      {/* Consolidated related content section */}
-      <RelatedContentSection
-        relatedItems={relatedItems}
-        itemId={item.id}
-        userTags={(item.user_tags as string[]) ?? []}
-      />
     </>
   );
 

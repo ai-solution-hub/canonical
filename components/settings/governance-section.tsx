@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
@@ -56,6 +56,14 @@ export function GovernanceSection() {
   const [recalculating, setRecalculating] = useState(false);
   const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(null);
 
+  // Track initial dialog values for dirty detection
+  const initialDialogRef = useRef({ domain: '', posture: 'open', timeout: '7' });
+  const isDialogDirty = dialogOpen && (
+    editDomain !== initialDialogRef.current.domain ||
+    editPosture !== initialDialogRef.current.posture ||
+    editTimeoutDays !== initialDialogRef.current.timeout
+  );
+
   const fetchConfigs = useCallback(async () => {
     setLoading(true);
     try {
@@ -95,6 +103,17 @@ export function GovernanceSection() {
     fetchLastFreshnessCheck();
   }, [fetchConfigs, fetchLastFreshnessCheck]);
 
+  // Unsaved changes warning
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDialogDirty && !saving) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDialogDirty, saving]);
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!editDomain.trim()) return;
@@ -132,9 +151,13 @@ export function GovernanceSection() {
   }
 
   function handleEdit(config: GovernanceConfigEntry) {
-    setEditDomain(config.domain);
-    setEditPosture(config.posture as 'open' | 'review_on_change');
-    setEditTimeoutDays(String(config.timeout_days ?? 7));
+    const domain = config.domain;
+    const posture = config.posture as 'open' | 'review_on_change';
+    const timeout = String(config.timeout_days ?? 7);
+    setEditDomain(domain);
+    setEditPosture(posture);
+    setEditTimeoutDays(timeout);
+    initialDialogRef.current = { domain, posture, timeout };
     setDialogOpen(true);
   }
 
@@ -174,7 +197,15 @@ export function GovernanceSection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 id="governance-config-heading" className="text-base font-semibold">Governance Configuration</h3>
+          <h3 id="governance-config-heading" className="text-base font-semibold">
+            Governance Configuration
+            {isDialogDirty && (
+              <span
+                className="ml-2 inline-block size-2 rounded-full bg-primary"
+                aria-label="Unsaved changes"
+              />
+            )}
+          </h3>
           <p className="text-sm text-muted-foreground">
             Set review posture per domain. &quot;Open&quot; allows changes freely.
             &quot;Review on Change&quot; requires review after edits.
@@ -188,6 +219,7 @@ export function GovernanceSection() {
                 setEditDomain('');
                 setEditPosture('open');
                 setEditTimeoutDays('7');
+                initialDialogRef.current = { domain: '', posture: 'open', timeout: '7' };
               }}
             >
               Add Domain

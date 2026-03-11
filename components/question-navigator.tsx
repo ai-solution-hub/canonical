@@ -182,6 +182,8 @@ export function QuestionNavigator({
           const config = getPostureConfig(q.confidence_posture);
           const isComplete = q.status === 'complete' || q.status === 'approved';
           const isCurrent = i === currentIndex;
+          const statusText = isComplete ? 'Complete' : config.label;
+          const tooltipText = `Q${i + 1}: ${statusText}`;
 
           return (
             <button
@@ -194,7 +196,8 @@ export function QuestionNavigator({
               )}
               role="button"
               aria-current={isCurrent ? 'true' : undefined}
-              aria-label={`Question ${i + 1}: ${q.section_name ?? q.question_text.slice(0, 50)}${isComplete ? ' (complete)' : ''}`}
+              aria-label={`Question ${i + 1}: ${q.section_name ?? q.question_text.slice(0, 50)} — ${statusText}`}
+              title={tooltipText}
               type="button"
             />
           );

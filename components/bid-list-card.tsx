@@ -6,6 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { BidStateBadge } from '@/components/bid-state-indicator';
 import { ConfidenceDot } from '@/components/confidence-badge';
 import { formatDateUK } from '@/lib/format';
+import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { cn } from '@/lib/utils';
 import type { Bid, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { BidState } from '@/types/bid';
@@ -61,25 +62,8 @@ export function BidListCard({ bid, className }: BidListCardProps) {
       ].filter((p) => p.count > 0)
     : [];
 
-  // Deadline proximity calculation
-  const deadlineProximity = (() => {
-    if (!metadata.deadline) return null;
-    const deadlineDate = new Date(metadata.deadline);
-    const now = new Date();
-    deadlineDate.setHours(0, 0, 0, 0);
-    now.setHours(0, 0, 0, 0);
-    const diffMs = deadlineDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays < 0)
-      return { label: 'Overdue', isOverdue: true, daysLeft: diffDays };
-    if (diffDays <= 7)
-      return {
-        label: `${diffDays} day${diffDays !== 1 ? 's' : ''} left`,
-        isOverdue: false,
-        daysLeft: diffDays,
-      };
-    return null;
-  })();
+  // Deadline proximity calculation (shared helper)
+  const deadlineProximity = getDeadlineProximity(metadata.deadline);
 
   return (
     <Link
@@ -93,7 +77,7 @@ export function BidListCard({ bid, className }: BidListCardProps) {
       <div className="flex flex-col gap-3 p-4">
         {/* Header: name + status */}
         <div className="flex items-start justify-between gap-2">
-          <h3 className="truncate text-base font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
+          <h3 className="truncate text-base font-semibold leading-tight text-foreground group-hover:underline decoration-muted-foreground/40 transition-colors">
             {bid.name}
           </h3>
           <BidStateBadge state={bidStatus} className="shrink-0" />

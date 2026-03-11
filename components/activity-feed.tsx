@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Edit3,
@@ -17,10 +17,17 @@ import { formatRelativeDate } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { GroupedActivityItem } from '@/lib/dashboard';
 
+export type ActivityEventFilter = 'all' | 'content' | 'governance' | 'bid' | 'system';
+export type ActivityDateRange = 'all' | 'today' | 'week' | 'month';
+
 interface ActivityFeedProps {
   className?: string;
   /** Maximum items to show per page */
   initialLimit?: number;
+  /** Event type filter */
+  eventFilter?: ActivityEventFilter;
+  /** Date range filter */
+  dateRange?: ActivityDateRange;
 }
 
 function activityIcon(type: string) {
@@ -71,17 +78,81 @@ function activityBadgeVariant(
  * rollbacks, and quality events. Uses cursor-based pagination
  * via the `before` query parameter.
  */
+/** Map activity types to filter categories */
+function getEventCategory(type: string): ActivityEventFilter {
+  switch (type) {
+    case 'edit':
+    case 'rollback':
+      return 'content';
+    case 'quality_flag':
+    case 'governance_approve':
+    case 'governance_review_needed':
+    case 'governance_request_changes':
+    case 'governance_revert':
+      return 'governance';
+    case 'bid_created':
+    case 'bid_updated':
+    case 'bid_response':
+      return 'bid';
+    default:
+      return 'system';
+  }
+}
+
+/** Get the start-of-period date for a date range filter */
+function getDateRangeStart(range: ActivityDateRange): Date | null {
+  if (range === 'all') return null;
+  const now = new Date();
+  switch (range) {
+    case 'today':
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    case 'week': {
+      const start = new Date(now);
+      start.setDate(start.getDate() - 7);
+      return start;
+    }
+    case 'month': {
+      const start = new Date(now);
+      start.setMonth(start.getMonth() - 1);
+      return start;
+    }
+    default:
+      return null;
+  }
+}
+
 export function ActivityFeed({
   className,
   initialLimit = 20,
+  eventFilter = 'all',
+  dateRange = 'all',
 }: ActivityFeedProps) {
   const [activities, setActivities] = useState<GroupedActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
 
+  // Apply local filters on fetched data
+  const filteredActivities = useMemo(() => {
+    let result = activities;
+
+    if (eventFilter !== 'all') {
+      result = result.filter((a) => getEventCategory(a.type) === eventFilter);
+    }
+
+    const rangeStart = getDateRangeStart(dateRange);
+    if (rangeStart) {
+      result = result.filter((a) => {
+        if (!a.created_at) return false;
+        return new Date(a.created_at) >= rangeStart;
+      });
+    }
+
+    return result;
+  }, [activities, eventFilter, dateRange]);
+
   // Collect user IDs for display name resolution
-  const userIds = activities
+  const userIds = filteredActivities
     .map((a) => a.user_id)
     .filter((id): id is string => id !== null);
   const displayNames = useDisplayNames(userIds);
@@ -157,9 +228,26 @@ export function ActivityFeed({
     );
   }
 
+  if (filteredActivities.length === 0) {
+    return (
+      <div
+        className={cn(
+          'flex flex-col items-center justify-center gap-2 py-12 text-center',
+          className,
+        )}
+      >
+        <Activity className="size-8 text-muted-foreground/50" aria-hidden="true" />
+        <p className="text-sm font-medium text-foreground">No matching activity</p>
+        <p className="text-xs text-muted-foreground">
+          Try adjusting your filters to see more activity.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('space-y-3', className)}>
-      {activities.map((activity) => (
+      {filteredActivities.map((activity) => (
         <Card key={activity.id} className="px-4 py-3">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 shrink-0">{activityIcon(activity.type)}</div>

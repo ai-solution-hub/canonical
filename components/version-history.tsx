@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { History, ChevronDown, ChevronUp, RotateCcw, Loader2, Eye } from 'lucide-react';
+import { History, ChevronDown, ChevronUp, RotateCcw, Loader2, Eye, FileX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { VersionDiff } from '@/components/version-diff';
@@ -199,9 +199,12 @@ export function VersionHistory({
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             </div>
           ) : versions.length === 0 ? (
-            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-              No version history yet. Changes will be tracked automatically.
-            </p>
+            <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+              <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+              <p className="text-sm text-muted-foreground">
+                No version history yet. Changes will be tracked automatically.
+              </p>
+            </div>
           ) : (
             <div className="divide-y divide-border">
               {versions.map((version) => {

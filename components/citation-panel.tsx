@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronUp, ExternalLink, FileText } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, ExternalLink, FileText, FileX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,8 +37,11 @@ export function CitationPanel({
 
   if (citations.length === 0) {
     return (
-      <div className={cn('rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground', className)}>
-        No citations — this response was not sourced from KB content.
+      <div className={cn('flex flex-col items-center gap-2 rounded-md border bg-muted/30 px-4 py-6 text-center', className)}>
+        <FileX className="size-8 text-muted-foreground" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground">
+          No citations — this response was not sourced from KB content.
+        </p>
       </div>
     );
   }
@@ -143,26 +146,28 @@ export function CitationPanel({
                   </div>
                   <Button
                     variant="ghost"
-                    size="icon-xs"
+                    size="icon-sm"
+                    className="min-h-[44px] min-w-[44px]"
                     onClick={() => setExpandedCitationIndex(isExpandedCitation ? null : index)}
                     aria-label={isExpandedCitation ? 'Collapse source detail' : 'Expand source detail'}
                     type="button"
                   >
                     {isExpandedCitation ? (
-                      <ChevronUp className="size-3" />
+                      <ChevronUp className="size-4" />
                     ) : (
-                      <ChevronDown className="size-3" />
+                      <ChevronDown className="size-4" />
                     )}
                   </Button>
                   {onCitationClick && !isOrphaned && (
                     <Button
                       variant="ghost"
-                      size="icon-xs"
+                      size="icon-sm"
+                      className="min-h-[44px] min-w-[44px]"
                       onClick={() => onCitationClick(citation.source_id)}
                       aria-label={`View source: ${citation.source_title}`}
                       type="button"
                     >
-                      <ExternalLink className="size-3" />
+                      <ExternalLink className="size-4" />
                     </Button>
                   )}
                 </div>
