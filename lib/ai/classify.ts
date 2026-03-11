@@ -12,6 +12,7 @@ import { htmlToPlainText } from '@/lib/editor-utils';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entity-dedup';
+import { resolveAlias } from '@/lib/entity-aliases';
 
 // ──────────────────────────────────────────
 // Types
@@ -283,6 +284,7 @@ Classify this content. Return a JSON object with:
 Also extract named entities and relationships from the content:
 - entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
 - relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
+When extracting entities, prefer the full formal name of organisations (e.g. "Example Client Ltd" not "example-client"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "example-client Audit System" not "audit system").
 Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.`,
       },
     ],
@@ -338,7 +340,7 @@ Only include entities and relationships that are clearly stated or strongly impl
         content_item_id: itemId,
         entity_type: e.type,
         entity_name: e.name,
-        canonical_name: canonicalise(e.canonical_name),
+        canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)),
         confidence: 1.0,
       }));
 
@@ -361,9 +363,9 @@ Only include entities and relationships that are clearly stated or strongly impl
   if (result.relationships?.length) {
     try {
       const relRows = result.relationships.map((r) => ({
-        source_entity: canonicalise(r.source),
+        source_entity: resolveAlias(canonicalise(r.source)),
         relationship_type: r.relationship,
-        target_entity: canonicalise(r.target),
+        target_entity: resolveAlias(canonicalise(r.target)),
         source_item_id: itemId,
         confidence: 1.0,
       }));

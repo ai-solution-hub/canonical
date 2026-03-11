@@ -1126,9 +1126,16 @@ export async function registerTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
+        // Resolve entity name aliases before querying
+        const { canonicalise } = await import('@/lib/entity-dedup');
+        const { resolveAlias } = await import('@/lib/entity-aliases');
+        const resolvedName = args.entity_name
+          ? resolveAlias(canonicalise(args.entity_name))
+          : undefined;
+
         // Call get_entity_summary RPC
         const rpcArgs: Record<string, string> = {};
-        if (args.entity_name) rpcArgs.p_entity_name = args.entity_name;
+        if (resolvedName) rpcArgs.p_entity_name = resolvedName;
         if (args.entity_type) rpcArgs.p_entity_type = args.entity_type;
 
         const { data: summaryRows, error: summaryError } = await supabase.rpc(
@@ -1153,10 +1160,10 @@ export async function registerTools(server: McpServer): Promise<void> {
 
         // If a specific entity_name was provided, also fetch relationship details
         let relationships: EntityRelationship[] = [];
-        if (args.entity_name && summaries.length > 0) {
+        if (resolvedName && summaries.length > 0) {
           const { data: relRows, error: relError } = await supabase.rpc(
             'get_entity_relationships_rpc',
-            { p_entity_name: args.entity_name },
+            { p_entity_name: resolvedName },
           );
 
           if (!relError && relRows) {

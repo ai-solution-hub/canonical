@@ -28,13 +28,15 @@ export const ENTITY_ALIASES: Record<string, string> = {
   'ISO 27000': 'ISO 27001',
   'ISO 9001 2015': 'ISO 9001',
 
-  // ── Technology normalisation ───────────────────────────────────────
+  // ── Technology normalisation ───────────────────────────────────────────
   wordpress: 'WordPress',
   Wordpress: 'WordPress',
+  Csharp: 'C#',
   csharp: 'C#',
   'Asp Net': 'ASP.NET',
   'Asp.net': 'ASP.NET',
   agile: 'Agile',
+  Hcaptcha: 'hCaptcha',
 
   // ── WCAG ───────────────────────────────────────────────────────────
   'Wcag 2 1 Aa': 'WCAG 2.1 AA',

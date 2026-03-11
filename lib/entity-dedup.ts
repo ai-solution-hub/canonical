@@ -15,12 +15,15 @@ export const ABBREVIATIONS: Record<string, string> = {
   pdf: 'PDF',
   sla: 'SLA',
   ims: 'IMS',
+  isms: 'ISMS',
   uk: 'UK',
   dpo: 'DPO',
   tls: 'TLS',
   ssl: 'SSL',
   https: 'HTTPS',
   http: 'HTTP',
+  html: 'HTML',
+  css: 'CSS',
   mysql: 'MySQL',
   api: 'API',
   sql: 'SQL',
@@ -31,10 +34,18 @@ export const ABBREVIATIONS: Record<string, string> = {
   aws: 'AWS',
   mfa: 'MFA',
   nhs: 'NHS',
+  ncsc: 'NCSC',
   plc: 'PLC',
   lms: 'LMS',
   pdms: 'PDMS',
   wcag: 'WCAG',
+  vpn: 'VPN',
+  ssh: 'SSH',
+  sftp: 'SFTP',
+  saas: 'SaaS',
+  cctv: 'CCTV',
+  dpia: 'DPIA',
+  ppon: 'PPON',
 };
 
 /** Entity types where trailing plural 's' should be stripped */
@@ -144,14 +155,34 @@ export function canonicalise(name: string, entityType?: string): string {
   }
 
   // 11. Plural normalisation — strip trailing 's' for applicable entity types
+  //     Only fires on multi-word names to avoid mangling single-word proper nouns.
+  //     Handles "ies" → "y" (Policies → Policy) and simple "s" removal.
+  //     Excludes: -us, -is, -ss, known abbreviations, Cyber Essentials.
   if (
     entityType &&
     DEPLURAL_TYPES.has(entityType) &&
-    result.endsWith('s') &&
-    !result.endsWith('ss') &&
+    result.includes(' ') &&
     result.length > 4
   ) {
-    result = result.slice(0, -1);
+    // Check the last word — skip if it's a known abbreviation
+    const lastWord = result.split(/\s+/).pop() ?? '';
+    const lastWordIsAbbrev = !!ABBREVIATIONS[lastWord.toLowerCase()];
+    // Skip known proper names that end in 's'
+    const isProperName = /^Cyber Essentials/.test(result);
+
+    if (!lastWordIsAbbrev && !isProperName) {
+      if (result.endsWith('ies')) {
+        // "Policies" → "Policy", "Libraries" → "Library"
+        result = result.slice(0, -3) + 'y';
+      } else if (
+        result.endsWith('s') &&
+        !result.endsWith('ss') &&
+        !result.endsWith('us') &&
+        !result.endsWith('is')
+      ) {
+        result = result.slice(0, -1);
+      }
+    }
   }
 
   // 12. Strip trailing periods

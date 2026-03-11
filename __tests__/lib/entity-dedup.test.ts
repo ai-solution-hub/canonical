@@ -120,15 +120,31 @@ describe('canonicalise', () => {
     });
 
     it('does not strip plural for organisation type', () => {
-      expect(canonicalise('Williams', 'organisation')).toBe('Williams');
+      expect(canonicalise('Williams Corp', 'organisation')).toBe('Williams Corp');
     });
 
-    it('does not strip from short words', () => {
-      expect(canonicalise('APIs', 'technology')).toBe('APIs');
+    it('does not strip from single-word names', () => {
+      expect(canonicalise('Firewalls', 'technology')).toBe('Firewalls');
     });
 
     it('does not strip double-s endings', () => {
-      expect(canonicalise('Business', 'capability')).toBe('Business');
+      expect(canonicalise('Data Access', 'capability')).toBe('Data Access');
+    });
+
+    it('does not strip -us endings (not real plurals)', () => {
+      expect(canonicalise('SME Status', 'certification')).toBe('SME Status');
+    });
+
+    it('converts -ies → -y (Policies → Policy)', () => {
+      expect(canonicalise('Compliance Policies', 'regulation')).toBe('Compliance Policy');
+    });
+
+    it('converts -ies → -y (Libraries → Library)', () => {
+      expect(canonicalise('Third Party Libraries', 'technology')).toBe('Third Party Library');
+    });
+
+    it('preserves Cyber Essentials Plus (certification)', () => {
+      expect(canonicalise('Cyber Essentials Plus', 'certification')).toBe('Cyber Essentials Plus');
     });
   });
 
