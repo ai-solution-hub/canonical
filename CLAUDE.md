@@ -217,7 +217,7 @@ exists for your use case, define one in `app/globals.css` first.
 | Item | Location | Status |
 |------|----------|--------|
 | Coverage Dashboard (Spec 2 §3) | `.planning/specs/spec2-tag-management-coverage.md` | Done — tags, API, and `/coverage` page all built |
-| AI Integration | `docs/plans/ai-integration-strategy.md` | Sprints 1-7c done (23 tools, OAuth, plugin, entity graph, 2 MCP Apps, win signal boost); Sprint 7d spec ready, Sprint 8 planned |
+| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprints 1-7c done (23 tools, OAuth, plugin, entity graph, 2 MCP Apps, win signal boost); Sprint 7d spec ready, Sprint 8 planned |
 | Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Spec complete (S80); Phase 1 migration in progress |
 | UI Design Audit | `docs/plans/ui-design-audit-spec.md` | Sprints A-D done; ~40 uncaptured critique items outstanding |
 
