@@ -99,7 +99,7 @@ interface CalibrationArgs {
 
 function parseArgs(): CalibrationArgs {
   const args = process.argv.slice(2);
-  let templateName = 'Standard SQ';
+  let templateName = 'Standard Selection Questionnaire';
   let min = 0.40;
   let max = 0.80;
   let step = 0.05;

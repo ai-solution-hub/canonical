@@ -29,8 +29,8 @@ export async function POST() {
     const result = Array.isArray(data) ? data[0] : data;
 
     return NextResponse.json({
-      updated: result?.total_updated ?? 0,
-      total: result?.total_updated ?? 0,
+      updated: result?.total_count ?? 0,
+      total: result?.total_count ?? 0,
       summary: {
         fresh: result?.fresh_count ?? 0,
         aging: result?.aging_count ?? 0,
