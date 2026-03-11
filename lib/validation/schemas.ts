@@ -761,8 +761,46 @@ export const TaxonomyReorderSchema = z.object({
   items: z.array(z.object({
     id: z.string().uuid(),
     display_order: z.number().int().min(0).max(999),
-  })).min(1).max(100),
+  })).min(1).max(100)
 }).refine(
   (data) => data.type === 'domain' || !!data.domain_id,
   { message: 'domain_id is required when reordering subtopics', path: ['domain_id'] },
 );
+
+// ──────────────────────────────────────────
+// Entity Management Schemas (Phase 4)
+// ──────────────────────────────────────────
+
+export const VALID_ENTITY_TYPES = [
+  'organisation', 'certification', 'regulation', 'framework',
+  'capability', 'person', 'technology', 'project', 'sector', 'product',
+] as const;
+
+/** GET /api/entities — query params */
+export const EntityListParamsSchema = z.object({
+  type: z.enum(VALID_ENTITY_TYPES).optional(),
+  search: z.string().trim().max(200).optional(),
+  variants_only: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
+  type_conflicts: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
+  limit: z.coerce.number().int().min(1).max(500).default(100),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+/** POST /api/entities/merge */
+export const EntityMergeBodySchema = z.object({
+  sources: z.array(z.string().trim().min(1).max(500)).min(1, 'At least one source entity is required').max(50),
+  target: z.string().trim().min(1, 'Target canonical name is required').max(500),
+  entity_type: z.enum(VALID_ENTITY_TYPES),
+});
+
+/** POST /api/entities/split */
+export const EntitySplitBodySchema = z.object({
+  canonical_name: z.string().trim().min(1, 'Canonical name is required').max(500),
+  variant_names: z.array(z.string().trim().min(1).max(500)).min(1, 'At least one variant is required').max(200),
+  new_canonical_name: z.string().trim().min(1, 'New canonical name is required').max(500),
+});
+
+/** PATCH /api/entities/[canonical_name]/type */
+export const EntityTypeOverrideBodySchema = z.object({
+  entity_type: z.enum(VALID_ENTITY_TYPES),
+});
