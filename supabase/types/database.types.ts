@@ -1390,6 +1390,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      delete_duplicate_entity_mentions: {
+        Args: { p_canonical_name: string }
+        Returns: number
+      }
       delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
       filter_by_keywords: {
         Args: { search_terms: string[] }
