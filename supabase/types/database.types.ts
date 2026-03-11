@@ -370,6 +370,7 @@ export type Database = {
           notes: string | null
           parent_id: string | null
           platform: string | null
+          previous_freshness: string | null
           primary_domain: string | null
           primary_subtopic: string | null
           priority: string | null
@@ -423,6 +424,7 @@ export type Database = {
           notes?: string | null
           parent_id?: string | null
           platform?: string | null
+          previous_freshness?: string | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
@@ -476,6 +478,7 @@ export type Database = {
           notes?: string | null
           parent_id?: string | null
           platform?: string | null
+          previous_freshness?: string | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
@@ -796,6 +799,7 @@ export type Database = {
           id: string
           items_processed: number | null
           pipeline_name: string
+          result: Json | null
           started_at: string
           status: string
         }
@@ -808,6 +812,7 @@ export type Database = {
           id?: string
           items_processed?: number | null
           pipeline_name: string
+          result?: Json | null
           started_at?: string
           status?: string
         }
@@ -820,6 +825,7 @@ export type Database = {
           id?: string
           items_processed?: number | null
           pipeline_name?: string
+          result?: Json | null
           started_at?: string
           status?: string
         }

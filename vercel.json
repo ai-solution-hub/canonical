@@ -44,6 +44,26 @@
     "app/api/bids/[id]/responses/draft/*": { "maxDuration": 120 },
     "app/api/bids/[id]/responses/draft-all/*": { "maxDuration": 120 },
     "app/api/bids/[id]/responses/[rId]/regenerate/*": { "maxDuration": 120 },
-    "app/api/copilotkit/*": { "maxDuration": 120 }
-  }
+    "app/api/copilotkit/*": { "maxDuration": 120 },
+    "app/api/cron/classification-quality/*": { "maxDuration": 120 },
+    "app/api/cron/content-gaps/*": { "maxDuration": 30 }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/freshness-transitions",
+      "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/classification-quality",
+      "schedule": "0 4 * * 0"
+    },
+    {
+      "path": "/api/cron/coverage-alerts",
+      "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/content-gaps",
+      "schedule": "30 5 * * 1"
+    }
+  ]
 }

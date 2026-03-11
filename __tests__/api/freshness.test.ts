@@ -296,7 +296,7 @@ describe('POST /api/freshness/recalculate-all', () => {
 
     mockSupabase.rpc.mockResolvedValueOnce({
       data: {
-        total_updated: 150,
+        total_count: 150,
         fresh_count: 80,
         aging_count: 40,
         stale_count: 20,
@@ -327,7 +327,7 @@ describe('POST /api/freshness/recalculate-all', () => {
 
     mockSupabase.rpc.mockResolvedValueOnce({
       data: [{
-        total_updated: 50,
+        total_count: 50,
         fresh_count: 30,
         aging_count: 10,
         stale_count: 5,
