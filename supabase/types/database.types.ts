@@ -327,6 +327,13 @@ export type Database = {
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "content_item_workspaces_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
         ]
       }
       content_items: {
@@ -335,6 +342,9 @@ export type Database = {
           ai_summary: string | null
           answer_advanced: string | null
           answer_standard: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
           author_name: string | null
           brief: string | null
           captured_date: string | null
@@ -385,6 +395,9 @@ export type Database = {
           ai_summary?: string | null
           answer_advanced?: string | null
           answer_standard?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null
@@ -435,6 +448,9 @@ export type Database = {
           ai_summary?: string | null
           answer_advanced?: string | null
           answer_standard?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null
@@ -1399,6 +1415,24 @@ export type Database = {
         Args: { search_terms: string[] }
         Returns: string[]
       }
+      find_duplicate_pairs: {
+        Args: {
+          limit_count?: number
+          p_domain?: string
+          similarity_threshold?: number
+        }
+        Returns: {
+          domain1: string
+          domain2: string
+          id1: string
+          id2: string
+          similarity: number
+          title1: string
+          title2: string
+          type1: string
+          type2: string
+        }[]
+      }
       find_duplicate_tags: {
         Args: { p_type: string }
         Returns: {
@@ -1408,23 +1442,41 @@ export type Database = {
           variants: string[]
         }[]
       }
-      find_similar_content: {
-        Args: {
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          author_name: string
-          content: string
-          content_type: string
-          id: string
-          platform: string
-          similarity: number
-          source_domain: string
-          title: string
-        }[]
-      }
+      find_similar_content:
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              author_name: string
+              content: string
+              content_type: string
+              id: string
+              platform: string
+              similarity: number
+              source_domain: string
+              title: string
+            }[]
+          }
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              author_name: string
+              content: string
+              content_type: string
+              id: string
+              platform: string
+              similarity: number
+              source_domain: string
+              title: string
+            }[]
+          }
       get_all_tag_counts: {
         Args: never
         Returns: {
@@ -1739,7 +1791,7 @@ export type Database = {
           expired_count: number
           fresh_count: number
           stale_count: number
-          total_updated: number
+          total_count: number
         }[]
       }
       rename_tag: {
@@ -1754,30 +1806,55 @@ export type Database = {
           items_found: number
         }[]
       }
-      search_content: {
-        Args: {
-          limit_count?: number
-          query_embedding: string
-          similarity_threshold?: number
-        }
-        Returns: {
-          ai_keywords: string[]
-          ai_summary: string
-          author_name: string
-          captured_date: string
-          classification_confidence: number
-          content_type: string
-          id: string
-          platform: string
-          primary_domain: string
-          primary_subtopic: string
-          similarity: number
-          source_domain: string
-          suggested_title: string
-          thumbnail_url: string
-          title: string
-        }[]
-      }
+      search_content:
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              ai_keywords: string[]
+              ai_summary: string
+              author_name: string
+              captured_date: string
+              classification_confidence: number
+              content_type: string
+              id: string
+              platform: string
+              primary_domain: string
+              primary_subtopic: string
+              similarity: number
+              source_domain: string
+              suggested_title: string
+              thumbnail_url: string
+              title: string
+            }[]
+          }
+        | {
+            Args: {
+              limit_count?: number
+              query_embedding: string
+              similarity_threshold?: number
+            }
+            Returns: {
+              ai_keywords: string[]
+              ai_summary: string
+              author_name: string
+              captured_date: string
+              classification_confidence: number
+              content_type: string
+              id: string
+              platform: string
+              primary_domain: string
+              primary_subtopic: string
+              similarity: number
+              source_domain: string
+              suggested_title: string
+              thumbnail_url: string
+              title: string
+            }[]
+          }
       search_for_bid_response: {
         Args: {
           limit_count?: number

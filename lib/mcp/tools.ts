@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 24 tools:
+ * Registers 29 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
@@ -26,6 +26,11 @@
  *  22. show_coverage_matrix — Interactive coverage matrix app (app trigger)
  *  23. show_bid_dashboard — Interactive bid dashboard app (app trigger)
  *  24. show_reorient_me — Interactive personal briefing app (app trigger)
+ *  25. delete_content_item — Archive or permanently delete an item (editor+)
+ *  26. find_all_duplicates — Scan for high-similarity duplicate pairs
+ *  27. list_templates — Available bid template definitions with requirement counts
+ *  28. get_template_coverage — Per-section coverage for a template against current KB
+ *  29. get_template_gaps — Gap-only view for content creation workflow
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -95,6 +100,11 @@ import {
   formatBatchContentItems,
   formatCoverageMatrix,
   formatBidDashboard,
+  formatTemplateCoverage,
+  formatTemplateList,
+  formatTemplateGaps,
+  formatDeleteContent,
+  formatDuplicatePairs,
   CHARACTER_LIMIT,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -119,8 +129,13 @@ import type {
   SimilarItem,
   SimilarItemsResult,
   BatchContentItemsResult,
+  DuplicatePairsResult,
+  DeleteContentResult,
   CoverageMatrixData,
   BidDashboardData,
+  TemplateCoverageData,
+  TemplateListData,
+  TemplateGapsData,
 } from '@/lib/mcp/formatters';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 
@@ -1455,11 +1470,11 @@ export async function registerTools(server: McpServer): Promise<void> {
     'audit_content',
     {
       title: 'Audit Content',
-      description: 'Find content items with quality issues: thin content (under 20 chars), low classification confidence (under 60%), missing AI summary, missing keywords, no domain assigned, or stale/expired freshness. Use this to identify items that need attention. Filter by issue type or domain for targeted audits. Note: scans up to 500 items — for larger knowledge bases, use the domain filter to target specific areas.',
+      description: 'Find content items with quality issues: thin content (under 20 chars), brief content (under 200-500 chars depending on content type), low classification confidence (under 60%), missing AI summary, missing keywords, no domain assigned, or stale/expired freshness. Use this to identify items that need attention. Filter by issue type or domain for targeted audits. Note: scans up to 500 items — for larger knowledge bases, use the domain filter to target specific areas.',
       inputSchema: {
         issue_type: z.enum([
           'thin_content', 'low_confidence', 'missing_summary',
-          'missing_keywords', 'no_domain', 'stale',
+          'missing_keywords', 'no_domain', 'stale', 'brief_content',
         ]).optional().describe('Filter to a specific issue type (default: all issues)'),
         domain: z.string().optional().describe('Filter to a specific domain (exact match)'),
         limit: z.number().optional().describe('Maximum items to return (default: 25, max: 100)'),
@@ -1480,6 +1495,7 @@ export async function registerTools(server: McpServer): Promise<void> {
         let query = supabase
           .from('content_items')
           .select('id, title, suggested_title, content_type, primary_domain, content, ai_summary, ai_keywords, classification_confidence, freshness')
+          .is('archived_at', null)
           .order('updated_at', { ascending: false });
 
         if (args.domain) {
@@ -1511,7 +1527,24 @@ export async function registerTools(server: McpServer): Promise<void> {
           const issues: string[] = [];
           const contentLen = row.content?.length ?? 0;
 
-          if (contentLen < 20) issues.push('thin_content');
+          if (contentLen < 20) {
+            issues.push('thin_content');
+          } else {
+            // brief_content: content-type-aware minimum length
+            const briefThreshold = (() => {
+              switch (row.content_type) {
+                case 'article': case 'blog': case 'research':
+                  return 500;
+                case 'policy': case 'compliance': case 'certification':
+                  return 300;
+                default:
+                  return 200;
+              }
+            })();
+            if (contentLen < briefThreshold) {
+              issues.push('brief_content');
+            }
+          }
           if (row.classification_confidence !== null && row.classification_confidence < 0.6) issues.push('low_confidence');
           if (!row.ai_summary) issues.push('missing_summary');
           if (!row.ai_keywords || row.ai_keywords.length === 0) issues.push('missing_keywords');
@@ -2228,4 +2261,457 @@ export async function registerTools(server: McpServer): Promise<void> {
       }
     },
   );
+
+  // -------------------------------------------------------------------------
+  // 25. delete_content_item (Write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'delete_content_item',
+    {
+      title: 'Delete or Archive Content Item',
+      description: 'Archive or permanently delete a content item. Use "archive" (soft-delete) to hide it from search and analytics while preserving history. Use "delete" (hard-delete) to permanently remove the item and its history — only for mistakes or GDPR requests. Archive requires editor role; delete requires admin role.',
+      inputSchema: {
+        id: z.string().uuid().describe('The UUID of the content item to archive/delete'),
+        mode: z.enum(['archive', 'delete']).describe('Type of deletion: archive (soft) or delete (hard)'),
+        reason: z.string().describe('Explanation for the deletion (stored in audit trail)'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: false,
+        destructiveHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const role = await getMcpUserRole(extra.authInfo!);
+
+        // Permission check
+        if (args.mode === 'delete') {
+          if (role !== 'admin') {
+            return {
+              content: [{ type: 'text' as const, text: 'Hard-delete requires admin role.' }],
+              isError: true,
+            };
+          }
+        } else {
+          // Archive requires editor or admin
+          if (role !== 'admin' && role !== 'editor') {
+            return {
+              content: [{ type: 'text' as const, text: 'Archive requires editor or admin role.' }],
+              isError: true,
+            };
+          }
+        }
+
+        // Fetch item first for audit logging
+        const { data: item, error: fetchError } = await supabase
+          .from('content_items')
+          .select('id, title, suggested_title, content, brief, detail, reference, metadata, archived_at')
+          .eq('id', args.id)
+          .single();
+
+        if (fetchError || !item) {
+          return {
+            content: [{ type: 'text' as const, text: `Item not found: ${args.id}` }],
+            isError: true,
+          };
+        }
+
+        const displayTitle = item.title || item.suggested_title || 'Untitled';
+
+        // Check if already archived
+        if (args.mode === 'archive' && item.archived_at) {
+          return {
+            content: [{ type: 'text' as const, text: `Item "${displayTitle}" (${args.id}) is already archived.` }],
+          };
+        }
+
+        if (args.mode === 'archive') {
+          // Get latest version
+          const { data: history } = await supabase
+            .from('content_history')
+            .select('version')
+            .eq('content_item_id', args.id)
+            .order('version', { ascending: false })
+            .limit(1);
+          
+          const nextVersion = (history?.[0]?.version ?? 0) + 1;
+
+          // Archive logic
+          const { error: updateError } = await supabase
+            .from('content_items')
+            .update({
+              archived_at: new Date().toISOString(),
+              archived_by: userId,
+              archive_reason: args.reason,
+            })
+            .eq('id', args.id);
+
+          if (updateError) {
+            return {
+              content: [{ type: 'text' as const, text: `Archive failed: ${updateError.message}` }],
+              isError: true,
+            };
+          }
+
+          // Record history for archive
+          await supabase.from('content_history').insert({
+            content_item_id: args.id,
+            version: nextVersion,
+            title: item.title || item.suggested_title || 'Untitled',
+            content: item.content || '',
+            brief: item.brief,
+            detail: item.detail,
+            reference: item.reference,
+            metadata: item.metadata,
+            change_type: 'archive',
+            change_summary: `Item archived: ${args.reason || 'No reason provided'}`,
+            created_by: userId,
+          });
+
+          const result: DeleteContentResult = {
+            id: args.id,
+            title: displayTitle,
+            mode: 'archive',
+            reason: args.reason,
+            archived_at: new Date().toISOString(),
+          };
+
+          const markdown = formatDeleteContent(result);
+          return {
+            content: [{ type: 'text' as const, text: markdown }],
+            structuredContent: toStructuredContent(result),
+          };
+        } else {
+          // Hard Delete: Record history before deletion (even if ephemeral due to cascade)
+          const { data: history } = await supabase
+            .from('content_history')
+            .select('version')
+            .eq('content_item_id', args.id)
+            .order('version', { ascending: false })
+            .limit(1);
+          
+          const nextVersion = (history?.[0]?.version ?? 0) + 1;
+
+          await supabase.from('content_history').insert({
+            content_item_id: args.id,
+            version: nextVersion,
+            title: item.title || item.suggested_title || 'Untitled',
+            content: item.content || '',
+            brief: item.brief,
+            detail: item.detail,
+            reference: item.reference,
+            metadata: item.metadata,
+            change_type: 'delete',
+            change_summary: `Item hard-deleted: ${args.reason}`,
+            created_by: userId,
+          });
+
+          // Delete logic (hard delete)
+          const { error: deleteError } = await supabase
+            .from('content_items')
+            .delete()
+            .eq('id', args.id);
+
+          if (deleteError) {
+            return {
+              content: [{ type: 'text' as const, text: `Delete failed: ${deleteError.message}` }],
+              isError: true,
+            };
+          }
+
+          const result: DeleteContentResult = {
+            id: args.id,
+            title: displayTitle,
+            mode: 'delete',
+            reason: args.reason,
+          };
+
+          const markdown = formatDeleteContent(result);
+          return {
+            content: [{ type: 'text' as const, text: markdown }],
+            structuredContent: toStructuredContent(result),
+          };
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Operation failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // 26. find_all_duplicates (Read tool — all roles)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'find_all_duplicates',
+    {
+      title: 'Find All Duplicate Content',
+      description: 'Scan the entire knowledge base for duplicate pairs using high-similarity vector matching. Returns potential duplicates sorted by similarity. Use domain filter to target specific areas. Excludes archived items. Above 95% similarity is flagged as LIKELY DUPLICATE.',
+      inputSchema: {
+        threshold: z.number().min(0.7).max(0.99).optional().describe('Similarity threshold (default: 0.95)'),
+        domain: z.string().optional().describe('Filter by primary domain'),
+        limit: z.number().min(1).max(200).optional().describe('Maximum pairs to return (default: 50, max: 200)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const threshold = args.threshold ?? 0.95;
+        const limit = args.limit ?? 50;
+        const domain = args.domain || undefined;
+
+        const { data: pairs, error } = await supabase.rpc('find_duplicate_pairs', {
+          similarity_threshold: threshold,
+          p_domain: domain,
+          limit_count: limit,
+        });
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Duplicate scan failed: ${error.message}` }],
+            isError: true,
+          };
+        }
+
+        const result: DuplicatePairsResult = {
+          count: (pairs ?? []).length,
+          threshold,
+          domain_filter: args.domain || undefined,
+          pairs: (pairs ?? []).map((p: any) => ({
+            item_a: {
+              id: p.id1,
+              title: p.title1,
+              content_type: p.type1,
+              domain: p.domain1,
+            },
+            item_b: {
+              id: p.id2,
+              title: p.title2,
+              content_type: p.type2,
+              domain: p.domain2,
+            },
+            similarity: p.similarity,
+          })),
+        };
+
+        const markdown = truncateResponse(formatDuplicatePairs(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Duplicate scan failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // 27. list_templates (Read tool — all roles)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'list_templates',
+    {
+      title: 'List Templates',
+      description: 'List available bid template definitions with requirement counts. Use to see which templates can be checked for coverage. Templates include Standard Selection Questionnaire, G-Cloud applications, and other procurement templates.',
+      inputSchema: {
+        template_type: z.string().optional().describe('Filter by template type: sq, rfp, eqq, gcloud, method_statement, dos, dps, framework, other'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { listAvailableTemplates } = await import('@/lib/template-coverage');
+        const templates = await listAvailableTemplates(supabase, args.template_type);
+
+        const result: TemplateListData = {
+          templates: templates.map(t => ({
+            template_name: t.template_name,
+            template_version: t.template_version,
+            template_type: t.template_type,
+            requirement_count: t.requirement_count,
+            is_current: t.is_current,
+          })),
+        };
+
+        const markdown = formatTemplateList(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to list templates: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 28. get_template_coverage (Read tool — all roles)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_template_coverage',
+    {
+      title: 'Template Coverage',
+      description: 'Check how well the knowledge base covers a specific bid template. Returns per-section coverage status (strong/partial/gap) and an overall completeness score. Use to understand readiness for a specific template type. Use list_templates first to see available templates.',
+      inputSchema: {
+        template_name: z.string().describe('The template name (e.g. "Standard Selection Questionnaire")'),
+        template_version: z.string().optional().describe('Specific version (e.g. "PPN 03/24"). Defaults to current version.'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
+          await import('@/lib/template-coverage');
+
+        const requirements = await fetchTemplateRequirements(
+          supabase, args.template_name, args.template_version,
+        );
+
+        if (requirements.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.` }],
+            isError: true,
+          };
+        }
+
+        const contentItems = await fetchContentForMatching(supabase);
+
+        const coverage = computeTemplateCoverage(
+          args.template_name,
+          args.template_version ?? requirements[0].template_version,
+          requirements[0].template_type,
+          requirements,
+          contentItems,
+        );
+
+        const result: TemplateCoverageData = coverage;
+        const markdown = truncateResponse(formatTemplateCoverage(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Template coverage query failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 29. get_template_gaps (Read tool — all roles)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_template_gaps',
+    {
+      title: 'Template Gaps',
+      description: 'Show only the gaps and partial matches for a template — requirements where the knowledge base is missing or has insufficient content. Use this when planning what content to create next.',
+      inputSchema: {
+        template_name: z.string().describe('The template name (e.g. "Standard Selection Questionnaire")'),
+        template_version: z.string().optional().describe('Specific version. Defaults to current version.'),
+        include_partial: z.boolean().optional().describe('Include partial matches alongside gaps (default: true)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
+          await import('@/lib/template-coverage');
+
+        const requirements = await fetchTemplateRequirements(
+          supabase, args.template_name, args.template_version,
+        );
+
+        if (requirements.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: `No requirements found for template "${args.template_name}"${args.template_version ? ` version ${args.template_version}` : ''}. Use list_templates to see available templates.` }],
+            isError: true,
+          };
+        }
+
+        const contentItems = await fetchContentForMatching(supabase);
+        const includePartial = args.include_partial ?? true;
+
+        const coverage = computeTemplateCoverage(
+          args.template_name,
+          args.template_version ?? requirements[0].template_version,
+          requirements[0].template_type,
+          requirements,
+          contentItems,
+        );
+
+        // Flatten all requirements, filter to gaps (and optionally partial)
+        const allReqs = coverage.sections.flatMap(s => s.requirements);
+        const gapReqs = allReqs.filter(r =>
+          r.coverage_status === 'gap' || (includePartial && r.coverage_status === 'partial'),
+        );
+
+        const gapCount = allReqs.filter(r => r.coverage_status === 'gap').length;
+        const partialCount = includePartial
+          ? allReqs.filter(r => r.coverage_status === 'partial').length
+          : 0;
+
+        const result: TemplateGapsData = {
+          template_name: coverage.template_name,
+          template_version: coverage.template_version,
+          template_type: coverage.template_type,
+          total_requirements: coverage.total_requirements,
+          gap_count: gapCount,
+          partial_count: partialCount,
+          gaps: gapReqs,
+        };
+
+        const markdown = truncateResponse(formatTemplateGaps(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Template gaps query failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
 }
+
