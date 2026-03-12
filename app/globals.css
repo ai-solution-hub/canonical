@@ -806,9 +806,9 @@ p + p {
   pointer-events: auto;
 }
 
-/* The floating chat button must always be clickable */
+/* Hide CopilotKit's own floating button — replaced by FloatingCopilotButton */
 .copilotKitSidebar .copilotKitButton {
-  pointer-events: auto;
+  display: none !important;
 }
 
 .global-copilot-sidebar [data-copilotkit-sidebar] {

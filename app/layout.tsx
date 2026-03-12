@@ -14,6 +14,7 @@ import { CopilotKitProvider } from '@/components/copilotkit-provider';
 import { GlobalCopilotSidebar } from '@/components/global-copilot-sidebar';
 import { GlobalCopilotReadable } from '@/components/global-copilot-readable';
 import { SharedCopilotActions } from '@/components/shared-copilot-actions';
+import { FloatingCopilotButton } from '@/components/floating-copilot-button';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
@@ -58,6 +59,7 @@ export default async function RootLayout({
                   <GlobalCopilotSidebar>
                     <SiteHeader />
                     <main id="main-content">{children}</main>
+                    <FloatingCopilotButton />
                   </GlobalCopilotSidebar>
                   <CommandPalette />
                   <KeyboardShortcutsProvider />
