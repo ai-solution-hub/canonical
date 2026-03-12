@@ -102,12 +102,12 @@ export function SourceMetadata({ contentType, platform, metadata, content }: Sou
   if (!platformFields && !metadata?.ingestion_source) return null;
 
   return (
-    <Accordion type="single" collapsible className="mt-4">
-      <AccordionItem value="source" className="rounded-lg border border-border">
-        <AccordionTrigger className="px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline">
+    <Accordion type="single" collapsible className="mt-2">
+      <AccordionItem value="source" className="border-t border-border">
+        <AccordionTrigger className="text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline py-3">
           Source Details
         </AccordionTrigger>
-        <AccordionContent className="px-4 pb-4">
+        <AccordionContent className="pb-2">
           <dl className="flex flex-col gap-3 text-sm">
             {platformFields}
             {ingestionRow}

@@ -121,11 +121,13 @@ function CollapsibleSection({
   defaultOpen = true,
   children,
   className,
+  contentClassName,
 }: {
   title: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
@@ -146,7 +148,7 @@ function CollapsibleSection({
           {title}
         </span>
       </button>
-      {isOpen && <div>{children}</div>}
+      {isOpen && <div className={contentClassName}>{children}</div>}
     </div>
   );
 }
@@ -914,7 +916,7 @@ export function ItemDetailClient({
           </CollapsibleSection>
 
           {/* ── Relationships group (collapsed by default) ── */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6">
+          <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
             {/* Entity mentions — shows badges grouped by entity type */}
             <EntityBadges
               contentItemId={item.id}
@@ -944,7 +946,7 @@ export function ItemDetailClient({
         </article>
 
         {/* ── Metadata sidebar (expanded on desktop, collapsed on mobile) ── */}
-        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
+        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border border-border bg-card p-4">
           <MetadataSidebar
             item={item}
             editingField={editingField}

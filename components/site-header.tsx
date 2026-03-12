@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, MessageSquare } from 'lucide-react';
+import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
 import {
@@ -17,7 +17,6 @@ import { ThemeSettings } from '@/components/theme-settings';
 import { NotificationBell } from '@/components/notification-bell';
 import { Separator } from '@/components/ui/separator';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useCopilotSidebar } from '@/hooks/use-copilot-sidebar';
 import { cn } from '@/lib/utils';
 
 const NAV_LINKS = [
@@ -35,7 +34,6 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { canEdit, loading: roleLoading } = useUserRole();
-  const { toggle: toggleSidebar } = useCopilotSidebar();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
@@ -98,16 +96,6 @@ export function SiteHeader() {
             <Search className="size-4" />
           </Button>
           <NotificationBell />
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSidebar}
-            aria-label="Toggle AI assistant"
-            title="AI Assistant (Ctrl+/)"
-            className="text-muted-foreground"
-          >
-            <MessageSquare className="size-4" />
-          </Button>
           <Button
             variant="ghost"
             size="icon"

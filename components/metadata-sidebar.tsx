@@ -126,12 +126,8 @@ export function MetadataSidebar({
     : null;
 
   return (
-    <aside className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72">
-      <div className="bg-transparent border-l border-border pl-4">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          Metadata
-        </h2>
-        <dl className="flex flex-col gap-3 text-sm">
+    <div className="w-full">
+      <dl className="flex flex-col gap-3 text-sm">
           {/* Domain (editable) */}
           <div className="group flex items-start justify-between">
             <div>
@@ -358,19 +354,18 @@ export function MetadataSidebar({
               </dd>
             </div>
           )}
-        </dl>
-      </div>
+      </dl>
 
       {/* Classification details accordion */}
-      <Accordion type="single" collapsible className="mt-4">
+      <Accordion type="single" collapsible className="mt-2">
         <AccordionItem
           value="classification"
-          className="rounded-lg border border-border"
+          className="border-t border-border"
         >
-          <AccordionTrigger className="px-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline">
+          <AccordionTrigger className="text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:no-underline py-3">
             Classification Details
           </AccordionTrigger>
-          <AccordionContent className="px-4 pb-4">
+          <AccordionContent className="pb-2">
             <dl className="flex flex-col gap-3 text-sm">
               {item.classification_reasoning && (
                 <div>
@@ -410,6 +405,6 @@ export function MetadataSidebar({
         metadata={item.metadata}
         content={item.content as string | null}
       />
-    </aside>
+    </div>
   );
 }
