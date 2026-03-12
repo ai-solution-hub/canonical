@@ -5,8 +5,12 @@ import {
   applyHostFonts,
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
+import { marked } from "marked";
 import type { ReorientAppData, UrgentItem, TeamChange, RecentWorkItem, BidBriefing } from "./types";
 import "./styles.css";
+
+// Configure marked: no async renderer, safe defaults
+marked.setOptions({ async: false });
 
 const app = new App({ name: "Reorient Me", version: "1.0.0" });
 const root = document.getElementById("app")!;
@@ -513,7 +517,8 @@ function renderDetailPanel() {
   } else if (error) {
     bodyHtml = `<div class="detail-panel-error">${escapeHtml(error)}</div>`;
   } else if (content) {
-    bodyHtml = `<div class="detail-panel-body">${escapeHtml(content)}</div>`;
+    const renderedMd = marked.parse(content) as string;
+    bodyHtml = `<div class="detail-panel-body detail-panel-body--markdown">${renderedMd}</div>`;
   }
 
   container.innerHTML = `
