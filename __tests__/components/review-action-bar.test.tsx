@@ -40,7 +40,7 @@ describe('ReviewActionBar', () => {
 
     expect(screen.getByRole('button', { name: /Verify/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Flag/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Skip/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Next/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Go back/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Exit/i })).toBeInTheDocument();
   });
@@ -68,12 +68,12 @@ describe('ReviewActionBar', () => {
     expect(onFlag).toHaveBeenCalledOnce();
   });
 
-  it('calls onSkip when skip button clicked', async () => {
+  it('calls onSkip when next button clicked', async () => {
     const user = userEvent.setup();
     const onSkip = vi.fn();
     render(<ReviewActionBar {...makeProps({ onSkip })} />);
 
-    await user.click(screen.getByRole('button', { name: /Skip/i }));
+    await user.click(screen.getByRole('button', { name: /Next/i }));
     expect(onSkip).toHaveBeenCalledOnce();
   });
 
@@ -100,7 +100,7 @@ describe('ReviewActionBar', () => {
 
     expect(screen.getByRole('button', { name: /Verify/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Flag/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /Skip/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Next/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Go back/i })).toBeDisabled();
   });
 

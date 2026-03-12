@@ -80,12 +80,9 @@ export function ReviewContent() {
 
   // Wrap exit to show session summary toast
   const handleExitWithSummary = () => {
-    const { verified, flagged, skipped } = progress;
-    const sessionTotal = verified + flagged + skipped;
-    if (sessionTotal > 0) {
-      toast.info(
-        `Session complete: ${verified} verified, ${flagged} flagged, ${skipped} skipped`,
-      );
+    const { sessionReviewed } = progress;
+    if (sessionReviewed > 0) {
+      toast.info(`Session complete: ${sessionReviewed} items reviewed`);
     }
     handleExit();
   };
@@ -153,7 +150,13 @@ export function ReviewContent() {
         </div>
 
         {progress.total > 0 && (
-          <ReviewProgressBar progress={progress} className="mb-6" />
+          <ReviewProgressBar
+            progress={progress}
+            isDraft={filters.status === 'draft'}
+            queuePosition={currentIndex + 1}
+            queueLength={queue.length}
+            className="mb-6"
+          />
         )}
 
         <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-16 text-center">
@@ -257,7 +260,13 @@ export function ReviewContent() {
         </div>
 
         {/* Progress bar */}
-        <ReviewProgressBar progress={progress} className="mb-6" />
+        <ReviewProgressBar
+          progress={progress}
+          isDraft={filters.status === 'draft'}
+          queuePosition={currentIndex + 1}
+          queueLength={queue.length}
+          className="mb-6"
+        />
       </div>
 
       {/* Content area with bottom padding for sticky action bar clearance */}
@@ -350,7 +359,7 @@ export function ReviewContent() {
             {[
               ['Enter', 'Verify current item'],
               ['F', 'Flag for review'],
-              ['\u2192', 'Skip to next item'],
+              ['\u2192', 'Next item'],
               ['\u2190', 'Go back to previous item'],
               ['E', 'Open item in new tab for editing'],
               ['L', 'Toggle review queue panel'],

@@ -342,12 +342,14 @@ export function useReviewQueue(): UseReviewQueueReturn {
     }
   }, [currentIndex, queue.length, hasMore, cursor, fetchQueue]);
 
-  // Focus management: focus the card after navigation
+  // Focus management: focus the card and scroll to top after navigation
   useEffect(() => {
     if (!isLoading && currentItem) {
+      // Scroll to top so the user always sees the start of the new item
+      window.scrollTo({ top: 0, behavior: 'instant' });
       // Small delay to allow React to render the new card
       requestAnimationFrame(() => {
-        cardRef.current?.focus({ preventScroll: false });
+        cardRef.current?.focus({ preventScroll: true });
       });
     }
   }, [currentIndex, isLoading, currentItem]);
@@ -588,20 +590,16 @@ export function useReviewQueue(): UseReviewQueueReturn {
 
   const handleSkip = useCallback(() => {
     if (!currentItem || isActioning) return;
+    // Guard: don't advance if already at the last item
+    if (currentIndex >= queue.length - 1) return;
 
-    const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
-
-    setProgress((prev) => ({
-      ...prev,
-      skipped: prev.skipped + 1,
-      sessionReviewed: prev.sessionReviewed + 1,
-    }));
     advanceToNext();
 
+    const nextTitle = queue[currentIndex + 1]?.title ?? queue[currentIndex + 1]?.suggested_title ?? 'Item';
     setAnnouncement(
-      `Skipped. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`,
+      `Item ${currentIndex + 2} of ${queue.length}. ${nextTitle}.`,
     );
-  }, [currentItem, isActioning, currentIndex, progress.total, advanceToNext]);
+  }, [currentItem, isActioning, currentIndex, queue, advanceToNext]);
 
   const handleBack = useCallback(() => {
     if (currentIndex > 0) {

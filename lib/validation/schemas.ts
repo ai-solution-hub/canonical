@@ -80,12 +80,11 @@ export const ReviewActionBodySchema = z.object({
   flag_details: z.string().max(500).optional(),
 });
 
-/** GET /api/review/queue */
+/** GET /api/review/queue — validates status, limit, cursor only.
+ *  Domain, content_type, and source_file are parsed separately via
+ *  searchParams.getAll() in the route handler for proper array handling. */
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
-  domain: z.array(z.string()).optional(),
-  content_type: z.array(z.string()).optional(),
-  source_file: z.string().optional(),
   limit: z.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
 });

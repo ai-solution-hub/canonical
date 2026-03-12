@@ -52,16 +52,29 @@ export function parseSearchParams<T extends z.ZodType>(
   | { success: true; data: z.infer<T> }
   | { success: false; response: NextResponse } {
   const raw: Record<string, unknown> = {};
-  for (const [key, value] of params.entries()) {
-    // Parse comma-separated values as arrays
-    if (value.includes(',')) {
-      raw[key] = value.split(',').filter(Boolean);
-    } else if (!isNaN(Number(value)) && value !== '') {
-      raw[key] = Number(value);
+
+  // Collect all unique keys first — handles repeated params (e.g. domain=a&domain=b)
+  const allKeys = new Set(params.keys());
+
+  for (const key of allKeys) {
+    const values = params.getAll(key);
+
+    if (values.length > 1) {
+      // Multiple values for the same key → always an array
+      raw[key] = values.flatMap((v) => v.split(',')).filter(Boolean);
     } else {
-      raw[key] = value;
+      const value = values[0];
+      // Parse comma-separated values as arrays
+      if (value.includes(',')) {
+        raw[key] = value.split(',').filter(Boolean);
+      } else if (!isNaN(Number(value)) && value !== '') {
+        raw[key] = Number(value);
+      } else {
+        raw[key] = value;
+      }
     }
   }
+
   return parseBody(schema, raw);
 }
 

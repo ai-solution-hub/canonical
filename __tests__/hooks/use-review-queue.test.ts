@@ -290,7 +290,7 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('navigation', () => {
-    it('handleSkip advances currentIndex and updates progress', async () => {
+    it('handleSkip advances currentIndex without incrementing counters', async () => {
       const items = [{ id: 'n1' }, { id: 'n2' }, { id: 'n3' }];
       setupMountFetches(items);
 
@@ -307,8 +307,9 @@ describe('useReviewQueue', () => {
       });
 
       expect(result.current.currentIndex).toBe(1);
-      expect(result.current.progress.skipped).toBe(1);
-      expect(result.current.progress.sessionReviewed).toBe(1);
+      // Next/Skip is now pure navigation — no counter increments
+      expect(result.current.progress.skipped).toBe(0);
+      expect(result.current.progress.sessionReviewed).toBe(0);
     });
 
     it('handleBack decrements currentIndex', async () => {
@@ -778,8 +779,8 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('announcements', () => {
-    it('sets announcement on skip for screen readers', async () => {
-      const items = [{ id: 'a1', title: 'Announce Item' }, { id: 'a2' }];
+    it('sets announcement on next for screen readers', async () => {
+      const items = [{ id: 'a1', title: 'Announce Item' }, { id: 'a2', title: 'Next Item' }];
       setupMountFetches(items);
 
       const { result } = renderHook(() => useReviewQueue());
@@ -792,8 +793,9 @@ describe('useReviewQueue', () => {
         result.current.handleSkip();
       });
 
-      expect(result.current.announcement).toContain('Skipped');
-      expect(result.current.announcement).toContain('Announce Item');
+      // Next announces the item position without "Skipped" prefix
+      expect(result.current.announcement).toContain('Item 2');
+      expect(result.current.announcement).toContain('Next Item');
     });
 
     it('sets announcement on verify for screen readers', async () => {

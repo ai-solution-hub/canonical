@@ -120,10 +120,10 @@ export function ReviewActionBar({
           onClick={handleAction('skip')}
           disabled={isActioning}
           className={`min-h-[44px] gap-1.5 transition-colors ${flashAction === 'skip' ? flashClass : ''}`}
-          aria-label="Skip (keyboard shortcut: right arrow)"
+          aria-label="Next item (keyboard shortcut: right arrow)"
         >
           <ArrowRight className="size-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Skip</span>
+          <span className="hidden sm:inline">Next</span>
           <kbd aria-hidden="true" className="hidden rounded border border-border bg-muted px-1 font-mono text-[10px] sm:inline">{'\u2192'}</kbd>
         </Button>
       </div>
