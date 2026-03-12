@@ -9,7 +9,7 @@ export type ReviewActionType =
   | 'unverify'
   | 'unflag';
 
-export type ReviewStatus = 'unverified' | 'verified' | 'flagged' | 'all';
+export type ReviewStatus = 'unverified' | 'verified' | 'flagged' | 'draft' | 'all';
 
 // -- Filter types --
 
@@ -73,6 +73,7 @@ export interface ReviewStatsResponse {
   verified: number;
   flagged: number;
   unverified: number;
+  draft: number;
   by_domain: Record<string, { total: number; verified: number }>;
   by_content_type: Record<string, { total: number; verified: number }>;
   by_source_file: Record<string, { total: number; verified: number }>;

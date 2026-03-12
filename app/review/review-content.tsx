@@ -59,6 +59,7 @@ export function ReviewContent() {
     // Handlers
     handleSelectItem,
     handleVerify,
+    handlePublish,
     handleFlagSubmit,
     handleFlag,
     handleSkip,
@@ -324,6 +325,7 @@ export function ReviewContent() {
       {/* Sticky action bar */}
       <ReviewActionBar
         onVerify={handleVerify}
+        onPublish={handlePublish}
         onFlag={handleFlag}
         onSkip={handleSkip}
         onBack={handleBack}
@@ -332,6 +334,7 @@ export function ReviewContent() {
         onShowHelp={() => setShowHelp(true)}
         isActioning={isActioning}
         canGoBack={currentIndex > 0}
+        isDraft={currentItem?.governance_review_status === 'draft'}
       />
 
       {/* Keyboard shortcuts help dialog */}

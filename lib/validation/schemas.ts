@@ -50,6 +50,7 @@ export const VALID_REVIEW_STATUSES = [
   'unverified',
   'verified',
   'flagged',
+  'draft',
   'all',
 ] as const;
 
@@ -195,6 +196,7 @@ export const ItemUpdateBodySchema = z.object({
     'reference',
     'answer_standard',
     'answer_advanced',
+    'governance_review_status',
   ]),
   value: z.union([
     z.string().max(500_000),

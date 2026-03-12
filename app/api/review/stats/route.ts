@@ -21,8 +21,8 @@ export async function GET() {
     const { allowed } = checkRateLimit(`review-stats:${user.id}`, 20, 60_000);
     if (!allowed) return rateLimitResponse();
 
-    // Run the three aggregate queries in parallel
-    const [totalResult, verifiedResult, flaggedResult] = await Promise.all([
+    // Run the four aggregate queries in parallel
+    const [totalResult, verifiedResult, flaggedResult, draftResult] = await Promise.all([
       // Total content items (excluding drafts)
       supabase
         .from('content_items')
@@ -42,6 +42,12 @@ export async function GET() {
         .select('content_item_id', { count: 'exact', head: true })
         .eq('flag_type', 'review_needed')
         .eq('resolved', false),
+
+      // Draft items (governance_review_status = 'draft')
+      supabase
+        .from('content_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('governance_review_status', 'draft'),
     ]);
 
     if (totalResult.error) {
@@ -55,6 +61,7 @@ export async function GET() {
     const total = totalResult.count ?? 0;
     const verified = verifiedResult.count ?? 0;
     const flagged = flaggedResult.count ?? 0;
+    const draft = draftResult.count ?? 0;
     const unverified = total - verified;
 
     // Fetch domain, content type, and source file breakdowns for filter UI.
@@ -110,6 +117,7 @@ export async function GET() {
       verified,
       flagged,
       unverified,
+      draft,
       by_domain,
       by_content_type,
       by_source_file,

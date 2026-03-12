@@ -430,15 +430,23 @@ describe('GET /api/review/stats', () => {
     mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
       thenCallCount++;
       if (thenCallCount === 1) {
+        // Total count (excluding drafts)
         return resolve({ data: null, error: null, count: 100 });
       }
       if (thenCallCount === 2) {
+        // Verified count
         return resolve({ data: null, error: null, count: 60 });
       }
       if (thenCallCount === 3) {
+        // Flagged count
         return resolve({ data: null, error: null, count: 5 });
       }
       if (thenCallCount === 4) {
+        // Draft count
+        return resolve({ data: null, error: null, count: 3 });
+      }
+      if (thenCallCount === 5) {
+        // Breakdown data for domain/content_type/source_file
         return resolve({
           data: [
             {
@@ -476,6 +484,7 @@ describe('GET /api/review/stats', () => {
     expect(json.verified).toBe(60);
     expect(json.flagged).toBe(5);
     expect(json.unverified).toBe(40);
+    expect(json.draft).toBe(3);
 
     expect(json.by_domain).toEqual({
       Technology: { total: 2, verified: 1 },

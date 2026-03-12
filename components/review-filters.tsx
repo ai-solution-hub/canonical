@@ -22,6 +22,7 @@ const STATUS_OPTIONS: Array<{ value: ReviewFiltersType['status']; label: string 
   { value: 'unverified', label: 'Unverified' },
   { value: 'verified', label: 'Verified' },
   { value: 'flagged', label: 'Flagged' },
+  { value: 'draft', label: 'Drafts' },
   { value: 'all', label: 'All' },
 ];
 

@@ -76,7 +76,7 @@ export async function PATCH(
     // Fetch current state before update (for version history)
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
-      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced')
+      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status')
       .eq('id', id)
       .single();
 
@@ -107,6 +107,28 @@ export async function PATCH(
       if (standard) parts.push(String(standard));
       if (advanced) parts.push(String(advanced));
       updateData.content = parts.join('\n\n') || null;
+    }
+
+    // Publishing from draft: generate embedding BEFORE clearing governance_review_status.
+    // This is critical — hybrid_search() requires `embedding IS NOT NULL`, so items
+    // must have an embedding before they become visible to search.
+    if (field === 'governance_review_status' && value === null) {
+      try {
+        const contentText = currentItem.content ?? '';
+        const titleText = currentItem.title ?? currentItem.suggested_title ?? '';
+        if (contentText) {
+          const plainText = htmlToPlainText(contentText);
+          const embeddingText = `${titleText}\n\n${plainText}`;
+          const embedding = await generateEmbedding(embeddingText);
+          updateData.embedding = JSON.stringify(embedding);
+        }
+      } catch (embedErr) {
+        console.error('Embedding generation failed during publish:', embedErr);
+        return NextResponse.json(
+          { error: 'Failed to generate embedding — item not published. Try again.' },
+          { status: 500 },
+        );
+      }
     }
 
     // Perform the update

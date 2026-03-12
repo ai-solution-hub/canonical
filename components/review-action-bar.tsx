@@ -8,6 +8,7 @@ import {
   Flag,
   HelpCircle,
   Pencil,
+  Send,
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,13 +20,15 @@ interface ReviewActionBarProps {
   onBack: () => void;
   onExit: () => void;
   onEdit?: () => void;
+  onPublish?: () => void;
   onShowHelp?: () => void;
   isActioning: boolean;
   canGoBack: boolean;
+  isDraft?: boolean;
   className?: string;
 }
 
-type ActionId = 'verify' | 'flag' | 'skip' | 'back' | 'edit' | 'exit';
+type ActionId = 'verify' | 'flag' | 'skip' | 'back' | 'edit' | 'publish' | 'exit';
 
 const flashClass = 'ring-2 ring-primary ring-offset-2 motion-safe:animate-pulse';
 
@@ -42,9 +45,11 @@ export function ReviewActionBar({
   onBack,
   onExit,
   onEdit,
+  onPublish,
   onShowHelp,
   isActioning,
   canGoBack,
+  isDraft = false,
   className = '',
 }: ReviewActionBarProps) {
   const [flashAction, setFlashAction] = useState<ActionId | null>(null);
@@ -77,13 +82,16 @@ export function ReviewActionBar({
           case 'edit':
             onEdit?.();
             break;
+          case 'publish':
+            onPublish?.();
+            break;
           case 'exit':
             onExit();
             break;
         }
       };
     },
-    [isActioning, onVerify, onFlag, onSkip, onBack, onEdit, onExit],
+    [isActioning, onVerify, onFlag, onSkip, onBack, onEdit, onPublish, onExit],
   );
 
   return (
@@ -125,17 +133,31 @@ export function ReviewActionBar({
 
       {/* Primary actions (centre) */}
       <div className="flex items-center gap-2">
-        <Button
-          size="default"
-          onClick={handleAction('verify')}
-          disabled={isActioning}
-          className={`min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors ${flashAction === 'verify' ? flashClass : ''}`}
-          aria-label="Verify (keyboard shortcut: Enter)"
-        >
-          <Check className="size-5" aria-hidden="true" />
-          Verify
-          <kbd aria-hidden="true" className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]">Enter</kbd>
-        </Button>
+        {isDraft && onPublish ? (
+          <Button
+            size="default"
+            onClick={handleAction('publish')}
+            disabled={isActioning}
+            className={`min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-amber-600 hover:bg-amber-700 text-white ${flashAction === 'publish' ? flashClass : ''}`}
+            aria-label="Publish draft item (keyboard shortcut: Enter)"
+          >
+            <Send className="size-5" aria-hidden="true" />
+            Publish
+            <kbd aria-hidden="true" className="ml-1.5 rounded border border-white/20 bg-white/10 px-1 font-mono text-[10px]">Enter</kbd>
+          </Button>
+        ) : (
+          <Button
+            size="default"
+            onClick={handleAction('verify')}
+            disabled={isActioning}
+            className={`min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors ${flashAction === 'verify' ? flashClass : ''}`}
+            aria-label="Verify (keyboard shortcut: Enter)"
+          >
+            <Check className="size-5" aria-hidden="true" />
+            Verify
+            <kbd aria-hidden="true" className="ml-1.5 rounded border border-border bg-muted px-1 font-mono text-[10px]">Enter</kbd>
+          </Button>
+        )}
         <Button
           variant="outline"
           onClick={handleAction('flag')}

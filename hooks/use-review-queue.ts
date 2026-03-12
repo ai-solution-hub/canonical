@@ -50,6 +50,7 @@ export interface UseReviewQueueReturn {
   // Handlers
   handleSelectItem: (sortedIndex: number) => void;
   handleVerify: () => Promise<void>;
+  handlePublish: () => Promise<void>;
   handleFlagSubmit: (details?: string) => Promise<void>;
   handleFlag: () => void;
   handleSkip: () => void;
@@ -86,7 +87,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     const source_file = searchParams.get('source_file');
 
     return {
-      status: (['unverified', 'verified', 'flagged', 'all'].includes(status ?? '')
+      status: (['unverified', 'verified', 'flagged', 'draft', 'all'].includes(status ?? '')
         ? (status as ReviewFiltersType['status'])
         : 'unverified'),
       domain: domain.length > 0 ? domain : undefined,
@@ -471,6 +472,40 @@ export function useReviewQueue(): UseReviewQueueReturn {
     }
   }, [currentItem, isActioning, currentIndex, progress.total, advanceToNext, handleUndo]);
 
+  const handlePublish = useCallback(async () => {
+    if (!currentItem || isActioning) return;
+    if (currentItem.governance_review_status !== 'draft') return;
+    setIsActioning(true);
+
+    const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
+
+    try {
+      // Publish via PATCH — set governance_review_status to null
+      const res = await fetch(`/api/items/${currentItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ field: 'governance_review_status', value: null }),
+      });
+      if (!res.ok) throw new Error('Publish failed');
+
+      // Optimistic: remove from queue (it's no longer a draft)
+      setQueue((prev) => prev.filter((_, i) => i !== currentIndex));
+      // Adjust index if needed
+      setCurrentIndex((prev) => Math.min(prev, Math.max(0, queue.length - 2)));
+
+      toast.success(`Published: ${itemTitle}`);
+      setAnnouncement(`Published. ${itemTitle} is now live.`);
+
+      // Refresh stats
+      fetchStats();
+    } catch (err) {
+      console.error('Failed to publish item:', err);
+      toast.error('Failed to publish. Check your connection and try again.');
+    } finally {
+      setIsActioning(false);
+    }
+  }, [currentItem, isActioning, currentIndex, queue.length, fetchStats]);
+
   const handleFlagSubmit = useCallback(
     async (details?: string) => {
       if (!currentItem || isActioning) return;
@@ -632,6 +667,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     // Handlers
     handleSelectItem,
     handleVerify,
+    handlePublish,
     handleFlagSubmit,
     handleFlag,
     handleSkip,

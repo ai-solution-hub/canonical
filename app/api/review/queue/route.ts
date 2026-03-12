@@ -49,11 +49,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Standard query for unverified/verified/all statuses
+    // Standard query for unverified/verified/draft/all statuses
     let query = supabase
       .from('content_items')
-      .select(REVIEW_COLUMNS, { count: 'exact' })
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
+      .select(REVIEW_COLUMNS, { count: 'exact' });
+
+    // Draft filter: show only drafts. All other filters exclude drafts.
+    if (status === 'draft') {
+      query = query.eq('governance_review_status', 'draft');
+    } else {
+      query = query.or('governance_review_status.is.null,governance_review_status.neq.draft');
+    }
 
     // Apply verification status filter
     if (status === 'unverified') {
@@ -61,7 +67,7 @@ export async function GET(request: NextRequest) {
     } else if (status === 'verified') {
       query = query.not('verified_at', 'is', null);
     }
-    // status === 'all' — no verification filter
+    // status === 'all' or 'draft' — no verification filter
 
     // Apply optional filters
     if (domainParams.length > 0) {

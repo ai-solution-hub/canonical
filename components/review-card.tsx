@@ -135,6 +135,11 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         <CardHeader className="gap-3">
           {/* Header row: badges + position */}
           <div className="flex flex-wrap items-center gap-2">
+            {item.governance_review_status === 'draft' && (
+              <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
+                Draft
+              </Badge>
+            )}
             {item.primary_domain && (
               <DomainBadge domain={item.primary_domain} />
             )}

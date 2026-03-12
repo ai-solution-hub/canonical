@@ -1,7 +1,7 @@
 /**
  * MCP tool registrations for the Knowledge Hub server.
  *
- * Registers 29 tools:
+ * Registers 30 tools:
  *   1. search_knowledge_base — Semantic + keyword search across all KB content
  *   2. get_dashboard_summary — Overview of KB health and attention items
  *   3. list_active_bids — Active bids with status, progress, and deadlines
@@ -31,6 +31,7 @@
  *  27. list_templates — Available bid template definitions with requirement counts
  *  28. get_template_coverage — Per-section coverage for a template against current KB
  *  29. get_template_gaps — Gap-only view for content creation workflow
+ *  30. update_governance_status — Batch publish/draft content items (editor+)
  *
  * All tools use per-user Supabase clients via extra.authInfo so that
  * RLS policies are applied based on the authenticated user.
@@ -105,6 +106,7 @@ import {
   formatTemplateGaps,
   formatDeleteContent,
   formatDuplicatePairs,
+  formatGovernanceStatusUpdate,
   CHARACTER_LIMIT,
   truncateResponse,
 } from '@/lib/mcp/formatters';
@@ -131,6 +133,8 @@ import type {
   BatchContentItemsResult,
   DuplicatePairsResult,
   DeleteContentResult,
+  GovernanceStatusItemResult,
+  GovernanceStatusUpdateResult,
   CoverageMatrixData,
   BidDashboardData,
   TemplateCoverageData,
@@ -947,7 +951,7 @@ export async function registerTools(server: McpServer): Promise<void> {
     'create_content_item',
     {
       title: 'Create Content Item',
-      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
+      description: 'Create a new content item in the knowledge base. Requires editor or admin role. The item will be automatically embedded for search unless created as a draft. Set governance_review_status to "draft" to create items that are excluded from search and visible only in the review queue\'s Drafts filter — useful for batch content creation that needs review before going live. Use batch_tag to group related draft items (e.g. "reorient-2026-03") and source_document to record provenance. Choose content_type carefully: use q_a_pair for question-answer pairs, case_study for project examples, policy for governance documents, certification for accreditations, capability for service descriptions. Use the kb://taxonomy resource to see valid domain and subtopic values.',
       inputSchema: {
         title: z.string().min(1).max(500).describe('Title of the content item'),
         content: z.string().min(1).max(500000).describe('The content text'),
@@ -959,6 +963,9 @@ export async function registerTools(server: McpServer): Promise<void> {
         primary_domain: z.string().optional().describe('Primary domain category'),
         primary_subtopic: z.string().optional().describe('Primary subtopic'),
         priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
+        governance_review_status: z.enum(['draft']).optional().describe('Set to "draft" to create as a draft item (excluded from search, no embedding generated). Publish later via update_governance_status.'),
+        batch_tag: z.string().max(200).optional().describe('Tag to group related items (e.g. "reorient-2026-03"). Stored in metadata.batch_tag for filtering.'),
+        source_document: z.string().max(500).optional().describe('Source document name or path for provenance tracking. Stored in metadata.source_document.'),
       },
       annotations: {
         readOnlyHint: false,
@@ -979,15 +986,23 @@ export async function registerTools(server: McpServer): Promise<void> {
 
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
+        const isDraft = args.governance_review_status === 'draft';
 
-        // Generate embedding for search (lazy-loaded to avoid cold start crash)
+        // Skip embedding for drafts — generated on publish to save API cost
         let embedding: number[] | null = null;
-        try {
-          const generateEmbedding = await getGenerateEmbedding();
-          embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
-        } catch {
-          // Embedding failure is non-fatal — item is still created
+        if (!isDraft) {
+          try {
+            const generateEmbedding = await getGenerateEmbedding();
+            embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
+          } catch {
+            // Embedding failure is non-fatal — item is still created
+          }
         }
+
+        // Build metadata with optional batch_tag and source_document
+        const metadata: Record<string, unknown> = {};
+        if (args.batch_tag) metadata.batch_tag = args.batch_tag;
+        if (args.source_document) metadata.source_document = args.source_document;
 
         const insertData: Record<string, unknown> = {
           title: args.title,
@@ -1001,6 +1016,8 @@ export async function registerTools(server: McpServer): Promise<void> {
           ...(args.primary_subtopic && { primary_subtopic: args.primary_subtopic }),
           ...(args.priority && { priority: args.priority }),
           ...(embedding && { embedding: JSON.stringify(embedding) }),
+          ...(isDraft && { governance_review_status: 'draft' }),
+          ...(Object.keys(metadata).length > 0 && { metadata }),
         };
 
         const { data: item, error } = await supabase
@@ -1022,10 +1039,18 @@ export async function registerTools(server: McpServer): Promise<void> {
           content_type: item.content_type ?? args.content_type,
         };
 
-        const markdown = formatCreatedItem(created);
+        const draftNote = isDraft
+          ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
+          : '';
+        const markdown = formatCreatedItem(created) + draftNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(created),
+          structuredContent: toStructuredContent({
+            ...created,
+            governance_review_status: isDraft ? 'draft' : null,
+            batch_tag: args.batch_tag ?? null,
+            source_document: args.source_document ?? null,
+          }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
@@ -2490,20 +2515,20 @@ export async function registerTools(server: McpServer): Promise<void> {
           count: (pairs ?? []).length,
           threshold,
           domain_filter: args.domain || undefined,
-          pairs: (pairs ?? []).map((p: any) => ({
+          pairs: (pairs ?? []).map((p: Record<string, unknown>) => ({
             item_a: {
-              id: p.id1,
-              title: p.title1,
-              content_type: p.type1,
-              domain: p.domain1,
+              id: p.id1 as string,
+              title: (p.title1 as string) ?? 'Untitled',
+              content_type: (p.type1 as string | null) ?? null,
+              domain: (p.domain1 as string | null) ?? null,
             },
             item_b: {
-              id: p.id2,
-              title: p.title2,
-              content_type: p.type2,
-              domain: p.domain2,
+              id: p.id2 as string,
+              title: (p.title2 as string) ?? 'Untitled',
+              content_type: (p.type2 as string | null) ?? null,
+              domain: (p.domain2 as string | null) ?? null,
             },
-            similarity: p.similarity,
+            similarity: p.similarity as number,
           })),
         };
 
@@ -2708,6 +2733,169 @@ export async function registerTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Template gaps query failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 30. update_governance_status (write tool — editor+ only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'update_governance_status',
+    {
+      title: 'Update Governance Status',
+      description: 'Batch publish or draft content items. Use "publish" to move draft items into the live knowledge base (generates embeddings and clears governance_review_status). Use "draft" to pull live items back to draft status. Publishing generates embeddings synchronously before making items searchable — items that fail embedding are reported but do not block other items. Requires editor or admin role.',
+      inputSchema: {
+        item_ids: z.array(z.string().uuid()).min(1).max(50).describe('UUIDs of content items to update (1–50)'),
+        status: z.enum(['publish', 'draft']).describe('Target status: "publish" makes items live and searchable, "draft" hides them from search'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin', 'editor']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: editor or admin role required.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+        const items: GovernanceStatusItemResult[] = [];
+
+        // Fetch all items in one query
+        const { data: rows, error: fetchError } = await supabase
+          .from('content_items')
+          .select('id, title, suggested_title, content, governance_review_status')
+          .in('id', args.item_ids);
+
+        if (fetchError) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to fetch items: ${fetchError.message}` }],
+            isError: true,
+          };
+        }
+
+        const rowMap = new Map(
+          ((rows ?? []) as Array<{ id: string; title: string | null; suggested_title: string | null; content: string | null; governance_review_status: string | null }>)
+            .map(r => [r.id, r]),
+        );
+
+        // Process each item
+        for (const itemId of args.item_ids) {
+          const row = rowMap.get(itemId);
+          const displayTitle = row?.title || row?.suggested_title || 'Untitled';
+
+          if (!row) {
+            items.push({ id: itemId, title: 'Not found', success: false, error: 'Item not found' });
+            continue;
+          }
+
+          try {
+            if (args.status === 'publish') {
+              // CRITICAL: embed-then-commit ordering
+              // Generate embedding BEFORE clearing governance_review_status
+              // to prevent items appearing in search without embeddings
+              let embedding: number[] | null = null;
+              try {
+                const generateEmbedding = await getGenerateEmbedding();
+                const textForEmbedding = (row.title || row.suggested_title || '') + ' ' + (row.content ?? '').slice(0, 5000);
+                embedding = await generateEmbedding(textForEmbedding);
+              } catch (embErr) {
+                const embMsg = embErr instanceof Error ? embErr.message : 'Unknown embedding error';
+                items.push({ id: itemId, title: displayTitle, success: false, error: `Embedding failed: ${embMsg}` });
+                continue;
+              }
+
+              // Update: set embedding and clear governance_review_status in one operation
+              const { error: updateError } = await supabase
+                .from('content_items')
+                .update({
+                  embedding: JSON.stringify(embedding),
+                  governance_review_status: null,
+                  updated_by: userId,
+                } as never)
+                .eq('id', itemId);
+
+              if (updateError) {
+                items.push({ id: itemId, title: displayTitle, success: false, error: updateError.message });
+                continue;
+              }
+            } else {
+              // Draft: set governance_review_status to 'draft'
+              const { error: updateError } = await supabase
+                .from('content_items')
+                .update({
+                  governance_review_status: 'draft',
+                  updated_by: userId,
+                } as never)
+                .eq('id', itemId);
+
+              if (updateError) {
+                items.push({ id: itemId, title: displayTitle, success: false, error: updateError.message });
+                continue;
+              }
+            }
+
+            // Record content_history entry
+            const { data: history } = await supabase
+              .from('content_history')
+              .select('version')
+              .eq('content_item_id', itemId)
+              .order('version', { ascending: false })
+              .limit(1);
+
+            const nextVersion = (history?.[0]?.version ?? 0) + 1;
+            const changeType = args.status === 'publish' ? 'publish' : 'draft';
+
+            await supabase.from('content_history').insert({
+              content_item_id: itemId,
+              version: nextVersion,
+              title: displayTitle,
+              content: row.content || '',
+              change_type: changeType,
+              change_summary: args.status === 'publish'
+                ? 'Item published from draft to live'
+                : 'Item moved to draft status',
+              created_by: userId,
+            });
+
+            items.push({ id: itemId, title: displayTitle, success: true });
+          } catch (itemErr) {
+            const msg = itemErr instanceof Error ? itemErr.message : 'Unknown error';
+            items.push({ id: itemId, title: displayTitle, success: false, error: msg });
+          }
+        }
+
+        const succeeded = items.filter(i => i.success).length;
+        const failed = items.filter(i => !i.success).length;
+
+        const result: GovernanceStatusUpdateResult = {
+          action: args.status,
+          total: args.item_ids.length,
+          succeeded,
+          failed,
+          items,
+        };
+
+        const markdown = formatGovernanceStatusUpdate(result);
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Governance status update failed: ${message}. Ensure you have editor or admin permissions.` }],
           isError: true,
         };
       }
