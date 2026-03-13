@@ -18,6 +18,8 @@
     "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
     "build:plugin": "bun run scripts/bundle-plugin.ts",
     "sync:plugin-taxonomy": "bun run scripts/sync-plugin-taxonomy.ts",
+    "test:mcp-eval": "bun run scripts/mcp-eval/protocol-compliance.ts",
+    "test:mcp-eval:skip-ai": "bun run scripts/mcp-eval/protocol-compliance.ts --skip-ai",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {

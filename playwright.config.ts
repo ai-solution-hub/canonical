@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
 
+// Disable CopilotKit in E2E tests — eliminates health check overhead,
+// error boundary, and runtime banners that interfere with test interactions
+process.env.NEXT_PUBLIC_E2E = 'true';
+
 // Load .env so Playwright has access to Supabase credentials.
 // Using require() for dotenv to avoid ESM default-export quirks.
 // eslint-disable-next-line @typescript-eslint/no-require-imports

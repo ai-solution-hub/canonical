@@ -278,7 +278,7 @@ export function LibraryContent() {
             value={filters.domain ?? '__all__'}
             onValueChange={(v) => setFilters({ domain: v === '__all__' ? undefined : v })}
           >
-            <SelectTrigger className="h-9 w-[160px] text-xs">
+            <SelectTrigger className="h-9 w-[160px] text-xs" aria-label="Filter by domain">
               <SelectValue placeholder="All domains" />
             </SelectTrigger>
             <SelectContent>
@@ -297,7 +297,7 @@ export function LibraryContent() {
               setFilters({ freshness: v === 'all' ? undefined : (v as LibraryFilters['freshness']) })
             }
           >
-            <SelectTrigger className="h-9 w-[130px] text-xs">
+            <SelectTrigger className="h-9 w-[130px] text-xs" aria-label="Filter by freshness">
               <SelectValue placeholder="All freshness" />
             </SelectTrigger>
             <SelectContent>
@@ -332,7 +332,7 @@ export function LibraryContent() {
                     value={filters.source_file ?? '__all__'}
                     onValueChange={(v) => setFilters({ source_file: v === '__all__' ? undefined : v })}
                   >
-                    <SelectTrigger className="h-9 w-full text-xs">
+                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by source">
                       <SelectValue placeholder="All sources" />
                     </SelectTrigger>
                     <SelectContent>
@@ -354,7 +354,7 @@ export function LibraryContent() {
                       setFilters({ variant: v === 'all' ? undefined : (v as LibraryFilters['variant']) })
                     }
                   >
-                    <SelectTrigger className="h-9 w-full text-xs">
+                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by variant">
                       <SelectValue placeholder="All variants" />
                     </SelectTrigger>
                     <SelectContent>
@@ -375,7 +375,7 @@ export function LibraryContent() {
                       setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
                     }
                   >
-                    <SelectTrigger className="h-9 w-full text-xs">
+                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by verified status">
                       <SelectValue placeholder="All status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -392,7 +392,7 @@ export function LibraryContent() {
                     value={groupBy}
                     onValueChange={(v) => setGroupBy(v as GroupBy)}
                   >
-                    <SelectTrigger className="h-9 w-full text-xs">
+                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Group by">
                       <SelectValue placeholder="No grouping" />
                     </SelectTrigger>
                     <SelectContent>
