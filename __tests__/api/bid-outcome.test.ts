@@ -84,7 +84,7 @@ function resetMocks() {
 describe('POST /api/bids/:id/outcome', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome`, {
@@ -94,9 +94,9 @@ describe('POST /api/bids/:id/outcome', () => {
     const params = createTestParams({ id: BID_ID });
     const res = await postOutcome(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -411,7 +411,7 @@ describe('POST /api/bids/:id/outcome', () => {
 describe('POST /api/bids/:id/outcome/integrate', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_ID}/outcome/integrate`, {
@@ -421,9 +421,9 @@ describe('POST /api/bids/:id/outcome/integrate', () => {
     const params = createTestParams({ id: BID_ID });
     const res = await postIntegrate(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

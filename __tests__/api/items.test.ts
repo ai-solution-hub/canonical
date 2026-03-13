@@ -137,7 +137,7 @@ beforeEach(() => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('POST /api/items', () => {
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/items', {
@@ -146,10 +146,10 @@ describe('POST /api/items', () => {
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
 
     const body = await res.json();
-    expect(body.error).toBe('Forbidden');
+    expect(body.error).toBe('Unauthorised');
   });
 
   it('returns 403 when user has viewer role (requires editor+)', async () => {
@@ -331,7 +331,7 @@ describe('POST /api/items', () => {
 describe('PATCH /api/items/[id]', () => {
   const params = createTestParams({ id: VALID_UUID });
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/items/${VALID_UUID}`, {
@@ -340,7 +340,7 @@ describe('PATCH /api/items/[id]', () => {
     });
 
     const res = await PATCH(req, { params });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for viewer role', async () => {
@@ -527,7 +527,7 @@ describe('PATCH /api/items/[id]', () => {
 describe('DELETE /api/items/[id]', () => {
   const params = createTestParams({ id: VALID_UUID });
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/items/${VALID_UUID}`, {
@@ -535,7 +535,7 @@ describe('DELETE /api/items/[id]', () => {
     });
 
     const res = await DELETE(req, { params });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for editor role (requires admin)', async () => {

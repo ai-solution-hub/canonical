@@ -93,7 +93,7 @@ describe('Bid Questions Create API', () => {
   // Auth enforcement
   // =========================================================================
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const request = createTestRequest(`/api/bids/${BID_UUID}/questions`, {
@@ -104,7 +104,7 @@ describe('Bid Questions Create API', () => {
     const response = await postQuestions(request, {
       params: createTestParams({ id: BID_UUID }),
     });
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
   });
 
   it('returns 403 for viewer role', async () => {

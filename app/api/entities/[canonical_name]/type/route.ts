@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -26,7 +26,7 @@ export async function PATCH(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user } = auth;
 
     const { allowed } = checkRateLimit(`entities:type:${user.id}`, 20, 60_000);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, getAuthenticatedClient, unauthorisedResponse, forbiddenResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
@@ -15,11 +15,7 @@ export async function PATCH(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) {
-      const basicAuth = await getAuthenticatedClient();
-      if (!basicAuth) return unauthorisedResponse();
-      return forbiddenResponse();
-    }
+    if (!auth.success) return authFailureResponse(auth);
 
     const { userId } = await params;
     if (!UUID_RE.test(userId)) {
@@ -77,11 +73,7 @@ export async function DELETE(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) {
-      const basicAuth = await getAuthenticatedClient();
-      if (!basicAuth) return unauthorisedResponse();
-      return forbiddenResponse();
-    }
+    if (!auth.success) return authFailureResponse(auth);
 
     const { userId } = await params;
     if (!UUID_RE.test(userId)) {

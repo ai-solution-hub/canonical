@@ -165,6 +165,17 @@ export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
     return <>{children}</>;
   }
 
+  // If health check reports unavailable, skip mounting CopilotKit entirely
+  // to avoid entering an infinite retry loop against an unreachable endpoint
+  if (health === 'unavailable') {
+    return (
+      <>
+        <UnavailableBanner />
+        {children}
+      </>
+    );
+  }
+
   return (
     <CopilotKitErrorBoundary>
       <CopilotKit
@@ -172,7 +183,6 @@ export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
         showDevConsole={false}
         enableInspector={false}
       >
-        {health === 'unavailable' && <UnavailableBanner />}
         {children}
       </CopilotKit>
     </CopilotKitErrorBoundary>

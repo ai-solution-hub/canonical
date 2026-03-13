@@ -148,7 +148,7 @@ describe('GET /api/governance', () => {
 describe('POST /api/governance', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/governance', {
@@ -157,9 +157,9 @@ describe('POST /api/governance', () => {
     });
     const res = await postConfig(req);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -419,7 +419,7 @@ describe('GET /api/governance/review', () => {
 describe('POST /api/governance/review', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/governance/review', {
@@ -428,9 +428,9 @@ describe('POST /api/governance/review', () => {
     });
     const res = await postReview(req);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

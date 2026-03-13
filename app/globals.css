@@ -237,6 +237,35 @@
   --color-verified: oklch(0.55 0.15 160);
   --color-verified-bg: oklch(0.93 0.04 160);
 
+  /* Entity type badge colours */
+  --color-entity-organisation-bg: oklch(0.93 0.04 240);
+  --color-entity-organisation-text: oklch(0.35 0.12 240);
+  --color-entity-certification-bg: oklch(0.93 0.04 160);
+  --color-entity-certification-text: oklch(0.35 0.12 160);
+  --color-entity-regulation-bg: oklch(0.93 0.04 20);
+  --color-entity-regulation-text: oklch(0.35 0.15 20);
+  --color-entity-framework-bg: oklch(0.93 0.04 300);
+  --color-entity-framework-text: oklch(0.35 0.12 300);
+  --color-entity-capability-bg: oklch(0.93 0.04 70);
+  --color-entity-capability-text: oklch(0.40 0.12 70);
+  --color-entity-person-bg: oklch(0.93 0.04 350);
+  --color-entity-person-text: oklch(0.38 0.12 350);
+  --color-entity-technology-bg: oklch(0.93 0.04 195);
+  --color-entity-technology-text: oklch(0.35 0.12 195);
+  --color-entity-project-bg: oklch(0.93 0.04 275);
+  --color-entity-project-text: oklch(0.35 0.12 275);
+  --color-entity-sector-bg: oklch(0.93 0.04 55);
+  --color-entity-sector-text: oklch(0.40 0.12 55);
+  --color-entity-product-bg: oklch(0.93 0.04 170);
+  --color-entity-product-text: oklch(0.35 0.12 170);
+
+  /* Draft / publish action colours */
+  --color-draft-badge-bg: oklch(0.93 0.04 70);
+  --color-draft-badge-text: oklch(0.50 0.14 70);
+  --color-draft-badge-border: oklch(0.82 0.06 70);
+  --color-action-publish: oklch(0.55 0.14 55);
+  --color-action-publish-hover: oklch(0.50 0.15 55);
+
   /* Accessibility variable defaults */
   --a11y-letter-spacing: normal;
   --a11y-word-spacing: normal;
@@ -471,6 +500,35 @@
   --color-verified: oklch(0.70 0.13 160);
   --color-verified-bg: oklch(0.25 0.06 160);
 
+  /* Entity type badge colours (dark) */
+  --color-entity-organisation-bg: oklch(0.25 0.06 240);
+  --color-entity-organisation-text: oklch(0.80 0.10 240);
+  --color-entity-certification-bg: oklch(0.25 0.06 160);
+  --color-entity-certification-text: oklch(0.80 0.10 160);
+  --color-entity-regulation-bg: oklch(0.25 0.05 20);
+  --color-entity-regulation-text: oklch(0.80 0.12 20);
+  --color-entity-framework-bg: oklch(0.25 0.06 300);
+  --color-entity-framework-text: oklch(0.80 0.10 300);
+  --color-entity-capability-bg: oklch(0.25 0.04 70);
+  --color-entity-capability-text: oklch(0.82 0.10 70);
+  --color-entity-person-bg: oklch(0.25 0.06 350);
+  --color-entity-person-text: oklch(0.80 0.10 350);
+  --color-entity-technology-bg: oklch(0.25 0.06 195);
+  --color-entity-technology-text: oklch(0.80 0.10 195);
+  --color-entity-project-bg: oklch(0.25 0.06 275);
+  --color-entity-project-text: oklch(0.80 0.10 275);
+  --color-entity-sector-bg: oklch(0.25 0.04 55);
+  --color-entity-sector-text: oklch(0.82 0.10 55);
+  --color-entity-product-bg: oklch(0.25 0.06 170);
+  --color-entity-product-text: oklch(0.80 0.10 170);
+
+  /* Draft / publish action colours (dark) */
+  --color-draft-badge-bg: oklch(0.25 0.04 70);
+  --color-draft-badge-text: oklch(0.75 0.12 70);
+  --color-draft-badge-border: oklch(0.35 0.06 70);
+  --color-action-publish: oklch(0.65 0.14 55);
+  --color-action-publish-hover: oklch(0.60 0.15 55);
+
   /* Component shadows (dark) */
   --shadow-review-bar: 0 -2px 10px oklch(0.10 0.014 48 / 0.15);
 }
@@ -627,6 +685,33 @@
 
   --color-verified: var(--color-verified);
   --color-verified-bg: var(--color-verified-bg);
+
+  --color-entity-organisation-bg: var(--color-entity-organisation-bg);
+  --color-entity-organisation-text: var(--color-entity-organisation-text);
+  --color-entity-certification-bg: var(--color-entity-certification-bg);
+  --color-entity-certification-text: var(--color-entity-certification-text);
+  --color-entity-regulation-bg: var(--color-entity-regulation-bg);
+  --color-entity-regulation-text: var(--color-entity-regulation-text);
+  --color-entity-framework-bg: var(--color-entity-framework-bg);
+  --color-entity-framework-text: var(--color-entity-framework-text);
+  --color-entity-capability-bg: var(--color-entity-capability-bg);
+  --color-entity-capability-text: var(--color-entity-capability-text);
+  --color-entity-person-bg: var(--color-entity-person-bg);
+  --color-entity-person-text: var(--color-entity-person-text);
+  --color-entity-technology-bg: var(--color-entity-technology-bg);
+  --color-entity-technology-text: var(--color-entity-technology-text);
+  --color-entity-project-bg: var(--color-entity-project-bg);
+  --color-entity-project-text: var(--color-entity-project-text);
+  --color-entity-sector-bg: var(--color-entity-sector-bg);
+  --color-entity-sector-text: var(--color-entity-sector-text);
+  --color-entity-product-bg: var(--color-entity-product-bg);
+  --color-entity-product-text: var(--color-entity-product-text);
+
+  --color-draft-badge-bg: var(--color-draft-badge-bg);
+  --color-draft-badge-text: var(--color-draft-badge-text);
+  --color-draft-badge-border: var(--color-draft-badge-border);
+  --color-action-publish: var(--color-action-publish);
+  --color-action-publish-hover: var(--color-action-publish-hover);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

@@ -292,7 +292,8 @@ when needed.
 - **notifications_type_check constraint:** Valid notification types are:
   `governance_review_needed`, `governance_approve`,
   `governance_request_changes`, `governance_revert`, `quality_flag`,
-  `digest_ready`. Other values will fail the DB check constraint.
+  `digest_ready`, `freshness_transition`, `coverage_alert`,
+  `content_gap`. Other values will fail the DB check constraint.
 - **GitHub-backed plugin marketplaces are shallow git clones:**
   `~/.claude/plugins/marketplaces/{name}/` is a git clone of the repo in
   `extraKnownMarketplaces`. After pushing new plugins to the remote, the

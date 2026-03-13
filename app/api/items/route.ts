@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   try {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     // Rate limit: 20 requests per minute
@@ -175,10 +175,10 @@ async function classifyInBackground(
   userId: string,
 ): Promise<void> {
   try {
-    // Classify directly using the same pattern as the classify endpoint
-    // This avoids auth issues with internal server-to-server calls
-    const { createClient } = await import('@/lib/supabase/server');
-    const supabase = await createClient();
+    // Use service-role client for background tasks — cookie-based clients
+    // may not have access to cookies after the response has been sent
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = createServiceClient();
 
     const { data: item } = await supabase
       .from('content_items')
@@ -330,8 +330,10 @@ async function summariseInBackground(
   userId: string,
 ): Promise<void> {
   try {
-    const { createClient } = await import('@/lib/supabase/server');
-    const supabase = await createClient();
+    // Use service-role client for background tasks — cookie-based clients
+    // may not have access to cookies after the response has been sent
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = createServiceClient();
 
     const { data: item } = await supabase
       .from('content_items')

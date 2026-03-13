@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { History, ChevronDown, ChevronUp, RotateCcw, Loader2, Eye, FileX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -96,8 +96,11 @@ export function VersionHistory({
   const creatorIds = versions.map((v) => v.created_by);
   const displayNames = useDisplayNames(creatorIds);
 
+  const loadingRef = useRef(false);
+
   const fetchVersions = useCallback(async () => {
-    if (loading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
     try {
       const res = await fetch(`/api/items/${itemId}/history?limit=50`);
@@ -109,9 +112,10 @@ export function VersionHistory({
       console.error('Failed to load version history:', err);
       toast.error('Failed to load version history');
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [itemId, loading]);
+  }, [itemId]);
 
   // Fetch versions when section is opened
   useEffect(() => {

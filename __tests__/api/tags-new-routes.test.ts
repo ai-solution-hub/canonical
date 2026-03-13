@@ -92,14 +92,14 @@ describe('Tags New API Routes', () => {
   // =========================================================================
 
   describe('GET /api/tags/duplicates', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/tags/duplicates', {
         searchParams: { type: 'ai' },
       });
       const response = await getDuplicates(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns duplicate groups for authenticated user', async () => {
@@ -179,14 +179,14 @@ describe('Tags New API Routes', () => {
   // =========================================================================
 
   describe('GET /api/tags/by-domain', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/tags/by-domain', {
         searchParams: { type: 'ai' },
       });
       const response = await getByDomain(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns tags grouped by domain', async () => {

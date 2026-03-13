@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  unauthorisedResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -17,7 +17,7 @@ export async function POST(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase, user } = auth;
 
     const { allowed } = checkRateLimit(`vision:${user.id}`, 5, 60_000);

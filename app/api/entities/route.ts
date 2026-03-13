@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { parseSearchParams } from '@/lib/validation';
 import { EntityListParamsSchema } from '@/lib/validation/schemas';
 
@@ -16,7 +17,7 @@ import { EntityListParamsSchema } from '@/lib/validation/schemas';
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`entities:list:${user.id}`, 30, 60_000);
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      query = query.ilike('canonical_name', `%${search}%`);
+      query = query.ilike('canonical_name', `%${escapePostgrestValue(search)}%`);
     }
 
     const { data: mentions, error: mentionsError } = await query;

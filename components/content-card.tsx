@@ -282,8 +282,10 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    navigator.clipboard.writeText(answerPreview);
-                    toast.success('Answer copied to clipboard');
+                    navigator.clipboard.writeText(answerPreview).then(
+                      () => toast.success('Answer copied to clipboard'),
+                      () => toast.error('Failed to copy to clipboard'),
+                    );
                   }}
                 >
                   <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />

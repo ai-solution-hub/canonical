@@ -62,8 +62,10 @@ export function DigestExportMenu({ digest }: DigestExportMenuProps) {
   }
 
   function handleEmail() {
-    const subject = encodeURIComponent(digestTypeLabel(digest.digest_type));
-    const body = encodeURIComponent(digestTypeLabel(digest.digest_type));
+    const label = digestTypeLabel(digest.digest_type);
+    const subject = encodeURIComponent(`${label} — Knowledge Hub`);
+    const md = digestToMarkdown(digest);
+    const body = encodeURIComponent(md);
     window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
   }
 

@@ -342,7 +342,7 @@ describe('GET /api/bids/:id/responses/:rId', () => {
 describe('PATCH /api/bids/:id/responses/:rId', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_ID}/responses/${RESPONSE_ID}`, {
@@ -352,9 +352,9 @@ describe('PATCH /api/bids/:id/responses/:rId', () => {
     const params = createTestParams({ id: BID_ID, rId: RESPONSE_ID });
     const res = await PATCH(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

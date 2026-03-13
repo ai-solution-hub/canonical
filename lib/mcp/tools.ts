@@ -994,8 +994,9 @@ export async function registerTools(server: McpServer): Promise<void> {
           try {
             const generateEmbedding = await getGenerateEmbedding();
             embedding = await generateEmbedding(args.title + ' ' + args.content.slice(0, 5000));
-          } catch {
-            // Embedding failure is non-fatal — item is still created
+          } catch (error) {
+            // Embedding failure is non-fatal — item is still created but invisible to search
+            console.error('Failed to generate embeddings:', error);
           }
         }
 

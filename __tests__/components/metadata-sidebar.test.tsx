@@ -141,7 +141,6 @@ describe('MetadataSidebar', () => {
       expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
     });
 
-    expect(screen.getByText('Metadata')).toBeInTheDocument();
     expect(screen.getByText('Domain')).toBeInTheDocument();
     expect(screen.getByText('Subtopic')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
@@ -372,7 +371,6 @@ describe('MetadataSidebar', () => {
     });
 
     // Core fields should still render
-    expect(screen.getByText('Metadata')).toBeInTheDocument();
     expect(screen.getByText('Domain')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
 

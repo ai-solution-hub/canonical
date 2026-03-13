@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthenticatedClient,
   getAuthorisedClient,
+  authFailureResponse,
   unauthorisedResponse,
   rateLimitResponse,
 } from '@/lib/auth';
@@ -57,7 +58,7 @@ export async function POST(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase, user } = auth;
 
     const { allowed } = checkRateLimit(`images:${user.id}`, 3, 60_000);

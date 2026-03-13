@@ -156,12 +156,28 @@ export async function GET(request: NextRequest) {
         weekStart.toISOString(),
       );
 
-      // For domain-level alerts we use a synthetic UUID, so dedup by checking title uniqueness
-      // Since all domain alerts share the same entityId, we skip dedup for domain alerts
-      // and rely on the weekly window instead
+      // For domain-level alerts we use a synthetic UUID, so also check existing
+      // notification titles within this week's window to avoid duplicates
+      const existingTitles = new Set<string>();
+      if (alerts.some((a) => a.entityType === 'domain')) {
+        const { data: existingDomainAlerts } = await supabase
+          .from('notifications')
+          .select('title')
+          .eq('type', 'coverage_alert')
+          .gte('created_at', weekStart.toISOString());
+        for (const row of existingDomainAlerts ?? []) {
+          existingTitles.add(row.title);
+        }
+      }
+
       const newAlerts = Object.keys(previousSnapshot).length === 0
         ? alerts // First run — no previous snapshot, create all
-        : alerts.filter((a) => !existingIds.has(a.entityId) || a.entityType === 'domain');
+        : alerts.filter((a) => {
+            if (a.entityType === 'domain') {
+              return !existingTitles.has(a.title);
+            }
+            return !existingIds.has(a.entityId);
+          });
 
       if (newAlerts.length > 0) {
         const notifications = newAlerts.flatMap((alert) =>

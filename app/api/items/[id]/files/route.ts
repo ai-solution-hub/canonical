@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  unauthorisedResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -24,7 +24,7 @@ export async function POST(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase, user } = auth;
 
     const { allowed } = checkRateLimit(`files:${user.id}`, 10, 60_000);
@@ -151,7 +151,7 @@ export async function DELETE(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id } = await params;

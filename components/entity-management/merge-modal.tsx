@@ -55,10 +55,12 @@ export function MergeModal({
   const [loading, setLoading] = useState(false);
 
   // Pre-fill with the entity that has the most mentions
-  const topEntity = entities.reduce(
-    (best, e) => (e.mention_count > best.mention_count ? e : best),
-    entities[0],
-  );
+  const topEntity = entities.length > 0
+    ? entities.reduce(
+        (best, e) => (e.mention_count > best.mention_count ? e : best),
+        entities[0],
+      )
+    : undefined;
 
   // Initialise defaults when modal opens with new entities
   const effectiveTarget = targetName || topEntity?.canonical_name || '';

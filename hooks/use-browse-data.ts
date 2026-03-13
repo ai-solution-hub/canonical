@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, type RefCallback } from 'reac
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { createClient } from '@/lib/supabase/client';
 import { getCursorFromItem } from '@/lib/browse-helpers';
+import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
 
 const PAGE_SIZE = 48;
@@ -227,10 +228,13 @@ export function useBrowseData(): UseBrowseDataReturn {
         // Cursor for domain sort: "domain|date|id"
         if (cursorValue) {
           const [curDomain, curDate, curId] = cursorValue.split('|');
+          const eDomain = escapePostgrestValue(curDomain);
+          const eDate = escapePostgrestValue(curDate);
+          const eId = escapePostgrestValue(curId);
           query = query.or(
-            `primary_domain.gt.${curDomain},` +
-              `and(primary_domain.eq.${curDomain},captured_date.lt.${curDate}),` +
-              `and(primary_domain.eq.${curDomain},captured_date.eq.${curDate},id.gt.${curId})`,
+            `primary_domain.gt.${eDomain},` +
+              `and(primary_domain.eq.${eDomain},captured_date.lt.${eDate}),` +
+              `and(primary_domain.eq.${eDomain},captured_date.eq.${eDate},id.gt.${eId})`,
           );
         }
       } else if (sort === 'classification_confidence') {
@@ -245,9 +249,11 @@ export function useBrowseData(): UseBrowseDataReturn {
         // Cursor: "confidence|id"
         if (cursorValue) {
           const [curConf, curId] = cursorValue.split('|');
+          const eConf = escapePostgrestValue(curConf);
+          const eId = escapePostgrestValue(curId);
           query = query.or(
-            `classification_confidence.lt.${curConf},` +
-              `and(classification_confidence.eq.${curConf},id.gt.${curId})`,
+            `classification_confidence.lt.${eConf},` +
+              `and(classification_confidence.eq.${eConf},id.gt.${eId})`,
           );
         }
       } else if (sort === 'captured_date' && order === 'desc') {

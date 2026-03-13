@@ -91,10 +91,10 @@ const DELAY_MS = parseInt(args.delay!, 10) || 1500;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey =
-  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY in environment");
+  console.error("Missing SUPABASE_URL or SUPABASE_SECRET_KEY in environment");
   process.exit(1);
 }
 

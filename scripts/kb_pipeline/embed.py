@@ -74,7 +74,14 @@ def generate_embedding(text: str) -> tuple[List[float], int]:
 
 
 def generate_embeddings_batch(texts: List[str]) -> tuple[List[List[float]], int]:
-    """Generate embeddings for a batch of texts. Returns (vectors, total_tokens)."""
+    """Generate embeddings for a batch of texts. Returns (vectors, total_tokens).
+
+    Any texts that produce a None embedding are logged and replaced with an
+    empty list so callers always receive a list of the same length as the input.
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
     client = _get_client()
 
     # Replace empty strings
@@ -90,6 +97,17 @@ def generate_embeddings_batch(texts: List[str]) -> tuple[List[List[float]], int]
     vectors = [None] * len(texts)
     for item in response.data:
         vectors[item.index] = item.embedding
+
+    # Validate: replace any None vectors with empty list and warn
+    for i, vec in enumerate(vectors):
+        if vec is None:
+            logger.warning(
+                "Embedding at index %d returned None (text length=%d). "
+                "Replacing with empty vector.",
+                i,
+                len(texts[i]),
+            )
+            vectors[i] = []
 
     return vectors, response.usage.total_tokens
 

@@ -463,12 +463,19 @@ export function useReviewQueue(): UseReviewQueueReturn {
     } catch (err) {
       console.error('Failed to verify item:', err);
       toast.error('Action failed. Check your connection and try again.');
-      // Rollback the counter but not the index
+      // Rollback the counter and the optimistic verified_at/verified_by fields
       setProgress((prev) => ({
         ...prev,
         verified: prev.verified - (wasAlreadyVerified ? 0 : 1),
         sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
       }));
+      setQueue((prev) =>
+        prev.map((item) =>
+          item.id === currentItem.id
+            ? { ...item, verified_at: null, verified_by: null }
+            : item,
+        ),
+      );
     } finally {
       setIsActioning(false);
     }

@@ -15,6 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -48,16 +55,16 @@ interface EntityRow {
 // ---------------------------------------------------------------------------
 
 const TYPE_COLOURS: Record<string, string> = {
-  organisation: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-  certification: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  regulation: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
-  framework: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-  capability: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-  person: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
-  technology: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300',
-  project: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300',
-  sector: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-  product: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
+  organisation: 'bg-entity-organisation-bg text-entity-organisation-text',
+  certification: 'bg-entity-certification-bg text-entity-certification-text',
+  regulation: 'bg-entity-regulation-bg text-entity-regulation-text',
+  framework: 'bg-entity-framework-bg text-entity-framework-text',
+  capability: 'bg-entity-capability-bg text-entity-capability-text',
+  person: 'bg-entity-person-bg text-entity-person-text',
+  technology: 'bg-entity-technology-bg text-entity-technology-text',
+  project: 'bg-entity-project-bg text-entity-project-text',
+  sector: 'bg-entity-sector-bg text-entity-sector-text',
+  product: 'bg-entity-product-bg text-entity-product-text',
 };
 
 function TypeBadge({
@@ -248,20 +255,13 @@ function TypeEditDialog({
   if (!entity) return null;
 
   return (
-    <div
-      className={cn(
-        'fixed inset-0 z-50 flex items-center justify-center bg-black/50',
-        !open && 'hidden',
-      )}
-      onClick={() => onOpenChange(false)}
-    >
-      <div
-        className="w-80 rounded-lg border bg-background p-4 shadow-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="mb-3 text-sm font-medium">
-          Change type for &ldquo;{entity.canonical_name}&rdquo;
-        </p>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm" showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>
+            Change type for &ldquo;{entity.canonical_name}&rdquo;
+          </DialogTitle>
+        </DialogHeader>
         <Select value={selectedType} onValueChange={setSelectedType}>
           <SelectTrigger className="w-full">
             <SelectValue />
@@ -274,7 +274,7 @@ function TypeEditDialog({
             ))}
           </SelectContent>
         </Select>
-        <div className="mt-3 flex justify-end gap-2">
+        <DialogFooter>
           <Button
             variant="outline"
             size="sm"
@@ -290,9 +290,9 @@ function TypeEditDialog({
             {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
             Save
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

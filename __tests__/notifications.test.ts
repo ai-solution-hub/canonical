@@ -108,7 +108,8 @@ describe('createBulkNotifications', () => {
   });
 
   it('inserts multiple notifications', async () => {
-    const mockInsert = vi.fn().mockResolvedValue({ error: null });
+    const mockSelect = vi.fn().mockResolvedValue({ data: [{ id: '1' }, { id: '2' }], error: null });
+    const mockInsert = vi.fn().mockReturnValue({ select: mockSelect });
     const mockSupabase = {
       from: vi.fn().mockReturnValue({ insert: mockInsert }),
     };

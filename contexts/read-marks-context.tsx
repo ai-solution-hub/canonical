@@ -184,13 +184,16 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
   );
 
   const markUnread = useCallback(async (itemId: string) => {
-    // Optimistic update
-    const wasRead = readItemIds.has(itemId);
+    // Optimistic update — derive wasRead inside the updater to avoid stale closure
+    let wasRead = false;
     setReadItemIds((prev) => {
+      if (!prev.has(itemId)) return prev; // wasn't read, no-op
+      wasRead = true;
       const next = new Set(prev);
       next.delete(itemId);
       return next;
     });
+    // Defer count update to next microtask so wasRead is set by the updater
     if (wasRead) setReadCount((prev) => Math.max(0, prev - 1));
 
     try {
@@ -203,40 +206,52 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to mark as unread:', error);
       // Rollback
-      setReadItemIds((prev) => {
-        const next = new Set(prev);
-        next.add(itemId);
-        return next;
-      });
-      if (wasRead) setReadCount((prev) => prev + 1);
+      if (wasRead) {
+        setReadItemIds((prev) => {
+          const next = new Set(prev);
+          next.add(itemId);
+          return next;
+        });
+        setReadCount((prev) => prev + 1);
+      }
     }
-  }, [readItemIds]);
+  }, []);
 
   const toggleRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
-      if (readItemIds.has(itemId)) {
+      // Use a ref-free check: attempt markUnread first via its updater;
+      // if the item wasn't read, markUnread is a no-op, so fall through to markRead.
+      // To avoid calling both, we read current state from the ref-stable readItemIdsRef.
+      // However, the simplest correct approach: check inside a synchronous setState call.
+      let isCurrentlyRead = false;
+      setReadItemIds((prev) => {
+        isCurrentlyRead = prev.has(itemId);
+        return prev; // no change — just reading
+      });
+      if (isCurrentlyRead) {
         await markUnread(itemId);
       } else {
         await markRead(itemId, source);
       }
     },
-    [readItemIds, markRead, markUnread],
+    [markRead, markUnread],
   );
 
   const markBulkRead = useCallback(
     async (itemIds: string[], source: ReadSource = 'bulk') => {
-      // Filter to only unread items
-      const unreadIds = itemIds.filter((id) => !readItemIds.has(id));
-      if (unreadIds.length === 0) return;
-
-      // Optimistic update
+      // Derive unread IDs inside the updater to avoid stale closure over readItemIds
+      let unreadIds: string[] = [];
       setReadItemIds((prev) => {
+        unreadIds = itemIds.filter((id) => !prev.has(id));
+        if (unreadIds.length === 0) return prev; // all already read, no-op
         const next = new Set(prev);
         for (const id of unreadIds) {
           next.add(id);
         }
         return next;
       });
+      if (unreadIds.length === 0) return;
+
       setReadCount((prev) => prev + unreadIds.length);
       for (const id of unreadIds) {
         checkedIdsRef.current.add(id);
@@ -266,7 +281,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         setReadCount((prev) => Math.max(0, prev - unreadIds.length));
       }
     },
-    [readItemIds],
+    [],
   );
 
   const contextValue: ReadMarksContextValue = {

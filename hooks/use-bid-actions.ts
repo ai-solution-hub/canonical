@@ -397,7 +397,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
   // Computed values
   const metadata = bid ? (bid.domain_metadata as BidMetadata) : null;
   const bidStatus = bid
-    ? ((bid.status ?? metadata!.status) as BidState)
+    ? ((bid.status ?? metadata?.status ?? 'draft') as BidState)
     : null;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);

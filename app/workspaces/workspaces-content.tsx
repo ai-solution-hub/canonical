@@ -121,7 +121,7 @@ export function WorkspacesContent({
           action: {
             label: 'Undo',
             onClick: async () => {
-              // Revert
+              // Optimistic revert
               setWorkspaces((prev) =>
                 prev.map((p) =>
                   p.id === workspace.id
@@ -129,11 +129,24 @@ export function WorkspacesContent({
                     : p,
                 ),
               );
-              await fetch(`/api/workspaces/${workspace.id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ is_archived: !newArchived }),
-              });
+              try {
+                const undoRes = await fetch(`/api/workspaces/${workspace.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ is_archived: !newArchived }),
+                });
+                if (!undoRes.ok) throw new Error();
+              } catch {
+                // Rollback the optimistic revert on failure
+                setWorkspaces((prev) =>
+                  prev.map((p) =>
+                    p.id === workspace.id
+                      ? { ...p, is_archived: newArchived }
+                      : p,
+                  ),
+                );
+                toast.error('Failed to undo. Please try again.');
+              }
             },
           },
         });
@@ -180,7 +193,7 @@ export function WorkspacesContent({
     setBulkProcessing(true);
     const ids = Array.from(selectedIds);
     try {
-      await Promise.all(
+      const results = await Promise.all(
         ids.map((id) =>
           fetch(`/api/workspaces/${id}`, {
             method: 'PATCH',
@@ -189,10 +202,17 @@ export function WorkspacesContent({
           }),
         ),
       );
+      const failedCount = results.filter((r) => !r.ok).length;
+      if (failedCount > 0) {
+        toast.error(`Failed to archive ${failedCount} of ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      }
+      const succeededIds = new Set(ids.filter((_, i) => results[i].ok));
       setWorkspaces((prev) =>
-        prev.map((w) => (selectedIds.has(w.id) ? { ...w, is_archived: true } : w)),
+        prev.map((w) => (succeededIds.has(w.id) ? { ...w, is_archived: true } : w)),
       );
-      toast.success(`Archived ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      if (succeededIds.size > 0) {
+        toast.success(`Archived ${succeededIds.size} workspace${succeededIds.size !== 1 ? 's' : ''}`);
+      }
       clearSelection();
     } catch {
       toast.error('Failed to archive some workspaces');
@@ -205,13 +225,20 @@ export function WorkspacesContent({
     setBulkProcessing(true);
     const ids = Array.from(selectedIds);
     try {
-      await Promise.all(
+      const results = await Promise.all(
         ids.map((id) =>
           fetch(`/api/workspaces/${id}`, { method: 'DELETE' }),
         ),
       );
-      setWorkspaces((prev) => prev.filter((w) => !selectedIds.has(w.id)));
-      toast.success(`Deleted ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      const failedCount = results.filter((r) => !r.ok).length;
+      if (failedCount > 0) {
+        toast.error(`Failed to delete ${failedCount} of ${ids.length} workspace${ids.length !== 1 ? 's' : ''}`);
+      }
+      const succeededIds = new Set(ids.filter((_, i) => results[i].ok));
+      setWorkspaces((prev) => prev.filter((w) => !succeededIds.has(w.id)));
+      if (succeededIds.size > 0) {
+        toast.success(`Deleted ${succeededIds.size} workspace${succeededIds.size !== 1 ? 's' : ''}`);
+      }
       clearSelection();
     } catch {
       toast.error('Failed to delete some workspaces');

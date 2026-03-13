@@ -253,7 +253,8 @@ def fill_template_job(supabase: Client, payload: dict) -> dict:
         tmp_in.write(file_data)
         input_path = tmp_in.name
 
-    output_path = input_path.replace(".docx", "_completed.docx")
+    base, _ = os.path.splitext(input_path)
+    output_path = f"{base}_completed.docx"
 
     try:
         result = fill_template(input_path, output_path, field_mappings)
@@ -381,7 +382,7 @@ def main():
                         {
                             "status": "completed",
                             "completed_at": datetime.now(timezone.utc).isoformat(),
-                            "result": json.dumps(output) if output else None,
+                            "result": output if output else None,
                         }
                     ).eq("id", job_id).execute()
                     print(

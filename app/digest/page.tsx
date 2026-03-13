@@ -575,6 +575,16 @@ export default function DigestPage() {
         const full = data.digests?.find((d: Digest) => d.id === digestId);
         if (full) {
           setCurrentDigest(full);
+        } else {
+          // Digest not found in paginated list — fetch it individually
+          const singleRes = await fetch(`/api/digest/${digestId}`);
+          if (!singleRes.ok) throw new Error('Failed to load digest');
+          const singleData = await singleRes.json();
+          if (singleData) {
+            setCurrentDigest(singleData);
+          } else {
+            toast.error('Digest not found');
+          }
         }
       }
     } catch (err) {

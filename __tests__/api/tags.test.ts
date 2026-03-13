@@ -92,12 +92,12 @@ describe('Tags API', () => {
   // =========================================================================
 
   describe('GET /api/tags', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/tags');
       const response = await getTags(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns tag counts for authenticated user', async () => {
@@ -217,7 +217,7 @@ describe('Tags API', () => {
   // =========================================================================
 
   describe('POST /api/tags/rename', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/tags/rename', {
@@ -226,7 +226,7 @@ describe('Tags API', () => {
       });
 
       const response = await renameTags(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for viewer role', async () => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 /**
@@ -16,7 +16,7 @@ import { safeErrorMessage } from '@/lib/error';
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase, role } = auth;
 
     const url = new URL(request.url);

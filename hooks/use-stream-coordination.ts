@@ -341,7 +341,7 @@ export function useStreamCoordination({
               break;
             }
             // Save current content first, then mark as approved
-            await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
+            const acceptRes = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -349,6 +349,7 @@ export function useStreamCoordination({
                 review_status: 'approved',
               }),
             });
+            if (!acceptRes.ok) throw new Error('Failed to approve response');
             toast.success('Response approved');
             await fetchResponse();
             await fetchBidData();
@@ -405,13 +406,14 @@ export function useStreamCoordination({
               toast.error('No response to flag');
               break;
             }
-            await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
+            const flagRes = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 review_status: 'needs_review',
               }),
             });
+            if (!flagRes.ok) throw new Error('Failed to flag response for review');
             toast.success('Response flagged for review');
             await fetchResponse();
             break;

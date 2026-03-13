@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   unauthorisedResponse,
-  forbiddenResponse,
+  authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
@@ -129,7 +129,7 @@ export async function PATCH(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { id, rId } = await params;

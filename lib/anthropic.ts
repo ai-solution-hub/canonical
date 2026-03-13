@@ -49,21 +49,24 @@ export interface TokenUsage {
 }
 
 // Approximate per-token costs (USD) — updated March 2026
-const COST_PER_MILLION: Record<string, { input: number; output: number; cache_read: number }> = {
-  'claude-opus-4-6':   { input: 15, output: 75, cache_read: 1.5 },
-  'claude-sonnet-4-5': { input: 3,  output: 15, cache_read: 0.3 },
-  'claude-haiku-4-5':  { input: 0.8, output: 4, cache_read: 0.08 },
+// cache_write = 1.25x input price per Anthropic pricing
+const COST_PER_MILLION: Record<string, { input: number; output: number; cache_read: number; cache_write: number }> = {
+  'claude-opus-4-6':   { input: 15,  output: 75, cache_read: 1.5,  cache_write: 18.75 },
+  'claude-sonnet-4-5': { input: 3,   output: 15, cache_read: 0.3,  cache_write: 3.75 },
+  'claude-haiku-4-5':  { input: 0.8, output: 4,  cache_read: 0.08, cache_write: 1.0 },
 };
 
 /** Estimate cost in USD from model name and token usage */
 export function estimateCost(model: string, usage: TokenUsage): number {
   const rates = COST_PER_MILLION[model] ?? COST_PER_MILLION['claude-sonnet-4-5'];
-  const inputTokens = usage.input_tokens - (usage.cache_read_input_tokens ?? 0);
   const cacheReadTokens = usage.cache_read_input_tokens ?? 0;
+  const cacheWriteTokens = usage.cache_creation_input_tokens ?? 0;
+  const inputTokens = usage.input_tokens - cacheReadTokens - cacheWriteTokens;
 
   return (
     (inputTokens / 1_000_000) * rates.input +
     (usage.output_tokens / 1_000_000) * rates.output +
-    (cacheReadTokens / 1_000_000) * rates.cache_read
+    (cacheReadTokens / 1_000_000) * rates.cache_read +
+    (cacheWriteTokens / 1_000_000) * rates.cache_write
   );
 }

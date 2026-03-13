@@ -4,7 +4,10 @@
  * Tests three representative routes covering the auth spectrum:
  * 1. /api/health — no auth required
  * 2. /api/review/action — requires editor+ (uses getAuthorisedClient)
- * 3. /api/admin/users — requires admin (distinguishes 401 vs 403)
+ * 3. /api/admin/users — requires admin
+ *
+ * All routes using getAuthorisedClient now distinguish 401 (unauthenticated)
+ * from 403 (authenticated but wrong role) via AuthorisedResult.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
@@ -128,7 +131,7 @@ describe('API auth enforcement', () => {
   // =========================================================================
 
   describe('POST /api/review/action', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/review/action', {
@@ -137,10 +140,10 @@ describe('API auth enforcement', () => {
       });
 
       const response = await reviewActionPOST(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
 
       const body = await response.json();
-      expect(body.error).toBe('Forbidden');
+      expect(body.error).toBe('Unauthorised');
     });
 
     it('returns 403 when user has viewer role (insufficient privileges)', async () => {
@@ -200,12 +203,11 @@ describe('API auth enforcement', () => {
   });
 
   // =========================================================================
-  // /api/admin/users — requires admin, distinguishes 401 from 403
+  // /api/admin/users — requires admin
   // =========================================================================
 
   describe('GET /api/admin/users', () => {
     it('returns 401 when unauthenticated', async () => {
-      configureUnauthenticated(mockSupabase);
       configureUnauthenticated(mockSupabase);
 
       const response = await adminUsersGET();

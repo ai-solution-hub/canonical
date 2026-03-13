@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { FieldMappingUpdateSchema } from '@/lib/validation/template-schemas';
 
@@ -15,7 +15,7 @@ export async function PATCH(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id: bidId, templateId, fieldId } = await params;

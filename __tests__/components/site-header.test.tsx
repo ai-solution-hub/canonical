@@ -188,13 +188,9 @@ describe('SiteHeader', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/settings');
   });
 
-  it('renders AI assistant toggle button', async () => {
-    const user = userEvent.setup();
+  it('renders settings button', () => {
     render(<SiteHeader />);
-    const aiButton = screen.getByLabelText('Toggle AI assistant');
-    expect(aiButton).toBeInTheDocument();
-    await user.click(aiButton);
-    expect(mockToggleSidebar).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('Settings')).toBeInTheDocument();
   });
 
   it('renders the SearchBar component in desktop view', () => {

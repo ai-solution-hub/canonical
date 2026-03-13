@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, forbiddenResponse, rateLimitResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import type { ReviewStatsResponse } from '@/types/review';
@@ -14,7 +14,7 @@ export async function GET() {
   try {
     // Auth + role check — editors and admins only
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     // Rate limit: 20 requests per minute

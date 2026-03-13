@@ -33,8 +33,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from kb_pipeline.classify import classify, estimate_cost as classify_cost
 from kb_pipeline.config import (
-    get_env,
-    SUPABASE_URL,
+    get_supabase_url,
+    get_supabase_secret_key,
     SHORT_CONTENT_THRESHOLD,
     LOW_CONFIDENCE_THRESHOLD,
 )
@@ -209,13 +209,13 @@ def discover_markdown_files(path: str) -> list[str]:
 
 def check_source_file_exists(relative_path: str) -> bool:
     """Check if a file with this source_file metadata already exists in Supabase."""
-    env = get_env()
-    key = env["SUPABASE_ANON_KEY"]
+    supabase_url = get_supabase_url()
+    key = get_supabase_secret_key()
 
     # Use PostgREST JSON column filter: metadata->>source_file
     encoded_path = urllib.parse.quote(relative_path, safe="")
     url = (
-        f"{SUPABASE_URL}/rest/v1/content_items"
+        f"{supabase_url}/rest/v1/content_items"
         f"?metadata->>source_file=eq.{encoded_path}"
         f"&select=id"
         f"&limit=1"

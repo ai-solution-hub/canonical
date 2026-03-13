@@ -339,13 +339,13 @@ export async function registerResources(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const { data: domains } = await supabase
           .from('taxonomy_domains')
-          .select('id, name, sort_order')
-          .order('sort_order');
+          .select('id, name, display_order')
+          .order('display_order');
 
         const { data: subtopics } = await supabase
           .from('taxonomy_subtopics')
-          .select('id, name, domain_id, sort_order')
-          .order('sort_order');
+          .select('id, name, domain_id, display_order')
+          .order('display_order');
 
         return {
           contents: [{

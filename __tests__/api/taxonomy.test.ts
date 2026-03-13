@@ -2,7 +2,7 @@
  * API route integration tests for taxonomy CRUD endpoints.
  *
  * All taxonomy routes require admin role via getAuthorisedClient(['admin']).
- * When auth fails (unauthenticated OR wrong role), forbiddenResponse() returns 403.
+ * When unauthenticated, returns 401. When wrong role, returns 403.
  *
  * Routes tested:
  *   GET  /api/taxonomy/domains       — list all domains with subtopic counts
@@ -86,14 +86,14 @@ describe('Taxonomy API routes', () => {
   // =========================================================================
 
   describe('GET /api/taxonomy/domains', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const response = await domainsGET();
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
 
       const body = await response.json();
-      expect(body.error).toBe('Forbidden');
+      expect(body.error).toBe('Unauthorised');
     });
 
     it('returns 403 for non-admin (editor)', async () => {
@@ -172,7 +172,7 @@ describe('Taxonomy API routes', () => {
   // =========================================================================
 
   describe('POST /api/taxonomy/domains', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/taxonomy/domains', {
@@ -181,7 +181,7 @@ describe('Taxonomy API routes', () => {
       });
 
       const response = await domainsPOST(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for non-admin', async () => {
@@ -321,7 +321,7 @@ describe('Taxonomy API routes', () => {
   // =========================================================================
 
   describe('PATCH /api/taxonomy/domains/:id', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest(`/api/taxonomy/domains/${VALID_UUID}`, {
@@ -332,7 +332,7 @@ describe('Taxonomy API routes', () => {
       const response = await domainPATCH(request, {
         params: createTestParams({ id: VALID_UUID }),
       });
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for non-admin', async () => {
@@ -446,7 +446,7 @@ describe('Taxonomy API routes', () => {
   // =========================================================================
 
   describe('POST /api/taxonomy/subtopics', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/taxonomy/subtopics', {
@@ -455,7 +455,7 @@ describe('Taxonomy API routes', () => {
       });
 
       const response = await subtopicsPOST(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for non-admin', async () => {
@@ -595,7 +595,7 @@ describe('Taxonomy API routes', () => {
   // =========================================================================
 
   describe('POST /api/taxonomy/reorder', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest('/api/taxonomy/reorder', {
@@ -607,7 +607,7 @@ describe('Taxonomy API routes', () => {
       });
 
       const response = await reorderPOST(request);
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for non-admin', async () => {

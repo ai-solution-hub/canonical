@@ -5,7 +5,7 @@ import {
 } from '@copilotkit/runtime';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, unauthorisedResponse, rateLimitResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 
@@ -13,7 +13,7 @@ export const POST = async (req: NextRequest) => {
   try {
     // Auth guard: require admin or editor role
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
 
     // Rate limit: 10 requests per minute per user.
     // CopilotKit fires parallel suggestion requests on every navigation —

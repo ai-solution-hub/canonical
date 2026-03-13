@@ -4,9 +4,36 @@ import { useState, useEffect, useRef } from 'react';
 
 /**
  * Client-side cache shared across all hook instances.
- * Maps user UUID -> display name string.
+ * Maps user UUID -> { name, cachedAt } with a 5-minute TTL.
  */
-const nameCache = new Map<string, string>();
+const NAME_CACHE_TTL_MS = 5 * 60 * 1000;
+const NAME_CACHE_MAX_SIZE = 200;
+
+interface CacheEntry {
+  name: string;
+  cachedAt: number;
+}
+
+const nameCache = new Map<string, CacheEntry>();
+
+function getCachedName(id: string): string | undefined {
+  const entry = nameCache.get(id);
+  if (!entry) return undefined;
+  if (Date.now() - entry.cachedAt > NAME_CACHE_TTL_MS) {
+    nameCache.delete(id);
+    return undefined;
+  }
+  return entry.name;
+}
+
+function setCachedName(id: string, name: string): void {
+  // Evict oldest entries if cache exceeds max size
+  if (nameCache.size >= NAME_CACHE_MAX_SIZE) {
+    const firstKey = nameCache.keys().next().value;
+    if (firstKey) nameCache.delete(firstKey);
+  }
+  nameCache.set(id, { name, cachedAt: Date.now() });
+}
 
 /**
  * Track in-flight fetches to avoid duplicate requests.
@@ -16,7 +43,7 @@ const pendingIds = new Set<string>();
 async function fetchDisplayNames(ids: string[]): Promise<void> {
   // Filter out already-cached and already-pending IDs
   const needed = ids.filter(
-    (id) => !nameCache.has(id) && !pendingIds.has(id),
+    (id) => getCachedName(id) === undefined && !pendingIds.has(id),
   );
   if (needed.length === 0) return;
 
@@ -32,7 +59,7 @@ async function fetchDisplayNames(ids: string[]): Promise<void> {
     if (res.ok) {
       const data: Record<string, string> = await res.json();
       for (const [id, name] of Object.entries(data)) {
-        nameCache.set(id, name);
+        setCachedName(id, name);
       }
     }
   } finally {
@@ -68,14 +95,14 @@ export function useDisplayNames(
     const buildFromCache = () => {
       const map = new Map<string, string>();
       validIds.forEach((id) => {
-        const name = nameCache.get(id);
+        const name = getCachedName(id);
         if (name) map.set(id, name);
       });
       return map;
     };
 
     // Check if all are already cached
-    const allCached = validIds.every((id) => nameCache.has(id));
+    const allCached = validIds.every((id) => getCachedName(id) !== undefined);
     if (allCached) {
       // Defer state update to avoid setting state directly in effect
       queueMicrotask(() => setNames(buildFromCache()));

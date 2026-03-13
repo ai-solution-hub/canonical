@@ -76,15 +76,15 @@ function resetMocks() {
 describe('GET /api/review/queue', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/review/queue');
     const res = await getQueue(req);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -169,7 +169,7 @@ describe('GET /api/review/queue', () => {
 describe('POST /api/review/action', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/review/action', {
@@ -178,10 +178,10 @@ describe('POST /api/review/action', () => {
     });
 
     const res = await postAction(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
 
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -406,14 +406,14 @@ describe('POST /api/review/action', () => {
 describe('GET /api/review/stats', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const res = await getStats();
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
 
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

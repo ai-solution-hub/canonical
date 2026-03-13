@@ -1782,6 +1782,14 @@ export type Database = {
           title: string
         }[]
       }
+      merge_entities: {
+        Args: {
+          p_entity_type: string
+          p_source_names: string[]
+          p_target_name: string
+        }
+        Returns: Json
+      }
       merge_item_metadata: {
         Args: { p_item_id: string; p_new_data: Json }
         Returns: undefined

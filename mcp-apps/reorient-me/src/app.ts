@@ -5,6 +5,7 @@ import {
   applyHostFonts,
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 import type { ReorientAppData, UrgentItem, TeamChange, RecentWorkItem, BidBriefing } from "./types";
 import "./styles.css";
@@ -517,7 +518,7 @@ function renderDetailPanel() {
   } else if (error) {
     bodyHtml = `<div class="detail-panel-error">${escapeHtml(error)}</div>`;
   } else if (content) {
-    const renderedMd = marked.parse(content) as string;
+    const renderedMd = DOMPurify.sanitize(marked.parse(content) as string);
     bodyHtml = `<div class="detail-panel-body detail-panel-body--markdown">${renderedMd}</div>`;
   }
 

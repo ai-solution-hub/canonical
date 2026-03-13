@@ -87,6 +87,8 @@ export function BidContextProvider({
 }: BidContextProviderProps) {
   const [bid, setBid] = useState<BidSummary | null>(null);
   const [questions, setQuestions] = useState<QuestionSummary[]>([]);
+  // Keep raw question data to avoid redundant API fetches for response IDs
+  const rawQuestionsRef = useRef<BidQuestion[]>([]);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
   const [activeResponse, setActiveResponse] = useState<ResponseSummary | null>(
     null,
@@ -127,7 +129,10 @@ export function BidContextProvider({
       if (!res.ok) return;
       const data = await res.json();
 
-      const mapped: QuestionSummary[] = (data.questions ?? []).map(
+      const rawQuestions: BidQuestion[] = data.questions ?? [];
+      rawQuestionsRef.current = rawQuestions;
+
+      const mapped: QuestionSummary[] = rawQuestions.map(
         (q: BidQuestion, idx: number) => ({
           id: q.id,
           questionNumber: idx + 1,
@@ -154,19 +159,10 @@ export function BidContextProvider({
     }
 
     try {
-      // Find the question in our list to get the response ID
-      const question = questions.find((q) => q.id === activeQuestionId);
-      if (!question) {
-        setActiveResponse(null);
-        return;
-      }
-
-      // We need to fetch from the questions API to get the response reference
-      const questionsRes = await fetch(`/api/bids/${bidId}/questions`);
-      if (!questionsRes.ok) return;
-      const questionsData = await questionsRes.json();
-      const fullQuestion = (questionsData.questions ?? []).find(
-        (q: BidQuestion) => q.id === activeQuestionId,
+      // Look up the response ID from already-fetched raw question data
+      // instead of making a redundant API call to /questions
+      const fullQuestion = rawQuestionsRef.current.find(
+        (q) => q.id === activeQuestionId,
       );
 
       if (!fullQuestion?.response?.id) {
@@ -201,7 +197,7 @@ export function BidContextProvider({
       console.warn('BidContextProvider: failed to fetch active response:', err);
       setActiveResponse(null);
     }
-  }, [activeQuestionId, bidId, questions]);
+  }, [activeQuestionId, bidId]);
 
   // Initial data load
   useEffect(() => {

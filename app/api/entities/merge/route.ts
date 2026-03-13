@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -24,7 +24,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user } = auth;
 
     const { allowed } = checkRateLimit(`entities:merge:${user.id}`, 10, 60_000);
@@ -39,71 +39,40 @@ export async function POST(request: NextRequest) {
     // All source canonical names (including target if present)
     const allSourceNames = [...new Set([...sources, target])];
 
-    // Use service client for transactional operations
+    // Use service client for atomic RPC merge
     const serviceClient = createServiceClient();
 
-    // 1. Update entity_mentions: rename canonical_name to target
-    const { data: mentionsUpdated, error: mentionsErr } = await serviceClient
-      .from('entity_mentions')
-      .update({
-        canonical_name: target,
-        entity_type_override: entity_type,
-      })
-      .in('canonical_name', allSourceNames)
-      .select('id');
+    // Single atomic RPC call — all updates happen in one transaction
+    const { data, error } = await serviceClient.rpc('merge_entities', {
+      p_source_names: allSourceNames,
+      p_target_name: target,
+      p_entity_type: entity_type,
+    });
 
-    if (mentionsErr) {
+    if (error) {
       return NextResponse.json(
-        { error: safeErrorMessage(mentionsErr, 'Failed to update entity mentions') },
+        { error: safeErrorMessage(error, 'Failed to merge entities') },
         { status: 500 },
       );
     }
 
-    // 2. Update entity_relationships: source_entity
-    const { error: relSourceErr } = await serviceClient
-      .from('entity_relationships')
-      .update({ source_entity: target })
-      .in('source_entity', allSourceNames);
-
-    if (relSourceErr) {
-      return NextResponse.json(
-        { error: safeErrorMessage(relSourceErr, 'Failed to update relationship sources') },
-        { status: 500 },
-      );
-    }
-
-    // 3. Update entity_relationships: target_entity
-    const { error: relTargetErr } = await serviceClient
-      .from('entity_relationships')
-      .update({ target_entity: target })
-      .in('target_entity', allSourceNames);
-
-    if (relTargetErr) {
-      return NextResponse.json(
-        { error: safeErrorMessage(relTargetErr, 'Failed to update relationship targets') },
-        { status: 500 },
-      );
-    }
-
-    // 4. Delete duplicate mention rows — keep the one with highest confidence
-    //    (or earliest created_at). Duplicates have the same
-    //    (canonical_name, entity_type, content_item_id) after the merge.
-    let duplicatesRemoved = 0;
-    const { data: dupes, error: dupeFetchErr } = await serviceClient.rpc(
-      'delete_duplicate_entity_mentions',
-      { p_canonical_name: target },
-    );
-    if (dupeFetchErr) {
-      console.warn('Failed to clean up duplicate mentions:', dupeFetchErr.message);
-    }
-    if (typeof dupes === 'number') duplicatesRemoved = dupes;
+    // RPC returns a jsonb object with merge results
+    const result = data as {
+      merged: boolean;
+      target: string;
+      entity_type: string;
+      mentions_updated: number;
+      relationship_sources_updated: number;
+      relationship_targets_updated: number;
+      duplicates_removed: number;
+    };
 
     return NextResponse.json({
-      merged: true,
-      target,
-      entity_type,
-      mentions_updated: mentionsUpdated?.length ?? 0,
-      duplicates_removed: duplicatesRemoved,
+      merged: result.merged,
+      target: result.target,
+      entity_type: result.entity_type,
+      mentions_updated: result.mentions_updated,
+      duplicates_removed: result.duplicates_removed,
     });
   } catch (err) {
     return NextResponse.json(

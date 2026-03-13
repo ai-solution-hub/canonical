@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   unauthorisedResponse,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`bids:${user.id}`, 10, 60_000);

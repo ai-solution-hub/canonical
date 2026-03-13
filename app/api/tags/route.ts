@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -24,7 +24,7 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient();
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`tags:list:${user.id}`, 30, 60_000);
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`tags:delete:${user.id}`, 10, 60_000);

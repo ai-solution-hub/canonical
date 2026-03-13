@@ -265,7 +265,7 @@ describe('GET /api/bids/:id/questions', () => {
 describe('POST /api/bids/:id/questions', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions`, {
@@ -275,9 +275,9 @@ describe('POST /api/bids/:id/questions', () => {
     const params = createTestParams({ id: BID_UUID });
     const res = await postQuestion(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -414,7 +414,7 @@ describe('POST /api/bids/:id/questions', () => {
 describe('POST /api/bids/:id/questions/extract', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/extract`, {
@@ -424,9 +424,9 @@ describe('POST /api/bids/:id/questions/extract', () => {
     const params = createTestParams({ id: BID_UUID });
     const res = await extractQuestions(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -629,7 +629,7 @@ describe('POST /api/bids/:id/questions/extract', () => {
 describe('POST /api/bids/:id/questions/match', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/questions/match`, {
@@ -639,9 +639,9 @@ describe('POST /api/bids/:id/questions/match', () => {
     const params = createTestParams({ id: BID_UUID });
     const res = await matchQuestions(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

@@ -213,7 +213,7 @@ describe('GET /api/bids/:id/templates', () => {
 describe('POST /api/bids/:id/templates', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/templates`, {
@@ -222,9 +222,9 @@ describe('POST /api/bids/:id/templates', () => {
     const params = createTestParams({ id: BID_UUID });
     const res = await uploadTemplate(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -409,7 +409,7 @@ describe('GET /api/bids/:id/templates/:templateId', () => {
 describe('DELETE /api/bids/:id/templates/:templateId', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/bids/${BID_UUID}/templates/${TEMPLATE_UUID}`, {
@@ -418,9 +418,9 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
     const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await deleteTemplate(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for editor role (admin only)', async () => {
@@ -557,7 +557,7 @@ describe('DELETE /api/bids/:id/templates/:templateId', () => {
 describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(
@@ -567,9 +567,9 @@ describe('POST /api/bids/:id/templates/:templateId/analyse', () => {
     const params = createTestParams({ id: BID_UUID, templateId: TEMPLATE_UUID });
     const res = await analyseTemplate(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {

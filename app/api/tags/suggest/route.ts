@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
-  forbiddenResponse,
+  authFailureResponse,
   rateLimitResponse,
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -17,7 +17,7 @@ import { TagSuggestParamsSchema } from '@/lib/validation/schemas';
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient();
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
     const { allowed } = checkRateLimit(`tags:suggest:${user.id}`, 60, 60_000);

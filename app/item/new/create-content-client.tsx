@@ -200,7 +200,26 @@ export function CreateContentClient() {
         toast.success(`Content created.${taskMessage}`);
 
         if (continueEditing) {
-          // Stay on the page but show success
+          // Reset the form so the user can create another item
+          setTitle('');
+          setContentHtml('');
+          setContentType('');
+          setPrimaryDomain('');
+          setPrimarySubtopic('');
+          setAuthorName('');
+          setSourceUrl('');
+          setPriority('');
+          setKeywordsInput('');
+          setTags([]);
+          setTagsInput('');
+          setBrief('');
+          setDetail('');
+          setReference('');
+          setSaveAsDraft(false);
+          setTitleTouched(false);
+          setContentTypeTouched(false);
+          setContentTouched(false);
+          setSaveAttempted(false);
           setIsSavingAndContinue(false);
         } else {
           router.push(`/item/${data.id}`);

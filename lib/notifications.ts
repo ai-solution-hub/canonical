@@ -74,9 +74,9 @@ export async function createBulkNotifications(
     expires_at: n.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   }));
 
-  const { error } = await supabase.from('notifications').insert(rows);
+  const { data, error } = await supabase.from('notifications').insert(rows).select('id');
 
-  return { count: rows.length, error };
+  return { count: error ? 0 : (data?.length ?? rows.length), error };
 }
 
 /**

@@ -91,15 +91,15 @@ describe('GET /api/activity', () => {
 
   // -- Auth checks --
 
-  it('returns 403 for unauthenticated requests', async () => {
+  it('returns 401 for unauthenticated requests', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/activity');
     const response = await GET(req);
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
 
     const body = await response.json();
-    expect(body.error).toBe('Forbidden');
+    expect(body.error).toBe('Unauthorised');
   });
 
   it('returns 403 for non-admin users (editor)', async () => {

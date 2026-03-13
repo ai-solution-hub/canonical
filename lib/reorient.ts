@@ -496,18 +496,22 @@ export async function resolveDisplayNames(
   const { createServiceClient } = await import('@/lib/supabase/server');
   const serviceClient = createServiceClient();
 
-  // For each user, try to get display name from auth metadata
-  for (const userId of uniqueIds) {
-    try {
-      const { data: { user } } = await serviceClient.auth.admin.getUserById(userId);
-      if (user?.user_metadata?.full_name) {
-        const fullName = user.user_metadata.full_name as string;
-        names.set(userId, fullName.split(' ')[0] ?? fullName);
-      } else if (user?.email) {
-        names.set(userId, user.email.split('@')[0] ?? 'A team member');
-      }
-    } catch {
-      // Non-critical — fall back to generic name
+  // Batch-fetch all users in parallel instead of sequential calls
+  const results = await Promise.allSettled(
+    uniqueIds.map((userId) => serviceClient.auth.admin.getUserById(userId)),
+  );
+
+  for (let i = 0; i < uniqueIds.length; i++) {
+    const result = results[i];
+    if (result.status !== 'fulfilled') continue;
+    const user = result.value?.data?.user;
+    if (!user) continue;
+
+    if (user.user_metadata?.full_name) {
+      const fullName = user.user_metadata.full_name as string;
+      names.set(uniqueIds[i], fullName.split(' ')[0] ?? fullName);
+    } else if (user.email) {
+      names.set(uniqueIds[i], user.email.split('@')[0] ?? 'A team member');
     }
   }
 

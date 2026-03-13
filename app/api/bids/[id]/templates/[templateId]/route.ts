@@ -3,7 +3,7 @@ import {
   getAuthenticatedClient,
   getAuthorisedClient,
   unauthorisedResponse,
-  forbiddenResponse,
+  authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
@@ -176,7 +176,7 @@ export async function DELETE(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id: bidId, templateId } = await params;

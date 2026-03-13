@@ -170,31 +170,41 @@ export default function TemplateCompletionPage() {
 
   const handleAutoMap = useCallback(async () => {
     if (!selectedTemplate) return;
-    const res = await fetch(
-      `/api/bids/${bidId}/templates/${selectedTemplate.id}/auto-map`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threshold: 0.7 }),
-      },
-    );
-    if (!res.ok) throw new Error('Auto-mapping failed');
-    await loadTemplateDetail(selectedTemplate.id);
+    try {
+      const res = await fetch(
+        `/api/bids/${bidId}/templates/${selectedTemplate.id}/auto-map`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ threshold: 0.7 }),
+        },
+      );
+      if (!res.ok) throw new Error('Auto-mapping failed');
+      await loadTemplateDetail(selectedTemplate.id);
+    } catch (err) {
+      console.error('Failed to auto-map template fields:', err);
+      toast.error('Failed to auto-map template fields');
+    }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
 
   const handleMappingUpdate = useCallback(
     async (fieldId: string, questionId: string | null, status: string) => {
       if (!selectedTemplate) return;
-      const res = await fetch(
-        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/${fieldId}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question_id: questionId, mapping_status: status }),
-        },
-      );
-      if (!res.ok) throw new Error('Update failed');
-      await loadTemplateDetail(selectedTemplate.id);
+      try {
+        const res = await fetch(
+          `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/${fieldId}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question_id: questionId, mapping_status: status }),
+          },
+        );
+        if (!res.ok) throw new Error('Update failed');
+        await loadTemplateDetail(selectedTemplate.id);
+      } catch (err) {
+        console.error('Failed to update field mapping:', err);
+        toast.error('Failed to update field mapping');
+      }
     },
     [bidId, selectedTemplate, loadTemplateDetail],
   );
@@ -211,16 +221,21 @@ export default function TemplateCompletionPage() {
 
     if (unreviewedFields.length === 0) return;
 
-    const res = await fetch(
-      `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mappings: unreviewedFields }),
-      },
-    );
-    if (!res.ok) throw new Error('Bulk accept failed');
-    await loadTemplateDetail(selectedTemplate.id);
+    try {
+      const res = await fetch(
+        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings: unreviewedFields }),
+        },
+      );
+      if (!res.ok) throw new Error('Bulk accept failed');
+      await loadTemplateDetail(selectedTemplate.id);
+    } catch (err) {
+      console.error('Failed to bulk accept mappings:', err);
+      toast.error('Failed to bulk accept mappings');
+    }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
 
   const handleBulkReject = useCallback(async (fieldIds: string[]) => {
@@ -232,16 +247,21 @@ export default function TemplateCompletionPage() {
       mapping_status: 'rejected' as const,
     }));
 
-    const res = await fetch(
-      `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mappings }),
-      },
-    );
-    if (!res.ok) throw new Error('Bulk reject failed');
-    await loadTemplateDetail(selectedTemplate.id);
+    try {
+      const res = await fetch(
+        `/api/bids/${bidId}/templates/${selectedTemplate.id}/fields/bulk-update`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings }),
+        },
+      );
+      if (!res.ok) throw new Error('Bulk reject failed');
+      await loadTemplateDetail(selectedTemplate.id);
+    } catch (err) {
+      console.error('Failed to bulk reject mappings:', err);
+      toast.error('Failed to bulk reject mappings');
+    }
   }, [bidId, selectedTemplate, loadTemplateDetail]);
 
   const handleFill = useCallback(async () => {

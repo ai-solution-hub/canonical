@@ -220,7 +220,7 @@ describe('Bid Responses API', () => {
   // =========================================================================
 
   describe('PATCH /api/bids/:id/responses/:rId', () => {
-    it('returns 403 when unauthenticated', async () => {
+    it('returns 401 when unauthenticated', async () => {
       configureUnauthenticated(mockSupabase);
 
       const request = createTestRequest(
@@ -231,7 +231,7 @@ describe('Bid Responses API', () => {
       const response = await patchResponse(request, {
         params: createTestParams({ id: BID_UUID, rId: RESPONSE_UUID }),
       });
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(401);
     });
 
     it('returns 403 for viewer role', async () => {

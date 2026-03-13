@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, unauthorisedResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { fetchReorientData } from '@/lib/reorient';
 import { safeErrorMessage } from '@/lib/error';
 
 export async function GET() {
   try {
     const auth = await getAuthorisedClient();
-    if (!auth) return unauthorisedResponse();
+    if (!auth.success) return authFailureResponse(auth);
 
     const { user, supabase, role } = auth;
     const isAdmin = role === 'admin';

@@ -655,8 +655,16 @@ export function normaliseTag(tag: string): string {
   // Lowercase
   tag = tag.toLowerCase();
 
-  // Simple singular: strip trailing 's' unless word is short, ends in 'ss', or 'us'
-  if (tag.length > 3 && tag.endsWith('s') && !tag.endsWith('ss') && !tag.endsWith('us')) {
+  // Simple singular: strip trailing 's' unless word is short or matches
+  // known patterns that should keep their trailing 's'
+  if (
+    tag.length > 3 &&
+    tag.endsWith('s') &&
+    !tag.endsWith('ss') &&
+    !tag.endsWith('us') &&
+    !tag.endsWith('sis') &&
+    !tag.endsWith('ous')
+  ) {
     tag = tag.slice(0, -1);
   }
 

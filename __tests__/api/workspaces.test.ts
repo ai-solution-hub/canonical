@@ -154,7 +154,7 @@ describe('GET /api/workspaces', () => {
 describe('POST /api/workspaces', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest('/api/workspaces', {
@@ -163,9 +163,9 @@ describe('POST /api/workspaces', () => {
     });
     const res = await createWorkspace(req);
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -277,7 +277,7 @@ describe('POST /api/workspaces', () => {
 describe('PATCH /api/workspaces/[id]', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
@@ -287,9 +287,9 @@ describe('PATCH /api/workspaces/[id]', () => {
     const params = createTestParams({ id: VALID_UUID });
     const res = await updateWorkspace(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for viewer role', async () => {
@@ -375,7 +375,7 @@ describe('PATCH /api/workspaces/[id]', () => {
 describe('DELETE /api/workspaces/[id]', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/workspaces/${VALID_UUID}`, {
@@ -384,9 +384,9 @@ describe('DELETE /api/workspaces/[id]', () => {
     const params = createTestParams({ id: VALID_UUID });
     const res = await deleteWorkspace(req, { params });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
     const json = await res.json();
-    expect(json.error).toBe('Forbidden');
+    expect(json.error).toBe('Unauthorised');
   });
 
   it('returns 403 for editor role (admin-only)', async () => {

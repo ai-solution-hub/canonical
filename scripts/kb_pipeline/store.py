@@ -160,7 +160,7 @@ def log_quality_issue(
         "content_item_id": content_item_id,
         "flag_type": flag_type,
         "severity": severity,
-        "details": json.dumps(details or {}),
+        "details": details or {},
         "source_url": source_url,
         "ingestion_batch": batch_name,
     }
@@ -200,7 +200,12 @@ def fetch_records(
                     break
                 offset += page_size
 
-        except urllib.error.HTTPError:
+        except urllib.error.HTTPError as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "HTTP %s fetching content_items (offset=%d): %s",
+                e.code, offset, e.reason,
+            )
             break
 
     return all_records[:limit]

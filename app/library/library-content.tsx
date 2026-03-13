@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
@@ -172,8 +173,9 @@ export function LibraryContent() {
       }
 
       if (filters.search) {
+        const escaped = escapePostgrestValue(filters.search);
         query = query.or(
-          `title.ilike.%${filters.search}%,content.ilike.%${filters.search}%`,
+          `title.ilike.%${escaped}%,content.ilike.%${escaped}%`,
         );
       }
 

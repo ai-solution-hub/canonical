@@ -135,10 +135,10 @@ export function MetadataSidebar({
               {editingField === 'primary_domain' ? (
                 <Select
                   value={editValue}
-                  onValueChange={(val) => {
-                    saveEdit('primary_domain', val);
-                    // Clear subtopic when domain changes
-                    saveEdit(
+                  onValueChange={async (val) => {
+                    await saveEdit('primary_domain', val);
+                    // Reset subtopic after domain save completes to avoid concurrent PATCH calls
+                    await saveEdit(
                       'primary_subtopic',
                       getSubtopics(val)?.[0] ?? '',
                     );

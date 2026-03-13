@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, forbiddenResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
 const UUID_RE =
@@ -18,7 +18,7 @@ export async function GET(
 ) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor', 'viewer']);
-    if (!auth) return forbiddenResponse();
+    if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
     const { id } = await params;

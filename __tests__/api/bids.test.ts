@@ -159,7 +159,7 @@ describe('POST /api/bids', () => {
       body: VALID_CREATE_BODY,
     });
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for viewer role', async () => {
@@ -344,14 +344,14 @@ describe('GET /api/bids/[id]', () => {
 describe('PATCH /api/bids/[id]', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
     const req = createTestRequest(`/api/bids/${VALID_UUID}`, {
       method: 'PATCH',
       body: { name: 'Updated' },
     });
     const res = await PATCH(req, { params: createTestParams({ id: VALID_UUID }) });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for viewer role', async () => {
@@ -487,11 +487,11 @@ describe('PATCH /api/bids/[id]', () => {
 describe('DELETE /api/bids/[id]', () => {
   beforeEach(resetMocks);
 
-  it('returns 403 when unauthenticated', async () => {
+  it('returns 401 when unauthenticated', async () => {
     configureUnauthenticated(mockSupabase);
     const req = createTestRequest(`/api/bids/${VALID_UUID}`, { method: 'DELETE' });
     const res = await DELETE(req, { params: createTestParams({ id: VALID_UUID }) });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
   });
 
   it('returns 403 for editor role (admin only)', async () => {

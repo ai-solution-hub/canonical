@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorisedClient, unauthorisedResponse, forbiddenResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 
@@ -16,13 +16,7 @@ interface UserWithRole {
 export async function GET() {
   try {
     const auth = await getAuthorisedClient(['admin']);
-    if (!auth) {
-      // Distinguish between not authenticated and not authorised
-      const { getAuthenticatedClient } = await import('@/lib/auth');
-      const basicAuth = await getAuthenticatedClient();
-      if (!basicAuth) return unauthorisedResponse();
-      return forbiddenResponse();
-    }
+    if (!auth.success) return authFailureResponse(auth);
 
     const serviceClient = createServiceClient();
 

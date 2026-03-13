@@ -8,9 +8,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.2.0",
+    "dompurify": "^3.3.3",
     "marked": "^17.0.4"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.2.0",
     "typescript": "^5",
     "vite": "^6",
     "vite-plugin-singlefile": "^2"

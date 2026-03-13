@@ -136,7 +136,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           {/* Header row: badges + position */}
           <div className="flex flex-wrap items-center gap-2">
             {item.governance_review_status === 'draft' && (
-              <Badge variant="outline" className="border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
+              <Badge variant="outline" className="border-draft-badge-border bg-draft-badge-bg text-draft-badge-text text-xs">
                 Draft
               </Badge>
             )}
