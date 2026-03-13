@@ -157,6 +157,12 @@ export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
   const hydrated = useHydrated();
   const health = useCopilotHealthCheck();
 
+  // Skip CopilotKit entirely in E2E tests — eliminates health check,
+  // error boundary, and all CopilotKit overhead
+  if (process.env.NEXT_PUBLIC_E2E === 'true') {
+    return <>{children}</>;
+  }
+
   // Before hydration, render children without CopilotKit context.
   // Hooks like useCopilotReadable are only called inside components
   // that themselves wait for hydration (GlobalCopilotSidebar, etc.),
