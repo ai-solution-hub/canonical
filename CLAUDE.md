@@ -293,3 +293,8 @@ when needed.
   `governance_review_needed`, `governance_approve`,
   `governance_request_changes`, `governance_revert`, `quality_flag`,
   `digest_ready`. Other values will fail the DB check constraint.
+- **GitHub-backed plugin marketplaces are shallow git clones:**
+  `~/.claude/plugins/marketplaces/{name}/` is a git clone of the repo in
+  `extraKnownMarketplaces`. After pushing new plugins to the remote, the
+  local marketplace must be refreshed (`git pull` in the marketplace dir)
+  before `/plugin` will discover them. Manual file copies don't persist.
