@@ -173,7 +173,7 @@ export function CoverageGuideCard({ guide }: { guide: GuideCoverageData }) {
       {/* Footer link */}
       <div className="mt-4 flex justify-end">
         <Link
-          href={`/guides/${guide.slug}`}
+          href={`/guide/${guide.slug}`}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
           Open Guide
