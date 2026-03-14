@@ -57,13 +57,19 @@ vi.mock('@/lib/bid-queries', () => ({ fetchBidSections: vi.fn() }));
 // Mock McpServer
 // ---------------------------------------------------------------------------
 
-type ToolHandler = (args: any, extra: any) => Promise<any>;
+type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+
+interface ToolResult {
+  content: Array<{ type: string; text: string }>;
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+}
 
 function createMockMcpServer() {
   const tools: Record<string, { handler: ToolHandler }> = {};
   return {
     tools,
-    registerTool(name: string, config: any, handler: ToolHandler) {
+    registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler) {
       tools[name] = { handler };
     },
     getHandler(name: string): ToolHandler | undefined {
@@ -81,7 +87,7 @@ describe('delete_content_item and find_all_duplicates', () => {
     mockServer = createMockMcpServer();
     // Resolve registerTools correctly despite lazy loading
     const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as any);
+    await registerTools(mockServer as unknown as Parameters<typeof registerTools>[0]);
   });
 
   describe('delete_content_item', () => {
@@ -89,17 +95,17 @@ describe('delete_content_item and find_all_duplicates', () => {
       const handler = mockServer.getHandler('delete_content_item')!;
       
       // 1. Mock fetch item
-      mocks.chainMethods.then.mockImplementationOnce((resolve: any) => 
+      mocks.chainMethods.then.mockImplementationOnce((resolve: (v: unknown) => void) => 
         resolve({ data: { id: '1', title: 'T', content: 'C', archived_at: null }, error: null })
       );
       // 2. Mock fetch history for version tracking
-      mocks.chainMethods.then.mockImplementationOnce((resolve: any) => 
+      mocks.chainMethods.then.mockImplementationOnce((resolve: (v: unknown) => void) => 
         resolve({ data: [{ version: 2 }], error: null })
       );
       // 3 & 4. update and insert use default then (data: null)
 
-      const result = await handler({ id: '1', mode: 'archive', reason: 'R' }, extra as any);
-      
+      const result = await handler({ id: '1', mode: 'archive', reason: 'R' }, extra as Record<string, unknown>) as ToolResult;
+
       expect(result.content[0].text).toContain('# Content Item Archived');
       expect(result.content[0].text).toContain('**Mode:** archive');
       expect(mocks.chainMethods.update).toHaveBeenCalled();
@@ -114,11 +120,11 @@ describe('delete_content_item and find_all_duplicates', () => {
       const handler = mockServer.getHandler('delete_content_item')!;
       
       // 1. Mock fetch item (already archived)
-      mocks.chainMethods.then.mockImplementationOnce((resolve: any) => 
+      mocks.chainMethods.then.mockImplementationOnce((resolve: (v: unknown) => void) => 
         resolve({ data: { id: '1', title: 'T', archived_at: '2026-01-01' }, error: null })
       );
 
-      const result = await handler({ id: '1', mode: 'archive', reason: 'R' }, extra as any);
+      const result = await handler({ id: '1', mode: 'archive', reason: 'R' }, extra as Record<string, unknown>) as ToolResult;
       expect(result.content[0].text).toContain('already archived');
       expect(mocks.chainMethods.update).not.toHaveBeenCalled();
     });
@@ -127,7 +133,7 @@ describe('delete_content_item and find_all_duplicates', () => {
       const handler = mockServer.getHandler('delete_content_item')!;
       mocks.getMcpUserRole.mockResolvedValueOnce('editor');
       
-      const result = await handler({ id: '1', mode: 'delete', reason: 'R' }, extra as any);
+      const result = await handler({ id: '1', mode: 'delete', reason: 'R' }, extra as Record<string, unknown>) as ToolResult;
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('requires admin');
     });
@@ -137,16 +143,16 @@ describe('delete_content_item and find_all_duplicates', () => {
       mocks.getMcpUserRole.mockResolvedValueOnce('admin');
       
       // 1. Mock fetch item
-      mocks.chainMethods.then.mockImplementationOnce((resolve: any) => 
+      mocks.chainMethods.then.mockImplementationOnce((resolve: (v: unknown) => void) => 
         resolve({ data: { id: '1', title: 'T' }, error: null })
       );
       // 2. Mock fetch history for version tracking
-      mocks.chainMethods.then.mockImplementationOnce((resolve: any) => 
+      mocks.chainMethods.then.mockImplementationOnce((resolve: (v: unknown) => void) => 
         resolve({ data: [{ version: 2 }], error: null })
       );
       // 3 & 4. insert and delete use default then
 
-      const result = await handler({ id: '1', mode: 'delete', reason: 'R' }, extra as any);
+      const result = await handler({ id: '1', mode: 'delete', reason: 'R' }, extra as Record<string, unknown>) as ToolResult;
       expect(result.content[0].text).toContain('# Content Item Deleted');
       expect(mocks.chainMethods.insert).toHaveBeenCalledWith(expect.objectContaining({
         change_type: 'delete'
@@ -167,8 +173,8 @@ describe('delete_content_item and find_all_duplicates', () => {
         error: null
       });
 
-      const result = await handler({ threshold: 0.9, domain: 'D1' }, extra as any);
-      expect(result.structuredContent.count).toBe(1);
+      const result = await handler({ threshold: 0.9, domain: 'D1' }, extra as Record<string, unknown>) as ToolResult;
+      expect(result.structuredContent!.count).toBe(1);
       expect(result.content[0].text).toContain('Potential Duplicates Scan');
       expect(result.content[0].text).toContain('**Domain Filter:** D1');
       expect(mocks.mockSupabaseClient.rpc).toHaveBeenCalledWith('find_duplicate_pairs', expect.objectContaining({

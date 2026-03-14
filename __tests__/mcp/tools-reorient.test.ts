@@ -29,7 +29,7 @@ vi.mock('@/lib/reorient', () => ({
 vi.mock('@/lib/mcp/formatters', () => ({
   truncateResponse: vi.fn().mockImplementation((text: string) => text),
   formatReorientation: vi.fn().mockReturnValue('# Reorient Me Briefing'),
-  toStructuredContent: vi.fn().mockImplementation((val: any) => val),
+  toStructuredContent: vi.fn().mockImplementation((val: unknown) => val),
   formatBidDashboard: vi.fn(),
 }));
 
@@ -45,6 +45,12 @@ vi.mock('@/lib/mcp/resources', () => ({
 }));
 
 type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+
+interface ToolResult {
+  content: Array<{ type: string; text: string }>;
+  structuredContent?: Record<string, unknown>;
+  isError?: boolean;
+}
 
 function createMockMcpServer() {
   const tools: Record<string, ToolHandler> = {};
@@ -104,7 +110,7 @@ describe('show_reorient_me trigger tool', () => {
     mocks.fetchReorientData.mockResolvedValue(baseReorientData);
     mocks.resolveDisplayNames.mockResolvedValue(new Map());
 
-    const result = await handler({}, extra) as any;
+    const result = await handler({}, extra) as ToolResult;
     
     expect(result.structuredContent).toBeDefined();
     expect(result.structuredContent.last_active_relative).toBe('10 days ago');
@@ -117,7 +123,7 @@ describe('show_reorient_me trigger tool', () => {
     const nameMap = new Map([['user-456', 'Alice']]);
     mocks.resolveDisplayNames.mockResolvedValue(nameMap);
 
-    const result = await handler({}, extra) as any;
+    const result = await handler({}, extra) as ToolResult;
     
     expect(result.structuredContent.team_changes[0].user_name).toBe('Alice');
   });
@@ -127,7 +133,7 @@ describe('show_reorient_me trigger tool', () => {
     mocks.fetchReorientData.mockResolvedValue(baseReorientData);
     mocks.resolveDisplayNames.mockResolvedValue(new Map());
 
-    const result = await handler({}, extra) as any;
+    const result = await handler({}, extra) as ToolResult;
     expect(result.content[0].type).toBe('text');
     expect(result.content[0].text).toContain('# Reorient Me Briefing');
   });
@@ -136,7 +142,7 @@ describe('show_reorient_me trigger tool', () => {
     const handler = mockServer.getHandler('show_reorient_me')!;
     mocks.fetchReorientData.mockRejectedValue(new Error('Test error'));
 
-    const result = await handler({}, extra) as any;
+    const result = await handler({}, extra) as ToolResult;
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('Test error');
   });

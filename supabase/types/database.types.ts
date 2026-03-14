@@ -691,6 +691,104 @@ export type Database = {
         }
         Relationships: []
       }
+      guide_sections: {
+        Row: {
+          content_type_filter: string | null
+          created_at: string
+          description: string | null
+          display_order: number
+          expected_layer: string | null
+          guide_id: string
+          id: string
+          is_required: boolean
+          section_name: string
+          subtopic_filter: string | null
+          updated_at: string
+        }
+        Insert: {
+          content_type_filter?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          expected_layer?: string | null
+          guide_id: string
+          id?: string
+          is_required?: boolean
+          section_name: string
+          subtopic_filter?: string | null
+          updated_at?: string
+        }
+        Update: {
+          content_type_filter?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          expected_layer?: string | null
+          guide_id?: string
+          id?: string
+          is_required?: boolean
+          section_name?: string
+          subtopic_filter?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guide_sections_guide_id_fkey"
+            columns: ["guide_id"]
+            isOneToOne: false
+            referencedRelation: "guides"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guides: {
+        Row: {
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          display_order: number
+          domain_filter: string | null
+          guide_type: string
+          icon: string | null
+          id: string
+          is_published: boolean
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          domain_filter?: string | null
+          guide_type?: string
+          icon?: string | null
+          id?: string
+          is_published?: boolean
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          display_order?: number
+          domain_filter?: string | null
+          guide_type?: string
+          icon?: string | null
+          id?: string
+          is_published?: boolean
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ingestion_quality_log: {
         Row: {
           content_item_id: string | null
@@ -1635,6 +1733,26 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_guide_content: {
+        Args: { p_guide_slug: string }
+        Returns: {
+          content_brief: string
+          content_captured_date: string
+          content_freshness: string
+          content_id: string
+          content_layer: string
+          content_title: string
+          content_type: string
+          content_verified_at: string
+          expected_layer: string
+          is_required: boolean
+          section_description: string
+          section_id: string
+          section_name: string
+          section_order: number
+          subtopic_filter: string
+        }[]
+      }
       get_item_workspaces: {
         Args: { p_item_id: string }
         Returns: {
@@ -2050,3 +2168,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

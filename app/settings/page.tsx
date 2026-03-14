@@ -38,6 +38,9 @@ const LazyTagsSection = lazy(() =>
 const LazyEntitiesSection = lazy(() =>
   import('@/components/settings/entities-section').then((m) => ({ default: m.EntitiesSection }))
 );
+const LazyGuidesSection = lazy(() =>
+  import('@/components/settings/guides-section').then((m) => ({ default: m.GuidesSection }))
+);
 
 // ---------------------------------------------------------------------------
 // Section loading skeleton — shown briefly while a lazy section chunk loads
@@ -83,6 +86,12 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyEntitiesSection />
+        </Suspense>
+      );
+    case 'guides':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyGuidesSection />
         </Suspense>
       );
     case 'team':
