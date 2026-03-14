@@ -1753,6 +1753,24 @@ export type Database = {
           subtopic_filter: string
         }[]
       }
+      get_guide_coverage: {
+        Args: never
+        Returns: {
+          content_count: number
+          domain_filter: string
+          expected_layer: string
+          fresh_count: number
+          guide_id: string
+          guide_name: string
+          guide_slug: string
+          guide_type: string
+          is_required: boolean
+          section_id: string
+          section_name: string
+          section_order: number
+          stale_count: number
+        }[]
+      }
       get_item_workspaces: {
         Args: { p_item_id: string }
         Returns: {
@@ -2168,4 +2186,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

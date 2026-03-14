@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { BarChart3, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
+import { BarChart3, BookOpen, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/template-coverage-content';
+import { CoverageGuideTab } from '@/components/coverage-guide-tab';
 import type { GapSummary } from '@/lib/template-coverage';
 
 // ---------------------------------------------------------------------------
@@ -178,6 +179,10 @@ export function CoveragePageTabs() {
             <FileText className="size-3.5" aria-hidden="true" />
             Templates
           </TabsTrigger>
+          <TabsTrigger value="guides" className="gap-1.5">
+            <BookOpen className="size-3.5" aria-hidden="true" />
+            Guides
+          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -197,6 +202,10 @@ export function CoveragePageTabs() {
 
       <TabsContent value="templates" className="mt-6">
         <TemplateCoverageContent />
+      </TabsContent>
+
+      <TabsContent value="guides" className="mt-6">
+        <CoverageGuideTab />
       </TabsContent>
     </Tabs>
   );

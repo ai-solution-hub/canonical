@@ -16,6 +16,7 @@ import { EntityBadges } from '@/components/entity-badges';
 import { VersionHistory } from '@/components/version-history';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
+import { isFeatureEnabled } from '@/lib/client-config';
 import { getDisplayTitle } from '@/lib/format';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
 import { toast } from 'sonner';
@@ -24,6 +25,7 @@ import { toast } from 'sonner';
 import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
 import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
 import { useQAProvenance } from '@/hooks/use-qa-provenance';
+import { useTopicLayerContent } from '@/hooks/use-topic-layer-content';
 import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
 import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
 
@@ -39,6 +41,7 @@ import {
   ItemTitleSection,
   ItemBreadcrumb,
 } from '@/components/item-detail';
+import { TopicLayerComparison } from '@/components/topic-layer-comparison';
 
 import type {
   ContentListItem,
@@ -206,6 +209,12 @@ export function ItemDetailClient({
       setItem((prev) => ({ ...prev, metadata: updater(prev.metadata) }));
     }, []),
   });
+
+  // Fetch sibling layer content for inline comparison
+  const { layerContent, isLoading: isLayerContentLoading } = useTopicLayerContent(
+    topicLayers,
+    item.id as string,
+  );
 
   const handleCopyLink = useCallback(async () => {
     try {
@@ -454,6 +463,24 @@ export function ItemDetailClient({
         currentItemId={item.id}
         topicLayers={topicLayers}
       />
+
+      {/* Layer comparison — inline tabbed preview of sibling layer content */}
+      {isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
+        <TopicLayerComparison
+          currentItem={{
+            id: item.id as string,
+            layer: (item.metadata?.layer as string) ?? '',
+            title: item.title ?? '',
+            brief: item.brief ?? null,
+            detail: item.detail ?? null,
+            content: item.content ?? null,
+            content_type: item.content_type as string,
+            metadata: item.metadata,
+          }}
+          layerContent={layerContent}
+          isLoading={isLayerContentLoading}
+        />
+      )}
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
