@@ -3,6 +3,8 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { fetchReorientData } from '@/lib/reorient';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 60;
+
 export async function GET() {
   try {
     const auth = await getAuthorisedClient();

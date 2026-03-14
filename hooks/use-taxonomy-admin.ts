@@ -180,19 +180,20 @@ export function useTaxonomyAdmin({
   // -----------------------------------------------------------------------
 
   function toggleDomain(domainId: string) {
+    const isCurrentlyExpanded = expandedDomains.has(domainId);
     setExpandedDomains((prev) => {
       const next = new Set(prev);
       if (next.has(domainId)) {
         next.delete(domainId);
       } else {
         next.add(domainId);
-        // Fetch subtopics if not already loaded
-        if (!subtopicsByDomain.has(domainId)) {
-          fetchSubtopics(domainId);
-        }
       }
       return next;
     });
+    // Fetch subtopics outside the updater to avoid stale closure
+    if (!isCurrentlyExpanded && !subtopicsByDomain.has(domainId)) {
+      fetchSubtopics(domainId);
+    }
   }
 
   // -----------------------------------------------------------------------

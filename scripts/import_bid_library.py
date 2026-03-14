@@ -19,6 +19,7 @@ Steps:
 
 import argparse
 import json
+import logging
 import os
 import sys
 import time
@@ -27,6 +28,8 @@ import urllib.request
 import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Add scripts directory to path for imports
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -101,7 +104,14 @@ def check_question_exists(question_text: str) -> bool:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return len(data) > 0
-    except Exception:
+    except urllib.error.HTTPError as e:
+        logger.warning("check_question_exists HTTP error: %s", e)
+        return False
+    except urllib.error.URLError as e:
+        logger.warning("check_question_exists URL error: %s", e)
+        return False
+    except Exception as e:
+        logger.warning("check_question_exists unexpected error: %s", e)
         return False
 
 

@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { parseBody } from '@/lib/validation';
 import { OAuthDecisionBodySchema } from '@/lib/validation/schemas';
+import { safeErrorMessage } from '@/lib/error';
 
 export async function POST(request: Request) {
   const formData = await request.formData();
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
       });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
     }
 
     // 303 See Other — converts POST to GET for the callback redirect
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
       });
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+      return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
     }
 
     return NextResponse.redirect(data.redirect_url, 303);

@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { TagSuggestParamsSchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/tags/suggest?prefix=foo&type=user — tag autocomplete.
  * Returns up to 10 tags matching the prefix, ordered by frequency.

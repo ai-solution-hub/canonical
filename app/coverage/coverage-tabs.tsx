@@ -43,17 +43,17 @@ function GapSummaryBanner({
   );
 
   return (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+    <div className="rounded-lg border border-gap-summary-border bg-gap-summary-bg p-4">
       <div className="flex items-start gap-3">
         <AlertTriangle
-          className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
+          className="mt-0.5 size-5 shrink-0 text-gap-summary-icon"
           aria-hidden="true"
         />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+          <p className="text-sm font-medium text-gap-summary-title">
             Action required: content gaps detected
           </p>
-          <p className="mt-1 text-sm text-amber-700 dark:text-amber-300">
+          <p className="mt-1 text-sm text-gap-summary-text">
             {summary.total_gaps > 0 && (
               <>
                 <strong>{summary.total_gaps}</strong>{' '}
@@ -104,7 +104,7 @@ function GapSummaryBanner({
 
           {/* Per-template breakdown */}
           {summary.gaps_by_template.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-xs text-amber-700 dark:text-amber-300">
+            <ul className="mt-2 space-y-0.5 text-xs text-gap-summary-text">
               {summary.gaps_by_template.map((t) => (
                 <li key={t.template_name}>
                   <strong>{t.template_name}</strong>:{' '}
@@ -124,7 +124,7 @@ function GapSummaryBanner({
           <button
             type="button"
             onClick={onViewTemplates}
-            className="mt-2 text-xs font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
+            className="mt-2 text-xs font-medium text-gap-summary-link underline underline-offset-2 hover:text-gap-summary-link-hover"
           >
             View template coverage details
           </button>

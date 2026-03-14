@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { parseBody } from '@/lib/validation';
+import { safeErrorMessage } from '@/lib/error';
 
 const RevokeSchema = z.object({
   clientId: z.string().uuid('Invalid client ID'),
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: safeErrorMessage(error, 'Failed to revoke OAuth grant') }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

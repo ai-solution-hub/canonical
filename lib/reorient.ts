@@ -64,27 +64,33 @@ export async function fetchReorientData(
   const lastWriteAt = lastWriteResult.data?.[0]?.created_at ?? null;
   const lastReadAt = lastReadResult.data?.[0]?.read_at ?? null;
 
+  // Fetch auth user once — used for last_sign_in_at fallback and display name
+  let authUser: {
+    last_sign_in_at?: string | null;
+    user_metadata?: Record<string, unknown>;
+    email?: string | null;
+  } | null = null;
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    authUser = user;
+  } catch {
+    // Non-critical — will fall back to defaults
+  }
+
   let lastActiveAt: string | null = null;
 
   if (lastWriteAt && lastReadAt) {
     // Take the more recent of the two
-    lastActiveAt = new Date(lastWriteAt) >= new Date(lastReadAt)
-      ? lastWriteAt
-      : lastReadAt;
+    lastActiveAt =
+      new Date(lastWriteAt) >= new Date(lastReadAt) ? lastWriteAt : lastReadAt;
   } else if (lastWriteAt) {
     lastActiveAt = lastWriteAt;
   } else if (lastReadAt) {
     lastActiveAt = lastReadAt;
-  } else {
-    // Fall back to last_sign_in_at from auth
-    try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (authUser?.last_sign_in_at) {
-        lastActiveAt = authUser.last_sign_in_at;
-      }
-    } catch {
-      // Non-critical — will fall back to 24h ago
-    }
+  } else if (authUser?.last_sign_in_at) {
+    lastActiveAt = authUser.last_sign_in_at;
   }
 
   // Final fallback: 24 hours ago
@@ -172,7 +178,7 @@ export async function fetchReorientData(
           user_name: null, // Resolved client-side via useDisplayNames
           action: mapChangeTypeToAction(row.change_type ?? 'edit') as TeamChange['action'],
           entity_type: 'content_item',
-          entity_id: row.content_item_id,
+          entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
           domain: ci?.primary_domain ?? undefined,
           created_at: row.created_at,
@@ -231,7 +237,7 @@ export async function fetchReorientData(
         const ci = row.content_items as unknown as { title: string } | null;
         my_recent_work.push({
           entity_type: 'content_item',
-          entity_id: row.content_item_id,
+          entity_id: row.content_item_id ?? '',
           entity_title: ci?.title ?? 'Untitled',
           action: mapChangeTypeToAction(row.change_type ?? 'edit') as RecentWorkItem['action'],
           href: `/item/${row.content_item_id}`,
@@ -444,18 +450,13 @@ export async function fetchReorientData(
   // Sort by priority
   urgent.sort((a, b) => a.priority - b.priority);
 
-  // Get user display name from auth
+  // Get user display name from auth (reuse authUser fetched earlier)
   let userDisplayName: string | null = null;
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.user_metadata?.full_name) {
-      const fullName = user.user_metadata.full_name as string;
-      userDisplayName = fullName.split(' ')[0] ?? fullName;
-    } else if (user?.email) {
-      userDisplayName = user.email.split('@')[0] ?? null;
-    }
-  } catch {
-    // Non-critical — greeting will just omit the name
+  if (authUser?.user_metadata?.full_name) {
+    const fullName = authUser.user_metadata.full_name as string;
+    userDisplayName = fullName.split(' ')[0] ?? fullName;
+  } else if (authUser?.email) {
+    userDisplayName = authUser.email.split('@')[0] ?? null;
   }
 
   return {

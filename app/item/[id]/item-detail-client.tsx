@@ -1,46 +1,23 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { Pencil, ChevronDown, ChevronRight } from 'lucide-react';
-import Link from 'next/link';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTranscript } from '@/hooks/use-transcript';
 import { useReaderPreferences } from '@/hooks/use-reader-preferences';
-import { TranscriptReader } from '@/components/transcript-reader';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Thumbnail } from '@/components/thumbnail';
 import { ContentTabs } from '@/components/content-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
-import { ContentCard } from '@/components/content-card';
-import { RelatedByTags } from '@/components/related-by-tags';
-import { EntityBadges } from '@/components/entity-badges';
-import { RelatedByEntities } from '@/components/related-by-entities';
-import { VersionHistory } from '@/components/version-history';
-import { ContentTypeHeader } from '@/components/content-type-header';
-import { VerificationBadge } from '@/components/verification-badge';
-import dynamic from 'next/dynamic';
-
-const ImageGallery = dynamic(
-  () => import('@/components/image-gallery').then((mod) => mod.ImageGallery),
-  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-lg bg-accent" /> },
-);
 import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
-
-import { TableOfContents } from '@/components/table-of-contents';
 import { OrganiseSection } from '@/components/organise-section';
-import { BreadcrumbNav } from '@/components/breadcrumb-nav';
+import { EntityBadges } from '@/components/entity-badges';
+import { VersionHistory } from '@/components/version-history';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
 import { getDisplayTitle } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
-import { isFeatureEnabled } from '@/lib/client-config';
-import { getLayerLabel } from '@/lib/validation/layer-schemas';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
 // Extracted hooks
@@ -52,9 +29,16 @@ import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
 
 // Extracted sub-components
 import { ItemActionBar } from '@/components/item-action-bar';
-import { QAAnswerDisplay } from '@/components/qa-answer-display';
-import { ContentLayerSelector } from '@/components/content-layer-selector';
-import { AiProcessingIndicators } from '@/components/ai-processing-indicators';
+import {
+  CollapsibleSection,
+  RelatedContentSection,
+  QAUsedInBids,
+  QARelatedPairs,
+  ContentBody,
+  LayerSwitcherNav,
+  ItemTitleSection,
+  ItemBreadcrumb,
+} from '@/components/item-detail';
 
 import type {
   ContentListItem,
@@ -111,157 +95,6 @@ export interface ItemData {
 interface ItemDetailClientProps {
   item: ItemData;
   relatedItems: Array<ContentListItem & { similarity: number }>;
-}
-
-/**
- * Collapsible section with chevron trigger for grouping item detail regions.
- */
-function CollapsibleSection({
-  title,
-  defaultOpen = true,
-  children,
-  className,
-  contentClassName,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-  className?: string;
-  contentClassName?: string;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  return (
-    <div className={className}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-expanded={isOpen}
-        className="flex w-full items-center gap-2 py-2 text-left transition-colors hover:text-foreground"
-      >
-        {isOpen ? (
-          <ChevronDown className="size-4 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="size-4 text-muted-foreground" />
-        )}
-        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </span>
-      </button>
-      {isOpen && <div className={contentClassName}>{children}</div>}
-    </div>
-  );
-}
-
-/**
- * Consolidated related content section.
- * Wraps Similar Items, RelatedByTags, and RelatedByEntities into a single
- * "Related Content" section with sub-headings. Only renders the outer
- * section when at least one sub-section has visible content.
- *
- * Similar Items are rendered inline (not via RelatedItems component) to avoid
- * its own section wrapper. RelatedByTags and RelatedByEntities retain their
- * own internal headings which serve as the sub-headings.
- */
-function RelatedContentSection({
-  relatedItems,
-  itemId,
-  userTags,
-}: {
-  relatedItems: Array<ContentListItem & { similarity: number }>;
-  itemId: string;
-  userTags: string[];
-}) {
-  const entitiesRef = useRef<HTMLDivElement>(null);
-  const [hasEntities, setHasEntities] = useState<boolean | null>(null);
-
-  const hasRelatedItems = relatedItems.length > 0;
-  const hasTags = userTags.length > 0;
-
-  // RelatedByEntities fetches async and returns null when empty.
-  // Observe its container to detect whether it rendered visible content.
-  useEffect(() => {
-    const container = entitiesRef.current;
-    if (!container) return;
-
-    const checkContent = () => {
-      // RelatedByEntities renders a <div> with an <h3> and <ul> when it has
-      // results, or null when empty. A loading spinner is also a child element.
-      // We consider it "has content" if there's any child element at all
-      // (loading or results), and "empty" only when it has none.
-      const childCount = container.childElementCount;
-      setHasEntities(childCount > 0);
-    };
-
-    const observer = new MutationObserver(checkContent);
-    observer.observe(container, { childList: true, subtree: true });
-
-    // Initial check after a micro-task to let React render
-    queueMicrotask(checkContent);
-
-    return () => observer.disconnect();
-  }, [itemId]);
-
-  // Show the section if any synchronous content exists, or if entities loaded
-  const hasAnyContent = hasRelatedItems || hasTags || hasEntities === true;
-  // Still loading entities — don't hide the section yet
-  const isEntitiesLoading = hasEntities === null;
-  const showSection = hasAnyContent || isEntitiesLoading;
-
-  if (!showSection) {
-    return null;
-  }
-
-  return (
-    <section
-      className="mt-12 border-t border-border pt-8"
-      aria-label="Related content"
-    >
-      <h2 className="mb-6 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-        Related Content
-      </h2>
-      <div className="space-y-8">
-        {/* Similar items (by embedding similarity) */}
-        {hasRelatedItems && (
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">
-              Similar Items
-            </h3>
-            <div
-              className="grid gap-4"
-              style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-              }}
-            >
-              {relatedItems.map((related) => (
-                <ContentCard
-                  key={related.id as string}
-                  item={related}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Shared tags — RelatedByTags renders its own heading */}
-        {hasTags && (
-          <div>
-            <RelatedByTags
-              itemId={itemId}
-              tags={userTags}
-            />
-          </div>
-        )}
-
-        {/* Shared entities — RelatedByEntities renders its own heading */}
-        <div ref={entitiesRef}>
-          <RelatedByEntities
-            contentItemId={itemId}
-          />
-        </div>
-      </div>
-    </section>
-  );
 }
 
 export function ItemDetailClient({
@@ -576,6 +409,28 @@ export function ItemDetailClient({
     />
   );
 
+  const readerPanelProps = {
+    readerHtml: item.metadata?.reader_html as string | undefined,
+    contentType: item.content_type,
+    title,
+    fontSize,
+    maxWidth,
+    onFontSizeChange: setFontSize,
+    onMaxWidthChange: setMaxWidth,
+    onClose: () => setReaderOpen(false),
+    platform: item.platform,
+    metadata: item.metadata,
+    authorName: item.author_name,
+    sourceUrl: item.source_url,
+    filePath: item.file_path,
+    content: item.content,
+    transcriptChapters,
+    segments,
+    highlights,
+    frameable: item.metadata?.frameable === true,
+    onDetachToggle: toggleDetached,
+  };
+
   // Item detail content -- extracted to keep the PanelGroup JSX clean
   const itemDetailContent = (
     <>
@@ -588,62 +443,17 @@ export function ItemDetailClient({
       </div>
 
       {/* Breadcrumb navigation */}
-      {isQAPair ? (
-        <nav aria-label="Breadcrumb" className="mb-4">
-          <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <li>
-              <Link href="/library" className="hover:text-foreground transition-colors">
-                Q&A Library
-              </Link>
-            </li>
-            {item.primary_domain && (
-              <>
-                <li aria-hidden="true">/</li>
-                <li>{item.primary_domain}</li>
-              </>
-            )}
-          </ol>
-        </nav>
-      ) : (
-        <BreadcrumbNav
-          domain={item.primary_domain as string | null}
-          title={title}
-          className="mb-4"
-        />
-      )}
+      <ItemBreadcrumb
+        isQAPair={isQAPair}
+        primaryDomain={item.primary_domain}
+        title={title}
+      />
 
       {/* Layer switcher — shows linked items sharing the same topic_id */}
-      {isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
-        <nav aria-label="Content layers" className="mb-4">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-medium text-muted-foreground mr-1">Layers:</span>
-            {topicLayers.map((layerItem) => {
-              const isCurrent = layerItem.id === item.id;
-              const label = layerItem.layer
-                ? getLayerLabel(layerItem.layer)
-                : layerItem.title ?? 'Untitled';
-              return isCurrent ? (
-                <Badge
-                  key={layerItem.id}
-                  variant="default"
-                  className="text-xs"
-                >
-                  {label}
-                </Badge>
-              ) : (
-                <Link key={layerItem.id} href={`/item/${layerItem.id}`}>
-                  <Badge
-                    variant="outline"
-                    className="text-xs cursor-pointer hover:bg-accent transition-colors"
-                  >
-                    {label}
-                  </Badge>
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      )}
+      <LayerSwitcherNav
+        currentItemId={item.id}
+        topicLayers={topicLayers}
+      />
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
@@ -660,51 +470,18 @@ export function ItemDetailClient({
             />
           ) : null}
 
-          {/* Title + inline badges */}
-          <div className="mb-2">
-            {isEditing ? (
-              <Input
-                autoFocus
-                value={editTitle}
-                onChange={(e) => {
-                  setEditTitle(e.target.value);
-                  setEditDirty(true);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveAll();
-                  if (e.key === 'Escape') cancelEditMode();
-                }}
-                className="text-xl font-bold"
-              />
-            ) : (
-              <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
-            )}
-            {/* Inline badges */}
-            {(item.verified_at || item.source_document) && (
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <VerificationBadge verified={!!item.verified_at} size="md" />
-                {item.source_document && (
-                  <span className="text-xs text-muted-foreground">
-                    Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Editing banner */}
-          {isEditing && (
-            <div className="mb-4 flex items-center justify-between rounded-md border border-status-warning/30 bg-quality-moderate-bg px-4 py-2 text-sm">
-              <span className="flex items-center gap-1.5 font-medium text-status-warning">
-                <Pencil className="size-3.5 shrink-0" aria-hidden="true" />
-                Editing{editDirty ? ' \u2014 unsaved changes' : ''}
-              </span>
-              <div className="flex gap-2">
-                <Button size="sm" onClick={handleSaveAll}>Save</Button>
-                <Button size="sm" variant="outline" onClick={cancelEditMode}>Cancel</Button>
-              </div>
-            </div>
-          )}
+          {/* Title + inline badges + editing banner */}
+          <ItemTitleSection
+            item={item}
+            title={title}
+            isEditing={isEditing}
+            editDirty={editDirty}
+            editTitle={editTitle}
+            setEditTitle={setEditTitle}
+            setEditDirty={setEditDirty}
+            handleSaveAll={handleSaveAll}
+            cancelEditMode={cancelEditMode}
+          />
 
           {/* Action bar */}
           <ItemActionBar
@@ -727,178 +504,37 @@ export function ItemDetailClient({
             setItem={setItem}
           />
 
-          {/* ── Content group (expanded by default) ── */}
+          {/* Content group (expanded by default) */}
           <CollapsibleSection title="Content" defaultOpen>
-            {/* Content-type specific header */}
-            <ContentTypeHeader
-              contentType={item.content_type}
-              platform={item.platform}
-              metadata={item.metadata}
-              sourceUrl={item.source_url}
-              authorName={item.author_name}
+            <ContentBody
+              item={item}
+              setItem={setItem}
+              isQAPair={isQAPair}
+              canEdit={canEdit}
+              contentTabsElement={contentTabsElement}
+              isEditing={isEditing}
+              editStandard={editStandard}
+              editAdvanced={editAdvanced}
+              setEditStandard={setEditStandard}
+              setEditAdvanced={setEditAdvanced}
+              setEditDirty={setEditDirty}
+              handleCopyAnswer={handleCopyAnswer}
+              visionAnalysis={visionAnalysis}
+              transcriptChapters={transcriptChapters}
+              segments={segments}
+              highlights={highlights}
+              handleLayerChange={handleLayerChange}
+              getActiveTabContent={getActiveTabContent}
             />
 
-            {/* AI processing indicators (classify / summarise — not for Q&A pairs) */}
-            {canEdit && item.content && !isQAPair && (
-              <AiProcessingIndicators
-                item={item}
-                onItemUpdated={setItem}
-              />
-            )}
-
-            {/* Content display — Q&A pair gets dedicated layout, others get tabs */}
-            {isQAPair ? (
-              <QAAnswerDisplay
-                item={item}
-                isEditing={isEditing}
-                editStandard={editStandard}
-                editAdvanced={editAdvanced}
-                setEditStandard={setEditStandard}
-                setEditAdvanced={setEditAdvanced}
-                setEditDirty={setEditDirty}
-                handleCopyAnswer={handleCopyAnswer}
-              />
-            ) : (
-              contentTabsElement
-            )}
-
             {/* Q&A provenance: bids using this pair */}
-            {isQAPair && usedInWorkspaces.length > 0 && (
-              <div className="mb-6 rounded-xl border border-border bg-card p-4">
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Used in {usedInWorkspaces.length} bid{usedInWorkspaces.length !== 1 ? 's' : ''}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {usedInWorkspaces.map((w) => (
-                    <Link
-                      key={w.id}
-                      href={`/bid/${w.id}`}
-                      className="rounded-md border border-border px-2.5 py-1 text-sm text-foreground hover:bg-accent transition-colors"
-                    >
-                      {w.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
+            {isQAPair && (
+              <QAUsedInBids workspaces={usedInWorkspaces} />
             )}
 
             {/* Q&A related pairs from the same source document */}
-            {isQAPair && relatedQA.length > 0 && (
-              <div className="mb-6 rounded-xl border border-border bg-card p-4">
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Related Q&A pairs (same source)
-                </h3>
-                <ul className="space-y-1">
-                  {relatedQA.map((q) => (
-                    <li key={q.id}>
-                      <Link
-                        href={`/item/${q.id}`}
-                        className="block rounded px-2 py-1.5 text-sm text-foreground hover:bg-accent transition-colors"
-                      >
-                        {q.title ?? 'Untitled'}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Table of Contents (not shown for Q&A pairs) */}
-            {!isQAPair && (
-              <TableOfContents content={getActiveTabContent()} className="mb-6" />
-            )}
-
-            {/* Vision analysis (PDF items) */}
-            {visionAnalysis && (
-              <section className="mb-6">
-                <h2 className="mb-2 text-sm font-semibold">Visual Analysis</h2>
-                <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
-                  {visionAnalysis.analysis}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Analysed {new Date(visionAnalysis.analysed_at).toLocaleDateString('en-GB')} · {visionAnalysis.model} · {visionAnalysis.tokens_used.toLocaleString()} tokens
-                </p>
-              </section>
-            )}
-
-            {/* Extracted images gallery (PDF items) */}
-            {item.content_type === 'pdf' &&
-              (item.file_path || item.source_url) && (
-                <ImageGallery
-                  itemId={item.id}
-                  hasExtractedImages={
-                    Array.isArray(
-                      (item.metadata as Record<string, unknown> | null)
-                        ?.extracted_images,
-                    )
-                  }
-                  className="mb-6"
-                />
-              )}
-
-            {/* Transcript reader (for transcripts with chapters) */}
-            {item.content &&
-              item.content_type === 'transcript' &&
-              transcriptChapters &&
-              transcriptChapters.length > 0 && (
-                <section className="mb-8">
-                  <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Transcript
-                  </h2>
-                  <TranscriptReader
-                    content={item.content}
-                    chapters={transcriptChapters}
-                    segments={segments ?? undefined}
-                    highlights={highlights ?? undefined}
-                  />
-                </section>
-              )}
-
-            {/* Content Layer selector */}
-            <ContentLayerSelector
-              item={item}
-              canEdit={canEdit}
-              handleLayerChange={handleLayerChange}
-            />
-
-            {/* Draft toggle (editors only, when draft_status feature enabled) */}
-            {isFeatureEnabled('draft_status') && canEdit && (
-              <section className="mb-6 border-t border-border pt-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Status
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const isDraft = item.governance_review_status === 'draft';
-                      const newStatus = isDraft ? null : 'draft';
-                      setItem((prev) => ({ ...prev, governance_review_status: newStatus }));
-                      try {
-                        const supabase = createClient();
-                        const { error } = await supabase
-                          .from('content_items')
-                          .update({ governance_review_status: newStatus })
-                          .eq('id', item.id);
-                        if (error) throw error;
-                        toast.success(isDraft ? 'Published' : 'Marked as draft');
-                      } catch (err) {
-                        console.error('Failed to update governance review status:', err);
-                        setItem((prev) => ({ ...prev, governance_review_status: isDraft ? 'draft' : null }));
-                        toast.error('Failed to update status');
-                      }
-                    }}
-                    className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                      item.governance_review_status === 'draft'
-                        ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
-                        : 'border-status-success bg-freshness-fresh-bg text-status-success hover:bg-freshness-fresh-bg',
-                    )}
-                  >
-                    {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}
-                  </button>
-                </div>
-              </section>
+            {isQAPair && (
+              <QARelatedPairs relatedQA={relatedQA} />
             )}
 
             {/* OrganiseSection — replaces separate keywords/workspaces/tags */}
@@ -915,7 +551,7 @@ export function ItemDetailClient({
             />
           </CollapsibleSection>
 
-          {/* ── Relationships group (collapsed by default) ── */}
+          {/* Relationships group (collapsed by default) */}
           <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
             {/* Entity mentions — shows badges grouped by entity type */}
             <EntityBadges
@@ -945,7 +581,7 @@ export function ItemDetailClient({
           </CollapsibleSection>
         </article>
 
-        {/* ── Metadata sidebar (expanded on desktop, collapsed on mobile) ── */}
+        {/* Metadata sidebar (expanded on desktop, collapsed on mobile) */}
         <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border border-border bg-card p-4">
           <MetadataSidebar
             item={item}
@@ -960,28 +596,6 @@ export function ItemDetailClient({
       </div>
     </>
   );
-
-  const readerPanelProps = {
-    readerHtml: item.metadata?.reader_html as string | undefined,
-    contentType: item.content_type,
-    title,
-    fontSize,
-    maxWidth,
-    onFontSizeChange: setFontSize,
-    onMaxWidthChange: setMaxWidth,
-    onClose: () => setReaderOpen(false),
-    platform: item.platform,
-    metadata: item.metadata,
-    authorName: item.author_name,
-    sourceUrl: item.source_url,
-    filePath: item.file_path,
-    content: item.content,
-    transcriptChapters,
-    segments,
-    highlights,
-    frameable: item.metadata?.frameable === true,
-    onDetachToggle: toggleDetached,
-  };
 
   return (
     <>

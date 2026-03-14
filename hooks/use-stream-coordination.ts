@@ -466,13 +466,16 @@ export function useStreamCoordination({
         try {
           const existingIds = (response.source_content ?? []).map((s) => s.id);
           if (!existingIds.includes(sourceId)) {
-            await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
+            const res = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 source_content_ids: [...existingIds, sourceId],
               }),
             });
+            if (!res.ok) {
+              console.error('Failed to update provenance:', res.status);
+            }
             // Refresh response to pick up new source_content
             void fetchResponse();
           }

@@ -7,6 +7,8 @@ import {
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 60;
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();

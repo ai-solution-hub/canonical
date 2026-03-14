@@ -5,6 +5,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { GovernanceConfigBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/governance
  *

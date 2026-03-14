@@ -8,6 +8,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { TemplateFillBodySchema } from '@/lib/validation/template-schemas';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

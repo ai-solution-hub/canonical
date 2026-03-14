@@ -243,7 +243,7 @@ export type Database = {
           change_summary: string | null
           change_type: string
           content: string
-          content_item_id: string
+          content_item_id: string | null
           created_at: string
           created_by: string | null
           detail: string | null
@@ -258,7 +258,7 @@ export type Database = {
           change_summary?: string | null
           change_type?: string
           content: string
-          content_item_id: string
+          content_item_id?: string | null
           created_at?: string
           created_by?: string | null
           detail?: string | null
@@ -273,7 +273,7 @@ export type Database = {
           change_summary?: string | null
           change_type?: string
           content?: string
-          content_item_id?: string
+          content_item_id?: string | null
           created_at?: string
           created_by?: string | null
           detail?: string | null
@@ -1489,6 +1489,21 @@ export type Database = {
           count: number
           source: string
           tag: string
+        }[]
+      }
+      get_audit_content_items: {
+        Args: { p_domain?: string; p_limit?: number }
+        Returns: {
+          ai_keywords: string[]
+          ai_summary: string
+          classification_confidence: number
+          content_length: number
+          content_type: string
+          freshness: string
+          id: string
+          primary_domain: string
+          suggested_title: string
+          title: string
         }[]
       }
       get_author_analysis: { Args: { p_author_name: string }; Returns: Json }

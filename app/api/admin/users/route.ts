@@ -3,6 +3,8 @@ import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 30;
+
 interface UserWithRole {
   id: string;
   email: string;
@@ -22,7 +24,7 @@ export async function GET() {
 
     // Fetch all users from Supabase Auth
     const { data: authData, error: authError } =
-      await serviceClient.auth.admin.listUsers();
+      await serviceClient.auth.admin.listUsers({ perPage: 1000 });
 
     if (authError) {
       console.error('Failed to list users:', authError);

@@ -4,6 +4,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { RollbackBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -83,7 +85,7 @@ export async function POST(
 
     const nextVersion = (maxVersionData?.version ?? 0) + 1;
 
-    await supabase.from('content_history').insert({
+    const { error: snapshotError } = await supabase.from('content_history').insert({
       content_item_id: id,
       version: nextVersion,
       title: currentItem.title ?? '',
@@ -96,6 +98,14 @@ export async function POST(
       change_type: 'rollback',
       created_by: user.id,
     });
+
+    if (snapshotError) {
+      console.error('Failed to snapshot current state before rollback:', snapshotError);
+      return NextResponse.json(
+        { error: 'Failed to save current version snapshot — rollback aborted' },
+        { status: 500 },
+      );
+    }
 
     // Step 6: Update content_items with the target version's data
     const { data: updateResult, error: updateError } = await supabase

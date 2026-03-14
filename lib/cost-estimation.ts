@@ -9,9 +9,9 @@
  * Provides min (80% cache hit) and max (no caching) cost estimates.
  */
 
-// Re-use the canonical pricing from lib/anthropic.ts
-// Duplicated here as plain constants to keep this module free of Anthropic SDK imports
-// and usable in both server and test contexts.
+// IMPORTANT: These rates are duplicated from the canonical source in lib/anthropic.ts.
+// Kept separate to avoid importing the Anthropic SDK (this module must work in
+// server + test contexts without the SDK). When updating rates, update BOTH files.
 const COST_PER_MILLION: Record<string, { input: number; output: number; cache_read: number }> = {
   'claude-opus-4-6':   { input: 15, output: 75, cache_read: 1.5 },
   'claude-sonnet-4-5': { input: 3,  output: 15, cache_read: 0.3 },

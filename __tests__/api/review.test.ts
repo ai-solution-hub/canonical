@@ -438,8 +438,18 @@ describe('GET /api/review/stats', () => {
         return resolve({ data: null, error: null, count: 60 });
       }
       if (thenCallCount === 3) {
-        // Flagged count
-        return resolve({ data: null, error: null, count: 5 });
+        // Flagged items (distinct content_item_ids)
+        return resolve({
+          data: [
+            { content_item_id: 'a1' },
+            { content_item_id: 'a2' },
+            { content_item_id: 'a3' },
+            { content_item_id: 'a4' },
+            { content_item_id: 'a5' },
+          ],
+          error: null,
+          count: null,
+        });
       }
       if (thenCallCount === 4) {
         // Draft count

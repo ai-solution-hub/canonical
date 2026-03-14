@@ -4,6 +4,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { WorkspaceCreateBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /** GET /api/workspaces — list workspaces (active only by default, ?include_archived=true for all) */
 export async function GET(request: NextRequest) {
   try {

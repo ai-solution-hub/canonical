@@ -130,8 +130,17 @@ export async function POST(
 
     let totalCost = 0;
     let totalTokens = 0;
+    const startTime = Date.now();
+    const TIMEOUT_SAFETY_MS = 100_000; // Break at 100s to stay under 120s limit
+    let timedOut = false;
 
     for (const question of questions) {
+      // Check if approaching timeout — break early with partial results
+      if (Date.now() - startTime > TIMEOUT_SAFETY_MS) {
+        timedOut = true;
+        break;
+      }
+
       // Skip no_content questions
       if (question.confidence_posture === 'no_content') {
         results.push({
@@ -243,7 +252,14 @@ export async function POST(
         .select('id', { count: 'exact', head: true })
         .eq('project_id', id)
         .neq('confidence_posture', 'no_content')
-        .not('id', 'in', `(${results.filter((r) => r.status === 'drafted' || r.status === 'skipped').map((r) => `"${r.question_id}"`).join(',')})`)
+        .not(
+          'id',
+          'in',
+          `(${results
+            .filter((r) => r.status === 'drafted' || r.status === 'skipped')
+            .map((r) => r.question_id)
+            .join(',')})`,
+        )
         .is('status', null);
 
       // If all non-no_content questions have been processed, transition
@@ -268,6 +284,13 @@ export async function POST(
       results,
       total_cost: totalCost,
       total_tokens: totalTokens,
+      ...(timedOut
+        ? {
+            timed_out: true,
+            remaining: questions.length - results.length,
+            message: `Processed ${results.length} of ${questions.length} questions before approaching timeout. Re-run with skip_existing to continue.`,
+          }
+        : {}),
     });
   } catch (err) {
     return NextResponse.json(

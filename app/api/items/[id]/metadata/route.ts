@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 import type { Json } from '@/supabase/types/database.types';
 
+export const maxDuration = 30;
+
 const layerValues = CLIENT_CONFIG.layer_vocabulary.map((l) => l.key);
 
 const MetadataUpdateSchema = z
@@ -38,43 +40,45 @@ export async function PATCH(
       );
     }
 
-    // Fetch current metadata
-    const { data: current, error: fetchError } = await supabase
+    // Build metadata to merge — strip undefined values, keep nulls for deletion
+    const newMetadata: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(parsed.data)) {
+      if (value !== undefined) {
+        newMetadata[key] = value;
+      }
+    }
+
+    // Use atomic merge RPC to avoid read-modify-write race conditions
+    const { error: mergeError } = await supabase.rpc('merge_item_metadata', {
+      p_item_id: id,
+      p_new_data: newMetadata as unknown as Json,
+    });
+
+    if (mergeError) {
+      // RPC returns error if item not found (no rows updated)
+      const isNotFound =
+        mergeError.message?.includes('not found') ||
+        mergeError.code === 'PGRST116';
+      if (isNotFound) {
+        return NextResponse.json(
+          { error: 'Item not found' },
+          { status: 404 },
+        );
+      }
+      return NextResponse.json(
+        { error: safeErrorMessage(mergeError, 'Failed to update metadata') },
+        { status: 500 },
+      );
+    }
+
+    // Fetch updated metadata to return
+    const { data: updated } = await supabase
       .from('content_items')
       .select('metadata')
       .eq('id', id)
       .single();
 
-    if (fetchError || !current) {
-      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-    }
-
-    // Merge updates into existing metadata
-    const existingMetadata =
-      (current.metadata as Record<string, unknown>) || {};
-    const updatedMetadata = { ...existingMetadata };
-
-    for (const [key, value] of Object.entries(parsed.data)) {
-      if (value === null) {
-        delete updatedMetadata[key];
-      } else if (value !== undefined) {
-        updatedMetadata[key] = value;
-      }
-    }
-
-    const { error: updateError } = await supabase
-      .from('content_items')
-      .update({ metadata: updatedMetadata as unknown as Json })
-      .eq('id', id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { error: safeErrorMessage(updateError, 'Failed to update metadata') },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ metadata: updatedMetadata });
+    return NextResponse.json({ metadata: updated?.metadata ?? {} });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update metadata') },

@@ -7,6 +7,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { QuestionUpdateBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

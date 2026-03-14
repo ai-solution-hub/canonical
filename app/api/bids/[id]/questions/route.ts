@@ -14,6 +14,8 @@ import { parseBody } from '@/lib/validation';
 import { QuestionCreateBodySchema } from '@/lib/validation/schemas';
 import { z } from 'zod';
 
+export const maxDuration = 30;
+
 /** Schema for batch question insert (from QuestionReview) */
 const BatchQuestionCreateSchema = z.object({
   questions: z.array(

@@ -463,7 +463,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     } catch (err) {
       console.error('Failed to verify item:', err);
       toast.error('Action failed. Check your connection and try again.');
-      // Rollback the counter and the optimistic verified_at/verified_by fields
+      // Rollback the counter, the optimistic verified_at/verified_by fields, and the index
       setProgress((prev) => ({
         ...prev,
         verified: prev.verified - (wasAlreadyVerified ? 0 : 1),
@@ -476,6 +476,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
             : item,
         ),
       );
+      setCurrentIndex(previousIndex);
     } finally {
       setIsActioning(false);
     }
@@ -497,10 +498,15 @@ export function useReviewQueue(): UseReviewQueueReturn {
       });
       if (!res.ok) throw new Error('Publish failed');
 
-      // Optimistic: remove from queue (it's no longer a draft)
-      setQueue((prev) => prev.filter((_, i) => i !== currentIndex));
-      // Adjust index if needed
-      setCurrentIndex((prev) => Math.min(prev, Math.max(0, queue.length - 2)));
+      // Optimistic: remove from queue (it's no longer a draft).
+      // Compute new index inside the setQueue updater to avoid stale queue.length closure.
+      setQueue((prev) => {
+        const next = prev.filter((_, i) => i !== currentIndex);
+        // Clamp currentIndex to the new last valid index
+        const maxIndex = Math.max(0, next.length - 1);
+        setCurrentIndex((idx) => Math.min(idx, maxIndex));
+        return next;
+      });
 
       toast.success(`Published: ${itemTitle}`);
       setAnnouncement(`Published. ${itemTitle} is now live.`);
@@ -513,7 +519,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     } finally {
       setIsActioning(false);
     }
-  }, [currentItem, isActioning, currentIndex, queue.length, fetchStats]);
+  }, [currentItem, isActioning, currentIndex, fetchStats]);
 
   const handleFlagSubmit = useCallback(
     async (details?: string) => {
@@ -579,6 +585,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
           flagged: prev.flagged - 1,
           sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
         }));
+        setCurrentIndex(previousIndex);
       } finally {
         setIsActioning(false);
       }

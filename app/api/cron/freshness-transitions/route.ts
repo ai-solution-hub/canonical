@@ -19,6 +19,8 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';
 
+export const maxDuration = 30;
+
 const BATCH_THRESHOLD = 10;
 
 type FreshnessState = 'fresh' | 'aging' | 'stale' | 'expired';
@@ -74,6 +76,8 @@ export async function GET(request: NextRequest) {
       .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type')
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh') // Skip transitions TO fresh (positive = silent)
+      // `as never` required: PostgREST .filter() compares column to a literal string
+      // value, but Supabase generated types don't allow arbitrary filter values.
       .filter('previous_freshness', 'neq', 'freshness' as never);
 
     if (queryError) {

@@ -11,6 +11,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { BidCreateBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /** GET /api/bids -- list all bids (active only) */
 export async function GET(request: NextRequest) {
   try {

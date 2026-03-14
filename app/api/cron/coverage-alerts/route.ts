@@ -12,6 +12,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
+
+export const maxDuration = 30;
+
 import {
   createBulkNotifications,
   getExistingNotificationIds,

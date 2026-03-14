@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Building2, Calendar, Hash, PoundSterling, FileText, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { formatDateUK } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -72,9 +73,15 @@ export function TenderMetadataPrompt({ metadata, bidId, onUpdated, className }: 
       });
 
       if (res.ok) {
+        toast.success('Tender metadata applied to bid');
         setDismissed(true);
         onUpdated?.();
+      } else {
+        toast.error('Failed to apply tender metadata. Please try again.');
       }
+    } catch (err) {
+      console.error('Failed to apply tender metadata:', err);
+      toast.error('Failed to apply tender metadata. Check your connection and try again.');
     } finally {
       setApplying(false);
     }

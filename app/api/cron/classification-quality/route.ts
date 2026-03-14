@@ -99,8 +99,15 @@ export async function GET(request: NextRequest) {
     // Fetch admin user IDs for review notifications
     const adminIds = await getUsersByRole(supabase, ['admin']);
 
-    // We need a userId for classifyContent — use first admin or a system placeholder
-    const systemUserId = adminIds[0] ?? '00000000-0000-0000-0000-000000000000';
+    // We need a userId for classifyContent — skip if no admin exists
+    if (adminIds.length === 0) {
+      console.warn('Classification quality: no admin user found, skipping run');
+      return NextResponse.json({
+        success: true,
+        skipped_reason: 'no_admin_user',
+      });
+    }
+    const systemUserId = adminIds[0];
 
     const results: ReclassifyResult[] = [];
 

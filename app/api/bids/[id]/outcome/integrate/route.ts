@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getAuthorisedClient,
   authFailureResponse,
+  rateLimitResponse,
 } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
@@ -10,6 +12,8 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import type { BidState } from '@/lib/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
+
+export const maxDuration = 60;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -23,6 +27,9 @@ export async function POST(
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
+
+    const { allowed } = checkRateLimit(`bid-integrate:${user.id}`, 10, 60_000);
+    if (!allowed) return rateLimitResponse();
 
     const { id } = await params;
     if (!UUID_RE.test(id)) {

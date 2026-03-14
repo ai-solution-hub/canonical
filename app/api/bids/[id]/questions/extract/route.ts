@@ -11,6 +11,7 @@ import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
 import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
+import { canTransition, type BidState } from '@/lib/bid-state-machine';
 
 export const maxDuration = 120;
 
@@ -184,10 +185,20 @@ export async function POST(
 
       questionsInserted = newQuestions.length;
 
-      // Update bid status to questions_extracted
-      await supabase.from('workspaces').update({
-        status: 'questions_extracted',
-      }).eq('id', id);
+      // Update bid status to questions_extracted (only if transition is valid)
+      const { data: currentBid } = await supabase
+        .from('workspaces')
+        .select('status')
+        .eq('id', id)
+        .single();
+
+      const currentStatus = (currentBid?.status ?? 'draft') as BidState;
+      if (canTransition(currentStatus, 'questions_extracted')) {
+        await supabase.from('workspaces').update({
+          status: 'questions_extracted',
+          updated_at: new Date().toISOString(),
+        }).eq('id', id);
+      }
     }
 
     // Best-effort tender metadata extraction (non-critical)

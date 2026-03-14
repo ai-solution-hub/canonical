@@ -5,6 +5,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { GovernanceReviewBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/governance/review
  *
@@ -144,16 +146,18 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('content_items')
       .update(updateData)
-      .eq('id', item_id);
+      .eq('id', item_id)
+      .select('id')
+      .single();
 
-    if (updateError) {
+    if (updateError || !updated) {
       console.error('Failed to process governance review:', updateError);
       return NextResponse.json(
-        { error: 'Failed to process governance review' },
-        { status: 500 },
+        { error: 'Item not found or governance review update failed' },
+        { status: updateError ? 500 : 404 },
       );
     }
 
@@ -175,8 +179,8 @@ export async function POST(request: NextRequest) {
           message: notes ?? null,
         });
       }
-    } catch {
-      // Notification is best-effort
+    } catch (err) {
+      console.warn('Failed to create governance notification:', err);
     }
 
     return NextResponse.json({

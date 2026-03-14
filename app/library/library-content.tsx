@@ -35,7 +35,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { createClient } from '@/lib/supabase/client';
+import { createClient as createBrowserClient } from '@/lib/supabase/client';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
@@ -112,7 +112,7 @@ function VirtualisedQAList({
 // ---------------------------------------------------------------------------
 
 export function LibraryContent() {
-  const supabase = createClient();
+  const supabase = useMemo(() => createBrowserClient(), []);
   const { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy } = useLibraryFilters();
   const { domains } = useTaxonomy();
   const { canAdmin } = useUserRole();
@@ -222,6 +222,12 @@ export function LibraryContent() {
   // Stats
   const standardCount = items.filter((i) => i.answer_standard).length;
   const advancedCount = items.filter((i) => i.answer_advanced).length;
+
+  // Memoised grouped items (avoids recomputing on every render)
+  const groupedItems = useMemo(
+    () => (groupBy !== 'none' ? groupItems(items, groupBy) : null),
+    [items, groupBy],
+  );
 
   // Count of active secondary filters (source, variant, verified, grouping)
   const secondaryFilterCount = useMemo(
@@ -529,28 +535,30 @@ export function LibraryContent() {
               </Button>
             )}
           </div>
-        ) : groupBy !== 'none' ? (
+        ) : groupedItems ? (
           <div className="space-y-3">
-            {(() => {
-              const groups = groupItems(items, groupBy);
-              return (
-                <p className="text-sm text-muted-foreground" aria-live="polite">
-                  {groups.size} {groups.size === 1 ? 'group' : 'groups'}, {items.length} total {items.length === 1 ? 'item' : 'items'}
-                </p>
-              );
-            })()}
-            {Array.from(groupItems(items, groupBy).entries()).map(([groupName, groupedItems]) => (
-              <CollapsibleGroup key={groupName} label={groupName} count={groupedItems.length}>
-                {groupedItems.map((item) => (
-                  <QARow
-                    key={item.id}
-                    item={item}
-                    selected={bulk.selectedIds.has(item.id)}
-                    onToggleSelect={bulk.toggleSelect}
-                  />
-                ))}
-              </CollapsibleGroup>
-            ))}
+            <p className="text-sm text-muted-foreground" aria-live="polite">
+              {groupedItems.size} {groupedItems.size === 1 ? 'group' : 'groups'},{' '}
+              {items.length} total {items.length === 1 ? 'item' : 'items'}
+            </p>
+            {Array.from(groupedItems.entries()).map(
+              ([groupName, groupEntries]) => (
+                <CollapsibleGroup
+                  key={groupName}
+                  label={groupName}
+                  count={groupEntries.length}
+                >
+                  {groupEntries.map((item) => (
+                    <QARow
+                      key={item.id}
+                      item={item}
+                      selected={bulk.selectedIds.has(item.id)}
+                      onToggleSelect={bulk.toggleSelect}
+                    />
+                  ))}
+                </CollapsibleGroup>
+              ),
+            )}
           </div>
         ) : (
           <VirtualisedQAList

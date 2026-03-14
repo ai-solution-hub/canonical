@@ -2,19 +2,13 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
   ChevronDown,
   ChevronUp,
-  Loader2,
-  Save,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -22,14 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu';
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
+import {
+  ClassificationFieldset,
+  ProvenanceFieldset,
+  ProgressiveDepthFieldset,
+  SaveActionsBar,
+  MobileStepIndicator,
+} from '@/components/create-content';
 
 const ContentEditor = dynamic(
   () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
@@ -254,27 +249,6 @@ export function CreateContentClient() {
     ],
   );
 
-  const handleKeywordsKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-    }
-  };
-
-  const handleTagsKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const val = tagsInput.trim();
-      if (val && !tags.includes(val)) {
-        setTags([...tags, val]);
-        setTagsInput('');
-      }
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setTags(tags.filter((t) => t !== tag));
-  };
-
   // Mobile step indicator — tracks which section is in view
   const [activeStep, setActiveStep] = useState(1);
   const basicsRef = useRef<HTMLDivElement>(null);
@@ -304,14 +278,6 @@ export function CreateContentClient() {
     return () => observer.disconnect();
   }, []);
 
-  const FORM_STEPS = [
-    { step: 1, label: 'Basics' },
-    { step: 2, label: 'Content' },
-    { step: 3, label: 'Details' },
-  ] as const;
-
-  const saving = isSaving || isSavingAndContinue;
-
   return (
     <section aria-label="Create content" className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
       {/* Breadcrumb + Header */}
@@ -326,41 +292,7 @@ export function CreateContentClient() {
       </div>
 
       {/* Mobile step indicator */}
-      <nav
-        aria-label="Form progress"
-        className="mb-6 flex items-center gap-2 sm:hidden"
-      >
-        {FORM_STEPS.map(({ step, label }, idx) => (
-          <div key={step} className="flex items-center gap-2">
-            {idx > 0 && (
-              <div className="h-px w-4 bg-border" aria-hidden="true" />
-            )}
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`flex size-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${
-                  activeStep === step
-                    ? 'bg-primary text-primary-foreground'
-                    : activeStep > step
-                      ? 'bg-primary/20 text-foreground'
-                      : 'bg-muted text-muted-foreground'
-                }`}
-                aria-current={activeStep === step ? 'step' : undefined}
-              >
-                {step}
-              </span>
-              <span
-                className={`text-xs font-medium transition-colors ${
-                  activeStep === step
-                    ? 'text-foreground'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {label}
-              </span>
-            </div>
-          </div>
-        ))}
-      </nav>
+      <MobileStepIndicator activeStep={activeStep} />
 
       <form
         onSubmit={(e) => {
@@ -484,320 +416,56 @@ export function CreateContentClient() {
 
         {showMoreDetails && (
           <div className="space-y-6">
-            {/* Classification */}
-            <fieldset className="space-y-4 rounded-lg border border-border p-4">
-              <legend className="px-2 text-sm font-semibold text-muted-foreground">
-                Classification
-              </legend>
+            <ClassificationFieldset
+              primaryDomain={primaryDomain}
+              setPrimaryDomain={setPrimaryDomain}
+              primarySubtopic={primarySubtopic}
+              setPrimarySubtopic={setPrimarySubtopic}
+              keywordsInput={keywordsInput}
+              setKeywordsInput={setKeywordsInput}
+              domainNames={domainNames}
+              subtopicNames={subtopicNames}
+              formatDomainName={formatDomainName}
+              formatSubtopic={formatSubtopic}
+            />
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="domain">Domain</Label>
-                  <Select
-                    value={primaryDomain}
-                    onValueChange={setPrimaryDomain}
-                  >
-                    <SelectTrigger id="domain">
-                      <SelectValue placeholder="Select domain..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {domainNames.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {formatDomainName(name)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <ProvenanceFieldset
+              authorName={authorName}
+              setAuthorName={setAuthorName}
+              sourceUrl={sourceUrl}
+              setSourceUrl={setSourceUrl}
+              tags={tags}
+              setTags={setTags}
+              tagsInput={tagsInput}
+              setTagsInput={setTagsInput}
+              priority={priority}
+              setPriority={setPriority}
+            />
 
-                <div className="space-y-2">
-                  <Label htmlFor="subtopic">Subtopic</Label>
-                  <Select
-                    value={primarySubtopic}
-                    onValueChange={setPrimarySubtopic}
-                    disabled={!primaryDomain}
-                  >
-                    <SelectTrigger id="subtopic">
-                      <SelectValue
-                        placeholder={
-                          primaryDomain
-                            ? 'Select subtopic...'
-                            : 'Select domain first'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {subtopicNames.map((name) => (
-                        <SelectItem key={name} value={name}>
-                          {formatSubtopic(name)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="keywords">
-                  Keywords{' '}
-                  <span className="text-xs text-muted-foreground">
-                    (comma-separated)
-                  </span>
-                </Label>
-                <Input
-                  id="keywords"
-                  value={keywordsInput}
-                  onChange={(e) => setKeywordsInput(e.target.value)}
-                  onKeyDown={handleKeywordsKeyDown}
-                  placeholder="Add keywords (comma-separated)..."
-                />
-              </div>
-            </fieldset>
-
-            {/* Provenance */}
-            <fieldset className="space-y-4 rounded-lg border border-border bg-accent/30 p-4">
-              <legend className="px-2 text-sm font-semibold text-muted-foreground">
-                Provenance
-              </legend>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="author">Author</Label>
-                  <Input
-                    id="author"
-                    value={authorName}
-                    onChange={(e) => setAuthorName(e.target.value)}
-                    placeholder="Author name..."
-                    maxLength={200}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="source-url">Source URL</Label>
-                  <Input
-                    id="source-url"
-                    type="url"
-                    value={sourceUrl}
-                    onChange={(e) => setSourceUrl(e.target.value)}
-                    placeholder="https://..."
-                    maxLength={2000}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tags">Tags</Label>
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium"
-                    >
-                      {tag}
-                      <button
-                        type="button"
-                        onClick={() => removeTag(tag)}
-                        className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full hover:bg-foreground/10"
-                        aria-label={`Remove tag ${tag}`}
-                      >
-                        &times;
-                      </button>
-                    </span>
-                  ))}
-                  <Input
-                    id="tags"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    onKeyDown={handleTagsKeyDown}
-                    placeholder="Add tag and press Enter..."
-                    className="h-7 w-40 border-dashed text-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Priority</Label>
-                <div
-                  className="flex gap-4"
-                  role="radiogroup"
-                  aria-label="Priority"
-                >
-                  {['', 'high', 'medium', 'low'].map((p) => (
-                    <label
-                      key={p || 'none'}
-                      className="flex items-center gap-1.5 text-sm"
-                    >
-                      <input
-                        type="radio"
-                        name="priority"
-                        value={p}
-                        checked={priority === p}
-                        onChange={() => setPriority(p)}
-                        className="accent-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      />
-                      {p ? p.charAt(0).toUpperCase() + p.slice(1) : 'None'}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </fieldset>
-
-            {/* Progressive depth */}
-            <fieldset className="space-y-4 rounded-lg border border-border p-4">
-              <legend className="px-2 text-sm font-semibold text-muted-foreground">
-                Progressive Depth (optional)
-              </legend>
-
-              <div className="space-y-2">
-                <Label htmlFor="brief">Brief (executive summary)</Label>
-                <Textarea
-                  id="brief"
-                  value={brief}
-                  onChange={(e) => setBrief(e.target.value)}
-                  placeholder="A brief executive summary..."
-                  rows={3}
-                  maxLength={5000}
-                />
-                <p className="text-xs text-muted-foreground text-right mt-1">
-                  {brief.length.toLocaleString()} / {(5000).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="detail">Detail (expanded explanation)</Label>
-                <Textarea
-                  id="detail"
-                  value={detail}
-                  onChange={(e) => setDetail(e.target.value)}
-                  placeholder="Detailed explanation..."
-                  rows={4}
-                  maxLength={50000}
-                />
-                <p className="text-xs text-muted-foreground text-right mt-1">
-                  {detail.length.toLocaleString()} / {(50000).toLocaleString()}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="reference">
-                  Reference (technical/source detail)
-                </Label>
-                <Textarea
-                  id="reference"
-                  value={reference}
-                  onChange={(e) => setReference(e.target.value)}
-                  placeholder="Technical or reference detail..."
-                  rows={4}
-                  maxLength={50000}
-                />
-                <p className="text-xs text-muted-foreground text-right mt-1">
-                  {reference.length.toLocaleString()} / {(50000).toLocaleString()}
-                </p>
-              </div>
-            </fieldset>
+            <ProgressiveDepthFieldset
+              brief={brief}
+              setBrief={setBrief}
+              detail={detail}
+              setDetail={setDetail}
+              reference={reference}
+              setReference={setReference}
+            />
           </div>
         )}
 
-        {/* Bottom bar: AI options */}
-        <div className="space-y-6 border-t border-border pt-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="auto-classify"
-                  checked={autoClassify}
-                  onCheckedChange={(checked) =>
-                    setAutoClassify(checked === true)
-                  }
-                />
-                <Label htmlFor="auto-classify" className="text-sm font-normal">
-                  Classify automatically
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="auto-summarise"
-                  checked={autoSummarise}
-                  onCheckedChange={(checked) =>
-                    setAutoSummarise(checked === true)
-                  }
-                />
-                <Label htmlFor="auto-summarise" className="text-sm font-normal">
-                  Generate summary
-                </Label>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="save-as-draft"
-                checked={saveAsDraft}
-                onCheckedChange={(checked) =>
-                  setSaveAsDraft(checked === true)
-                }
-              />
-              <Label htmlFor="save-as-draft" className="text-sm font-normal">
-                Save as draft (hidden from search and matching)
-              </Label>
-            </div>
-          </div>
-
-          {/* Actions — visually separated from options */}
-          <div className="flex items-center justify-end gap-3 border-t border-border pt-4">
-            <Button
-              type="button"
-              variant="ghost"
-              asChild
-            >
-              <Link href="/browse">Cancel</Link>
-            </Button>
-            <div className="inline-flex items-stretch">
-              <Button
-                type="submit"
-                size="lg"
-                disabled={!canSave || saving}
-                className="rounded-r-none"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 size-4" />
-                    Save
-                  </>
-                )}
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    size="lg"
-                    disabled={!canSave || saving}
-                    className="rounded-l-none border-l border-primary-foreground/20 px-2"
-                    aria-label="More save options"
-                  >
-                    <ChevronDown className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => handleSave(true)}
-                    disabled={!canSave || saving}
-                  >
-                    {isSavingAndContinue ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Save className="size-3.5" />
-                    )}
-                    Save and Continue Editing
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
+        {/* Bottom bar: AI options + save buttons */}
+        <SaveActionsBar
+          autoClassify={autoClassify}
+          setAutoClassify={setAutoClassify}
+          autoSummarise={autoSummarise}
+          setAutoSummarise={setAutoSummarise}
+          saveAsDraft={saveAsDraft}
+          setSaveAsDraft={setSaveAsDraft}
+          canSave={canSave}
+          isSaving={isSaving}
+          isSavingAndContinue={isSavingAndContinue}
+          onSaveAndContinue={() => handleSave(true)}
+        />
       </form>
     </section>
   );

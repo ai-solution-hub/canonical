@@ -7,6 +7,8 @@ import {
   computeTemplateCoverage,
 } from '@/lib/template-coverage';
 
+export const maxDuration = 30;
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await getAuthenticatedClient();

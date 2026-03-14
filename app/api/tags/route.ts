@@ -12,6 +12,8 @@ import {
   TagFilteredParamsSchema,
 } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/tags — returns tag counts.
  *

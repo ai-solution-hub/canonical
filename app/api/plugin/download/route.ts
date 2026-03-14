@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/error';
 
 /**
  * GET /api/plugin/download
@@ -28,9 +29,8 @@ export async function GET() {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json(
-      { error: `Failed to serve plugin ZIP: ${message}` },
+      { error: safeErrorMessage(err, 'Failed to serve plugin ZIP') },
       { status: 500 },
     );
   }

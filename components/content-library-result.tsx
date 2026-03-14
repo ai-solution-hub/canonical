@@ -41,9 +41,13 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
 
   const handleCopy = () => {
     if (!copyText) return;
-    navigator.clipboard.writeText(copyText);
-    toast.success('Copied to clipboard');
-    onCopy(copyText);
+    navigator.clipboard.writeText(copyText).then(
+      () => {
+        toast.success('Copied to clipboard');
+        onCopy(copyText);
+      },
+      () => toast.error('Failed to copy to clipboard'),
+    );
   };
 
   const handleView = () => {

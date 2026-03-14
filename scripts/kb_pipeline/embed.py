@@ -98,16 +98,14 @@ def generate_embeddings_batch(texts: List[str]) -> tuple[List[List[float]], int]
     for item in response.data:
         vectors[item.index] = item.embedding
 
-    # Validate: replace any None vectors with empty list and warn
+    # Validate: raise on any None vectors (wrong dimension would corrupt DB)
     for i, vec in enumerate(vectors):
         if vec is None:
-            logger.warning(
-                "Embedding at index %d returned None (text length=%d). "
-                "Replacing with empty vector.",
-                i,
-                len(texts[i]),
+            raise ValueError(
+                f"Embedding at index {i} returned None "
+                f"(text length={len(texts[i])}). "
+                "Cannot store a null vector — check input text or API response."
             )
-            vectors[i] = []
 
     return vectors, response.usage.total_tokens
 

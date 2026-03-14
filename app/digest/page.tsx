@@ -489,11 +489,18 @@ export default function DigestPage() {
           .map((k) => k.trim())
           .filter(Boolean);
 
+        const dateFrom = customDateFrom
+          ? new Date(customDateFrom)
+          : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const dateTo = customDateTo
+          ? new Date(customDateTo + 'T23:59:59')
+          : new Date();
+
         body = {
           period_days: 7, // fallback, overridden by date_from/date_to
           digest_type: 'custom',
-          date_from: new Date(customDateFrom).toISOString(),
-          date_to: new Date(customDateTo + 'T23:59:59').toISOString(),
+          date_from: dateFrom.toISOString(),
+          date_to: dateTo.toISOString(),
           ...(customDomain && customDomain !== 'all'
             ? { domain: customDomain }
             : {}),

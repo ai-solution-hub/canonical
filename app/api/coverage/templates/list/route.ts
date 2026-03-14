@@ -3,6 +3,8 @@ import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { listAvailableTemplates } from '@/lib/template-coverage';
 
+export const maxDuration = 30;
+
 export async function GET() {
   try {
     const auth = await getAuthenticatedClient();

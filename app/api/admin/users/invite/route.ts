@@ -5,6 +5,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { UserInviteBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /** POST /api/admin/users/invite — invite a new user by email (admin only) */
 export async function POST(request: NextRequest) {
   try {

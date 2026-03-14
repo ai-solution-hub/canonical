@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TagBulkMergeBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/tags/bulk-merge — merges multiple source tags into one target.
  * Auth: admin only.

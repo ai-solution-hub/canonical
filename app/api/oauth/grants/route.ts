@@ -6,6 +6,7 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { safeErrorMessage } from '@/lib/error';
 
 export async function GET() {
   const supabase = await createClient();
@@ -21,7 +22,7 @@ export async function GET() {
   const { data, error } = await supabase.auth.oauth.listGrants();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: safeErrorMessage(error, 'Failed to list OAuth grants') }, { status: 500 });
   }
 
   return NextResponse.json({ grants: data ?? [] });

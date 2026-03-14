@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { TagDuplicatesParamsSchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/tags/duplicates — returns duplicate tag groups (case/plural).
  * Auth: any authenticated user.

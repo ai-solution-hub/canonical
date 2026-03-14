@@ -10,6 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { EntityMergeBodySchema } from '@/lib/validation/schemas';
 import { createServiceClient } from '@/lib/supabase/server';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/entities/merge — merge multiple entities into one canonical form.
  *

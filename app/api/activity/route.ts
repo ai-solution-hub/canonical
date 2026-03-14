@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/activity
  *

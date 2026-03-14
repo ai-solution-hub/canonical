@@ -178,7 +178,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                   }
                   className="h-8 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">Format: DD/MM/YYYY</p>
               </div>
               <div className="flex flex-col gap-1">
                 <label
@@ -196,7 +195,6 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
                   }
                   className="h-8 text-sm"
                 />
-                <p className="text-xs text-muted-foreground">Format: DD/MM/YYYY</p>
               </div>
             </div>
           </FilterSection>

@@ -10,6 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { EmbedBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS } from '@/lib/ai/embed';
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     // Auth + role check

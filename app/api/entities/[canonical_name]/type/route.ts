@@ -10,6 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { EntityTypeOverrideBodySchema } from '@/lib/validation/schemas';
 import { createServiceClient } from '@/lib/supabase/server';
 
+export const maxDuration = 30;
+
 /**
  * PATCH /api/entities/[canonical_name]/type — override entity type for all
  * mentions of a canonical_name.

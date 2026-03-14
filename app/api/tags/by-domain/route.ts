@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseSearchParams } from '@/lib/validation';
 import { TagByDomainParamsSchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/tags/by-domain — returns tags grouped by content primary_domain.
  * Auth: any authenticated user.

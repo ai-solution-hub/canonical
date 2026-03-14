@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TagBulkDeleteBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/tags/bulk-delete — removes multiple tags from all items.
  * Auth: admin only.

@@ -725,7 +725,7 @@ export const TagBulkDeleteBodySchema = z.object({
 /** POST /api/tags/bulk-merge */
 export const TagBulkMergeBodySchema = z.object({
   sources: z.array(z.string().trim().min(1).max(100)).min(1, 'At least one source tag is required').max(200),
-  target: z.string().trim().min(1, 'Target tag is required').max(100),
+  target: z.string().trim().min(1, 'Target tag is required').max(100).transform(normaliseTag),
   type: z.enum(VALID_TAG_TYPES),
 });
 

@@ -11,7 +11,7 @@ const skillCache = new Map<string, string>();
  */
 export async function loadSkill(name: string): Promise<string> {
   if (skillCache.has(name)) return skillCache.get(name)!;
-  const path = join(process.cwd(), 'lib', 'ai', 'skills', `${name}.md`);
+  const path = join(__dirname, `${name}.md`);
   const content = await readFile(path, 'utf-8');
   skillCache.set(name, content);
   return content;

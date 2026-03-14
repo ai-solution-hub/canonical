@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TagRenameBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/tags/rename — renames a tag across all items atomically.
  * Auth: admin only.

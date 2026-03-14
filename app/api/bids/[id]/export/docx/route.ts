@@ -13,11 +13,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id: bidId } = await params;
-
     // Auth — all authenticated users can export (read-only operation)
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
+
+    const { id: bidId } = await params;
 
     // Parse body — empty body is fine, all fields have defaults
     let body = {};

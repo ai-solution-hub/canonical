@@ -1,6 +1,7 @@
 """Supabase storage operations — insert, update, query, quality logging."""
 
 import json
+import logging
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -8,6 +9,8 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from .config import get_supabase_url, get_supabase_secret_key
+
+logger = logging.getLogger(__name__)
 
 
 def _headers(prefer: str = "return=representation"):
@@ -100,7 +103,8 @@ def merge_item_metadata(item_id: str, new_data: dict) -> bool:
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return resp.status in (200, 204)
-    except urllib.error.HTTPError:
+    except urllib.error.HTTPError as e:
+        logger.warning("merge_item_metadata failed for %s: %s", item_id, e)
         return False
 
 
@@ -121,8 +125,12 @@ def check_url_exists(source_url: str) -> Optional[str]:
             data = json.loads(resp.read().decode("utf-8"))
             if data:
                 return data[0]["id"]
-    except Exception:
-        pass
+    except urllib.error.HTTPError as e:
+        logger.warning("check_url_exists HTTP error for %s: %s", source_url, e)
+    except urllib.error.URLError as e:
+        logger.warning("check_url_exists URL error for %s: %s", source_url, e)
+    except Exception as e:
+        logger.warning("check_url_exists unexpected error for %s: %s", source_url, e)
 
     return None
 

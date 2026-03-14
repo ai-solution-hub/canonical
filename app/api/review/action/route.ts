@@ -5,6 +5,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { ReviewActionBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/review/action — perform a review action on a content item.
  *

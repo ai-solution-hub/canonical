@@ -647,14 +647,17 @@ describe('POST /api/governance/review', () => {
   it('returns 500 when update fails', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // First .single() — fetch current item (succeeds)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID, governance_review_status: 'pending' },
       error: null,
     });
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Update failed' } }),
-    );
+    // Second .single() — update with .select('id').single() (fails)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Update failed' },
+    });
 
     const req = createTestRequest('/api/governance/review', {
       method: 'POST',
@@ -664,6 +667,6 @@ describe('POST /api/governance/review', () => {
 
     expect(res.status).toBe(500);
     const json = await res.json();
-    expect(json.error).toBe('Failed to process governance review');
+    expect(json.error).toBe('Item not found or governance review update failed');
   });
 });

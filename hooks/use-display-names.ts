@@ -115,6 +115,8 @@ export function useDisplayNames(
 
     fetchDisplayNames(validIds).then(() => {
       setNames(buildFromCache());
+    }).catch((err) => {
+      console.error('Failed to fetch display names:', err);
     });
   }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 

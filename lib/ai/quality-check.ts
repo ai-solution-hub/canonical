@@ -136,8 +136,8 @@ Check for:
   const textBlock = aiCheck.content.find((b) => b.type === 'text');
   let aiResult: AIQualityResult = {
     unsupported_claims: [],
-    suggestions: [],
-    overall_score: 80,
+    suggestions: ['Quality check could not parse AI response — manual review recommended'],
+    overall_score: 0,
   };
 
   if (textBlock?.type === 'text') {

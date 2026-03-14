@@ -97,7 +97,9 @@ export function QuestionNavigator({
       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
         <div
           className="h-full rounded-full bg-primary transition-all duration-300"
-          style={{ width: `${(completedCount / questions.length) * 100}%` }}
+          style={{
+            width: `${questions.length > 0 ? (completedCount / questions.length) * 100 : 0}%`,
+          }}
           role="progressbar"
           aria-valuenow={completedCount}
           aria-valuemin={0}

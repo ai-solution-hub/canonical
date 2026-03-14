@@ -9,6 +9,8 @@ import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { TagMergeBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/tags/merge — merges a source tag into a target tag.
  * Items with the source tag get the target tag added (if not already present),

@@ -25,10 +25,17 @@ vi.mock('next/headers', () => ({
 }));
 
 // Mock batchCalculateFreshness — vi.hoisted to avoid hoisting issues
-const mockBatchCalculateFreshness = vi.hoisted(() => vi.fn());
+const { mockBatchCalculateFreshness, mockCheckRateLimit } = vi.hoisted(() => ({
+  mockBatchCalculateFreshness: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+}));
 
 vi.mock('@/lib/freshness', () => ({
   batchCalculateFreshness: mockBatchCalculateFreshness,
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: mockCheckRateLimit,
 }));
 
 vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -49,6 +56,8 @@ const VALID_UUID_2 = '00000000-0000-4000-8000-000000000002';
 
 function resetMocks() {
   vi.clearAllMocks();
+
+  mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 10 });
 
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },

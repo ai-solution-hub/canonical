@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
-import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
+import { getAnthropicClient, getAIModel, estimateCost } from '@/lib/anthropic';
 import { toJson } from '@/lib/validation/jsonb';
 import { AIServiceError } from '@/lib/ai/errors';
 
@@ -120,10 +120,13 @@ ${contentSlice}`;
     throw new AIServiceError('Failed to parse structured output from Claude', 500);
   }
 
-  // Calculate cost (approximate — Sonnet 4 pricing: $3/M input, $15/M output)
+  // Calculate cost using shared pricing constants
   const inputTokens = response.usage.input_tokens;
   const outputTokens = response.usage.output_tokens;
-  const cost = (inputTokens * 3 + outputTokens * 15) / 1_000_000;
+  const cost = estimateCost(model, {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+  });
 
   // Store the extraction result in metadata using merge_item_metadata RPC
   const { error: mergeError } = await supabase.rpc('merge_item_metadata', {

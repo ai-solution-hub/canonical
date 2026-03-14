@@ -11,6 +11,8 @@ import { generateSingleFieldChangeSummary } from '@/lib/change-summary';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 
+export const maxDuration = 60;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

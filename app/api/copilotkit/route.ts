@@ -9,6 +9,8 @@ import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/l
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 60;
+
 export const POST = async (req: NextRequest) => {
   try {
     // Auth guard: require admin or editor role

@@ -9,6 +9,8 @@ import {
   listAvailableTemplates,
 } from '@/lib/template-coverage';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/coverage/gap-summary
  *

@@ -41,6 +41,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import type { ServerRequest, ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole, checkMcpRole } from '@/lib/mcp/auth';
+import type { Database, Json } from '@/supabase/types/database.types';
 
 // ---------------------------------------------------------------------------
 // Lazy imports — all heavy modules are loaded on-demand to prevent Vercel
@@ -1001,11 +1002,11 @@ export async function registerTools(server: McpServer): Promise<void> {
         }
 
         // Build metadata with optional batch_tag and source_document
-        const metadata: Record<string, unknown> = {};
+        const metadata: Record<string, string> = {};
         if (args.batch_tag) metadata.batch_tag = args.batch_tag;
         if (args.source_document) metadata.source_document = args.source_document;
 
-        const insertData: Record<string, unknown> = {
+        const insertData: Database['public']['Tables']['content_items']['Insert'] = {
           title: args.title,
           suggested_title: args.title,
           content: args.content,
@@ -1018,12 +1019,12 @@ export async function registerTools(server: McpServer): Promise<void> {
           ...(args.priority && { priority: args.priority }),
           ...(embedding && { embedding: JSON.stringify(embedding) }),
           ...(isDraft && { governance_review_status: 'draft' }),
-          ...(Object.keys(metadata).length > 0 && { metadata }),
+          ...(Object.keys(metadata).length > 0 && { metadata: metadata as unknown as Json }),
         };
 
         const { data: item, error } = await supabase
           .from('content_items')
-          .insert(insertData as never)
+          .insert(insertData)
           .select('id, title, content_type')
           .single();
 
@@ -1275,7 +1276,7 @@ export async function registerTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const userId = getMcpUserId(extra.authInfo);
 
-        const insertData: Record<string, unknown> = {
+        const insertData: Database['public']['Tables']['content_citations']['Insert'] = {
           content_item_id: args.content_item_id,
           bid_response_id: args.bid_response_id,
           citation_type: args.citation_type ?? 'reference',
@@ -1284,7 +1285,7 @@ export async function registerTools(server: McpServer): Promise<void> {
 
         const { data: citation, error } = await supabase
           .from('content_citations')
-          .upsert(insertData as never, {
+          .upsert(insertData, {
             onConflict: 'content_item_id,bid_response_id',
           })
           .select('id, content_item_id, bid_response_id, citation_type')
@@ -1517,18 +1518,12 @@ export async function registerTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
         const auditLimit = Math.min(args.limit ?? 25, 100);
 
-        // Fetch all items with relevant fields
-        let query = supabase
-          .from('content_items')
-          .select('id, title, suggested_title, content_type, primary_domain, content, ai_summary, ai_keywords, classification_confidence, freshness')
-          .is('archived_at', null)
-          .order('updated_at', { ascending: false });
-
-        if (args.domain) {
-          query = query.eq('primary_domain', args.domain);
-        }
-
-        const { data: rows, error } = await query.limit(500);
+        // Fetch audit data via RPC — returns char_length(content) instead of
+        // the full content body, avoiding megabytes of unnecessary transfer.
+        const { data: rows, error } = await supabase.rpc('get_audit_content_items', {
+          p_domain: args.domain ?? undefined,
+          p_limit: 500,
+        });
 
         if (error) {
           return {
@@ -1541,7 +1536,7 @@ export async function registerTools(server: McpServer): Promise<void> {
         type Row = {
           id: string; title: string | null; suggested_title: string | null;
           content_type: string | null; primary_domain: string | null;
-          content: string | null; ai_summary: string | null;
+          content_length: number; ai_summary: string | null;
           ai_keywords: string[] | null; classification_confidence: number | null;
           freshness: string | null;
         };
@@ -1551,7 +1546,7 @@ export async function registerTools(server: McpServer): Promise<void> {
 
         for (const row of (rows ?? []) as Row[]) {
           const issues: string[] = [];
-          const contentLen = row.content?.length ?? 0;
+          const contentLen = row.content_length ?? 0;
 
           if (contentLen < 20) {
             issues.push('thin_content');
@@ -1709,7 +1704,7 @@ export async function registerTools(server: McpServer): Promise<void> {
         // Apply update
         const { error: updateError } = await supabase
           .from('content_items')
-          .update(updateData as never)
+          .update(updateData as Database['public']['Tables']['content_items']['Update'])
           .eq('id', args.id);
 
         if (updateError) {
@@ -2412,7 +2407,7 @@ export async function registerTools(server: McpServer): Promise<void> {
             structuredContent: toStructuredContent(result),
           };
         } else {
-          // Hard Delete: Record history before deletion (even if ephemeral due to cascade)
+          // Hard Delete: Record history before deletion (preserved via ON DELETE SET NULL)
           const { data: history } = await supabase
             .from('content_history')
             .select('version')
@@ -2824,7 +2819,7 @@ export async function registerTools(server: McpServer): Promise<void> {
                   embedding: JSON.stringify(embedding),
                   governance_review_status: null,
                   updated_by: userId,
-                } as never)
+                } satisfies Database['public']['Tables']['content_items']['Update'])
                 .eq('id', itemId);
 
               if (updateError) {
@@ -2838,7 +2833,7 @@ export async function registerTools(server: McpServer): Promise<void> {
                 .update({
                   governance_review_status: 'draft',
                   updated_by: userId,
-                } as never)
+                } satisfies Database['public']['Tables']['content_items']['Update'])
                 .eq('id', itemId);
 
               if (updateError) {

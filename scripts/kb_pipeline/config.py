@@ -109,16 +109,25 @@ def get_system_prompt():
 def get_supabase_url():
     """Get Supabase URL from .env."""
     env = get_env()
-    return env.get('SUPABASE_URL', '')
+    url = env.get('SUPABASE_URL', '')
+    if not url:
+        raise RuntimeError("SUPABASE_URL not set in .env")
+    return url
 
 
 def get_supabase_secret_key():
     """Get Supabase service_role key from .env (bypasses RLS)."""
     env = get_env()
-    return env.get('SUPABASE_SECRET_KEY', '')
+    key = env.get('SUPABASE_SECRET_KEY', '')
+    if not key:
+        raise RuntimeError("SUPABASE_SECRET_KEY not set in .env")
+    return key
 
 
 def get_supabase_publishable_key():
     """Get Supabase anon/publishable key from .env."""
     env = get_env()
-    return env.get('SUPABASE_PUBLISHABLE_KEY', '')
+    key = env.get('SUPABASE_PUBLISHABLE_KEY', '')
+    if not key:
+        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY not set in .env")
+    return key

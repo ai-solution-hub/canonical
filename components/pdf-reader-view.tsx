@@ -60,6 +60,10 @@ export function PdfReaderView({ sourceUrl, filePath, title }: PdfReaderViewProps
           } else {
             setHasError(true);
           }
+        })
+        .catch((err) => {
+          console.error('Failed to get signed URL:', err);
+          setHasError(true);
         });
     }
   }, [filePath, sourceUrl]);

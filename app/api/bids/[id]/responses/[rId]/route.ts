@@ -11,6 +11,8 @@ import { ResponseUpdateBodySchema } from '@/lib/validation/schemas';
 import { countWordsFromHtml } from '@/lib/editor-utils';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

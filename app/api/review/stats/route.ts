@@ -4,6 +4,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import type { ReviewStatsResponse } from '@/types/review';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/review/stats — aggregate counts for the review progress bar.
  *
@@ -36,12 +38,13 @@ export async function GET() {
         .not('verified_at', 'is', null)
         .or('governance_review_status.is.null,governance_review_status.neq.draft'),
 
-      // Flagged items (open review_needed flags — count distinct item IDs)
+      // Flagged items (open review_needed flags — fetch IDs to count distinct)
       supabase
         .from('ingestion_quality_log')
-        .select('content_item_id', { count: 'exact', head: true })
+        .select('content_item_id')
         .eq('flag_type', 'review_needed')
-        .eq('resolved', false),
+        .eq('resolved', false)
+        .limit(10000),
 
       // Draft items (governance_review_status = 'draft')
       supabase
@@ -60,7 +63,7 @@ export async function GET() {
 
     const total = totalResult.count ?? 0;
     const verified = verifiedResult.count ?? 0;
-    const flagged = flaggedResult.count ?? 0;
+    const flagged = new Set(flaggedResult.data?.map(r => r.content_item_id)).size;
     const draft = draftResult.count ?? 0;
     const unverified = total - verified;
 
@@ -69,7 +72,8 @@ export async function GET() {
     const { data: breakdownItems } = await supabase
       .from('content_items')
       .select('primary_domain, content_type, verified_at, metadata, governance_review_status')
-      .or('governance_review_status.is.null,governance_review_status.neq.draft');
+      .or('governance_review_status.is.null,governance_review_status.neq.draft')
+      .limit(10000);
 
     const by_domain: Record<string, { total: number; verified: number }> = {};
     const by_content_type: Record<string, { total: number; verified: number }> = {};

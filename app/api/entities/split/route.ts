@@ -10,6 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { EntitySplitBodySchema } from '@/lib/validation/schemas';
 import { createServiceClient } from '@/lib/supabase/server';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/entities/split — split an entity by moving selected variant rows
  * to a new canonical_name.

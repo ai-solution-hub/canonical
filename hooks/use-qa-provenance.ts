@@ -42,13 +42,14 @@ export function useQAProvenance({
         .select('workspace_id, workspaces:workspace_id(id, name, type)')
         .eq('content_item_id', itemId);
       if (data) {
-        /* eslint-disable @typescript-eslint/no-explicit-any */
-        const workspaces = (data as any[])
+        interface WorkspaceJoinRow {
+          workspace_id: string;
+          workspaces: { id: string; name: string; type: string } | null;
+        }
+        const workspaces = (data as WorkspaceJoinRow[])
           .map((d) => d.workspaces)
-          .filter(Boolean)
-          .filter((w) => w.type === 'bid');
-        /* eslint-enable @typescript-eslint/no-explicit-any */
-        setUsedInWorkspaces(workspaces as Array<{ id: string; name: string; type: string }>);
+          .filter((w): w is { id: string; name: string; type: string } => w !== null && w.type === 'bid');
+        setUsedInWorkspaces(workspaces);
       }
     };
     fetchWorkspaces();

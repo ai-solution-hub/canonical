@@ -44,23 +44,18 @@ export async function POST(request: NextRequest) {
 
     const serviceClient = createServiceClient();
 
-    // Fetch users from Supabase Auth admin API
-    const { data: authData, error: authError } =
-      await serviceClient.auth.admin.listUsers({ perPage: 1000 });
-
-    if (authError) {
-      console.error('Failed to list users for display names:', authError);
-      return NextResponse.json(
-        { error: 'Failed to resolve user names' },
-        { status: 500 },
-      );
-    }
+    // Fetch only the requested users by ID (not all users)
+    const results = await Promise.allSettled(
+      validIds.map((id) => serviceClient.auth.admin.getUserById(id)),
+    );
 
     const result: Record<string, string> = {};
-    const requestedSet = new Set(validIds);
 
-    for (const user of authData.users ?? []) {
-      if (!requestedSet.has(user.id)) continue;
+    for (let i = 0; i < validIds.length; i++) {
+      const settled = results[i];
+      if (settled.status !== 'fulfilled') continue;
+      const user = settled.value?.data?.user;
+      if (!user) continue;
 
       // Try display_name from user_metadata, then full_name, then email prefix
       const displayName =

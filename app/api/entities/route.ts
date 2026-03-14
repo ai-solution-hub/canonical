@@ -10,6 +10,8 @@ import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { parseSearchParams } from '@/lib/validation';
 import { EntityListParamsSchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/entities — list entities with counts, variants, and relationship counts.
  * Auth: admin only.
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
       query = query.ilike('canonical_name', `%${escapePostgrestValue(search)}%`);
     }
 
-    const { data: mentions, error: mentionsError } = await query;
+    const { data: mentions, error: mentionsError } = await query.limit(10000);
     if (mentionsError) {
       return NextResponse.json(
         { error: safeErrorMessage(mentionsError, 'Failed to fetch entities') },
@@ -108,12 +110,17 @@ export async function GET(request: NextRequest) {
     // ── Relationship counts (batch) ──────────────────────────────────
     const entityNames = entities.map((e) => e.canonical_name);
 
-    const { data: rels } = await supabase
-      .from('entity_relationships')
-      .select('source_entity, target_entity')
-      .or(
-        `source_entity.in.(${JSON.stringify(entityNames)}),target_entity.in.(${JSON.stringify(entityNames)})`,
-      );
+    let rels: { source_entity: string; target_entity: string }[] | null = null;
+    if (entityNames.length > 0) {
+      const escapedNames = entityNames.map(n => `"${escapePostgrestValue(n)}"`).join(',');
+      const { data } = await supabase
+        .from('entity_relationships')
+        .select('source_entity, target_entity')
+        .or(
+          `source_entity.in.(${escapedNames}),target_entity.in.(${escapedNames})`,
+        );
+      rels = data;
+    }
 
     const relCountMap = new Map<string, number>();
     for (const r of rels ?? []) {

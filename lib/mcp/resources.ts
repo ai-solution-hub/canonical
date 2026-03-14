@@ -62,7 +62,8 @@ export async function registerResources(server: McpServer): Promise<void> {
               mimeType: 'application/json',
             })),
           };
-        } catch {
+        } catch (err) {
+          console.error('Failed to list content item resources:', err);
           return { resources: [] };
         }
       },
@@ -131,7 +132,8 @@ export async function registerResources(server: McpServer): Promise<void> {
               };
             }),
           };
-        } catch {
+        } catch (err) {
+          console.error('Failed to list bid workspace resources:', err);
           return { resources: [] };
         }
       },
@@ -203,7 +205,8 @@ export async function registerResources(server: McpServer): Promise<void> {
               mimeType: 'application/json',
             })),
           };
-        } catch {
+        } catch (err) {
+          console.error('Failed to list Q&A pair resources:', err);
           return { resources: [] };
         }
       },
@@ -385,7 +388,8 @@ export async function registerResources(server: McpServer): Promise<void> {
         // Query 1: Count distinct entities per type
         const { data: typeRows, error: typeError } = await supabase
           .from('entity_mentions')
-          .select('entity_type, canonical_name');
+          .select('entity_type, canonical_name')
+          .limit(5000);
 
         if (typeError) {
           return {

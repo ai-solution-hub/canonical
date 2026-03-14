@@ -7,6 +7,8 @@ import { ReviewQueueParamsSchema } from '@/lib/validation/schemas';
 import type { ReviewQueueResponse, ReviewQueueItem } from '@/types/review';
 import type { Database } from '@/supabase/types/database.types';
 
+export const maxDuration = 30;
+
 type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */

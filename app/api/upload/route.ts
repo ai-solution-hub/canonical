@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import path from 'path';
 import mammoth from 'mammoth';
 import { extractText } from 'unpdf';
+
+export const maxDuration = 60;
 
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
@@ -199,8 +202,9 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error('Failed to upload to storage:', uploadError);
-      // Clean up the content_item record
-      await supabase.from('content_items').delete().eq('id', itemId);
+      // Clean up the content_item record (use service client to bypass RLS for editors)
+      const serviceClient = createServiceClient();
+      await serviceClient.from('content_items').delete().eq('id', itemId);
       return NextResponse.json(
         { error: 'Failed to upload file to storage.' },
         { status: 500 },
@@ -278,6 +282,17 @@ export async function POST(request: NextRequest) {
         { status: 500 },
       );
     }
+
+    // Record initial version in content_history
+    await supabase.from('content_history').insert({
+      content_item_id: itemId,
+      version: 1,
+      title: title,
+      content: extractedText || '',
+      change_type: 'create',
+      change_summary: 'Initial upload',
+      created_by: user.id,
+    });
 
     return NextResponse.json({
       id: itemId,

@@ -9,6 +9,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
 import { TemplateAnalyseBodySchema } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -53,7 +55,15 @@ export async function POST(
     }
 
     // Parse and validate request body
-    const raw = await request.json().catch(() => ({}));
+    let raw;
+    try {
+      raw = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 },
+      );
+    }
     const parsed = parseBody(TemplateAnalyseBodySchema, raw);
     if (!parsed.success) return parsed.response;
     const { force } = parsed.data;

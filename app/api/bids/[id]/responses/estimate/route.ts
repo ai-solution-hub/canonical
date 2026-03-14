@@ -13,6 +13,8 @@ import {
 } from '@/lib/cost-estimation';
 import type { BidState } from '@/lib/bid-state-machine';
 
+export const maxDuration = 30;
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

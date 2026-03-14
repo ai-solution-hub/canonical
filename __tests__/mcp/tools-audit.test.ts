@@ -17,14 +17,18 @@ const mocks = vi.hoisted(() => {
     ),
   };
 
+  const rpcMock = vi.fn().mockResolvedValue({ data: [], error: null });
+
   const mockSupabaseClient = {
     from: vi.fn().mockReturnValue(chainMethods),
+    rpc: rpcMock,
     _chain: chainMethods,
   };
 
   return {
     mockSupabaseClient,
     chainMethods,
+    rpcMock,
     createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
     checkMcpRole: vi.fn().mockResolvedValue('editor'),
   };
@@ -52,7 +56,7 @@ function createMockMcpServer() {
   const tools: Record<string, { handler: ToolHandler }> = {};
   return {
     tools,
-    registerTool(name: string, config: any, handler: ToolHandler) {
+    registerTool(name: string, config: Record<string, unknown>, handler: ToolHandler) {
       tools[name] = { handler };
     },
     getHandler(name: string): ToolHandler | undefined {
@@ -69,20 +73,19 @@ describe('audit_content brief_content logic', () => {
     vi.clearAllMocks();
     mockServer = createMockMcpServer();
     const { registerTools } = await import('@/lib/mcp/tools');
-    await registerTools(mockServer as any);
+    await registerTools(mockServer as unknown as Parameters<typeof registerTools>[0]);
   });
 
-  const runAudit = async (rows: any[], issueType?: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper, result shape varies
+  const runAudit = async (rows: Record<string, unknown>[], issueType?: string): Promise<any> => {
     const handler = mockServer.getHandler('audit_content')!;
-    mocks.chainMethods.then.mockImplementation((resolve: any) =>
-      resolve({ data: rows, error: null })
-    );
-    return await handler({ issue_type: issueType }, extra as any) as any;
+    mocks.rpcMock.mockResolvedValue({ data: rows, error: null });
+    return await handler({ issue_type: issueType }, extra as Record<string, unknown>);
   };
 
   it('flags q_a_pair with 150 chars as brief_content', async () => {
     const rows = [{
-      id: '1', title: 'Q', content_type: 'q_a_pair', content: 'a'.repeat(150),
+      id: '1', title: 'Q', content_type: 'q_a_pair', content_length: 150,
       classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
     }];
     const result = await runAudit(rows);
@@ -91,7 +94,7 @@ describe('audit_content brief_content logic', () => {
 
   it('flags article with 400 chars as brief_content', async () => {
     const rows = [{
-      id: '1', title: 'A', content_type: 'article', content: 'a'.repeat(400),
+      id: '1', title: 'A', content_type: 'article', content_length: 400,
       classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
     }];
     const result = await runAudit(rows);
@@ -100,7 +103,7 @@ describe('audit_content brief_content logic', () => {
 
   it('flags policy with 250 chars as brief_content', async () => {
     const rows = [{
-      id: '1', title: 'P', content_type: 'policy', content: 'a'.repeat(250),
+      id: '1', title: 'P', content_type: 'policy', content_length: 250,
       classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
     }];
     const result = await runAudit(rows);
@@ -109,7 +112,7 @@ describe('audit_content brief_content logic', () => {
 
   it('does NOT flag q_a_pair with 250 chars as brief_content', async () => {
     const rows = [{
-      id: '1', title: 'Q', content_type: 'q_a_pair', content: 'a'.repeat(250),
+      id: '1', title: 'Q', content_type: 'q_a_pair', content_length: 250,
       classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
     }];
     const result = await runAudit(rows);
@@ -118,7 +121,7 @@ describe('audit_content brief_content logic', () => {
 
   it('flags items < 20 chars as thin_content only', async () => {
     const rows = [{
-      id: '1', title: 'T', content_type: 'article', content: 'a'.repeat(15),
+      id: '1', title: 'T', content_type: 'article', content_length: 15,
       classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
     }];
     const result = await runAudit(rows);
@@ -130,11 +133,11 @@ describe('audit_content brief_content logic', () => {
   it('filters by brief_content issue type', async () => {
     const rows = [
       {
-        id: 'brief', title: 'B', content_type: 'q_a_pair', content: 'a'.repeat(150),
+        id: 'brief', title: 'B', content_type: 'q_a_pair', content_length: 150,
         classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
       },
       {
-        id: 'thin', title: 'T', content_type: 'q_a_pair', content: 'a'.repeat(10),
+        id: 'thin', title: 'T', content_type: 'q_a_pair', content_length: 10,
         classification_confidence: 0.9, ai_summary: 'S', ai_keywords: ['K'], primary_domain: 'D'
       }
     ];

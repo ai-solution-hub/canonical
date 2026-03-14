@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
+import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { FreshnessCalculateBodySchema } from '@/lib/validation/schemas';
 import { batchCalculateFreshness } from '@/lib/freshness';
+
+export const maxDuration = 30;
 
 /**
  * POST /api/freshness/calculate
@@ -16,7 +19,10 @@ export async function POST(request: NextRequest) {
   try {
     const auth = await getAuthorisedClient(['admin', 'editor']);
     if (!auth.success) return authFailureResponse(auth);
-    const { supabase } = auth;
+    const { user, supabase } = auth;
+
+    const { allowed } = checkRateLimit(`freshness:calculate:${user.id}`, 5, 60_000);
+    if (!allowed) return rateLimitResponse();
 
     const raw = await request.json();
     const parsed = parseBody(FreshnessCalculateBodySchema, raw);
