@@ -218,7 +218,12 @@ export function TeamSection() {
         throw new Error('Failed to load team members');
       }
       const data = await res.json();
-      setUsers(data);
+      if (Array.isArray(data)) {
+        setUsers(data);
+      } else {
+        console.warn('Expected array from /api/admin/users, got:', typeof data);
+        setUsers([]);
+      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Failed to load team members',
@@ -437,8 +442,8 @@ export function TeamSection() {
               </table>
             </div>
 
-            {/* Mobile: card layout */}
-            <div className="divide-y divide-border sm:hidden">
+            {/* Mobile: card layout — aria-hidden so screen readers use the semantic table above */}
+            <div className="divide-y divide-border sm:hidden" aria-hidden="true">
               {users.map((user) => {
                 const isSelf = user.id === currentUserId;
                 return (

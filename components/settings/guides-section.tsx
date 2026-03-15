@@ -116,7 +116,7 @@ function GuideFormDialog({
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
   const [guideType, setGuideType] = useState<string>('sector');
-  const [domainFilter, setDomainFilter] = useState<string>('');
+  const [domainFilter, setDomainFilter] = useState<string>('none');
   const [saving, setSaving] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
 
@@ -127,14 +127,14 @@ function GuideFormDialog({
       setSlug(guide.slug);
       setDescription(guide.description ?? '');
       setGuideType(guide.guide_type);
-      setDomainFilter(guide.domain_filter ?? '');
+      setDomainFilter(guide.domain_filter ?? 'none');
       setSlugManuallyEdited(true);
     } else {
       setName('');
       setSlug('');
       setDescription('');
       setGuideType('sector');
-      setDomainFilter('');
+      setDomainFilter('none');
       setSlugManuallyEdited(false);
     }
   }, [guide, open]);
@@ -160,7 +160,7 @@ function GuideFormDialog({
         slug: slug.trim(),
         description: description.trim() || undefined,
         guide_type: guideType,
-        domain_filter: domainFilter || undefined,
+        domain_filter: domainFilter && domainFilter !== 'none' ? domainFilter : undefined,
       };
 
       const res = guide
@@ -273,7 +273,7 @@ function GuideFormDialog({
                 <SelectValue placeholder="None (cross-domain)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None (cross-domain)</SelectItem>
+                <SelectItem value="none">None (cross-domain)</SelectItem>
                 {domains.map((d) => (
                   <SelectItem key={d.name} value={d.name}>
                     {d.name}
@@ -318,8 +318,8 @@ function SectionFormDialog({
   const { subtopics } = useTaxonomy();
   const [sectionName, setSectionName] = useState('');
   const [description, setDescription] = useState('');
-  const [expectedLayer, setExpectedLayer] = useState<string>('');
-  const [subtopicFilter, setSubtopicFilter] = useState<string>('');
+  const [expectedLayer, setExpectedLayer] = useState<string>('none');
+  const [subtopicFilter, setSubtopicFilter] = useState<string>('none');
   const [isRequired, setIsRequired] = useState(true);
   const [displayOrder, setDisplayOrder] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -328,15 +328,15 @@ function SectionFormDialog({
     if (section) {
       setSectionName(section.section_name);
       setDescription(section.description ?? '');
-      setExpectedLayer(section.expected_layer ?? '');
-      setSubtopicFilter(section.subtopic_filter ?? '');
+      setExpectedLayer(section.expected_layer ?? 'none');
+      setSubtopicFilter(section.subtopic_filter ?? 'none');
       setIsRequired(section.is_required);
       setDisplayOrder(section.display_order);
     } else {
       setSectionName('');
       setDescription('');
-      setExpectedLayer('');
-      setSubtopicFilter('');
+      setExpectedLayer('none');
+      setSubtopicFilter('none');
       setIsRequired(true);
       setDisplayOrder(0);
     }
@@ -353,8 +353,8 @@ function SectionFormDialog({
       const body = {
         section_name: sectionName.trim(),
         description: description.trim() || null,
-        expected_layer: expectedLayer || null,
-        subtopic_filter: subtopicFilter || null,
+        expected_layer: expectedLayer && expectedLayer !== 'none' ? expectedLayer : null,
+        subtopic_filter: subtopicFilter && subtopicFilter !== 'none' ? subtopicFilter : null,
         display_order: displayOrder,
         is_required: isRequired,
       };
@@ -431,7 +431,7 @@ function SectionFormDialog({
                 <SelectValue placeholder="Any layer" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Any layer</SelectItem>
+                <SelectItem value="none">Any layer</SelectItem>
                 {CLIENT_CONFIG.layer_vocabulary.map((layer) => (
                   <SelectItem key={layer.key} value={layer.key}>
                     {layer.label}
@@ -450,7 +450,7 @@ function SectionFormDialog({
                 <SelectValue placeholder="Any subtopic" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Any subtopic</SelectItem>
+                <SelectItem value="none">Any subtopic</SelectItem>
                 {subtopics.map((s) => (
                   <SelectItem key={s.name} value={s.name}>
                     {s.name}

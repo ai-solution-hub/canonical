@@ -20,6 +20,8 @@
     "sync:plugin-taxonomy": "bun run scripts/sync-plugin-taxonomy.ts",
     "test:mcp-eval": "bun run scripts/mcp-eval/protocol-compliance.ts",
     "test:mcp-eval:skip-ai": "bun run scripts/mcp-eval/protocol-compliance.ts --skip-ai",
+    "test:mcp-eval:rq": "bun run scripts/mcp-eval/response-quality.ts",
+    "test:mcp-eval:rq:skip-search": "bun run scripts/mcp-eval/response-quality.ts --skip-search",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {

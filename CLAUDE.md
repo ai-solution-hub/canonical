@@ -115,7 +115,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~106 test files, ~2,068 tests
+- **Location:** `__tests__/` — ~201 test files, ~3,206 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/`
@@ -124,6 +124,12 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
   See `docs/reference/e2e-test-flows.md` for details.
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
+- **Agent escalation rule:** When test agents encounter unexpected production
+  behaviour (e.g. a component renders incorrectly, a function returns wrong
+  data, dead code paths, or tests that can only pass by not actually testing
+  the real logic), they MUST escalate these findings rather than silently
+  working around them with mocks. Tests that pass but don't verify real
+  functionality are worse than no tests.
 
 ## Deployment
 

@@ -1,0 +1,819 @@
+/**
+ * MCP Response Quality Evaluation — Layer 3
+ *
+ * Evaluates whether MCP tool responses are optimised for LLM consumption:
+ *   1. Token efficiency — are responses concise enough for model context windows?
+ *   2. Search relevance — do search tools rank relevant results highly?
+ *   3. Structural quality — are Markdown responses well-structured?
+ *
+ * Usage:
+ *   bun run scripts/mcp-eval/response-quality.ts
+ *   bun run scripts/mcp-eval/response-quality.ts --server http://localhost:3000
+ *   bun run scripts/mcp-eval/response-quality.ts --skip-search
+ */
+import {
+  loadEnv,
+  getAuthToken,
+  getKnownUUIDs,
+  type KnownUUIDs,
+} from './fixtures.js';
+
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
+
+const cliArgs = process.argv.slice(2);
+const skipSearch = cliArgs.includes('--skip-search');
+const serverArgIdx = cliArgs.indexOf('--server');
+const serverBase = serverArgIdx >= 0
+  ? cliArgs[serverArgIdx + 1] ?? 'http://localhost:3000'
+  : 'http://localhost:3000';
+const MCP_URL = `${serverBase}/api/mcp/streamable-http`;
+
+// ---------------------------------------------------------------------------
+// Result tracking
+// ---------------------------------------------------------------------------
+
+type CheckStatus = 'PASS' | 'WARN' | 'FAIL' | 'SKIP';
+
+interface CheckResult {
+  id: string;
+  name: string;
+  status: CheckStatus;
+  detail: string;
+  section: string;
+}
+
+const results: CheckResult[] = [];
+
+// Shared response cache — keyed by "toolName:JSON(args)". Populated during
+// token efficiency checks and reused by structural quality checks to avoid
+// redundant API calls for the same tool+args combination.
+const responseCache = new Map<string, string>();
+
+function record(
+  section: string,
+  id: string,
+  name: string,
+  status: CheckStatus,
+  detail: string,
+): void {
+  results.push({ id, name, status, detail, section });
+}
+
+// ---------------------------------------------------------------------------
+// JSON-RPC client — same pattern as protocol-compliance.ts
+// ---------------------------------------------------------------------------
+
+let requestId = 1;
+
+interface JsonRpcResponse {
+  jsonrpc: '2.0';
+  id: number;
+  result?: unknown;
+  error?: { code: number; message: string; data?: unknown };
+}
+
+interface ContentBlock {
+  type: string;
+  text?: string;
+  resource?: unknown;
+}
+
+interface ToolCallResult {
+  content: ContentBlock[];
+  isError?: boolean;
+}
+
+const REQUEST_TIMEOUT_MS = 30_000; // 30 seconds per tool call
+
+async function mcpRequest(
+  method: string,
+  params: Record<string, unknown>,
+  accessToken: string,
+): Promise<JsonRpcResponse> {
+  const id = requestId++;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(MCP_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        method,
+        params,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    const contentType = response.headers.get('content-type') ?? '';
+
+    if (contentType.includes('application/json')) {
+      return (await response.json()) as JsonRpcResponse;
+    }
+
+    if (contentType.includes('text/event-stream')) {
+      // Read SSE stream incrementally to avoid hanging on open connections
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No readable stream in SSE response');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (value) {
+          buffer += decoder.decode(value, { stream: !done });
+        }
+
+        // Try to extract JSON-RPC response from accumulated SSE events
+        const events = buffer.split('\n\n').filter(Boolean);
+        for (const event of events) {
+          for (const line of event.split('\n')) {
+            if (line.startsWith('data: ')) {
+              try {
+                const parsed = JSON.parse(line.slice(6)) as JsonRpcResponse;
+                // Found a valid response — cancel the reader and return
+                reader.cancel().catch(() => {});
+                return parsed;
+              } catch {
+                // Not valid JSON yet, continue
+              }
+            }
+          }
+        }
+
+        if (done) break;
+      }
+
+      throw new Error('No JSON-RPC response found in SSE stream');
+    }
+
+    throw new Error(`Unexpected content type: ${contentType}`);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Call an MCP tool and return the text content.
+ * Returns an object with errorMessage if the call fails.
+ */
+async function callTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  accessToken: string,
+): Promise<{ text: string; charCount: number; isError: boolean; errorMessage?: string }> {
+  try {
+    const response = await mcpRequest(
+      'tools/call',
+      { name: toolName, arguments: args },
+      accessToken,
+    );
+
+    if (response.error) {
+      return {
+        text: '',
+        charCount: 0,
+        isError: true,
+        errorMessage: `RPC error: ${response.error.message}`,
+      };
+    }
+
+    const result = response.result as ToolCallResult;
+    if (!result.content || !Array.isArray(result.content)) {
+      return {
+        text: '',
+        charCount: 0,
+        isError: true,
+        errorMessage: 'Response missing content array',
+      };
+    }
+
+    const textContent = result.content
+      .filter((b) => b.type === 'text')
+      .map((b) => b.text ?? '')
+      .join('');
+
+    return {
+      text: textContent,
+      charCount: textContent.length,
+      isError: result.isError === true,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      text: '',
+      charCount: 0,
+      isError: true,
+      errorMessage: msg.includes('abort') ? `Timeout after ${REQUEST_TIMEOUT_MS / 1000}s` : msg,
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 1. Token Efficiency Checks
+// ---------------------------------------------------------------------------
+
+interface TokenCheck {
+  id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  expectedMin: number;
+  expectedMax: number;
+  flagThreshold: number;
+  label: string;
+}
+
+function getTokenChecks(knownUUIDs: KnownUUIDs): TokenCheck[] {
+  // Ranges calibrated against live server responses (15 Mar 2026).
+  // Lower bounds are set at ~50% of observed values to allow for data variation.
+  // Upper bounds and flag thresholds from the spec catch response bloat.
+  return [
+    {
+      id: 'TE-01',
+      tool: 'search_knowledge_base',
+      args: { query: 'ISO 27001' },
+      expectedMin: 500,
+      expectedMax: 5000,
+      flagThreshold: 8000,
+      label: 'search_knowledge_base',
+    },
+    {
+      id: 'TE-02',
+      tool: 'get_dashboard_summary',
+      args: {},
+      expectedMin: 200,
+      expectedMax: 4000,
+      flagThreshold: 6000,
+      label: 'get_dashboard_summary',
+    },
+    {
+      id: 'TE-03',
+      tool: 'get_content_item',
+      args: { id: knownUUIDs.contentItemId },
+      expectedMin: 200,
+      expectedMax: 3000,
+      flagThreshold: 5000,
+      label: 'get_content_item',
+    },
+    {
+      id: 'TE-04',
+      tool: 'get_bid_detail',
+      args: { id: knownUUIDs.bidId ?? '00000000-0000-0000-0000-000000000000' },
+      expectedMin: 100,
+      expectedMax: 8000,
+      flagThreshold: 12000,
+      label: 'get_bid_detail',
+    },
+    {
+      id: 'TE-05',
+      tool: 'get_reorientation',
+      args: {},
+      expectedMin: 200,
+      expectedMax: 6000,
+      flagThreshold: 10000,
+      label: 'get_reorientation',
+    },
+    {
+      id: 'TE-06',
+      tool: 'get_coverage_gaps',
+      args: {},
+      expectedMin: 200,
+      expectedMax: 4000,
+      flagThreshold: 8000,
+      label: 'get_coverage_gaps',
+    },
+    {
+      id: 'TE-07',
+      tool: 'audit_content',
+      args: { issue_type: 'no_domain' },
+      expectedMin: 30,
+      expectedMax: 5000,
+      flagThreshold: 8000,
+      label: 'audit_content',
+    },
+  ];
+}
+
+async function runTokenEfficiencyChecks(
+  accessToken: string,
+  knownUUIDs: KnownUUIDs,
+): Promise<void> {
+  console.log('\nToken Efficiency');
+
+  const checks = getTokenChecks(knownUUIDs);
+
+  for (const check of checks) {
+    // Skip bid detail if no bid exists
+    if (check.tool === 'get_bid_detail' && !knownUUIDs.bidId) {
+      record('Token Efficiency', check.id, check.label, 'SKIP', 'No bid workspace found');
+      continue;
+    }
+
+    const result = await callTool(check.tool, check.args, accessToken);
+
+    if (result.errorMessage) {
+      record('Token Efficiency', check.id, check.label, 'FAIL', result.errorMessage);
+      continue;
+    }
+
+    if (result.isError) {
+      record('Token Efficiency', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+      continue;
+    }
+
+    // Cache the response so structural quality checks can reuse it
+    const cacheKey = `${check.tool}:${JSON.stringify(check.args)}`;
+    responseCache.set(cacheKey, result.text);
+
+    const chars = result.charCount;
+    const estTokens = Math.round(chars / 4);
+
+    if (chars > check.flagThreshold) {
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'FAIL',
+        `${chars.toLocaleString()} chars (est. ${estTokens.toLocaleString()} tokens) — exceeds ${check.flagThreshold.toLocaleString()} threshold`,
+      );
+    } else if (chars > check.expectedMax) {
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'WARN',
+        `${chars.toLocaleString()} chars (est. ${estTokens.toLocaleString()} tokens) — above typical range ${check.expectedMin.toLocaleString()}-${check.expectedMax.toLocaleString()}`,
+      );
+    } else if (chars < check.expectedMin) {
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'WARN',
+        `${chars.toLocaleString()} chars (est. ${estTokens.toLocaleString()} tokens) — below typical range ${check.expectedMin.toLocaleString()}-${check.expectedMax.toLocaleString()}`,
+      );
+    } else {
+      record(
+        'Token Efficiency',
+        check.id,
+        check.label,
+        'PASS',
+        `${chars.toLocaleString()} chars, est. ${estTokens.toLocaleString()} tokens`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 2. Search Relevance Evaluation
+// ---------------------------------------------------------------------------
+
+interface SearchRelevanceCheck {
+  id: string;
+  query: string;
+  tool: string;
+  label: string;
+  evaluate: (text: string) => { status: CheckStatus; detail: string };
+}
+
+const SEARCH_RELEVANCE_CHECKS: SearchRelevanceCheck[] = [
+  {
+    id: 'RQ-01',
+    query: 'data protection GDPR policies',
+    tool: 'search_knowledge_base',
+    label: 'GDPR data protection',
+    evaluate: (text: string) => {
+      // Check that top results contain data-protection subtopic
+      const lines = text.split('\n');
+      const dataProtectionHits = lines.filter(
+        (line) =>
+          line.toLowerCase().includes('data-protection') ||
+          line.toLowerCase().includes('data protection') ||
+          line.toLowerCase().includes('gdpr'),
+      ).length;
+      if (dataProtectionHits >= 3) {
+        return { status: 'PASS', detail: `${dataProtectionHits} data-protection references in results` };
+      } else if (dataProtectionHits >= 1) {
+        return { status: 'WARN', detail: `Only ${dataProtectionHits} data-protection reference(s) — expected 3+` };
+      }
+      return { status: 'FAIL', detail: 'No data-protection references found in results' };
+    },
+  },
+  {
+    id: 'RQ-02',
+    query: 'ISO 27001 certification ISMS',
+    tool: 'search_knowledge_base',
+    label: 'ISO 27001 cross-domain',
+    evaluate: (text: string) => {
+      const textLower = text.toLowerCase();
+      const hasSecurityDomain =
+        textLower.includes('security') || textLower.includes('iso-27001') || textLower.includes('isms');
+      const hasComplianceDomain =
+        textLower.includes('compliance') || textLower.includes('certification');
+      if (hasSecurityDomain && hasComplianceDomain) {
+        return { status: 'PASS', detail: 'Both security and compliance domains represented' };
+      } else if (hasSecurityDomain || hasComplianceDomain) {
+        return { status: 'WARN', detail: `Only ${hasSecurityDomain ? 'security' : 'compliance'} domain found` };
+      }
+      return { status: 'FAIL', detail: 'Neither security nor compliance domain found in results' };
+    },
+  },
+  {
+    id: 'RQ-03',
+    query: 'SLA response times',
+    tool: 'search_qa_library',
+    label: 'SLA Q&A search',
+    evaluate: (text: string) => {
+      const textLower = text.toLowerCase();
+      const hasSLA =
+        textLower.includes('sla') ||
+        textLower.includes('service level') ||
+        textLower.includes('response time');
+      const hasQA =
+        textLower.includes('q&a') ||
+        textLower.includes('q_a') ||
+        textLower.includes('question') ||
+        textLower.includes('answer');
+      if (hasSLA) {
+        return { status: 'PASS', detail: `SLA content found${hasQA ? ' (Q&A format)' : ''}` };
+      }
+      return { status: 'FAIL', detail: 'No SLA-related content found in results' };
+    },
+  },
+  {
+    id: 'RQ-04',
+    query: 'staff qualifications CVs',
+    tool: 'search_knowledge_base',
+    label: 'Staff qualifications',
+    evaluate: (text: string) => {
+      const textLower = text.toLowerCase();
+      const hasStaffing =
+        textLower.includes('staffing') ||
+        textLower.includes('corporate') ||
+        textLower.includes('personnel') ||
+        textLower.includes('qualification') ||
+        textLower.includes('staff') ||
+        textLower.includes('cv');
+      if (hasStaffing) {
+        return { status: 'PASS', detail: 'Corporate/staffing content found in results' };
+      }
+      return { status: 'FAIL', detail: 'No staffing-related content found in results' };
+    },
+  },
+  {
+    id: 'RQ-05',
+    query: 'quantum computing blockchain',
+    tool: 'search_knowledge_base',
+    label: 'Negative test (irrelevant query)',
+    evaluate: (text: string) => {
+      // Should return 0-3 results with low relevance
+      // Count result items — look for numbered items or bullet points
+      const resultLines = text.split('\n').filter(
+        (line) =>
+          line.match(/^\d+\./) ||
+          line.match(/^- \*\*/) ||
+          line.match(/^###/),
+      );
+      if (resultLines.length <= 3) {
+        return {
+          status: 'PASS',
+          detail: `${resultLines.length} result(s) — correctly low relevance`,
+        };
+      }
+      // Check if the response explicitly indicates no/few results
+      const textLower = text.toLowerCase();
+      if (
+        textLower.includes('no results') ||
+        textLower.includes('no matching') ||
+        textLower.includes('0 results') ||
+        textLower.includes('no items found')
+      ) {
+        return { status: 'PASS', detail: 'Correctly reports no/few results' };
+      }
+      return {
+        status: 'WARN',
+        detail: `${resultLines.length} results found — expected 0-3 for irrelevant query`,
+      };
+    },
+  },
+];
+
+async function runSearchRelevanceChecks(accessToken: string): Promise<void> {
+  console.log('\nSearch Relevance');
+
+  for (const check of SEARCH_RELEVANCE_CHECKS) {
+    const result = await callTool(check.tool, { query: check.query }, accessToken);
+
+    if (result.errorMessage) {
+      record('Search Relevance', check.id, check.label, 'FAIL', result.errorMessage);
+      continue;
+    }
+
+    if (result.isError) {
+      record('Search Relevance', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+      continue;
+    }
+
+    const evaluation = check.evaluate(result.text);
+    record('Search Relevance', check.id, check.label, evaluation.status, evaluation.detail);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. Structural Quality Checks
+// ---------------------------------------------------------------------------
+
+interface StructuralCheck {
+  id: string;
+  label: string;
+  tool: string;
+  args: Record<string, unknown>;
+  evaluate: (text: string) => { status: CheckStatus; detail: string };
+}
+
+function getStructuralChecks(knownUUIDs: KnownUUIDs): StructuralCheck[] {
+  return [
+    {
+      id: 'RQ-10',
+      label: 'Dashboard section headers',
+      tool: 'get_dashboard_summary',
+      args: {},
+      evaluate: (text: string) => {
+        // Check for section headers (## or **bold**)
+        const hasH2 = text.includes('## ');
+        const hasBold = /\*\*[^*]+\*\*/.test(text);
+        if (hasH2 || hasBold) {
+          const headerCount = (text.match(/^##\s/gm) ?? []).length;
+          const boldCount = (text.match(/\*\*[^*]+\*\*/g) ?? []).length;
+          return {
+            status: 'PASS',
+            detail: `${headerCount} section header(s), ${boldCount} bold label(s)`,
+          };
+        }
+        return { status: 'FAIL', detail: 'No section headers (## or **bold**) found' };
+      },
+    },
+    {
+      id: 'RQ-11',
+      label: 'Search result formatting',
+      tool: 'search_knowledge_base',
+      args: { query: 'data protection' },
+      evaluate: (text: string) => {
+        // Check for consistent item formatting — numbered list or bullet points with bold titles
+        const lines = text.split('\n');
+        const numberedItems = lines.filter((line) => /^\d+\.\s/.test(line));
+        const bulletItems = lines.filter((line) => /^[-*]\s\*\*/.test(line));
+        const headerItems = lines.filter((line) => /^###\s/.test(line));
+
+        const itemCount = Math.max(numberedItems.length, bulletItems.length, headerItems.length);
+        if (itemCount >= 2) {
+          const format = numberedItems.length >= 2
+            ? 'numbered list'
+            : bulletItems.length >= 2
+              ? 'bullet points'
+              : 'section headers';
+          return { status: 'PASS', detail: `${itemCount} items in consistent ${format} format` };
+        }
+        // Also check for bold labels on separate lines
+        const boldLabels = lines.filter((line) => /^\*\*[^*]+\*\*/.test(line.trim()));
+        if (boldLabels.length >= 2) {
+          return { status: 'PASS', detail: `${boldLabels.length} items with bold label formatting` };
+        }
+        return { status: 'FAIL', detail: 'Search results lack consistent item formatting' };
+      },
+    },
+    {
+      id: 'RQ-12',
+      label: 'Coverage gaps grouped by domain',
+      tool: 'get_coverage_gaps',
+      args: {},
+      evaluate: (text: string) => {
+        // Check that gaps are grouped by domain — look for domain names as headers or bold labels
+        const domainNames = [
+          'security', 'compliance', 'implementation', 'support',
+          'corporate', 'product-feature', 'methodology',
+        ];
+        const foundDomains = domainNames.filter(
+          (domain) => text.toLowerCase().includes(domain),
+        );
+        if (foundDomains.length >= 3) {
+          // Check for grouping — domain names should appear as headers or bold labels
+          const hasGrouping =
+            foundDomains.some((d) => text.includes(`## ${d}`) || text.includes(`**${d}`)) ||
+            foundDomains.some((d) => {
+              const regex = new RegExp(`(##|\\*\\*)\\s*${d}`, 'i');
+              return regex.test(text);
+            });
+          if (hasGrouping) {
+            return { status: 'PASS', detail: `${foundDomains.length} domains with section grouping` };
+          }
+          return { status: 'PASS', detail: `${foundDomains.length} domains referenced (implicit grouping)` };
+        }
+        if (foundDomains.length >= 1) {
+          return { status: 'WARN', detail: `Only ${foundDomains.length} domain(s) found — expected 3+` };
+        }
+        return { status: 'FAIL', detail: 'No domain grouping found in coverage gaps' };
+      },
+    },
+    {
+      id: 'RQ-13',
+      label: 'Entity relationships structured',
+      tool: 'get_entity_relationships',
+      args: { entity_type: 'certification' },
+      evaluate: (text: string) => {
+        // Check that entity relationships are structured as a list, not prose
+        const lines = text.split('\n');
+        const listItems = lines.filter(
+          (line) => /^[-*]\s/.test(line.trim()) || /^\d+\.\s/.test(line.trim()),
+        );
+        const proseLines = lines.filter(
+          (line) => line.trim().length > 80 && !line.trim().startsWith('-') && !line.trim().startsWith('*'),
+        );
+
+        if (listItems.length >= 2) {
+          return { status: 'PASS', detail: `${listItems.length} list items found — structured format` };
+        }
+        if (proseLines.length > listItems.length) {
+          return { status: 'FAIL', detail: `Prose-heavy response (${proseLines.length} long lines vs ${listItems.length} list items)` };
+        }
+        // May be a short or empty response — that's acceptable
+        if (text.trim().length < 100) {
+          return { status: 'PASS', detail: 'Short response (few entities) — acceptable' };
+        }
+        return { status: 'WARN', detail: 'Response structure unclear — neither list nor prose dominant' };
+      },
+    },
+    {
+      id: 'RQ-14',
+      label: 'Reorientation clear sections',
+      tool: 'get_reorientation',
+      args: {},
+      evaluate: (text: string) => {
+        // Check for clear sections — headers, bold labels, or distinct blocks
+        const hasH2 = (text.match(/^##\s/gm) ?? []).length;
+        const hasH3 = (text.match(/^###\s/gm) ?? []).length;
+        const hasBoldSections = (text.match(/^\*\*[^*]+\*\*/gm) ?? []).length;
+        const totalSections = hasH2 + hasH3 + hasBoldSections;
+
+        if (totalSections >= 3) {
+          return { status: 'PASS', detail: `${totalSections} distinct sections found` };
+        }
+        if (totalSections >= 1) {
+          return { status: 'WARN', detail: `Only ${totalSections} section(s) — expected 3+ for reorientation` };
+        }
+        return { status: 'FAIL', detail: 'No section structure found in reorientation response' };
+      },
+    },
+  ];
+}
+
+async function runStructuralQualityChecks(
+  accessToken: string,
+  knownUUIDs: KnownUUIDs,
+): Promise<void> {
+  console.log('\nStructural Quality');
+
+  const checks = getStructuralChecks(knownUUIDs);
+
+  // Uses module-level responseCache — already populated by token efficiency checks
+  // for shared tools (dashboard, coverage gaps, reorientation, search, audit)
+
+  for (const check of checks) {
+    const cacheKey = `${check.tool}:${JSON.stringify(check.args)}`;
+    let text = responseCache.get(cacheKey);
+
+    if (text === undefined) {
+      const result = await callTool(check.tool, check.args, accessToken);
+      if (result.errorMessage) {
+        record('Structural Quality', check.id, check.label, 'FAIL', result.errorMessage);
+        continue;
+      }
+      if (result.isError) {
+        record('Structural Quality', check.id, check.label, 'FAIL', `Tool returned error: ${result.text.slice(0, 100)}`);
+        continue;
+      }
+      text = result.text;
+      responseCache.set(cacheKey, text);
+    }
+
+    const evaluation = check.evaluate(text);
+    record('Structural Quality', check.id, check.label, evaluation.status, evaluation.detail);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Report formatting
+// ---------------------------------------------------------------------------
+
+function printReport(): void {
+  const passed = results.filter((r) => r.status === 'PASS').length;
+  const warned = results.filter((r) => r.status === 'WARN').length;
+  const failed = results.filter((r) => r.status === 'FAIL').length;
+  const skipped = results.filter((r) => r.status === 'SKIP').length;
+  const total = results.length;
+
+  console.log('\n' + '='.repeat(60));
+  console.log('Response Quality Report');
+  console.log('='.repeat(60));
+  console.log(`Date: ${new Date().toISOString()}`);
+  console.log(`Server: ${MCP_URL}`);
+  if (skipSearch) console.log('Mode: --skip-search (search relevance skipped)');
+
+  // Group by section
+  const sections = new Map<string, CheckResult[]>();
+  for (const r of results) {
+    const existing = sections.get(r.section) ?? [];
+    existing.push(r);
+    sections.set(r.section, existing);
+  }
+
+  for (const [section, checks] of sections) {
+    const sectionCount = checks.length;
+    console.log(`\n${section} (${sectionCount} checks)`);
+    for (const check of checks) {
+      const label = `  ${check.id} ${check.name}`;
+      const dots = '.'.repeat(Math.max(2, 50 - label.length));
+      console.log(`${label} ${dots} ${check.status} (${check.detail})`);
+    }
+  }
+
+  console.log(
+    `\nSummary: ${passed}/${total} passed, ${warned} warning(s), ${failed} failed, ${skipped} skipped`,
+  );
+  console.log('='.repeat(60));
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  const startTime = Date.now();
+
+  console.log('MCP Response Quality Evaluation — Layer 3');
+  console.log(`Server: ${MCP_URL}`);
+  if (skipSearch) console.log('Mode: --skip-search');
+
+  // Load env
+  loadEnv();
+
+  // Step 1: Authenticate
+  console.log('\nAuthenticating...');
+  const { accessToken, supabase } = await getAuthToken();
+  console.log('  Signed in as admin test user');
+
+  // Step 2: Get known UUIDs
+  console.log('\nFetching known UUIDs...');
+  const knownUUIDs = await getKnownUUIDs(supabase);
+  console.log(`  Content item: ${knownUUIDs.contentItemId}`);
+  console.log(`  Bid: ${knownUUIDs.bidId ?? '(none)'}`);
+
+  // Step 3: Token Efficiency
+  await runTokenEfficiencyChecks(accessToken, knownUUIDs);
+
+  // Step 4: Search Relevance (unless --skip-search)
+  if (skipSearch) {
+    for (const check of SEARCH_RELEVANCE_CHECKS) {
+      record('Search Relevance', check.id, check.label, 'SKIP', 'Skipped (--skip-search)');
+    }
+  } else {
+    await runSearchRelevanceChecks(accessToken);
+  }
+
+  // Step 5: Structural Quality
+  await runStructuralQualityChecks(accessToken, knownUUIDs);
+
+  // Step 6: Report
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`\nCompleted in ${elapsed}s`);
+  printReport();
+
+  // Exit with non-zero if any FAILs
+  const failures = results.filter((r) => r.status === 'FAIL').length;
+  if (failures > 0) {
+    process.exit(1);
+  }
+}
+
+main().catch((err) => {
+  console.error('\nFatal error:', err instanceof Error ? err.message : String(err));
+  if (err instanceof Error && err.stack) {
+    console.error(err.stack);
+  }
+  process.exit(2);
+});

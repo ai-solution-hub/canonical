@@ -1,8 +1,9 @@
 {
   "metadata": {
-    "version": "3.0",
+    "version": "4.0",
     "created": "08/03/2026",
-    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC). Updated for bid-domain taxonomy (7 domains, 30 subtopics).",
+    "updated": "15/03/2026",
+    "description": "Search evaluation test suite for Knowledge Hub hybrid search (pgvector + keyword + recency via hybrid_search RPC). Updated for bid-domain taxonomy (7 domains, 34 subtopics). 4 subtopics added in S80: health-and-safety, environmental, modern-slavery, supply-chain.",
     "search_endpoint": "POST /api/search",
     "search_defaults": {
       "threshold": 0.35,
@@ -36,10 +37,10 @@
       "expectations": {
         "min_results": 3,
         "expected_domains": ["security", "compliance"],
-        "expected_subtopics": ["iso-27001", "certification"],
+        "expected_subtopics": ["iso-27001", "certification", "regulatory"],
         "expected_content_types": ["q_a_pair", "certification"],
         "must_include_titles": [],
-        "notes": "Tests the security/compliance boundary. Queries about ISO 27001 substance (ISMS, controls) should return security/iso-27001. Queries about certification status should return compliance/certification. This query blends both and should surface items from both domains."
+        "notes": "Tests the security/compliance boundary. Queries about ISO 27001 substance (ISMS, controls) should return security/iso-27001. Queries about certification status should return compliance/certification. May also surface compliance/regulatory items about regulatory compliance obligations. This query blends both and should surface items from both domains."
       }
     },
     {
@@ -75,10 +76,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["support"],
-        "expected_subtopics": ["incident"],
+        "expected_subtopics": ["incident", "maintenance"],
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
-        "notes": "Conceptual test for support/incident domain. 'Business continuity' and 'disaster recovery' are semantic concepts that should map to incident response and DR planning content. Tests whether embeddings connect BCP/DR terminology."
+        "notes": "Conceptual test for support/incident domain. 'Business continuity' and 'disaster recovery' are semantic concepts that should map to incident response and DR planning content. May also surface maintenance items about system health monitoring. Tests whether embeddings connect BCP/DR terminology."
       }
     },
     {
@@ -88,7 +89,7 @@
       "expectations": {
         "min_results": 3,
         "expected_domains": ["methodology"],
-        "expected_subtopics": ["approach", "project-management"],
+        "expected_subtopics": ["approach", "project-management", "quality"],
         "expected_content_types": ["q_a_pair", "methodology"],
         "must_include_titles": [],
         "notes": "Tests methodology domain with agile-specific terminology. Should surface items about delivery approach, sprint-based working, and project governance. May also pull methodology/quality items about agile QA practices."
@@ -113,8 +114,8 @@
       "query": "penetration testing vulnerability management",
       "expectations": {
         "min_results": 2,
-        "expected_domains": ["security"],
-        "expected_subtopics": ["cyber-security"],
+        "expected_domains": ["security", "compliance"],
+        "expected_subtopics": ["cyber-security", "audit"],
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
         "notes": "Clear security/cyber-security topic. Should surface items about threat detection, vulnerability scanning, and penetration testing practices. May also return compliance/audit items about third-party security audits."
@@ -140,10 +141,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["product-feature", "implementation"],
-        "expected_subtopics": ["technical", "integration"],
+        "expected_subtopics": ["technical", "integration", "functionality"],
         "expected_content_types": ["q_a_pair", "product_description"],
         "must_include_titles": [],
-        "notes": "Tests the product-feature/technical vs implementation/integration boundary. 'Does your system support REST APIs' = product-feature. 'How do you integrate with our systems' = implementation. This query blends both and should surface items from both domains."
+        "notes": "Tests the product-feature/technical vs implementation/integration boundary. 'Does your system support REST APIs' = product-feature/technical or product-feature/functionality. 'How do you integrate with our systems' = implementation/integration. This query blends both and should surface items from both domains."
       }
     },
     {
@@ -153,10 +154,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["security"],
-        "expected_subtopics": ["encryption"],
+        "expected_subtopics": ["encryption", "access-control"],
         "expected_content_types": ["q_a_pair", "policy"],
         "must_include_titles": [],
-        "notes": "Precise technical security topic. Should strongly favour security/encryption items. Tests whether the search correctly routes encryption-specific queries to the encryption subtopic rather than the broader data-protection or cyber-security subtopics."
+        "notes": "Precise technical security topic. Should strongly favour security/encryption items. TLS certificates are related to access-control (authentication). Tests whether the search correctly routes encryption-specific queries to the encryption subtopic rather than the broader data-protection or cyber-security subtopics."
       }
     },
     {
@@ -179,7 +180,7 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["implementation"],
-        "expected_subtopics": ["onboarding"],
+        "expected_subtopics": ["onboarding", "helpdesk"],
         "expected_content_types": ["q_a_pair", "methodology"],
         "must_include_titles": [],
         "notes": "Tests implementation/onboarding. Should surface items about client onboarding processes, user training during rollout, and change management. May also return support/helpdesk items about ongoing training — tests the implementation vs support boundary."
@@ -218,10 +219,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["compliance", "security"],
-        "expected_subtopics": ["certification", "cyber-security"],
+        "expected_subtopics": ["certification", "cyber-security", "standards"],
         "expected_content_types": ["q_a_pair", "certification"],
         "must_include_titles": [],
-        "notes": "Keyword-semantic overlap test. 'Cyber Essentials' is both a keyword and a semantic concept spanning compliance (certification status) and security (the controls required). Should surface items from both domains."
+        "notes": "Keyword-semantic overlap test. 'Cyber Essentials' is both a keyword and a semantic concept spanning compliance (certification status, standards adherence) and security (the controls required). Should surface items from both domains."
       }
     },
     {
@@ -231,10 +232,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["corporate"],
-        "expected_subtopics": ["insurance"],
+        "expected_subtopics": ["insurance", "financial"],
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
-        "notes": "Keyword-overlap test for corporate/insurance. These are highly specific insurance terms that should map directly to corporate/insurance items. Tests whether the search precisely matches financial/insurance terminology."
+        "notes": "Keyword-overlap test for corporate/insurance. These are highly specific insurance terms that should map directly to corporate/insurance items. May also surface corporate/financial items about financial standing and risk management. Tests whether the search precisely matches financial/insurance terminology."
       }
     },
     {
@@ -257,10 +258,10 @@
       "expectations": {
         "min_results": 2,
         "expected_domains": ["product-feature"],
-        "expected_subtopics": ["reporting"],
+        "expected_subtopics": ["reporting", "usability"],
         "expected_content_types": ["q_a_pair", "product_description"],
         "must_include_titles": [],
-        "notes": "Should surface product_description and q_a_pair items from product-feature/reporting. Tests whether the search correctly routes reporting capability queries to the product-feature domain."
+        "notes": "Should surface product_description and q_a_pair items from product-feature/reporting. May also return product-feature/usability items about dashboard UX. Tests whether the search correctly routes reporting capability queries to the product-feature domain."
       }
     },
     {
@@ -274,6 +275,58 @@
         "expected_content_types": ["q_a_pair"],
         "must_include_titles": [],
         "notes": "Cross-domain test spanning implementation/migration and methodology/delivery. 'Data migration' and 'legacy system transition' are implementation activities; 'cutover planning' bridges into methodology/delivery. Should surface items from both domains with implementation dominating."
+      }
+    },
+    {
+      "id": "SE-21",
+      "category": "exact-topic",
+      "query": "health and safety policy risk assessment RIDDOR CDM",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["compliance"],
+        "expected_subtopics": ["health-and-safety"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Tests the new compliance/health-and-safety subtopic (added S80). Should surface items about H&S policies, workplace risk assessments, RIDDOR reporting, and CDM regulations. Clear compliance domain — the focus is on regulatory obligations for physical safety, not information security."
+      }
+    },
+    {
+      "id": "SE-22",
+      "category": "exact-topic",
+      "query": "carbon reduction plan net zero environmental policy ISO 14001",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["compliance"],
+        "expected_subtopics": ["environmental"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Tests the new compliance/environmental subtopic (added S80). Should surface items about carbon reduction plans, net zero targets, ISO 14001 certification, and PPN 06/20 social value requirements. Distinct from security domain — this is about environmental impact, not data protection."
+      }
+    },
+    {
+      "id": "SE-23",
+      "category": "cross-domain",
+      "query": "modern slavery statement supply chain due diligence forced labour prevention",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["compliance", "corporate"],
+        "expected_subtopics": ["modern-slavery", "supply-chain"],
+        "expected_content_types": ["q_a_pair", "policy"],
+        "must_include_titles": [],
+        "notes": "Cross-domain test spanning two new subtopics (added S80). 'Modern slavery statement' and 'forced labour prevention' map to compliance/modern-slavery (PPN 02/23 obligations). 'Supply chain due diligence' bridges into corporate/supply-chain (subcontractor oversight, prompt payment). Tests whether search correctly distinguishes the ethical compliance obligation from the operational supply chain management."
+      }
+    },
+    {
+      "id": "SE-24",
+      "category": "keyword-overlap",
+      "query": "subcontractor management prompt payment supply chain oversight",
+      "expectations": {
+        "min_results": 2,
+        "expected_domains": ["corporate"],
+        "expected_subtopics": ["supply-chain"],
+        "expected_content_types": ["q_a_pair"],
+        "must_include_titles": [],
+        "notes": "Tests the new corporate/supply-chain subtopic (added S80). Should surface items about supply chain management, prompt payment practices, and subcontractor oversight. Keyword-overlap test: 'supply chain' is both a specific subtopic term and a broad concept. Tests whether the search precisely routes supply chain operational queries to the corporate domain rather than compliance/modern-slavery."
       }
     }
   ]

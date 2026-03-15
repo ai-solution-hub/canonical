@@ -1,0 +1,160 @@
+/**
+ * ItemTitleSection Component Tests
+ *
+ * Tests the title display, inline editing, verification badge,
+ * source document, and editing banner with save/cancel buttons.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+vi.mock('@/components/verification-badge', () => ({
+  VerificationBadge: ({ verified }: { verified: boolean }) => (
+    <span data-testid="verification-badge" data-verified={verified}>
+      {verified ? 'Verified' : 'Unverified'}
+    </span>
+  ),
+}));
+
+vi.mock('@/components/ui/button', () => ({
+  Button: ({ children, onClick, ...props }: Record<string, unknown>) => (
+    <button onClick={onClick as () => void} {...props}>{children as React.ReactNode}</button>
+  ),
+}));
+
+vi.mock('@/components/ui/input', () => ({
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+}));
+
+import { ItemTitleSection } from '@/components/item-detail/item-title-section';
+import type { ItemTitleSectionProps } from '@/components/item-detail/item-title-section';
+import type { ItemData } from '@/app/item/[id]/item-detail-client';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
+  return {
+    id: 'item-1',
+    title: 'Test Title',
+    suggested_title: null,
+    content: null,
+    ai_summary: null,
+    ai_keywords: null,
+    primary_domain: null,
+    primary_subtopic: null,
+    secondary_domain: null,
+    secondary_subtopic: null,
+    content_type: 'article',
+    platform: null,
+    author_name: null,
+    source_url: null,
+    file_path: null,
+    source_domain: null,
+    thumbnail_url: null,
+    captured_date: null,
+    classification_confidence: null,
+    classification_reasoning: null,
+    classified_at: null,
+    summary_data: null,
+    priority: null,
+    user_tags: null,
+    freshness: null,
+    governance_review_status: null,
+    metadata: null,
+    ...overrides,
+  };
+}
+
+function createDefaultProps(overrides: Partial<ItemTitleSectionProps> = {}): ItemTitleSectionProps {
+  return {
+    item: createMockItem(),
+    title: 'Test Title',
+    isEditing: false,
+    editDirty: false,
+    editTitle: 'Test Title',
+    setEditTitle: vi.fn(),
+    setEditDirty: vi.fn(),
+    handleSaveAll: vi.fn(),
+    cancelEditMode: vi.fn(),
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('ItemTitleSection', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('renders title as h1 when not editing', () => {
+    render(<ItemTitleSection {...createDefaultProps()} />);
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent('Test Title');
+  });
+
+  it('renders Input when isEditing is true', () => {
+    render(<ItemTitleSection {...createDefaultProps({ isEditing: true })} />);
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    const input = screen.getByDisplayValue('Test Title');
+    expect(input).toBeInTheDocument();
+  });
+
+  it('shows VerificationBadge when verified_at is set', () => {
+    const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveAttribute('data-verified', 'true');
+  });
+
+  it('shows source document text', () => {
+    const item = createMockItem({
+      source_document: 'Annual Report 2025',
+      verified_at: '2026-01-01T00:00:00Z',
+    });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    expect(screen.getByText('Annual Report 2025')).toBeInTheDocument();
+    expect(screen.getByText('Source:')).toBeInTheDocument();
+  });
+
+  it('shows editing banner with "unsaved changes" when editDirty is true', () => {
+    render(
+      <ItemTitleSection
+        {...createDefaultProps({ isEditing: true, editDirty: true })}
+      />,
+    );
+    expect(screen.getByText(/unsaved changes/i)).toBeInTheDocument();
+  });
+
+  it('save button calls handleSaveAll', async () => {
+    const handleSaveAll = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ItemTitleSection
+        {...createDefaultProps({ isEditing: true, handleSaveAll })}
+      />,
+    );
+    await user.click(screen.getByText('Save'));
+    expect(handleSaveAll).toHaveBeenCalledOnce();
+  });
+
+  it('cancel button calls cancelEditMode', async () => {
+    const cancelEditMode = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ItemTitleSection
+        {...createDefaultProps({ isEditing: true, cancelEditMode })}
+      />,
+    );
+    await user.click(screen.getByText('Cancel'));
+    expect(cancelEditMode).toHaveBeenCalledOnce();
+  });
+});
