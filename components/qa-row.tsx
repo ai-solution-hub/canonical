@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { FreshnessBadge } from '@/components/freshness-badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import type { ContentListItem } from '@/types/content';
@@ -50,14 +51,6 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
   );
 
   const freshness = item.freshness as string | null;
-  const freshnessColour =
-    freshness === 'fresh'
-      ? 'bg-freshness-fresh-bg text-freshness-fresh'
-      : freshness === 'aging'
-        ? 'bg-freshness-aging-bg text-freshness-aging'
-        : freshness === 'stale'
-          ? 'bg-freshness-stale-bg text-freshness-stale'
-          : 'bg-muted text-muted-foreground';
 
   return (
     <div
@@ -118,9 +111,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
             {freshness && (
               <>
                 <span aria-hidden="true">·</span>
-                <Badge variant="outline" className={cn('text-[10px] px-1.5 py-0', freshnessColour)}>
-                  {freshness}
-                </Badge>
+                <FreshnessBadge freshness={freshness} compact />
               </>
             )}
             {hasStandard && hasAdvanced && (

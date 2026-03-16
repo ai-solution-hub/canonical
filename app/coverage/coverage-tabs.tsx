@@ -80,9 +80,10 @@ function GapSummaryBanner({
                 <span
                   key={type}
                   className="inline-flex items-center gap-1 rounded-full bg-confidence-none-bg px-2 py-0.5 text-xs font-medium text-confidence-none"
+                  aria-label={`Gap: ${count} ${TYPE_LABELS[type] ?? type}`}
                 >
                   <XCircle className="size-3" aria-hidden="true" />
-                  {count} {TYPE_LABELS[type] ?? type}
+                  <span className="font-semibold">Gap:</span> {count} {TYPE_LABELS[type] ?? type}
                 </span>
               ))}
             </div>
@@ -95,9 +96,10 @@ function GapSummaryBanner({
                 <span
                   key={type}
                   className="inline-flex items-center gap-1 rounded-full bg-confidence-partial-bg px-2 py-0.5 text-xs font-medium text-confidence-partial"
+                  aria-label={`Partial: ${count} ${TYPE_LABELS[type] ?? type}`}
                 >
                   <AlertCircle className="size-3" aria-hidden="true" />
-                  {count} {TYPE_LABELS[type] ?? type}
+                  <span className="font-semibold">Partial:</span> {count} {TYPE_LABELS[type] ?? type}
                 </span>
               ))}
             </div>

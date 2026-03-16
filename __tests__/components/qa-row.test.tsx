@@ -26,6 +26,10 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+vi.mock('@/lib/utils', () => ({
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+}));
+
 import { QARow } from '@/components/qa-row';
 
 // ---------------------------------------------------------------------------
@@ -93,10 +97,12 @@ describe('QARow', () => {
     expect(screen.getByText('bid-answers-2026.docx')).toBeInTheDocument();
   });
 
-  it('shows freshness badge', () => {
+  it('shows freshness badge with icon via FreshnessBadge', () => {
     const item = createQAItem({ freshness: 'fresh' });
     render(<QARow item={item} />);
-    expect(screen.getByText('fresh')).toBeInTheDocument();
+    // FreshnessBadge renders capitalised label with aria-label
+    expect(screen.getByText('Fresh')).toBeInTheDocument();
+    expect(screen.getByLabelText('Freshness: Fresh')).toBeInTheDocument();
   });
 
   it('shows "Standard + Advanced" badge when both answers exist', () => {
