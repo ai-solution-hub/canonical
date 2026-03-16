@@ -92,6 +92,8 @@ interface ThumbnailProps {
   contentType?: string | null;
   domain?: string | null;
   aspectRatio?: 'video' | 'square';
+  /** Aspect ratio for fallback placeholders (shorter to reduce visual weight). Defaults to same as aspectRatio. */
+  placeholderAspect?: 'compact' | 'video' | 'square';
   className?: string;
   /** Override the default sizes hint (e.g. for detail pages that render wider). */
   sizes?: string;
@@ -103,6 +105,7 @@ export function Thumbnail({
   contentType,
   domain,
   aspectRatio = 'video',
+  placeholderAspect,
   className = '',
   sizes = GRID_SIZES,
 }: ThumbnailProps) {
@@ -115,13 +118,20 @@ export function Thumbnail({
   const aspectClass =
     aspectRatio === 'video' ? 'aspect-video' : 'aspect-square';
 
+  const fallbackAspectClass =
+    placeholderAspect === 'compact'
+      ? 'aspect-[16/7]'
+      : placeholderAspect === 'square'
+        ? 'aspect-square'
+        : aspectClass;
+
   // Deterministic gradient for visually richer placeholders
   const gradientAngle = useMemo(() => hashToAngle(alt || 'untitled'), [alt]);
 
   if (showFallback) {
     return (
       <div
-        className={`${aspectClass} flex flex-col items-center justify-center gap-2 rounded-lg ${className}`}
+        className={`${fallbackAspectClass} flex flex-col items-center justify-center gap-2 rounded-lg ${className}`}
         style={{
           background: `linear-gradient(${gradientAngle}deg, var(--domain-${colourKey}-surface), var(--domain-${colourKey}-surface) 60%, color-mix(in oklch, var(--domain-${colourKey}-text) 8%, var(--domain-${colourKey}-surface)))`,
         }}

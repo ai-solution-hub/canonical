@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  ClipboardList,
   Hash,
   FileText,
   Upload,
@@ -302,6 +303,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
             onShowCostEstimate={setShowCostEstimate}
             draftingAll={draftingAll}
             onDraftAll={handleDraftAll}
+            onSwitchTab={setActiveTab}
           />
         )}
         {activeTab === 'questions' && (
@@ -445,6 +447,7 @@ function OverviewTab({
   onShowCostEstimate,
   draftingAll,
   onDraftAll,
+  onSwitchTab,
 }: {
   bid: Bid;
   bidId: string;
@@ -458,6 +461,7 @@ function OverviewTab({
   onShowCostEstimate: (open: boolean) => void;
   draftingAll: boolean;
   onDraftAll: () => void;
+  onSwitchTab: (tab: string) => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const overviewStatus = (bid.status ?? metadata.status) as BidState;
@@ -481,9 +485,25 @@ function OverviewTab({
             </p>
           </div>
         ) : (
-          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <Upload className="size-4 shrink-0" aria-hidden="true" />
-            <span>No questions extracted yet. Upload a tender document to get started.</span>
+          <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
+            <Upload className="size-6 text-muted-foreground/50" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">
+              No questions extracted yet.
+            </p>
+            <p className="text-xs text-muted-foreground/70">
+              Questions will be automatically extracted from your tender document.
+            </p>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1 gap-1.5"
+                onClick={() => onSwitchTab('documents')}
+              >
+                <Upload className="size-3.5" aria-hidden="true" />
+                Upload Document
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -543,44 +563,61 @@ function OverviewTab({
       )}
 
       {/* Bid details — spans 2 columns when confidence card is absent to avoid grid asymmetry */}
-      <div className={cn(
-        'rounded-lg border bg-card p-4',
-        postureBreakdown.length === 0 && 'lg:col-span-2',
-      )}>
-        <h2 className="text-sm font-medium text-foreground">Details</h2>
-        <dl className="mt-3 space-y-2 text-sm">
-          {metadata.estimated_value && (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Estimated Value</dt>
-              <dd className="font-medium">{metadata.estimated_value}</dd>
-            </div>
-          )}
-          {metadata.reference_number && (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Reference</dt>
-              <dd className="font-medium">{metadata.reference_number}</dd>
-            </div>
-          )}
-          {metadata.deadline && (
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Deadline</dt>
-              <dd className="font-medium">{formatDateUK(metadata.deadline)}</dd>
-            </div>
-          )}
-          {bid.description && (
-            <div>
-              <dt className="text-muted-foreground">Description</dt>
-              <dd className="mt-1 text-foreground">{bid.description}</dd>
-            </div>
-          )}
-          {metadata.notes && (
-            <div>
-              <dt className="text-muted-foreground">Notes</dt>
-              <dd className="mt-1 text-foreground">{metadata.notes}</dd>
-            </div>
-          )}
-        </dl>
-      </div>
+      {(() => {
+        const hasDetails = metadata.estimated_value || metadata.reference_number || metadata.deadline || bid.description || metadata.notes;
+        return (
+          <div className={cn(
+            'rounded-lg border bg-card p-4',
+            postureBreakdown.length === 0 && 'lg:col-span-2',
+          )}>
+            <h2 className="text-sm font-medium text-foreground">Details</h2>
+            {hasDetails ? (
+              <dl className="mt-3 space-y-2 text-sm">
+                {metadata.estimated_value && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Estimated Value</dt>
+                    <dd className="font-medium">{metadata.estimated_value}</dd>
+                  </div>
+                )}
+                {metadata.reference_number && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Reference</dt>
+                    <dd className="font-medium">{metadata.reference_number}</dd>
+                  </div>
+                )}
+                {metadata.deadline && (
+                  <div className="flex justify-between">
+                    <dt className="text-muted-foreground">Deadline</dt>
+                    <dd className="font-medium">{formatDateUK(metadata.deadline)}</dd>
+                  </div>
+                )}
+                {bid.description && (
+                  <div>
+                    <dt className="text-muted-foreground">Description</dt>
+                    <dd className="mt-1 text-foreground">{bid.description}</dd>
+                  </div>
+                )}
+                {metadata.notes && (
+                  <div>
+                    <dt className="text-muted-foreground">Notes</dt>
+                    <dd className="mt-1 text-foreground">{metadata.notes}</dd>
+                  </div>
+                )}
+              </dl>
+            ) : (
+              <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
+                <ClipboardList className="size-6 text-muted-foreground/50" aria-hidden="true" />
+                <p className="text-sm text-muted-foreground">
+                  No details added yet.
+                </p>
+                <p className="text-xs text-muted-foreground/70">
+                  Add bid details like deadline, estimated value, and reference number to track this opportunity.
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Tender documents summary */}
       <div className="rounded-lg border bg-card p-4">
@@ -598,9 +635,26 @@ function OverviewTab({
             ))}
           </ul>
         ) : (
-          <p className="mt-2 text-sm text-muted-foreground">
-            No tender documents uploaded yet.
-          </p>
+          <div className="mt-3 flex flex-col items-center gap-2 rounded-lg border border-dashed border-border py-6 text-center">
+            <Upload className="size-6 text-muted-foreground/50" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">
+              No tender documents uploaded yet.
+            </p>
+            <p className="text-xs text-muted-foreground/70">
+              Upload your tender document to extract questions and start drafting responses.
+            </p>
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1 gap-1.5"
+                onClick={() => onSwitchTab('documents')}
+              >
+                <Upload className="size-3.5" aria-hidden="true" />
+                Go to Documents
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </div>

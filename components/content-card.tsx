@@ -48,7 +48,7 @@ function UnreadDot({ isRead }: { isRead?: boolean }) {
   if (isRead !== false) return null;
   return (
     <span
-      className="size-2.5 rounded-full bg-primary shadow-sm ring-2 ring-background"
+      className="size-3 rounded-full bg-primary shadow-sm ring-2 ring-background animate-pulse"
       aria-label="Unread"
     />
   );
@@ -322,7 +322,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle(shouldHideThumbnail ? '200px' : '320px')}>
       {!shouldHideThumbnail ? (
         <div className="relative">
-          <Thumbnail src={item.thumbnail_url} alt={title} contentType={item.content_type} domain={item.primary_domain} className="rounded-b-none" />
+          <Thumbnail src={item.thumbnail_url} alt={title} contentType={item.content_type} domain={item.primary_domain} placeholderAspect="compact" className="rounded-b-none" />
           <div className="absolute right-1 top-1 flex items-center gap-1">
             <UnreadDot isRead={isRead} />
             <StarToggle itemId={item.id} metadata={item.metadata} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />

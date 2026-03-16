@@ -233,6 +233,17 @@ export function QuestionList({
           <p className="mt-3 text-sm text-muted-foreground">
             No questions yet. Upload a tender document or add questions manually.
           </p>
+          <div className="mt-4 flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setAddDialogOpen(true)}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add Question
+            </Button>
+          </div>
         </div>
       )}
 
