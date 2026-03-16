@@ -3,8 +3,10 @@
 import { CopilotKit } from '@copilotkit/react-core';
 import '@copilotkit/react-ui/styles.css';
 import { ReactNode, Component, useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { AlertTriangle, X } from 'lucide-react';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { isPublicRoute } from '@/lib/routes';
 
 // ────────────────────────────────────────────
 // Error Boundary
@@ -102,12 +104,12 @@ function UnavailableBanner() {
 
 type HealthStatus = 'checking' | 'available' | 'unavailable';
 
-function useCopilotHealthCheck(): HealthStatus {
-  const [status, setStatus] = useState<HealthStatus>('checking');
+function useCopilotHealthCheck(skip: boolean): HealthStatus {
+  const [status, setStatus] = useState<HealthStatus>(skip ? 'available' : 'checking');
   const checkedRef = useRef(false);
 
   useEffect(() => {
-    if (checkedRef.current) return;
+    if (skip || checkedRef.current) return;
     checkedRef.current = true;
 
     let cancelled = false;
@@ -127,7 +129,7 @@ function useCopilotHealthCheck(): HealthStatus {
       });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [skip]);
 
   return status;
 }
@@ -154,12 +156,20 @@ interface CopilotKitProviderProps {
  * warning banner instead of entering an infinite retry loop.
  */
 export function CopilotKitProvider({ children }: CopilotKitProviderProps) {
+  const pathname = usePathname();
+  const onPublicRoute = isPublicRoute(pathname);
   const hydrated = useHydrated();
-  const health = useCopilotHealthCheck();
+  const health = useCopilotHealthCheck(onPublicRoute);
 
   // Skip CopilotKit entirely in E2E tests — eliminates health check,
   // error boundary, and all CopilotKit overhead
   if (process.env.NEXT_PUBLIC_E2E === 'true') {
+    return <>{children}</>;
+  }
+
+  // Skip CopilotKit on public routes (login, auth callback, OAuth consent)
+  // to prevent health check requests and CopilotKit overhead pre-auth
+  if (onPublicRoute) {
     return <>{children}</>;
   }
 
