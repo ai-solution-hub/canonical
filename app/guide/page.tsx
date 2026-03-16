@@ -10,6 +10,13 @@ import { DomainBadge } from '@/components/domain-badge';
 // Types
 // ---------------------------------------------------------------------------
 
+interface GuideStats {
+  total_sections: number;
+  populated_sections: number;
+  required_sections: number;
+  populated_required: number;
+}
+
 interface Guide {
   id: string;
   slug: string;
@@ -23,6 +30,7 @@ interface Guide {
   is_published: boolean;
   created_at: string;
   updated_at: string;
+  stats?: GuideStats;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +50,13 @@ const GUIDE_TYPE_LABELS: Record<string, string> = {
 // ---------------------------------------------------------------------------
 
 function GuideCard({ guide }: { guide: Guide }) {
+  const stats = guide.stats;
+  const hasStats = stats && stats.total_sections > 0;
+  const percentage = hasStats
+    ? Math.round((stats.populated_sections / stats.total_sections) * 100)
+    : 0;
+  const isComplete = hasStats && stats.populated_sections >= stats.total_sections;
+
   return (
     <Link
       href={`/guide/${guide.slug}`}
@@ -62,6 +77,41 @@ function GuideCard({ guide }: { guide: Guide }) {
           )}
         </div>
       </div>
+
+      {/* Section progress */}
+      {hasStats && (
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>
+              {stats.populated_sections}/{stats.total_sections} sections populated
+            </span>
+            <span
+              className={
+                isComplete ? 'font-semibold text-freshness-fresh' : ''
+              }
+            >
+              {percentage}%
+            </span>
+          </div>
+          <div
+            className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={stats.populated_sections}
+            aria-valuemin={0}
+            aria-valuemax={stats.total_sections}
+            aria-label={`${stats.populated_sections} of ${stats.total_sections} sections populated`}
+          >
+            <div
+              className={
+                isComplete
+                  ? 'h-full rounded-full bg-freshness-fresh transition-all duration-300'
+                  : 'h-full rounded-full bg-primary transition-all duration-300'
+              }
+              style={{ width: `${percentage}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <Badge variant="secondary" className="text-[10px]">
@@ -105,7 +155,7 @@ export default function GuidesPage() {
   useEffect(() => {
     async function fetchGuides() {
       try {
-        const res = await fetch('/api/guides');
+        const res = await fetch('/api/guides?include=stats');
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           setError(data.error ?? 'Failed to load guides');

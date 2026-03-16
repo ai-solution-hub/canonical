@@ -131,6 +131,7 @@ function makeReorientData(overrides: Partial<ReorientData> = {}): ReorientData {
     },
     generated_at: '2026-03-08T10:00:00.000Z',
     user_display_name: 'Liam',
+    has_display_name: true,
     errors: [],
     ...overrides,
   };

@@ -22,6 +22,8 @@ export interface ReorientData {
   generated_at: string;
   /** User display name for greeting */
   user_display_name: string | null;
+  /** Whether the user has explicitly set a display name (vs email fallback) */
+  has_display_name: boolean;
   /** Errors from partial query failures */
   errors: string[];
 }

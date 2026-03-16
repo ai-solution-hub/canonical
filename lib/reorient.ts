@@ -451,12 +451,24 @@ export async function fetchReorientData(
   urgent.sort((a, b) => a.priority - b.priority);
 
   // Get user display name from auth (reuse authUser fetched earlier)
+  // Profile saves to `display_name`; some providers populate `full_name`.
+  // Check both, preferring `display_name` (the key the Settings page writes).
   let userDisplayName: string | null = null;
-  if (authUser?.user_metadata?.full_name) {
-    const fullName = authUser.user_metadata.full_name as string;
-    userDisplayName = fullName.split(' ')[0] ?? fullName;
+  const rawDisplayName =
+    (authUser?.user_metadata?.display_name as string | undefined) ??
+    (authUser?.user_metadata?.full_name as string | undefined);
+
+  if (rawDisplayName) {
+    userDisplayName = rawDisplayName.split(' ')[0] ?? rawDisplayName;
   } else if (authUser?.email) {
-    userDisplayName = authUser.email.split('@')[0] ?? null;
+    // Email-prefix fallback: strip trailing numbers/dots and title-case
+    const prefix = authUser.email.split('@')[0] ?? '';
+    const cleaned = prefix.replace(/[._]+/g, ' ').replace(/\d+$/g, '').trim();
+    if (cleaned.length > 0) {
+      userDisplayName =
+        cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+    }
+    // If cleaning leaves nothing useful, leave null so greeting reads naturally
   }
 
   return {
@@ -474,6 +486,7 @@ export async function fetchReorientData(
     },
     generated_at: new Date().toISOString(),
     user_display_name: userDisplayName,
+    has_display_name: !!rawDisplayName,
     errors,
   };
 }
@@ -508,9 +521,11 @@ export async function resolveDisplayNames(
     const user = result.value?.data?.user;
     if (!user) continue;
 
-    if (user.user_metadata?.full_name) {
-      const fullName = user.user_metadata.full_name as string;
-      names.set(uniqueIds[i], fullName.split(' ')[0] ?? fullName);
+    const displayName =
+      (user.user_metadata?.display_name as string | undefined) ??
+      (user.user_metadata?.full_name as string | undefined);
+    if (displayName) {
+      names.set(uniqueIds[i], displayName.split(' ')[0] ?? displayName);
     } else if (user.email) {
       names.set(uniqueIds[i], user.email.split('@')[0] ?? 'A team member');
     }

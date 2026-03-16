@@ -90,6 +90,7 @@ const baseReorientData = {
   },
   generated_at: '2026-03-11T10:00:00Z',
   user_display_name: 'Liam',
+  has_display_name: true,
   errors: [],
 };
 
