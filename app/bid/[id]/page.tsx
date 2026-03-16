@@ -461,7 +461,7 @@ function OverviewTab({
   onShowCostEstimate: (open: boolean) => void;
   draftingAll: boolean;
   onDraftAll: () => void;
-  onSwitchTab: (tab: string) => void;
+  onSwitchTab: (tab: 'overview' | 'questions' | 'responses' | 'documents') => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const overviewStatus = (bid.status ?? metadata.status) as BidState;

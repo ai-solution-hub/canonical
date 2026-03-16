@@ -85,12 +85,12 @@ export async function GET(request: NextRequest) {
             if (subtopicFilters.length > 0) {
               const { data: contentCounts } = await supabase
                 .from('content_items')
-                .select('subtopic')
+                .select('primary_subtopic')
                 .eq('primary_domain', guide.domain_filter)
-                .in('subtopic', subtopicFilters);
+                .in('primary_subtopic', subtopicFilters);
 
               const populatedSubtopics = new Set(
-                (contentCounts ?? []).map((c) => c.subtopic),
+                (contentCounts ?? []).map((c) => c.primary_subtopic),
               );
 
               for (const sec of guideSections) {
