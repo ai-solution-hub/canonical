@@ -71,6 +71,7 @@ function makeReorientResponse() {
     },
     generated_at: '2026-03-08T10:00:00.000Z',
     user_display_name: 'Liam',
+    has_display_name: true,
     errors: [],
   };
 }
@@ -134,6 +135,7 @@ describe('GET /api/reorient', () => {
     expect(body).toHaveProperty('counts');
     expect(body).toHaveProperty('generated_at');
     expect(body).toHaveProperty('user_display_name');
+    expect(body).toHaveProperty('has_display_name');
     expect(body).toHaveProperty('errors');
     expect(Array.isArray(body.urgent)).toBe(true);
     expect(Array.isArray(body.team_changes)).toBe(true);

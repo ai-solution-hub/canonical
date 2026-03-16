@@ -1023,9 +1023,31 @@ describe('fetchReorientData', () => {
       );
 
       expect(result.user_display_name).toBe('Liam');
+      expect(result.has_display_name).toBe(true);
     });
 
-    it('falls back to email prefix when no full_name', async () => {
+    it('prefers display_name over full_name', async () => {
+      const mock = setupDefaultMock({
+        authUser: {
+          id: TEST_USER_ID,
+          email: 'liam@example.com',
+          user_metadata: { display_name: 'Li', full_name: 'Liam Jones' },
+          last_sign_in_at: '2026-03-07T09:00:00Z',
+        },
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false,
+        'editor',
+      );
+
+      expect(result.user_display_name).toBe('Li');
+      expect(result.has_display_name).toBe(true);
+    });
+
+    it('falls back to email prefix when no display_name or full_name', async () => {
       const mock = setupDefaultMock({
         authUser: {
           id: TEST_USER_ID,
@@ -1042,7 +1064,29 @@ describe('fetchReorientData', () => {
         'editor',
       );
 
-      expect(result.user_display_name).toBe('sarah');
+      expect(result.user_display_name).toBe('Sarah');
+      expect(result.has_display_name).toBe(false);
+    });
+
+    it('cleans email prefix by stripping dots and trailing numbers', async () => {
+      const mock = setupDefaultMock({
+        authUser: {
+          id: TEST_USER_ID,
+          email: 'test.user1@company.co.uk',
+          user_metadata: {},
+          last_sign_in_at: '2026-03-07T09:00:00Z',
+        },
+      });
+
+      const result = await fetchReorientData(
+        mock as unknown as Parameters<typeof fetchReorientData>[0],
+        TEST_USER_ID,
+        false,
+        'editor',
+      );
+
+      expect(result.user_display_name).toBe('Test user');
+      expect(result.has_display_name).toBe(false);
     });
   });
 

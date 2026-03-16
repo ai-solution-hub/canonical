@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ShieldCheck,
   Compass,
+  UserCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
@@ -27,6 +28,7 @@ import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/typ
 // ---------------------------------------------------------------------------
 
 const DISMISS_KEY = 'reorient-dismissed';
+const NAME_NUDGE_DISMISS_KEY = 'display-name-nudge-dismissed';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -251,6 +253,44 @@ function RecentWork({ items }: { items: RecentWorkItem[] }) {
   );
 }
 
+function DisplayNameNudge() {
+  const [nudgeDismissed, setNudgeDismissed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return !!localStorage.getItem(NAME_NUDGE_DISMISS_KEY);
+  });
+
+  if (nudgeDismissed) return null;
+
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3">
+      <UserCircle className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-foreground">
+          Set your display name in{' '}
+          <Link
+            href="/settings?section=profile"
+            className="font-medium underline underline-offset-2 hover:text-primary"
+          >
+            Settings
+          </Link>{' '}
+          to personalise your experience.
+        </p>
+      </div>
+      <button
+        type="button"
+        className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          localStorage.setItem(NAME_NUDGE_DISMISS_KEY, new Date().toISOString());
+          setNudgeDismissed(true);
+        }}
+        aria-label="Dismiss display name suggestion"
+      >
+        <X className="size-3.5" />
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -320,6 +360,13 @@ export function ReorientSection({ data }: ReorientSectionProps) {
           <UrgentItems items={data.urgent} />
           <TeamChanges changes={data.team_changes} />
           <RecentWork items={data.my_recent_work} />
+        </div>
+      )}
+
+      {/* Nudge to set display name when not explicitly configured */}
+      {!data.has_display_name && (
+        <div className="mt-4">
+          <DisplayNameNudge />
         </div>
       )}
     </section>

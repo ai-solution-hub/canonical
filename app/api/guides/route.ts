@@ -44,6 +44,86 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // When ?include=stats, enrich each guide with section/content counts
+    const includeStats = request.nextUrl.searchParams.get('include') === 'stats';
+    if (includeStats && data && data.length > 0) {
+      const guideIds = data.map((g) => g.id);
+      const { data: sections, error: secErr } = await supabase
+        .from('guide_sections')
+        .select('guide_id, id, is_required, subtopic_filter')
+        .in('guide_id', guideIds);
+
+      if (!secErr && sections) {
+        // Group sections by guide
+        const sectionsByGuide = new Map<string, typeof sections>();
+        for (const sec of sections) {
+          const arr = sectionsByGuide.get(sec.guide_id) ?? [];
+          arr.push(sec);
+          sectionsByGuide.set(sec.guide_id, arr);
+        }
+
+        // Build stats per guide
+        const statsMap = new Map<string, {
+          total_sections: number;
+          populated_sections: number;
+          required_sections: number;
+          populated_required: number;
+        }>();
+
+        for (const guide of data) {
+          const guideSections = sectionsByGuide.get(guide.id) ?? [];
+          const total = guideSections.length;
+          const required = guideSections.filter((s) => s.is_required).length;
+          let populated = 0;
+          let populatedRequired = 0;
+
+          if (total > 0 && guide.domain_filter) {
+            const subtopicFilters = guideSections
+              .map((s) => s.subtopic_filter)
+              .filter(Boolean) as string[];
+
+            if (subtopicFilters.length > 0) {
+              const { data: contentCounts } = await supabase
+                .from('content_items')
+                .select('subtopic')
+                .eq('primary_domain', guide.domain_filter)
+                .in('subtopic', subtopicFilters);
+
+              const populatedSubtopics = new Set(
+                (contentCounts ?? []).map((c) => c.subtopic),
+              );
+
+              for (const sec of guideSections) {
+                if (sec.subtopic_filter && populatedSubtopics.has(sec.subtopic_filter)) {
+                  populated++;
+                  if (sec.is_required) populatedRequired++;
+                }
+              }
+            }
+          }
+
+          statsMap.set(guide.id, {
+            total_sections: total,
+            populated_sections: populated,
+            required_sections: required,
+            populated_required: populatedRequired,
+          });
+        }
+
+        const enriched = data.map((guide) => ({
+          ...guide,
+          stats: statsMap.get(guide.id) ?? {
+            total_sections: 0,
+            populated_sections: 0,
+            required_sections: 0,
+            populated_required: 0,
+          },
+        }));
+
+        return NextResponse.json(enriched);
+      }
+    }
+
     return NextResponse.json(data);
   } catch (err) {
     return NextResponse.json(
