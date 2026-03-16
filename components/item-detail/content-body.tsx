@@ -10,6 +10,7 @@ import { QAAnswerDisplay } from '@/components/qa-answer-display';
 import { ContentLayerSelector } from '@/components/content-layer-selector';
 import { TableOfContents } from '@/components/table-of-contents';
 import { TranscriptReader } from '@/components/transcript-reader';
+import { ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
@@ -214,13 +215,17 @@ function DraftToggle({
             }
           }}
           className={cn(
-            'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+            'inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
             item.governance_review_status === 'draft'
               ? 'border-status-warning bg-quality-moderate-bg text-status-warning hover:bg-freshness-aging-bg'
-              : 'border-status-success bg-freshness-fresh-bg text-status-success hover:bg-freshness-fresh-bg',
+              : 'border-status-success bg-freshness-fresh-bg text-status-success hover:opacity-85',
           )}
         >
-          {item.governance_review_status === 'draft' ? 'Draft — click to publish' : 'Published — click to draft'}
+          {item.governance_review_status === 'draft' ? (
+            <><ToggleLeft className="size-4" /> Draft — click to publish</>
+          ) : (
+            <><ToggleRight className="size-4" /> Published — click to draft</>
+          )}
         </button>
       </div>
     </section>
