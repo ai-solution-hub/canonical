@@ -33,11 +33,11 @@ export type ViewMode = 'grid' | 'list';
 
 export type SortOption = 'date-desc' | 'date-asc' | 'domain' | 'confidence';
 
-export const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'date-desc', label: 'Date (newest)' },
-  { value: 'date-asc', label: 'Date (oldest)' },
-  { value: 'domain', label: 'Domain' },
-  { value: 'confidence', label: 'Confidence' },
+export const SORT_OPTIONS: { value: SortOption; label: string; shortLabel: string }[] = [
+  { value: 'date-desc', label: 'Date (newest)', shortLabel: 'Newest' },
+  { value: 'date-asc', label: 'Date (oldest)', shortLabel: 'Oldest' },
+  { value: 'domain', label: 'Domain', shortLabel: 'Domain' },
+  { value: 'confidence', label: 'Confidence', shortLabel: 'Conf.' },
 ];
 
 interface FilterBarProps {
@@ -101,7 +101,12 @@ export function FilterBar({
         <Select value={sortOption} onValueChange={onSortChange}>
           <SelectTrigger size="sm" className="w-auto gap-1.5">
             <ArrowUpDown className="size-3.5" />
-            <SelectValue />
+            <span className="hidden sm:inline">
+              <SelectValue />
+            </span>
+            <span className="sm:hidden">
+              {SORT_OPTIONS.find((o) => o.value === sortOption)?.shortLabel}
+            </span>
           </SelectTrigger>
           <SelectContent position="popper" align="end">
             {SORT_OPTIONS.map((opt) => (
