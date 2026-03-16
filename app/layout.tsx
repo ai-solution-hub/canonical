@@ -3,7 +3,6 @@ import { Instrument_Sans } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme-provider';
-import { SiteHeader } from '@/components/site-header';
 import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provider';
 import { ReadMarksProvider } from '@/contexts/read-marks-context';
@@ -14,7 +13,7 @@ import { CopilotKitProvider } from '@/components/copilotkit-provider';
 import { GlobalCopilotSidebar } from '@/components/global-copilot-sidebar';
 import { GlobalCopilotReadable } from '@/components/global-copilot-readable';
 import { SharedCopilotActions } from '@/components/shared-copilot-actions';
-import { FloatingCopilotButton } from '@/components/floating-copilot-button';
+import { AuthAwareChrome } from '@/components/auth-aware-chrome';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
@@ -57,9 +56,9 @@ export default async function RootLayout({
                     Skip to main content
                   </a>
                   <GlobalCopilotSidebar>
-                    <SiteHeader />
-                    <main id="main-content">{children}</main>
-                    <FloatingCopilotButton />
+                    <AuthAwareChrome>
+                      <main id="main-content">{children}</main>
+                    </AuthAwareChrome>
                   </GlobalCopilotSidebar>
                   <CommandPalette />
                   <KeyboardShortcutsProvider />

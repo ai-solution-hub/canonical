@@ -1,12 +1,12 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { PUBLIC_ROUTES } from '@/lib/routes';
 
-// Routes that don't require authentication
+// Public routes from shared constant, plus /.well-known which is an
+// API-like route that only needs the proxy bypass (no UI guard needed).
 const publicRoutes = [
-  '/login',
-  '/auth/callback',
+  ...PUBLIC_ROUTES,
   '/.well-known',       // OAuth protected resource metadata (MCP discovery)
-  '/oauth/consent',     // OAuth consent page (user authenticates via Supabase)
 ];
 
 export async function proxy(request: NextRequest) {
