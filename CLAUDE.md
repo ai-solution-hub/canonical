@@ -38,6 +38,8 @@ development partner. All code is written through human-AI collaboration.
 | `bun run format:check` | Check Prettier formatting |
 | `bun run build:mcp-apps` | Build MCP Apps (Vite) + generate inline bundles for Vercel |
 | `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
+| `bun run test:mcp-eval` | Run MCP eval Layer 1 (protocol compliance, 42 checks) |
+| `bun run test:mcp-eval:rq` | Run MCP eval Layer 3 (response quality, 17 checks) |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
@@ -52,14 +54,14 @@ Key directories:
 |-----------|----------|
 | `app/` | Next.js 16 App Router — ~30 API route groups, ~12 page routes, `proxy.ts` auth middleware |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | ~180 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
+| `components/` | ~210 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
 | `hooks/` | ~34 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
-| `lib/` | ~73 utility modules — includes `mcp/` (24 tools, 10 resources, 5 prompts) and `ai/` (service layer) |
+| `lib/` | ~79 utility modules — includes `mcp/` (30 tools, 10 resources, 5 prompts) and `ai/` (service layer) |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
-| `supabase/` | ~51 migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest — ~106 test files |
+| `supabase/` | ~70 migrations + auto-generated types (`database.types.ts` — never edit manually) |
+| `__tests__/` | Vitest — ~201 test files |
 | `e2e/` | Playwright — 9 spec files. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
@@ -195,9 +197,7 @@ Consult these references when adding or modifying UI elements.
 
 | Item | Location | Status |
 |------|----------|--------|
-| AI Integration | `docs/reference/ai-integration-strategy.md` | Sprint 8 (background automation) spec ready |
-| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Phases 2-6 remaining |
-| Background Automation | `docs/plans/background-automation-spec.md` | 5 implementation phases |
+| Template-Driven Completeness | `docs/plans/template-driven-completeness-spec.md` | Phases 1-3b complete; Phases 4-6 remaining |
 
 ### Domain References — consult when working in that area
 
@@ -205,7 +205,7 @@ Consult these references when adding or modifying UI elements.
 |----------|----------|---------|
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v4.1 classification prompt (7 domains, 34 subtopics) |
-| Search evaluation | `docs/reference/search-evaluation-guide.md` + `scripts/search-evaluation.json` | How to run search tests (20 test cases) |
+| Search evaluation | `docs/reference/search-evaluation-guide.md` + `scripts/search-evaluation.json` | How to run search tests (24 test cases) |
 | Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
 | E2E test flows + setup | `docs/reference/e2e-test-flows.md` + `e2e-test-setup.md` | 12 flows, test data creation runbook |
 
