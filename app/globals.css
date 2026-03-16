@@ -88,11 +88,11 @@
   --color-progress: oklch(0.65 0.16 55);
   --color-success: oklch(0.55 0.15 160);
 
-  /* Progress bar fill (teal — non-actionable, not amber) */
-  --color-progress-bar: oklch(0.65 0.15 175);
+  /* Progress bar fill (warm sand — non-actionable, harmonises with palette) */
+  --color-progress-bar: oklch(0.65 0.12 70);
 
-  /* Progress bar colour transitions */
-  --color-progress-mid: oklch(0.6 0.12 160);
+  /* Progress bar colour transitions (sand to teal at complete) */
+  --color-progress-mid: oklch(0.58 0.10 65);
   --color-progress-complete: oklch(0.55 0.15 160);
 
   /* Review card directional feedback */
@@ -361,10 +361,10 @@
   --color-success: oklch(0.45 0.12 160);
 
   /* Progress bar fill (dark) */
-  --color-progress-bar: oklch(0.55 0.12 175);
+  --color-progress-bar: oklch(0.55 0.10 70);
 
   /* Progress bar colour transitions (dark) */
-  --color-progress-mid: oklch(0.45 0.1 160);
+  --color-progress-mid: oklch(0.45 0.08 65);
   --color-progress-complete: oklch(0.45 0.12 160);
 
   /* Review card directional feedback (dark) */

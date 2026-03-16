@@ -275,7 +275,7 @@ export function SearchBar({
           </div>
         </form>
         {dropdownVisible && (
-          <div className="absolute top-full z-50 mt-2 w-full rounded-lg border border-border bg-popover p-2 shadow-md">
+          <div className="absolute top-full z-50 mt-2 w-full rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-black/5 backdrop-blur-sm">
             {renderDropdown(recentSearches, suggestions)}
           </div>
         )}
@@ -313,7 +313,7 @@ export function SearchBar({
         </div>
       </form>
       {dropdownVisible && (
-        <div className="absolute top-full z-50 mt-1 w-full min-w-[240px] rounded-lg border border-border bg-popover p-2 shadow-md">
+        <div className="absolute top-full z-50 mt-1 w-full min-w-[240px] rounded-lg border border-border bg-popover p-2 shadow-lg ring-1 ring-black/5 backdrop-blur-sm">
           {renderDropdown(recentSearches, suggestions)}
         </div>
       )}
