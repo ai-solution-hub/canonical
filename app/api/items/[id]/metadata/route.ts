@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { z } from 'zod';
-import { CLIENT_CONFIG } from '@/lib/client-config';
+import { FALLBACK_LAYERS } from '@/lib/client-config';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
 
-const layerValues = CLIENT_CONFIG.layer_vocabulary.map((l) => l.key);
+const layerValues = FALLBACK_LAYERS.map((l) => l.key);
 
 const MetadataUpdateSchema = z
   .object({

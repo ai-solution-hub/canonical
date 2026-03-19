@@ -14,6 +14,8 @@ export interface ProvenanceFieldsetProps {
   setTagsInput: (value: string) => void;
   priority: string;
   setPriority: (value: string) => void;
+  /** Validation error message for the source URL field */
+  sourceUrlError?: string;
 }
 
 /**
@@ -31,6 +33,7 @@ export function ProvenanceFieldset({
   setTagsInput,
   priority,
   setPriority,
+  sourceUrlError,
 }: ProvenanceFieldsetProps) {
   const handleTagsKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -74,7 +77,15 @@ export function ProvenanceFieldset({
             onChange={(e) => setSourceUrl(e.target.value)}
             placeholder="https://..."
             maxLength={2000}
+            aria-invalid={!!sourceUrlError || undefined}
+            aria-describedby={sourceUrlError ? 'source-url-error' : undefined}
+            className={sourceUrlError ? 'border-destructive' : ''}
           />
+          {sourceUrlError && (
+            <p id="source-url-error" className="text-destructive text-sm" role="alert">
+              {sourceUrlError}
+            </p>
+          )}
         </div>
       </div>
 

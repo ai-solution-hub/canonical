@@ -3,6 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   ChevronDown,
   ChevronUp,
@@ -32,6 +34,11 @@ const ContentEditor = dynamic(
 );
 import { toast } from 'sonner';
 import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
+import {
+  CreateContentFormSchema,
+  CREATE_CONTENT_DEFAULTS,
+} from '@/lib/validation/create-content-schema';
+import type { CreateContentFormValues } from '@/lib/validation/create-content-schema';
 
 // Content types grouped for the dropdown
 const COMMON_TYPES = [
@@ -54,68 +61,53 @@ export function CreateContentClient() {
   const { getDomainNames, getSubtopics, formatSubtopic, formatDomainName } =
     useTaxonomy();
 
-  // Form state
-  const [title, setTitle] = useState('');
-  const [contentHtml, setContentHtml] = useState('');
-  const [contentType, setContentType] = useState('');
-  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const methods = useForm<CreateContentFormValues>({
+    resolver: zodResolver(CreateContentFormSchema),
+    defaultValues: CREATE_CONTENT_DEFAULTS,
+    mode: 'onTouched',
+  });
 
-  // Optional metadata
-  const [primaryDomain, setPrimaryDomain] = useState('');
-  const [primarySubtopic, setPrimarySubtopic] = useState('');
-  const [authorName, setAuthorName] = useState('');
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [priority, setPriority] = useState('');
-  const [keywordsInput, setKeywordsInput] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
-  const [tagsInput, setTagsInput] = useState('');
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors, isDirty },
+    trigger,
+  } = methods;
 
-  // Progressive depth
-  const [brief, setBrief] = useState('');
-  const [detail, setDetail] = useState('');
-  const [reference, setReference] = useState('');
-
-  // AI options
-  const [autoClassify, setAutoClassify] = useState(true);
-  const [autoSummarise, setAutoSummarise] = useState(true);
-
-  // Draft toggle
-  const [saveAsDraft, setSaveAsDraft] = useState(false);
-
-  // Validation state
-  const [titleTouched, setTitleTouched] = useState(false);
-  const [contentTypeTouched, setContentTypeTouched] = useState(false);
-  const [contentTouched, setContentTouched] = useState(false);
-  const [saveAttempted, setSaveAttempted] = useState(false);
+  // Watch key values
+  const contentType = watch('content_type');
+  const contentHtml = watch('content');
+  const primaryDomain = watch('primary_domain');
+  const tags = watch('user_tags') ?? [];
+  const tagsInput = watch('tags_input');
+  const autoClassify = watch('auto_classify');
+  const autoSummarise = watch('auto_summarise');
+  const saveAsDraft = watch('save_as_draft');
 
   // UI state
-  const [isSaving, setIsSaving] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Derived
   const isQAPair = contentType === 'q_a_pair';
-  const canSave = title.trim() && contentHtml.trim() && contentType;
   const domainNames = getDomainNames();
   const subtopicNames = primaryDomain ? getSubtopics(primaryDomain) : [];
 
-  // Track whether the form is dirty (any field modified from initial empty state)
-  const isDirty =
-    title.trim() !== '' ||
-    contentHtml.trim() !== '' ||
-    contentType !== '' ||
-    primaryDomain !== '' ||
-    authorName.trim() !== '' ||
-    sourceUrl.trim() !== '' ||
-    keywordsInput.trim() !== '' ||
-    tags.length > 0 ||
-    brief.trim() !== '' ||
-    detail.trim() !== '' ||
-    reference.trim() !== '';
+  const title = watch('title');
 
-  // Validation error flags
-  const showTitleError = !title.trim() && (titleTouched || saveAttempted);
-  const showContentTypeError = !contentType && (contentTypeTouched || saveAttempted);
-  const showContentError = !contentHtml.trim() && (contentTouched || saveAttempted);
+  // Minimum required fields check for button state — use watched values
+  // rather than formState.isValid so the button enables as soon as required
+  // fields are filled, without waiting for all optional fields to validate.
+  const canSave = !!title.trim() && !!contentHtml.trim() && !!contentType;
+
+  // Reset subtopic when domain changes
+  useEffect(() => {
+    setValue('primary_subtopic', '');
+  }, [primaryDomain, setValue]);
 
   // IC-4: Unsaved changes guard
   useEffect(() => {
@@ -128,15 +120,8 @@ export function CreateContentClient() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty, isSaving, isSavingAndContinue]);
 
-  // Reset subtopic when domain changes
-  useEffect(() => {
-    setPrimarySubtopic('');
-  }, [primaryDomain]);
-
-  const handleSave = useCallback(
-    async (continueEditing: boolean) => {
-      if (!canSave) return;
-
+  const onSubmit = useCallback(
+    async (data: CreateContentFormValues, continueEditing: boolean) => {
       if (continueEditing) {
         setIsSavingAndContinue(true);
       } else {
@@ -145,32 +130,32 @@ export function CreateContentClient() {
 
       try {
         // Parse keywords from comma-separated input
-        const keywords = keywordsInput
+        const keywords = (data.keywords_input ?? '')
           .split(',')
           .map((k) => k.trim())
           .filter(Boolean);
 
         const body: Record<string, unknown> = {
-          title: title.trim(),
-          content: contentHtml,
-          content_type: contentType,
-          auto_classify: autoClassify,
-          auto_summarise: autoSummarise,
+          title: data.title.trim(),
+          content: data.content,
+          content_type: data.content_type,
+          auto_classify: data.auto_classify,
+          auto_summarise: data.auto_summarise,
           auto_embed: true,
         };
 
         // Optional fields
-        if (primaryDomain) body.primary_domain = primaryDomain;
-        if (primarySubtopic) body.primary_subtopic = primarySubtopic;
-        if (authorName.trim()) body.author_name = authorName.trim();
-        if (sourceUrl.trim()) body.source_url = sourceUrl.trim();
-        if (priority) body.priority = priority;
+        if (data.primary_domain) body.primary_domain = data.primary_domain;
+        if (data.primary_subtopic) body.primary_subtopic = data.primary_subtopic;
+        if (data.author_name?.trim()) body.author_name = data.author_name.trim();
+        if (data.source_url?.trim()) body.source_url = data.source_url.trim();
+        if (data.priority) body.priority = data.priority;
         if (keywords.length > 0) body.ai_keywords = keywords;
-        if (tags.length > 0) body.user_tags = tags;
-        if (brief.trim()) body.brief = brief.trim();
-        if (detail.trim()) body.detail = detail.trim();
-        if (reference.trim()) body.reference = reference.trim();
-        if (saveAsDraft) body.governance_review_status = 'draft';
+        if (data.user_tags && data.user_tags.length > 0) body.user_tags = data.user_tags;
+        if (data.brief?.trim()) body.brief = data.brief.trim();
+        if (data.detail?.trim()) body.detail = data.detail.trim();
+        if (data.reference?.trim()) body.reference = data.reference.trim();
+        if (data.save_as_draft) body.governance_review_status = 'draft';
 
         const res = await fetch('/api/items', {
           method: 'POST',
@@ -178,15 +163,15 @@ export function CreateContentClient() {
           body: JSON.stringify(body),
         });
 
-        const data = await res.json();
+        const responseData = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Failed to create content item');
+          throw new Error(responseData.error || 'Failed to create content item');
         }
 
         const tasks: string[] = [];
-        if (autoClassify) tasks.push('classification');
-        if (autoSummarise) tasks.push('summary');
+        if (data.auto_classify) tasks.push('classification');
+        if (data.auto_summarise) tasks.push('summary');
         const taskMessage =
           tasks.length > 0
             ? ` ${tasks.join(' and ')} ${tasks.length === 1 ? 'is' : 'are'} being generated.`
@@ -195,29 +180,10 @@ export function CreateContentClient() {
         toast.success(`Content created.${taskMessage}`);
 
         if (continueEditing) {
-          // Reset the form so the user can create another item
-          setTitle('');
-          setContentHtml('');
-          setContentType('');
-          setPrimaryDomain('');
-          setPrimarySubtopic('');
-          setAuthorName('');
-          setSourceUrl('');
-          setPriority('');
-          setKeywordsInput('');
-          setTags([]);
-          setTagsInput('');
-          setBrief('');
-          setDetail('');
-          setReference('');
-          setSaveAsDraft(false);
-          setTitleTouched(false);
-          setContentTypeTouched(false);
-          setContentTouched(false);
-          setSaveAttempted(false);
+          reset(CREATE_CONTENT_DEFAULTS);
           setIsSavingAndContinue(false);
         } else {
-          router.push(`/item/${data.id}`);
+          router.push(`/item/${responseData.id}`);
         }
       } catch (err) {
         toast.error(
@@ -227,26 +193,7 @@ export function CreateContentClient() {
         setIsSavingAndContinue(false);
       }
     },
-    [
-      canSave,
-      title,
-      contentHtml,
-      contentType,
-      autoClassify,
-      autoSummarise,
-      primaryDomain,
-      primarySubtopic,
-      authorName,
-      sourceUrl,
-      priority,
-      keywordsInput,
-      tags,
-      brief,
-      detail,
-      reference,
-      saveAsDraft,
-      router,
-    ],
+    [reset, router],
   );
 
   // Mobile step indicator — tracks which section is in view
@@ -294,179 +241,193 @@ export function CreateContentClient() {
       {/* Mobile step indicator */}
       <MobileStepIndicator activeStep={activeStep} />
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!canSave) {
-            setSaveAttempted(true);
-            return;
-          }
-          handleSave(false);
-        }}
-        className="space-y-6"
-      >
-        {/* Title / Question */}
-        <div ref={basicsRef} data-step="1" className="space-y-2">
-          <Label htmlFor="title">
-            {isQAPair ? 'Question' : 'Title'}{' '}
-            <span className="text-destructive">*</span>
-          </Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={() => setTitleTouched(true)}
-            placeholder={
-              isQAPair ? 'Enter the question...' : 'Enter title...'
-            }
-            autoFocus
-            required
-            maxLength={500}
-            aria-invalid={showTitleError || undefined}
-            className={showTitleError ? 'border-destructive' : ''}
-          />
-          {showTitleError && (
-            <p className="text-destructive text-sm">
-              {isQAPair ? 'Question' : 'Title'} is required
-            </p>
-          )}
-        </div>
-
-        {/* Content Type */}
-        <div className="space-y-2">
-          <Label htmlFor="content-type">
-            Content Type <span className="text-destructive">*</span>
-          </Label>
-          <Select value={contentType} onValueChange={(val) => { setContentType(val); setContentTypeTouched(true); }}>
-            <SelectTrigger
-              id="content-type"
-              onBlur={() => setContentTypeTouched(true)}
-              className={showContentTypeError ? 'border-destructive' : ''}
-              aria-invalid={showContentTypeError || undefined}
-            >
-              <SelectValue placeholder="Select content type..." />
-            </SelectTrigger>
-            <SelectContent>
-              {/* Common types first */}
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                Common
-              </div>
-              {COMMON_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {formatContentType(type)}
-                </SelectItem>
-              ))}
-              {/* All other types */}
-              <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                More types
-              </div>
-              {VALID_CONTENT_TYPES.filter(
-                (t) => !(COMMON_TYPES as readonly string[]).includes(t),
-              ).map((type) => (
-                <SelectItem key={type} value={type}>
-                  {formatContentType(type)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {showContentTypeError && (
-            <p className="text-destructive text-sm">Content type is required</p>
-          )}
-        </div>
-
-        {/* Content / Answer */}
-        <div ref={contentRef} data-step="2" className="space-y-2">
-          <Label>
-            {isQAPair ? 'Answer' : 'Content'}{' '}
-            <span className="text-destructive">*</span>
-          </Label>
-          <div onBlur={() => setContentTouched(true)}>
-            <ContentEditor
-              content={contentHtml}
-              onChange={setContentHtml}
-              placeholder={
-                isQAPair ? 'Write the answer...' : 'Start writing...'
-              }
-              minHeight="300px"
-            />
-          </div>
-          {showContentError && (
-            <p className="text-destructive text-sm">
-              {isQAPair ? 'Answer' : 'Content'} is required
-            </p>
-          )}
-        </div>
-
-        {/* More details toggle */}
-        <button
-          ref={detailsRef as React.RefObject<HTMLButtonElement>}
-          data-step="3"
-          type="button"
-          onClick={() => setShowMoreDetails(!showMoreDetails)}
-          aria-expanded={showMoreDetails}
-          className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+      <FormProvider {...methods}>
+        <form
+          onSubmit={handleSubmit((data) => onSubmit(data, false))}
+          noValidate
+          className="space-y-6"
         >
-          {showMoreDetails ? (
-            <ChevronUp className="size-4" />
-          ) : (
-            <ChevronDown className="size-4" />
-          )}
-          More details
-        </button>
-
-        {showMoreDetails && (
-          <div className="space-y-6">
-            <ClassificationFieldset
-              primaryDomain={primaryDomain}
-              setPrimaryDomain={setPrimaryDomain}
-              primarySubtopic={primarySubtopic}
-              setPrimarySubtopic={setPrimarySubtopic}
-              keywordsInput={keywordsInput}
-              setKeywordsInput={setKeywordsInput}
-              domainNames={domainNames}
-              subtopicNames={subtopicNames}
-              formatDomainName={formatDomainName}
-              formatSubtopic={formatSubtopic}
+          {/* Title / Question */}
+          <div ref={basicsRef} data-step="1" className="space-y-2">
+            <Label htmlFor="title">
+              {isQAPair ? 'Question' : 'Title'}{' '}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="title"
+              {...register('title')}
+              placeholder={
+                isQAPair ? 'Enter the question...' : 'Enter title...'
+              }
+              autoFocus
+              maxLength={500}
+              aria-invalid={!!errors.title || undefined}
+              aria-describedby={errors.title ? 'title-error' : undefined}
+              className={errors.title ? 'border-destructive' : ''}
             />
-
-            <ProvenanceFieldset
-              authorName={authorName}
-              setAuthorName={setAuthorName}
-              sourceUrl={sourceUrl}
-              setSourceUrl={setSourceUrl}
-              tags={tags}
-              setTags={setTags}
-              tagsInput={tagsInput}
-              setTagsInput={setTagsInput}
-              priority={priority}
-              setPriority={setPriority}
-            />
-
-            <ProgressiveDepthFieldset
-              brief={brief}
-              setBrief={setBrief}
-              detail={detail}
-              setDetail={setDetail}
-              reference={reference}
-              setReference={setReference}
-            />
+            {errors.title && (
+              <p id="title-error" className="text-destructive text-sm" role="alert">
+                {isQAPair
+                  ? errors.title.message?.replace('Title', 'Question')
+                  : errors.title.message}
+              </p>
+            )}
           </div>
-        )}
 
-        {/* Bottom bar: AI options + save buttons */}
-        <SaveActionsBar
-          autoClassify={autoClassify}
-          setAutoClassify={setAutoClassify}
-          autoSummarise={autoSummarise}
-          setAutoSummarise={setAutoSummarise}
-          saveAsDraft={saveAsDraft}
-          setSaveAsDraft={setSaveAsDraft}
-          canSave={canSave}
-          isSaving={isSaving}
-          isSavingAndContinue={isSavingAndContinue}
-          onSaveAndContinue={() => handleSave(true)}
-        />
-      </form>
+          {/* Content Type */}
+          <div className="space-y-2">
+            <Label htmlFor="content-type">
+              Content Type <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={contentType}
+              onValueChange={(val) => {
+                setValue('content_type', val, { shouldValidate: true, shouldDirty: true, shouldTouch: true });
+              }}
+            >
+              <SelectTrigger
+                id="content-type"
+                onBlur={() => trigger('content_type')}
+                className={errors.content_type ? 'border-destructive' : ''}
+                aria-invalid={!!errors.content_type || undefined}
+                aria-describedby={errors.content_type ? 'content-type-error' : undefined}
+              >
+                <SelectValue placeholder="Select content type..." />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Common types first */}
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  Common
+                </div>
+                {COMMON_TYPES.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {formatContentType(type)}
+                  </SelectItem>
+                ))}
+                {/* All other types */}
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  More types
+                </div>
+                {VALID_CONTENT_TYPES.filter(
+                  (t) => !(COMMON_TYPES as readonly string[]).includes(t),
+                ).map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {formatContentType(type)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.content_type && (
+              <p id="content-type-error" className="text-destructive text-sm" role="alert">
+                {errors.content_type.message}
+              </p>
+            )}
+          </div>
+
+          {/* Content / Answer */}
+          <div ref={contentRef} data-step="2" className="space-y-2">
+            <Label>
+              {isQAPair ? 'Answer' : 'Content'}{' '}
+              <span className="text-destructive">*</span>
+            </Label>
+            <div
+              onBlur={() => trigger('content')}
+            >
+              <ContentEditor
+                content={contentHtml}
+                onChange={(val: string) => {
+                  setValue('content', val, { shouldValidate: true, shouldDirty: true });
+                }}
+                placeholder={
+                  isQAPair ? 'Write the answer...' : 'Start writing...'
+                }
+                minHeight="300px"
+              />
+            </div>
+            {errors.content && (
+              <p id="content-error" className="text-destructive text-sm" role="alert">
+                {isQAPair
+                  ? errors.content.message?.replace('Content', 'Answer')
+                  : errors.content.message}
+              </p>
+            )}
+          </div>
+
+          {/* More details toggle */}
+          <button
+            ref={detailsRef as React.RefObject<HTMLButtonElement>}
+            data-step="3"
+            type="button"
+            onClick={() => setShowMoreDetails(!showMoreDetails)}
+            aria-expanded={showMoreDetails}
+            className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+          >
+            {showMoreDetails ? (
+              <ChevronUp className="size-4" />
+            ) : (
+              <ChevronDown className="size-4" />
+            )}
+            More details
+          </button>
+
+          {showMoreDetails && (
+            <div className="space-y-6">
+              <ClassificationFieldset
+                primaryDomain={primaryDomain ?? ''}
+                setPrimaryDomain={(val) => setValue('primary_domain', val, { shouldDirty: true })}
+                primarySubtopic={watch('primary_subtopic') ?? ''}
+                setPrimarySubtopic={(val) => setValue('primary_subtopic', val, { shouldDirty: true })}
+                keywordsInput={watch('keywords_input') ?? ''}
+                setKeywordsInput={(val) => setValue('keywords_input', val, { shouldDirty: true })}
+                domainNames={domainNames}
+                subtopicNames={subtopicNames}
+                formatDomainName={formatDomainName}
+                formatSubtopic={formatSubtopic}
+              />
+
+              <ProvenanceFieldset
+                authorName={watch('author_name') ?? ''}
+                setAuthorName={(val) => setValue('author_name', val, { shouldDirty: true })}
+                sourceUrl={watch('source_url') ?? ''}
+                setSourceUrl={(val) => setValue('source_url', val, { shouldDirty: true })}
+                tags={tags}
+                setTags={(val) => setValue('user_tags', val, { shouldDirty: true })}
+                tagsInput={tagsInput ?? ''}
+                setTagsInput={(val) => setValue('tags_input', val, { shouldDirty: true })}
+                priority={watch('priority') ?? ''}
+                setPriority={(val) => setValue('priority', val as '' | 'high' | 'medium' | 'low', { shouldDirty: true })}
+                sourceUrlError={errors.source_url?.message}
+              />
+
+              <ProgressiveDepthFieldset
+                brief={watch('brief') ?? ''}
+                setBrief={(val) => setValue('brief', val, { shouldDirty: true })}
+                detail={watch('detail') ?? ''}
+                setDetail={(val) => setValue('detail', val, { shouldDirty: true })}
+                reference={watch('reference') ?? ''}
+                setReference={(val) => setValue('reference', val, { shouldDirty: true })}
+                briefError={errors.brief?.message}
+                detailError={errors.detail?.message}
+                referenceError={errors.reference?.message}
+              />
+            </div>
+          )}
+
+          {/* Bottom bar: AI options + save buttons */}
+          <SaveActionsBar
+            autoClassify={autoClassify}
+            setAutoClassify={(val) => setValue('auto_classify', val, { shouldDirty: true })}
+            autoSummarise={autoSummarise}
+            setAutoSummarise={(val) => setValue('auto_summarise', val, { shouldDirty: true })}
+            saveAsDraft={saveAsDraft}
+            setSaveAsDraft={(val) => setValue('save_as_draft', val, { shouldDirty: true })}
+            canSave={canSave}
+            isSaving={isSaving}
+            isSavingAndContinue={isSavingAndContinue}
+            onSaveAndContinue={() => handleSubmit((data) => onSubmit(data, true))()}
+          />
+        </form>
+      </FormProvider>
     </section>
   );
 }

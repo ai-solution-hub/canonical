@@ -281,11 +281,11 @@ export async function GET(request: NextRequest) {
       pipeline_name: 'content_gaps',
       status: 'completed',
       items_processed: totalRequirements,
-      items_created: notificationsCreated,
       completed_at: new Date().toISOString(),
       result: {
         snapshots: newSnapshots,
         consecutive_gap_counts: newConsecutiveCounts,
+        notifications_created: notificationsCreated,
       } as unknown as Json,
     });
 

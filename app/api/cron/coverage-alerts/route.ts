@@ -204,9 +204,8 @@ export async function GET(request: NextRequest) {
       pipeline_name: 'coverage_alert',
       status: 'completed',
       items_processed: currentCoverage.length,
-      items_created: notificationsCreated,
       completed_at: new Date().toISOString(),
-      result: currentSnapshot as unknown as Json,
+      result: { ...currentSnapshot as Record<string, unknown>, notifications_created: notificationsCreated } as unknown as Json,
     });
 
     return NextResponse.json({

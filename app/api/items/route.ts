@@ -54,16 +54,38 @@ export async function POST(request: NextRequest) {
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
     let embeddingValue: string | undefined;
+    let embeddingArray: number[] | undefined;
     if (auto_embed) {
       try {
         const plainText = htmlToPlainText(content);
         const embeddingText = `${title}\n\n${plainText}`;
-        const embedding = await generateEmbedding(embeddingText);
-        embeddingValue = JSON.stringify(embedding);
+        embeddingArray = await generateEmbedding(embeddingText);
+        embeddingValue = JSON.stringify(embeddingArray);
       } catch (embedErr) {
         console.error('Embedding generation failed:', embedErr);
         // Continue without embedding -- item is still usable
       }
+    }
+
+    // Deduplication check (informational — does not block creation)
+    const warnings: string[] = [];
+    let dedupMatches: Array<{ id: string; title: string; similarity: number; match_type: string }> = [];
+    try {
+      const { checkForDuplicates, formatDedupWarning } = await import('@/lib/dedup');
+      const plainText = htmlToPlainText(content);
+      const dedupResult = await checkForDuplicates(
+        supabase,
+        plainText,
+        embeddingArray,
+      );
+      if (dedupResult.has_duplicates) {
+        dedupMatches = dedupResult.matches;
+        const warning = formatDedupWarning(dedupResult);
+        if (warning) warnings.push(warning);
+      }
+    } catch (dedupErr) {
+      console.error('Dedup check failed:', dedupErr);
+      // Non-fatal — continue with creation
     }
 
     // Build the insert payload
@@ -125,8 +147,6 @@ export async function POST(request: NextRequest) {
     }
 
     // AI processing — awaited before response to avoid serverless truncation
-    const warnings: string[] = [];
-
     if (auto_embed && embeddingValue) {
       // Embedding already generated above
     } else if (auto_embed) {
@@ -158,6 +178,7 @@ export async function POST(request: NextRequest) {
         content_type: newItem.content_type,
         created_at: newItem.created_at,
         warnings,
+        ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
       },
       { status: 201 },
     );

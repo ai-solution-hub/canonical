@@ -11,6 +11,9 @@ export const maxDuration = 60;
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
 
+/** Total steps in the upload pipeline */
+const TOTAL_STEPS = 5;
+
 /** Allowed MIME types and their corresponding content_type values */
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'application/pdf': 'pdf',
@@ -100,7 +103,37 @@ async function extractDocxText(
   return { text: result.value };
 }
 
+/**
+ * Update pipeline run progress. Uses service client to bypass RLS.
+ * Silently catches errors to avoid disrupting the upload pipeline.
+ */
+async function updatePipelineProgress(
+  pipelineRunId: string,
+  update: {
+    step: string;
+    steps_completed: number;
+    steps_total: number;
+    detail: string;
+  },
+  extraFields?: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const serviceClient = createServiceClient();
+    await serviceClient
+      .from('pipeline_runs')
+      .update({
+        progress: update,
+        ...extraFields,
+      })
+      .eq('id', pipelineRunId);
+  } catch (err) {
+    console.error('Failed to update pipeline progress:', err);
+  }
+}
+
 export async function POST(request: NextRequest) {
+  let pipelineRunId: string | null = null;
+
   try {
     // Auth + role check
     const auth = await getAuthorisedClient(['admin', 'editor']);
@@ -151,6 +184,7 @@ export async function POST(request: NextRequest) {
     const titleOverride = formData.get('title') as string | null;
     const contentTypeOverride = formData.get('content_type') as string | null;
     const authorOverride = formData.get('author') as string | null;
+    const workspaceId = formData.get('workspace_id') as string | null;
 
     const filename = file.name;
     const title = titleOverride || titleFromFilename(filename);
@@ -159,6 +193,29 @@ export async function POST(request: NextRequest) {
     // Read file buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Create pipeline_run record to track progress
+    const serviceClient = createServiceClient();
+    const { data: pipelineRun } = await serviceClient
+      .from('pipeline_runs')
+      .insert({
+        pipeline_name: 'file_upload',
+        status: 'running',
+        source_filename: filename,
+        created_by: user.id,
+        items_created: [],
+        ...(workspaceId ? { workspace_id: workspaceId } : {}),
+        progress: {
+          step: 'uploading',
+          steps_completed: 0,
+          steps_total: TOTAL_STEPS,
+          detail: 'Creating content record and uploading file...',
+        },
+      })
+      .select('id')
+      .single();
+
+    pipelineRunId = pipelineRun?.id ?? null;
 
     // 1. Create content_item record first (to get UUID)
     const { data: newItem, error: insertError } = await supabase
@@ -183,6 +240,18 @@ export async function POST(request: NextRequest) {
 
     if (insertError || !newItem) {
       console.error('Failed to create content item:', insertError);
+      if (pipelineRunId) {
+        await updatePipelineProgress(pipelineRunId, {
+          step: 'failed',
+          steps_completed: 0,
+          steps_total: TOTAL_STEPS,
+          detail: 'Failed to create content item record.',
+        }, {
+          status: 'failed',
+          error_message: 'Failed to create content item record.',
+          completed_at: new Date().toISOString(),
+        });
+      }
       return NextResponse.json(
         { error: 'Failed to create content item record.' },
         { status: 500 },
@@ -191,6 +260,14 @@ export async function POST(request: NextRequest) {
 
     const itemId = newItem.id;
     const storagePath = `${itemId}/${filename}`;
+
+    // Update pipeline run with the created item ID
+    if (pipelineRunId) {
+      await serviceClient
+        .from('pipeline_runs')
+        .update({ items_created: [itemId] })
+        .eq('id', pipelineRunId);
+    }
 
     // 2. Upload file to Supabase Storage
     const { error: uploadError } = await supabase.storage
@@ -203,12 +280,34 @@ export async function POST(request: NextRequest) {
     if (uploadError) {
       console.error('Failed to upload to storage:', uploadError);
       // Clean up the content_item record (use service client to bypass RLS for editors)
-      const serviceClient = createServiceClient();
       await serviceClient.from('content_items').delete().eq('id', itemId);
+      if (pipelineRunId) {
+        await updatePipelineProgress(pipelineRunId, {
+          step: 'failed',
+          steps_completed: 0,
+          steps_total: TOTAL_STEPS,
+          detail: 'Failed to upload file to storage.',
+        }, {
+          status: 'failed',
+          error_message: 'Failed to upload file to storage.',
+          completed_at: new Date().toISOString(),
+          items_created: [],
+        });
+      }
       return NextResponse.json(
         { error: 'Failed to upload file to storage.' },
         { status: 500 },
       );
+    }
+
+    // Step 1 complete: file uploaded
+    if (pipelineRunId) {
+      await updatePipelineProgress(pipelineRunId, {
+        step: 'extracting',
+        steps_completed: 1,
+        steps_total: TOTAL_STEPS,
+        detail: 'Extracting text from document...',
+      });
     }
 
     // 3. Extract text based on MIME type
@@ -294,20 +393,166 @@ export async function POST(request: NextRequest) {
       created_by: user.id,
     });
 
+    // Step 2 complete: text extracted
+    if (pipelineRunId) {
+      await updatePipelineProgress(pipelineRunId, {
+        step: 'embedding',
+        steps_completed: 2,
+        steps_total: TOTAL_STEPS,
+        detail: 'Generating embedding vector...',
+      });
+    }
+
+    // 5. AI processing — awaited before response to avoid serverless truncation
+    const warnings: string[] = [];
+
+    if (extractedText) {
+      // Embedding
+      try {
+        const { generateEmbedding } = await import('@/lib/ai/embed');
+        const embeddingText = `${title}\n\n${extractedText}`;
+        const embedding = await generateEmbedding(embeddingText);
+        await serviceClient
+          .from('content_items')
+          .update({ embedding: JSON.stringify(embedding) })
+          .eq('id', itemId);
+      } catch (embedErr) {
+        console.error(`Embedding generation failed for ${itemId}:`, embedErr);
+        warnings.push('Embedding generation failed');
+      }
+
+      // Step 3 complete: embedding done
+      if (pipelineRunId) {
+        await updatePipelineProgress(pipelineRunId, {
+          step: 'classifying',
+          steps_completed: 3,
+          steps_total: TOTAL_STEPS,
+          detail: 'Running AI classification...',
+        });
+      }
+
+      // Dedup check (non-blocking — warn only)
+      try {
+        const { checkForDuplicates, formatDedupWarning } = await import('@/lib/dedup');
+        const dedupResult = await checkForDuplicates(
+          serviceClient,
+          extractedText,
+          undefined,
+          { excludeId: itemId },
+        );
+        if (dedupResult.has_duplicates) {
+          const warning = formatDedupWarning(dedupResult);
+          if (warning) warnings.push(warning);
+        }
+      } catch (dedupErr) {
+        console.error('Dedup check failed:', dedupErr);
+      }
+
+      // Classification (also regenerates embedding with suggested title)
+      try {
+        await classifyUpload(itemId, user.id);
+      } catch (classifyErr) {
+        const msg = classifyErr instanceof Error ? classifyErr.message : 'Unknown error';
+        console.error(`Classification failed for ${itemId}:`, classifyErr);
+        warnings.push(`Classification failed: ${msg}`);
+      }
+
+      // Step 4 complete: classification done
+      if (pipelineRunId) {
+        await updatePipelineProgress(pipelineRunId, {
+          step: 'summarising',
+          steps_completed: 4,
+          steps_total: TOTAL_STEPS,
+          detail: 'Generating AI summary...',
+        });
+      }
+
+      // Summary
+      try {
+        await summariseUpload(itemId, user.id);
+      } catch (summaryErr) {
+        const msg = summaryErr instanceof Error ? summaryErr.message : 'Unknown error';
+        console.error(`Summary generation failed for ${itemId}:`, summaryErr);
+        warnings.push(`Summary generation failed: ${msg}`);
+      }
+    } else {
+      warnings.push('Text extraction failed — classification, embedding, and summary skipped');
+    }
+
+    // Step 5 complete: all done
+    if (pipelineRunId) {
+      await updatePipelineProgress(pipelineRunId, {
+        step: 'complete',
+        steps_completed: TOTAL_STEPS,
+        steps_total: TOTAL_STEPS,
+        detail: warnings.length > 0
+          ? `Completed with ${warnings.length} warning(s).`
+          : 'All processing steps completed successfully.',
+      }, {
+        status: 'completed',
+        items_processed: 1,
+        completed_at: new Date().toISOString(),
+      });
+    }
+
     return NextResponse.json({
       id: itemId,
       title,
       file_path: storagePath,
       content_length: extractedText.length,
-      status: 'queued',
+      warnings,
+      pipeline_run_id: pipelineRunId,
       message: extractedText
-        ? 'File uploaded and text extracted. Item is queued for classification and embedding.'
+        ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',
     });
   } catch (err) {
+    // Mark pipeline run as failed if it exists
+    if (pipelineRunId) {
+      await updatePipelineProgress(pipelineRunId, {
+        step: 'failed',
+        steps_completed: 0,
+        steps_total: TOTAL_STEPS,
+        detail: 'Upload pipeline failed unexpectedly.',
+      }, {
+        status: 'failed',
+        error_message: err instanceof Error ? err.message : 'Unknown error',
+        completed_at: new Date().toISOString(),
+      });
+    }
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to process file upload') },
       { status: 500 },
     );
   }
+}
+
+/**
+ * Awaited classification step for uploaded files.
+ * Delegates to the shared classifyContent() service.
+ */
+async function classifyUpload(
+  itemId: string,
+  userId: string,
+): Promise<void> {
+  const { createServiceClient } = await import('@/lib/supabase/server');
+  const supabase = createServiceClient();
+
+  const { classifyContent } = await import('@/lib/ai/classify');
+  await classifyContent({ supabase, itemId, force: true, userId });
+}
+
+/**
+ * Awaited summary generation step for uploaded files.
+ * Delegates to the shared generateSummary() service.
+ */
+async function summariseUpload(
+  itemId: string,
+  userId: string,
+): Promise<void> {
+  const { createServiceClient } = await import('@/lib/supabase/server');
+  const supabase = createServiceClient();
+
+  const { generateSummary } = await import('@/lib/ai/summarise');
+  await generateSummary({ supabase, itemId, force: true, userId });
 }

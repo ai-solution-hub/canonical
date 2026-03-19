@@ -202,9 +202,8 @@ export async function GET(request: NextRequest) {
       pipeline_name: 'freshness_transitions',
       status: 'completed',
       items_processed: changed.length,
-      items_created: notificationsCreated,
       completed_at: new Date().toISOString(),
-      result: { transitions: counts, new_transitions: newTransitions.length } as unknown as Json,
+      result: { transitions: counts, new_transitions: newTransitions.length, notifications_created: notificationsCreated } as unknown as Json,
     });
 
     // Clean up expired+dismissed notifications (§10b.7)

@@ -7,6 +7,7 @@ import { CommandPalette } from '@/components/command-palette';
 import { KeyboardShortcutsProvider } from '@/components/keyboard-shortcuts-provider';
 import { ReadMarksProvider } from '@/contexts/read-marks-context';
 import { TaxonomyProvider } from '@/contexts/taxonomy-context';
+import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
 import { CopilotPageContextProvider } from '@/contexts/copilot-page-context';
 import { CopilotKitProvider } from '@/components/copilotkit-provider';
@@ -46,6 +47,7 @@ export default async function RootLayout({
         <ThemeProvider>
           <ClientFeaturesProvider>
           <TaxonomyProvider>
+          <LayerVocabularyProvider>
           <ReadMarksProvider>
             <TooltipProvider>
               <CopilotKitProvider>
@@ -72,6 +74,7 @@ export default async function RootLayout({
               </CopilotKitProvider>
             </TooltipProvider>
           </ReadMarksProvider>
+          </LayerVocabularyProvider>
           </TaxonomyProvider>
           </ClientFeaturesProvider>
         </ThemeProvider>

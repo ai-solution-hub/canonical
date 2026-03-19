@@ -10,6 +10,12 @@ export interface ProgressiveDepthFieldsetProps {
   setDetail: (value: string) => void;
   reference: string;
   setReference: (value: string) => void;
+  /** Validation error for brief field */
+  briefError?: string;
+  /** Validation error for detail field */
+  detailError?: string;
+  /** Validation error for reference field */
+  referenceError?: string;
 }
 
 /**
@@ -23,6 +29,9 @@ export function ProgressiveDepthFieldset({
   setDetail,
   reference,
   setReference,
+  briefError,
+  detailError,
+  referenceError,
 }: ProgressiveDepthFieldsetProps) {
   return (
     <fieldset className="space-y-4 rounded-lg border border-border p-4">
@@ -39,7 +48,15 @@ export function ProgressiveDepthFieldset({
           placeholder="A brief executive summary..."
           rows={3}
           maxLength={5000}
+          aria-invalid={!!briefError || undefined}
+          aria-describedby={briefError ? 'brief-error' : undefined}
+          className={briefError ? 'border-destructive' : ''}
         />
+        {briefError && (
+          <p id="brief-error" className="text-destructive text-sm" role="alert">
+            {briefError}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground text-right mt-1">
           {brief.length.toLocaleString()} / {(5000).toLocaleString()}
         </p>
@@ -54,7 +71,15 @@ export function ProgressiveDepthFieldset({
           placeholder="Detailed explanation..."
           rows={4}
           maxLength={50000}
+          aria-invalid={!!detailError || undefined}
+          aria-describedby={detailError ? 'detail-error' : undefined}
+          className={detailError ? 'border-destructive' : ''}
         />
+        {detailError && (
+          <p id="detail-error" className="text-destructive text-sm" role="alert">
+            {detailError}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground text-right mt-1">
           {detail.length.toLocaleString()} / {(50000).toLocaleString()}
         </p>
@@ -71,7 +96,15 @@ export function ProgressiveDepthFieldset({
           placeholder="Technical or reference detail..."
           rows={4}
           maxLength={50000}
+          aria-invalid={!!referenceError || undefined}
+          aria-describedby={referenceError ? 'reference-error' : undefined}
+          className={referenceError ? 'border-destructive' : ''}
         />
+        {referenceError && (
+          <p id="reference-error" className="text-destructive text-sm" role="alert">
+            {referenceError}
+          </p>
+        )}
         <p className="text-xs text-muted-foreground text-right mt-1">
           {reference.length.toLocaleString()} / {(50000).toLocaleString()}
         </p>
