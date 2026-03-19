@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
+import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
 import mammoth from 'mammoth';
-import { extractText } from 'unpdf';
 
 export const maxDuration = 60;
 
@@ -77,17 +77,16 @@ interface PdfExtractionResult {
 }
 
 /**
- * Extract text from a PDF using unpdf (JavaScript, no Python dependency).
+ * Extract text from a PDF using the shared extraction module.
  * Returns { text, page_count, tables, table_count }.
  */
 async function extractPdfText(
   buffer: Buffer,
 ): Promise<PdfExtractionResult> {
-  const data = new Uint8Array(buffer);
-  const { totalPages, text } = await extractText(data, { mergePages: false });
+  const result = await sharedExtractPdf(buffer);
   return {
-    text: (text as string[]).join('\n\n'),
-    page_count: totalPages,
+    text: result.text,
+    page_count: result.pageCount,
     tables: [],      // unpdf does not support table extraction
     table_count: 0,
   };
