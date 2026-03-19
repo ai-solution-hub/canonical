@@ -1,8 +1,14 @@
 /**
  * Batch Re-classify Keywords
  *
- * Finds content items with malformed ai_keywords (strings > 40 chars or null)
- * and re-classifies them using the AI classifier to generate proper keywords.
+ * Finds content items needing AI re-classification:
+ *   - NULL classification_confidence (never classified or reset)
+ *   - Exactly 2 ai_keywords (placeholder [domain, subtopic] from remediation)
+ *   - Keywords > 40 chars (malformed section name slugs)
+ *   - Null/empty ai_keywords
+ *
+ * Preserves governance corrections: after re-classification, if domain/subtopic
+ * changed from the original, reverts them to preserve manual corrections.
  *
  * Usage:
  *   bun run scripts/batch_reclassify_keywords.ts
@@ -56,7 +62,7 @@ function parseArgs(): { dryRun: boolean; batchSize: number } {
   }
 
   if (isNaN(batchSize) || batchSize < 1) batchSize = 3;
-  if (batchSize > 5) batchSize = 5;
+  if (batchSize > 10) batchSize = 10;
 
   return { dryRun, batchSize };
 }
@@ -94,7 +100,7 @@ async function main(): Promise<void> {
     db: { schema: 'public' },
     global: {
       fetch: (url: string | URL | Request, init?: RequestInit) => {
-        return fetch(url, { ...init, signal: AbortSignal.timeout(60000) });
+        return fetch(url, { ...init, signal: AbortSignal.timeout(120000) });
       },
     },
   });
@@ -103,10 +109,10 @@ async function main(): Promise<void> {
 
   console.log('\nFinding items with malformed ai_keywords...\n');
 
-  // Query all active items and filter in-app for malformed keywords
+  // Query all active items with classification data
   const { data: allItems, error: fetchError } = await supabase
     .from('content_items')
-    .select('id, title, ai_keywords, content_type')
+    .select('id, title, ai_keywords, content_type, classification_confidence, primary_domain, primary_subtopic')
     .is('archived_at', null)
     .order('created_at', { ascending: true });
 
@@ -120,13 +126,31 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Filter for affected items:
-  // 1. Items with any keyword longer than 40 chars (malformed section name slugs)
-  // 2. Items with null/empty ai_keywords
+  // Filter for items needing re-classification:
+  // 1. NULL classification_confidence (never classified or reset)
+  // 2. Exactly 2 keywords (placeholder [domain, subtopic] from remediation)
+  // 3. Keywords > 40 chars (malformed section name slugs)
+  // 4. Null/empty keywords
   const affected = allItems.filter((item) => {
+    if (item.classification_confidence === null) return true;
     const keywords = item.ai_keywords as string[] | null;
     if (!keywords || keywords.length === 0) return true;
+    if (keywords.length === 2) return true;
     return keywords.some((kw) => kw.length > 40);
+  });
+
+  // Breakdown
+  const nullConfidence = affected.filter((item) => item.classification_confidence === null);
+  const twoKeywords = affected.filter((item) => {
+    const kw = item.ai_keywords as string[] | null;
+    return kw && kw.length === 2 && item.classification_confidence !== null;
+  });
+  const nullKeywords = affected.filter(
+    (item) => !item.ai_keywords || (item.ai_keywords as string[]).length === 0,
+  );
+  const longKeywords = affected.filter((item) => {
+    const kw = item.ai_keywords as string[] | null;
+    return kw && kw.length > 2 && kw.some((k) => k.length > 40);
   });
 
   console.log(`  Total active items:    ${allItems.length}`);
@@ -134,21 +158,8 @@ async function main(): Promise<void> {
   console.log(`  Batch size:            ${batchSize} concurrent`);
   console.log(`  Dry run:               ${dryRun}`);
   console.log('');
-
-  if (affected.length === 0) {
-    console.log('No items need re-classification. All keywords are clean.');
-    return;
-  }
-
-  // Show breakdown
-  const nullKeywords = affected.filter(
-    (item) => !item.ai_keywords || (item.ai_keywords as string[]).length === 0,
-  );
-  const longKeywords = affected.filter((item) => {
-    const kw = item.ai_keywords as string[] | null;
-    return kw && kw.length > 0 && kw.some((k) => k.length > 40);
-  });
-
+  console.log(`  NULL confidence:       ${nullConfidence.length}`);
+  console.log(`  Placeholder (2 kw):    ${twoKeywords.length}`);
   console.log(`  Null/empty keywords:   ${nullKeywords.length}`);
   console.log(`  Long keywords (>40):   ${longKeywords.length}`);
   console.log('');
@@ -174,6 +185,7 @@ async function main(): Promise<void> {
 
   let successCount = 0;
   let errorCount = 0;
+  let revertCount = 0;
   const startTime = Date.now();
 
   // Use admin user ID for the updated_by field
@@ -192,6 +204,10 @@ async function main(): Promise<void> {
         const index = batchStart + batchIndex + 1;
         const displayTitle = item.title || 'Untitled';
 
+        // Save original domain/subtopic to preserve governance corrections
+        const originalDomain = item.primary_domain;
+        const originalSubtopic = item.primary_subtopic;
+
         try {
           const result = await classifyContent({
             supabase,
@@ -200,10 +216,36 @@ async function main(): Promise<void> {
             userId: systemUserId,
           });
 
+          // Preserve governance corrections: if domain/subtopic changed, revert
+          const domainChanged = result.primary_domain !== originalDomain;
+          const subtopicChanged = result.primary_subtopic !== originalSubtopic;
+
+          if (domainChanged || subtopicChanged) {
+            const { error: revertError } = await supabase
+              .from('content_items')
+              .update({
+                primary_domain: originalDomain,
+                primary_subtopic: originalSubtopic,
+              })
+              .eq('id', item.id);
+
+            if (revertError) {
+              console.error(
+                `  [${String(index).padStart(3)}/${affected.length}] WARNING: Could not revert domain/subtopic for "${truncate(displayTitle, 50)}"`,
+              );
+            } else {
+              revertCount++;
+              console.log(
+                `  [${String(index).padStart(3)}/${affected.length}] Re-classified "${truncate(displayTitle, 50)}" => [${result.ai_keywords.join(', ')}] (domain/subtopic preserved: ${originalDomain}/${originalSubtopic})`,
+              );
+            }
+          } else {
+            console.log(
+              `  [${String(index).padStart(3)}/${affected.length}] Re-classified "${truncate(displayTitle, 50)}" => [${result.ai_keywords.join(', ')}]`,
+            );
+          }
+
           successCount++;
-          console.log(
-            `  [${String(index).padStart(3)}/${affected.length}] Re-classified "${truncate(displayTitle, 50)}" => [${result.ai_keywords.join(', ')}]`,
-          );
         } catch (err) {
           errorCount++;
           const message = err instanceof Error ? err.message : String(err);
@@ -230,6 +272,7 @@ async function main(): Promise<void> {
   console.log('  RE-CLASSIFICATION COMPLETE');
   console.log('='.repeat(60));
   console.log(`  Succeeded:          ${successCount}`);
+  console.log(`  Domain reverted:    ${revertCount} (governance corrections preserved)`);
   console.log(`  Failed:             ${errorCount}`);
   console.log(`  Time:               ${elapsed}s`);
   console.log('='.repeat(60));
