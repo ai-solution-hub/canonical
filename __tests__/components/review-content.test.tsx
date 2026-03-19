@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -157,7 +157,7 @@ vi.mock('@/components/review-progress-bar', () => ({
 }));
 
 vi.mock('@/components/review-filters', () => ({
-  ReviewFilters: ({ filters, onFiltersChange }: Record<string, unknown>) => (
+  ReviewFilters: () => (
     <div data-testid="review-filters">Filters</div>
   ),
 }));

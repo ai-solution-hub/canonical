@@ -23,8 +23,8 @@ vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => <a href={href as string} {...props}>{children as React.ReactNode}</a>,
 }));
 
-// eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
 vi.mock('next/image', () => ({
+  // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
   default: (props: Record<string, unknown>) => <img {...props} />,
 }));
 
@@ -98,7 +98,7 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
 
 // Mock highlight — pass through text unchanged
 vi.mock('@/lib/highlight', () => ({
-  highlightTerms: (text: string, _query?: string) => text,
+  highlightTerms: (text: string) => text,
 }));
 
 // Import AFTER mocks

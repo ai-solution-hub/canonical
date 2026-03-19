@@ -132,7 +132,7 @@ function setupFetch(options: {
   generateResult?: Record<string, unknown> | null;
   generateError?: string | null;
 } = {}) {
-  mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+  mockFetch.mockImplementation(async (url: string) => {
     const urlStr = typeof url === 'string' ? url : String(url);
 
     if (urlStr.includes('/api/digest/latest')) {

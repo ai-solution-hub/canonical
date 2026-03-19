@@ -79,7 +79,7 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
       </div>
     );
   },
-  SettingsMobileSidebar: ({ isAdmin, activeSection, onSectionChange }: { isAdmin: boolean; activeSection: string; onSectionChange: (s: string) => void }) => {
+  SettingsMobileSidebar: ({ isAdmin, activeSection }: { isAdmin: boolean; activeSection: string; onSectionChange: (s: string) => void }) => {
     mockSettingsMobileSidebar();
     return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
   },

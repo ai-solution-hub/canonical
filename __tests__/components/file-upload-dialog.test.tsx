@@ -8,16 +8,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
-
-const { mockFiles, mockSetFiles } = vi.hoisted(() => ({
-  mockFiles: { value: [] as { id: string; file: File; status: string; progress: number }[] },
-  mockSetFiles: vi.fn(),
-}));
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },

@@ -51,7 +51,7 @@ vi.mock('@/lib/validation/guide-schemas', () => ({
 
 // Mock the Select components to simplify testing (avoids Radix portal rendering)
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
+  Select: ({ children, value }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void }) => (
     <div data-testid="mock-select" data-value={value}>{children}</div>
   ),
   SelectTrigger: ({ children, ...props }: Record<string, unknown>) => (

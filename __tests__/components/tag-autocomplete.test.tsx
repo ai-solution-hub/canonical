@@ -200,7 +200,7 @@ describe('TagAutocomplete', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    const { container } = render(
+    render(
       <div>
         <TagAutocomplete type="user" onSelect={vi.fn()} />
         <button>Outside</button>

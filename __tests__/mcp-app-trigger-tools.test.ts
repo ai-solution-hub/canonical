@@ -230,15 +230,9 @@ describe('MCP App trigger tools #22-23', () => {
 
     it('builds domain breakdown from content_items and taxonomy', async () => {
       const handler = mockServer.getHandler('show_coverage_matrix')!;
-      let fromCallCount = 0;
-
-      // Configure from() to return different data based on call order:
-      // 1st call: content_items
-      // 2nd call: taxonomy_domains
-      // 3rd call: taxonomy_subtopics
-      // 4th call: ingestion_quality_log
+      // Configure from() to return different data based on table name:
+      // content_items, taxonomy_domains, taxonomy_subtopics, ingestion_quality_log
       supabase.from.mockImplementation((table: string) => {
-        fromCallCount++;
         const chain = {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
@@ -1252,7 +1246,7 @@ describe('MCP App trigger tools #22-23', () => {
     it('should return empty sections array when no questions exist', async () => {
       const handler = mockServer.getHandler('get_bid_detail')!;
 
-      supabase.from.mockImplementation((table: string) => {
+      supabase.from.mockImplementation(() => {
         const chain = {
           select: vi.fn().mockReturnThis(),
           eq: vi.fn().mockReturnThis(),
