@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { generateCoverageGapPrompt } from '@/lib/claude-prompts';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -23,27 +25,39 @@ export function CoverageGapCell({
   subtopicName,
   formatSubtopic,
 }: CoverageGapCellProps) {
+  const claudePrompt = generateCoverageGapPrompt(domainName, subtopicName);
+
   return (
-    <Link
-      href={`/browse?domain=${encodeURIComponent(domainName)}&subtopic=${encodeURIComponent(subtopicName)}`}
+    <div
       className={cn(
         'group flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3',
         'min-h-[5.5rem]',
-        'transition-colors hover:border-primary/40 hover:bg-muted/50',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
-      aria-label={`${formatSubtopic(subtopicName)} — no content — click to browse`}
     >
       <span className="text-xs font-medium text-muted-foreground">
         {formatSubtopic(subtopicName)}
       </span>
-      <span className="flex items-center gap-1 text-xs text-muted-foreground/80">
-        <span className="group-hover:hidden">No content</span>
-        <span className="hidden items-center gap-0.5 group-hover:flex">
+      <span className="text-xs text-muted-foreground/80">No content</span>
+      <div className="flex items-center gap-1">
+        <Link
+          href={`/browse?domain=${encodeURIComponent(domainName)}&subtopic=${encodeURIComponent(subtopicName)}`}
+          className={cn(
+            'flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-muted-foreground',
+            'transition-colors hover:bg-accent hover:text-foreground',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          )}
+          aria-label={`${formatSubtopic(subtopicName)} — browse`}
+        >
           <Plus className="size-3" aria-hidden="true" />
-          Add content
-        </span>
-      </span>
-    </Link>
+          Add
+        </Link>
+        <ClaudePromptButton
+          prompt={claudePrompt.prompt}
+          label="Ask Claude"
+          size="sm"
+          className="h-auto px-1.5 py-0.5"
+        />
+      </div>
+    </div>
   );
 }

@@ -234,6 +234,7 @@ export function GuideContent({ slug }: { slug: string }) {
                 section={section}
                 sectionNumber={index + 1}
                 domainFilter={guide.domain_filter}
+                guideName={guide.name}
               />
             )
           ))}

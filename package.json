@@ -22,6 +22,8 @@
     "test:mcp-eval:skip-ai": "bun run scripts/mcp-eval/protocol-compliance.ts --skip-ai",
     "test:mcp-eval:rq": "bun run scripts/mcp-eval/response-quality.ts",
     "test:mcp-eval:rq:skip-search": "bun run scripts/mcp-eval/response-quality.ts --skip-search",
+    "test:mcp-eval:fc": "bun run scripts/mcp-eval/functional-correctness.ts",
+    "test:mcp-eval:fc:skip-ai": "bun run scripts/mcp-eval/functional-correctness.ts --skip-ai",
     "vercel-build": "bun run build:mcp-apps && next build"
   },
   "dependencies": {

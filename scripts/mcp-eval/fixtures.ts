@@ -232,6 +232,7 @@ export interface KnownUUIDs {
   contentItemId: string;
   bidId: string | null;
   questionId: string | null;
+  bidResponseId: string | null;
 }
 
 export async function getKnownUUIDs(supabase: SupabaseClient): Promise<KnownUUIDs> {
@@ -270,10 +271,22 @@ export async function getKnownUUIDs(supabase: SupabaseClient): Promise<KnownUUID
     questionId = question?.id ?? null;
   }
 
+  let bidResponseId: string | null = null;
+  if (questionId) {
+    const { data: response } = await supabase
+      .from('bid_responses')
+      .select('id')
+      .eq('question_id', questionId)
+      .limit(1)
+      .single();
+    bidResponseId = response?.id ?? null;
+  }
+
   return {
     contentItemId: contentItem.id,
     bidId: bid?.id ?? null,
     questionId,
+    bidResponseId,
   };
 }
 

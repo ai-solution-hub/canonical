@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/types/reorient';
 
@@ -63,6 +64,23 @@ function WelcomeBack({
   );
 }
 
+function getUrgentClaudePrompt(item: UrgentItem): string | undefined {
+  switch (item.type) {
+    case 'bid_deadline':
+      return `The "${item.title}" bid needs attention — ${item.detail}. Show me the current progress and help me prioritise which unanswered questions to tackle first.`;
+    case 'content_expired':
+      return `Content item "${item.title}" has expired. Fetch it, check what's changed in this area, and help me update it.`;
+    case 'review_pending':
+      return `There's a governance review pending for "${item.title}". Show me the content and recommend whether to approve or request changes.`;
+    case 'quality_flag':
+      return `Content item "${item.title}" was flagged for quality issues. Fetch the item, diagnose the issue, and help me fix it.`;
+    case 'notification':
+      return `I have a notification: "${item.title}" — ${item.detail}. Help me understand what action is needed and guide me through resolving it.`;
+    default:
+      return undefined;
+  }
+}
+
 function UrgentItems({ items }: { items: UrgentItem[] }) {
   if (items.length === 0) return null;
 
@@ -101,35 +119,56 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
       }>
         {items.map((item) => {
           const Icon = urgentIcon(item.type);
+          const claudePrompt = getUrgentClaudePrompt(item);
           // Use text-bid-overdue for overdue bids, text-status-warning for everything else
           const iconColour =
             item.type === 'bid_deadline' && item.deadline && new Date(item.deadline) < new Date()
               ? 'text-bid-overdue'
               : 'text-status-warning';
           return (
-            <Link
+            <div
               key={`${item.type}-${item.entity_id}`}
-              href={item.href}
-              className="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`${item.title} — ${item.detail}`}
+              className="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50"
             >
               <Icon
                 className={`mt-0.5 size-4 shrink-0 ${iconColour}`}
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">
-                  {item.title}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {item.detail}
-                </p>
+                <Link
+                  href={item.href}
+                  className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  aria-label={`${item.title} — ${item.detail}`}
+                >
+                  <p className="text-sm font-medium text-foreground hover:underline">
+                    {item.title}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {item.detail}
+                  </p>
+                </Link>
               </div>
-              <ArrowRight
-                className="mt-0.5 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                aria-hidden="true"
-              />
-            </Link>
+              <div className="flex shrink-0 items-center gap-1">
+                {claudePrompt && (
+                  <ClaudePromptButton
+                    prompt={claudePrompt}
+                    size="sm"
+                    className="h-auto px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                  />
+                )}
+                <Link
+                  href={item.href}
+                  className="mt-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                  aria-label={`Go to ${item.title}`}
+                  tabIndex={-1}
+                >
+                  <ArrowRight
+                    className="size-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </Link>
+              </div>
+            </div>
           );
         })}
       </div>

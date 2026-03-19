@@ -7,6 +7,7 @@ import { BidStateBadge } from '@/components/bid-state-indicator';
 import { ConfidenceDot } from '@/components/confidence-badge';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import type { Bid, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { BidState } from '@/types/bid';
@@ -31,9 +32,11 @@ const STATUS_BORDER_CLASS: Record<BidState, string> = {
 interface BidListCardProps {
   bid: Bid;
   className?: string;
+  /** Optional Claude prompt to show an "Ask Claude" button */
+  claudePrompt?: string;
 }
 
-export function BidListCard({ bid, className }: BidListCardProps) {
+export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) {
   const metadata = bid.domain_metadata as BidMetadata;
   const bidStatus = (bid.status ?? metadata.status) as BidMetadata['status'];
   const stats = bid.question_stats;
@@ -66,10 +69,9 @@ export function BidListCard({ bid, className }: BidListCardProps) {
   const deadlineProximity = getDeadlineProximity(metadata.deadline);
 
   return (
-    <Link
-      href={`/bid/${bid.id}`}
+    <div
       className={cn(
-        'group block rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none',
+        'group rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50',
         STATUS_BORDER_CLASS[bidStatus] ?? 'border-l-bid-draft-border',
         className,
       )}
@@ -77,8 +79,13 @@ export function BidListCard({ bid, className }: BidListCardProps) {
       <div className="flex flex-col gap-3 p-4">
         {/* Header: name + status */}
         <div className="flex items-start justify-between gap-2">
-          <h3 className="truncate text-base font-semibold leading-tight text-foreground group-hover:underline decoration-muted-foreground/40 transition-colors">
-            {bid.name}
+          <h3 className="truncate text-base font-semibold leading-tight">
+            <Link
+              href={`/bid/${bid.id}`}
+              className="text-foreground transition-colors hover:underline decoration-muted-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none"
+            >
+              {bid.name}
+            </Link>
           </h3>
           <BidStateBadge state={bidStatus} className="shrink-0" />
         </div>
@@ -132,7 +139,17 @@ export function BidListCard({ bid, className }: BidListCardProps) {
             ))}
           </div>
         )}
+
+        {/* Claude prompt button */}
+        {claudePrompt && (
+          <div className="flex justify-end">
+            <ClaudePromptButton
+              prompt={claudePrompt}
+              size="sm"
+            />
+          </div>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }

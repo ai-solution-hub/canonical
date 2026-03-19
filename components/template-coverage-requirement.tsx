@@ -5,6 +5,7 @@ import { CheckCircle, AlertCircle, XCircle, Minus, Copy, Check } from 'lucide-re
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import type { CoverageStatus, RequirementType } from '@/lib/template-coverage';
 
@@ -152,28 +153,35 @@ export function TemplateCoverageRequirement({
         </div>
       </div>
 
-      {/* Gap CTA */}
+      {/* Gap CTAs */}
       {coverageStatus === 'gap' && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCopyGap}
-              className="shrink-0 gap-1.5 text-xs"
-            >
-              {copied ? (
-                <Check className="size-3" aria-hidden="true" />
-              ) : (
-                <Copy className="size-3" aria-hidden="true" />
-              )}
-              {copied ? 'Copied' : 'Create content'}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p className="text-xs">Copy requirement to clipboard for content creation</p>
-          </TooltipContent>
-        </Tooltip>
+        <div className="flex shrink-0 items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyGap}
+                className="shrink-0 gap-1.5 text-xs"
+              >
+                {copied ? (
+                  <Check className="size-3" aria-hidden="true" />
+                ) : (
+                  <Copy className="size-3" aria-hidden="true" />
+                )}
+                {copied ? 'Copied' : 'Create content'}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="text-xs">Copy requirement to clipboard for content creation</p>
+            </TooltipContent>
+          </Tooltip>
+          <ClaudePromptButton
+            prompt={`We need content to meet this requirement: "${requirementText}".${description ? ` Context: ${description}.` : ''} This is a ${TYPE_LABELS[requirementType].toLowerCase()} requirement. Search the KB for any related content, then help me draft material to fill this gap.`}
+            label="Ask Claude"
+            size="sm"
+          />
+        </div>
       )}
     </div>
   );

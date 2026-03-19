@@ -221,7 +221,7 @@ describe('ReorientSection', () => {
     render(<ReorientSection data={data} />);
 
     const items = screen.getAllByRole('link').filter(
-      (link) => link.getAttribute('aria-label')?.includes('Priority'),
+      (link) => link.getAttribute('aria-label')?.includes('Priority') && link.getAttribute('aria-label')?.includes(' — '),
     );
     expect(items).toHaveLength(3);
     // Order should match input (which is already sorted by priority)

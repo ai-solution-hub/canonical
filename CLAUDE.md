@@ -40,6 +40,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
 | `bun run test:mcp-eval` | Run MCP eval Layer 1 (protocol compliance, 42 checks) |
 | `bun run test:mcp-eval:rq` | Run MCP eval Layer 3 (response quality, 17 checks) |
+| `bun run test:mcp-eval:fc` | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB) |
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
@@ -56,12 +57,12 @@ Key directories:
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
 | `components/` | ~210 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
-| `hooks/` | ~34 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
-| `lib/` | ~79 utility modules — includes `mcp/` (30 tools, 10 resources, 5 prompts) and `ai/` (service layer) |
+| `hooks/` | ~35 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, claude-connected, etc.) |
+| `lib/` | ~81 utility modules — includes `mcp/` (30 tools, 10 resources, 5 prompts), `ai/` (service layer), `claude-prompts.ts` |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
 | `supabase/` | ~70 migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest — ~201 test files |
+| `__tests__/` | Vitest — ~213 test files |
 | `e2e/` | Playwright — 9 spec files. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
@@ -117,7 +118,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~201 test files, ~3,206 tests
+- **Location:** `__tests__/` — ~213 test files, ~3,541 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/`

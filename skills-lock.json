@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "assistant-capabilities": {
+      "source": "liam-jons/claude-got-skills",
+      "sourceType": "github",
+      "computedHash": "4cb0414576cb608b720753cc3e52c5a109bd05dc796735ceb186ba40b28ade24"
+    },
     "convert-web-app": {
       "source": "modelcontextprotocol/ext-apps",
       "sourceType": "github",

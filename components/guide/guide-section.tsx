@@ -37,6 +37,8 @@ interface GuideSectionProps {
   section: Section;
   sectionNumber: number;
   domainFilter: string | null;
+  /** Guide name — passed to empty state for Claude prompt context */
+  guideName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,7 +100,7 @@ function ContentItemCard({ item }: { item: ContentItem }) {
 // Guide section component
 // ---------------------------------------------------------------------------
 
-export function GuideSection({ section, sectionNumber, domainFilter }: GuideSectionProps) {
+export function GuideSection({ section, sectionNumber, domainFilter, guideName }: GuideSectionProps) {
   const layerLabel = getLayerLabel(section.expected_layer);
   const hasContent = section.content_items.length > 0;
 
@@ -139,6 +141,8 @@ export function GuideSection({ section, sectionNumber, domainFilter }: GuideSect
             domainFilter={domainFilter}
             subtopicFilter={section.subtopic_filter}
             expectedLayer={section.expected_layer}
+            sectionName={section.section_name}
+            guideName={guideName}
           />
         )}
       </div>

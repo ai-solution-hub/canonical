@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, BookOpen } from 'lucide-react';
+import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, BookOpen, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
 import {
@@ -96,6 +96,22 @@ export function SiteHeader() {
           >
             <Search className="size-4" />
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground sm:inline-flex"
+          >
+            <a
+              href="https://claude.ai/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open Claude in a new tab"
+            >
+              Claude
+              <ExternalLink className="size-3" aria-hidden="true" />
+            </a>
+          </Button>
           <NotificationBell />
           <Button
             variant="ghost"
@@ -159,6 +175,15 @@ export function SiteHeader() {
               );
             })}
             <Separator className="my-1" />
+            <a
+              href="https://claude.ai/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
+            >
+              <ExternalLink className="size-4" />
+              Open Claude
+            </a>
             <NotificationBell mobile />
             <Link
               href={SETTINGS_LINK.href}

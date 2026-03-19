@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Plus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BidListCard } from '@/components/bid-list-card';
+import { generateBidPrompt, generateBidDeadlinePrompt } from '@/lib/claude-prompts';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import type { Bid, BidMetadata } from '@/types/bid';
 
@@ -67,9 +68,23 @@ export function ActiveBidsSection({ bids }: ActiveBidsSectionProps) {
         </div>
       ) : (
         <div className="space-y-2">
-          {bids.map((bid) => (
-            <BidListCard key={bid.id} bid={toBid(bid)} />
-          ))}
+          {bids.map((bid) => {
+            const isFullyDraftedApproachingDeadline =
+              bid.answered_questions >= bid.total_questions &&
+              bid.days_until_deadline !== null &&
+              bid.days_until_deadline >= 0 &&
+              bid.days_until_deadline <= 7;
+            const prompt = isFullyDraftedApproachingDeadline
+              ? generateBidDeadlinePrompt(bid).prompt
+              : generateBidPrompt(bid).prompt;
+            return (
+              <BidListCard
+                key={bid.id}
+                bid={toBid(bid)}
+                claudePrompt={prompt}
+              />
+            );
+          })}
         </div>
       )}
     </section>
