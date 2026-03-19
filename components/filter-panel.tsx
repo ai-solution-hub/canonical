@@ -25,7 +25,8 @@ import { PlatformFilter } from '@/components/platform-filter';
 import { AuthorFilter } from '@/components/author-filter';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
+import { isFeatureEnabled } from '@/lib/client-config';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 
 interface FilterPanelProps {
   open: boolean;
@@ -73,6 +74,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     onClearAuthorSearch: () => setAuthorSearch(''),
   });
 
+  const { layers: layerVocabulary } = useLayerVocabulary();
   const { getDomainNames, getSubtopics } = useTaxonomy();
   const domainNames = getDomainNames();
 
@@ -363,7 +365,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               {/* Content Layer — collapsed by default */}
               <FilterSection title="Content Layer" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
-                  {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
+                  {layerVocabulary.map((layer) => {
                     const isActive = draft.layer === layer.key;
                     return (
                       <button

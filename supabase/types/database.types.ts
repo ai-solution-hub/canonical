@@ -570,6 +570,33 @@ export type Database = {
         }
         Relationships: []
       }
+      entity_aliases: {
+        Row: {
+          alias: string
+          canonical: string
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+        }
+        Insert: {
+          alias: string
+          canonical: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+        }
+        Update: {
+          alias?: string
+          canonical?: string
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+        }
+        Relationships: []
+      }
       entity_mentions: {
         Row: {
           canonical_name: string
@@ -845,6 +872,39 @@ export type Database = {
           },
         ]
       }
+      layer_vocabulary: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string | null
@@ -895,11 +955,15 @@ export type Database = {
           created_by: string | null
           error_message: string | null
           id: string
+          items_created: string[] | null
           items_processed: number | null
           pipeline_name: string
+          progress: Json | null
           result: Json | null
+          source_filename: string | null
           started_at: string
           status: string
+          workspace_id: string | null
         }
         Insert: {
           completed_at?: string | null
@@ -908,11 +972,15 @@ export type Database = {
           created_by?: string | null
           error_message?: string | null
           id?: string
+          items_created?: string[] | null
           items_processed?: number | null
           pipeline_name: string
+          progress?: Json | null
           result?: Json | null
+          source_filename?: string | null
           started_at?: string
           status?: string
+          workspace_id?: string | null
         }
         Update: {
           completed_at?: string | null
@@ -921,13 +989,25 @@ export type Database = {
           created_by?: string | null
           error_message?: string | null
           id?: string
+          items_created?: string[] | null
           items_processed?: number | null
           pipeline_name?: string
+          progress?: Json | null
           result?: Json | null
+          source_filename?: string | null
           started_at?: string
           status?: string
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       processing_queue: {
         Row: {

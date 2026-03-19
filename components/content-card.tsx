@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { highlightTerms } from '@/lib/highlight';
 import { isFeatureEnabled } from '@/lib/client-config';
-import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
 
@@ -69,6 +69,7 @@ function StarToggle({ itemId, metadata, className }: {
 
 /** Layer badge (shown when content_layers feature is enabled) */
 function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) {
+  const { getLayerLabel } = useLayerVocabulary();
   if (!isFeatureEnabled('content_layers') || !metadata?.layer) return null;
   return (
     <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">

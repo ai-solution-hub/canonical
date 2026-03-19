@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
-import { CLIENT_CONFIG } from '@/lib/client-config';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { VALID_GUIDE_TYPES } from '@/lib/validation/guide-schemas';
 
 // ---------------------------------------------------------------------------
@@ -316,6 +316,7 @@ function SectionFormDialog({
   onSave: () => void;
 }) {
   const { subtopics } = useTaxonomy();
+  const { layers: layerVocabulary } = useLayerVocabulary();
   const [sectionName, setSectionName] = useState('');
   const [description, setDescription] = useState('');
   const [expectedLayer, setExpectedLayer] = useState<string>('none');
@@ -432,7 +433,7 @@ function SectionFormDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Any layer</SelectItem>
-                {CLIENT_CONFIG.layer_vocabulary.map((layer) => (
+                {layerVocabulary.map((layer) => (
                   <SelectItem key={layer.key} value={layer.key}>
                     {layer.label}
                   </SelectItem>

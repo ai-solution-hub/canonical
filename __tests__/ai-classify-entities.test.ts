@@ -27,8 +27,17 @@ vi.mock('@/lib/ai/skills/loader', () => ({
   loadSkill: vi.fn().mockResolvedValue(''),
 }));
 
+vi.mock('@/lib/entity-aliases', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/entity-aliases')>();
+  return {
+    ...actual,
+    loadAliases: vi.fn().mockResolvedValue({}),
+  };
+});
+
 // Import after mocks
 import { classifyContent } from '@/lib/ai/classify';
+import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
 // Helpers
@@ -282,6 +291,30 @@ describe('classifyContent — entity extraction', () => {
         'references',
         'evidences',
       ]);
+    });
+  });
+
+  describe('prompt uses config-driven entity examples', () => {
+    it('uses entity_examples from CLIENT_CONFIG in the prompt', async () => {
+      mockCreate.mockResolvedValueOnce(
+        createToolUseResponse(baseClassificationInput),
+      );
+
+      await classifyContent({
+        supabase: mockSupabase as never,
+        itemId: ITEM_ID,
+        force: true,
+        userId: USER_ID,
+      });
+
+      const callArgs = mockCreate.mock.calls[0][0];
+      const promptText = callArgs.messages[0].content;
+
+      // Verify the prompt contains the configured entity examples
+      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.organisation_name);
+      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.product_name);
+      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.organisation_short);
+      expect(promptText).toContain(CLIENT_CONFIG.entity_examples.product_short);
     });
   });
 

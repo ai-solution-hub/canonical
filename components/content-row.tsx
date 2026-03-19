@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { highlightTerms } from '@/lib/highlight';
 import { isFeatureEnabled } from '@/lib/client-config';
-import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
@@ -42,6 +42,7 @@ export const ContentRow = memo(function ContentRow({
   highlightQuery,
 }: ContentRowProps) {
   const { getDomainColourKey } = useTaxonomy();
+  const { getLayerLabel } = useLayerVocabulary();
   const title = getDisplayTitle(item);
   const isQAPair = item.content_type === 'q_a_pair';
   const colourKey = item.primary_domain

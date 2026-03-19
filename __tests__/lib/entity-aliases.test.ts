@@ -1,25 +1,53 @@
-import { describe, it, expect } from 'vitest';
-import { resolveAlias, ENTITY_ALIASES } from '@/lib/entity-aliases';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import {
+  resolveAlias,
+  BASELINE_ALIASES,
+  loadAliases,
+  clearAliasCache,
+  setAliasCache,
+} from '@/lib/entity-aliases';
 import { canonicalise } from '@/lib/entity-dedup';
 
-describe('resolveAlias', () => {
-  it('resolves known company alias', () => {
-    expect(resolveAlias('example-client Design Ltd')).toBe('Example Client Ltd');
+beforeEach(() => {
+  clearAliasCache();
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BASELINE_ALIASES
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('BASELINE_ALIASES', () => {
+  it('contains generic aliases (ISO, technology names)', () => {
+    expect(BASELINE_ALIASES['ISO Certification']).toBe('ISO 27001');
+    expect(BASELINE_ALIASES['wordpress']).toBe('WordPress');
+    expect(BASELINE_ALIASES['Csharp']).toBe('C#');
+    expect(BASELINE_ALIASES['Wcag 2 1 Aa']).toBe('WCAG 2.1 AA');
   });
 
-  it('resolves short company name', () => {
-    expect(resolveAlias('example-client')).toBe('Example Client Ltd');
+  it('does NOT contain client-specific aliases (example-client)', () => {
+    expect(BASELINE_ALIASES['example-client']).toBeUndefined();
+    expect(BASELINE_ALIASES['example-client Design Ltd']).toBeUndefined();
+    expect(BASELINE_ALIASES['example-client Audit']).toBeUndefined();
+    expect(BASELINE_ALIASES['example-client Lms']).toBeUndefined();
   });
 
-  it('passes through unknown names unchanged', () => {
-    expect(resolveAlias('Unknown Corp')).toBe('Unknown Corp');
+  it('exports a non-empty alias map', () => {
+    expect(Object.keys(BASELINE_ALIASES).length).toBeGreaterThan(0);
   });
 
-  it('resolves product alias', () => {
-    expect(resolveAlias('example-client Audit Platform')).toBe('example-client Audit System');
+  it('all alias values are non-empty strings', () => {
+    for (const [key, value] of Object.entries(BASELINE_ALIASES)) {
+      expect(value, `alias for "${key}" should be a non-empty string`).toBeTruthy();
+    }
   });
+});
 
-  it('resolves ISO alias', () => {
+// ═══════════════════════════════════════════════════════════════════════════
+// resolveAlias (no cache — baseline only)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('resolveAlias (baseline fallback)', () => {
+  it('resolves generic ISO alias', () => {
     expect(resolveAlias('ISO 27001 2013')).toBe('ISO 27001');
   });
 
@@ -27,62 +55,178 @@ describe('resolveAlias', () => {
     expect(resolveAlias('wordpress')).toBe('WordPress');
   });
 
-  it('resolves LMS alias', () => {
-    expect(resolveAlias('example-client Lms')).toBe('example-client LMS');
+  it('passes through unknown names unchanged', () => {
+    expect(resolveAlias('Unknown Corp')).toBe('Unknown Corp');
+  });
+
+  it('does NOT resolve client-specific aliases without cache', () => {
+    // example-client aliases are not in the baseline
+    expect(resolveAlias('example-client')).toBe('example-client');
+    expect(resolveAlias('example-client Design Ltd')).toBe('example-client Design Ltd');
   });
 });
 
-describe('canonicalise → resolveAlias (chained)', () => {
-  /** Helper: full normalisation pipeline as used in classify.ts */
-  const normalise = (name: string) => resolveAlias(canonicalise(name));
+// ═══════════════════════════════════════════════════════════════════════════
+// setAliasCache / clearAliasCache
+// ═══════════════════════════════════════════════════════════════════════════
 
-  it('example-client design ltd → Example Client Ltd (canonicalise + alias)', () => {
-    // canonicalise: 'example-client design ltd' → 'Example Client Ltd' (title case + Ltd→Limited)
-    // resolveAlias: passthrough (already canonical)
-    expect(normalise('example-client design ltd')).toBe('Example Client Ltd');
+describe('setAliasCache', () => {
+  it('injects client aliases and resolveAlias uses them', () => {
+    setAliasCache({
+      example-client: 'Example Client Ltd',
+      'example-client Design Ltd': 'Example Client Ltd',
+    });
+
+    expect(resolveAlias('example-client')).toBe('Example Client Ltd');
+    expect(resolveAlias('example-client Design Ltd')).toBe('Example Client Ltd');
+    // Baseline aliases still available
+    expect(resolveAlias('wordpress')).toBe('WordPress');
+  });
+});
+
+describe('clearAliasCache', () => {
+  it('resets to baseline behaviour', () => {
+    setAliasCache({ example-client: 'Example Client Ltd' });
+    expect(resolveAlias('example-client')).toBe('Example Client Ltd');
+
+    clearAliasCache();
+    // Now client alias no longer works
+    expect(resolveAlias('example-client')).toBe('example-client');
+    // But baseline still does
+    expect(resolveAlias('wordpress')).toBe('WordPress');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// loadAliases
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('loadAliases', () => {
+  function createMockSupabase(
+    data: Array<{ alias: string; canonical: string }> | null,
+    error: unknown = null,
+  ) {
+    return {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data, error }),
+        }),
+      }),
+    };
+  }
+
+  it('merges DB data with baseline', async () => {
+    const mockSb = createMockSupabase([
+      { alias: 'example-client', canonical: 'Example Client Ltd' },
+      { alias: 'example-client Audit', canonical: 'example-client Audit System' },
+    ]);
+
+    const result = await loadAliases(mockSb);
+
+    // Client alias from DB
+    expect(result['example-client']).toBe('Example Client Ltd');
+    expect(result['example-client Audit']).toBe('example-client Audit System');
+    // Baseline alias still present
+    expect(result['wordpress']).toBe('WordPress');
+    expect(result['ISO Certification']).toBe('ISO 27001');
   });
 
-  it('example-client → Example Client Ltd (canonicalise to example-client, then alias)', () => {
-    // canonicalise: 'example-client' → 'example-client' (title case)
-    // resolveAlias: 'example-client' → 'Example Client Ltd'
+  it('DB values take precedence over baseline', async () => {
+    const mockSb = createMockSupabase([
+      { alias: 'wordpress', canonical: 'WP Override' },
+    ]);
+
+    const result = await loadAliases(mockSb);
+    expect(result['wordpress']).toBe('WP Override');
+  });
+
+  it('falls back to baseline on DB error', async () => {
+    const mockSb = createMockSupabase(null, { message: 'table not found' });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadAliases(mockSb);
+
+    expect(result).toEqual(BASELINE_ALIASES);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('falls back to baseline when DB fetch throws', async () => {
+    const mockSb = {
+      from: vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockRejectedValue(new Error('network error')),
+        }),
+      }),
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = await loadAliases(mockSb);
+
+    expect(result).toEqual(BASELINE_ALIASES);
+    warnSpy.mockRestore();
+  });
+
+  it('returns cached result on subsequent calls within TTL', async () => {
+    const mockSb = createMockSupabase([
+      { alias: 'example-client', canonical: 'Example Client Ltd' },
+    ]);
+
+    await loadAliases(mockSb);
+    // Reset call count
+    mockSb.from.mockClear();
+
+    await loadAliases(mockSb);
+    // Should NOT have queried DB again
+    expect(mockSb.from).not.toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// canonicalise -> resolveAlias (chained) with injected client aliases
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('canonicalise -> resolveAlias (chained with client aliases)', () => {
+  beforeEach(() => {
+    // Simulate DB-loaded client aliases
+    setAliasCache({
+      example-client: 'Example Client Ltd',
+      'example-client Design Ltd': 'Example Client Ltd',
+      'example-client Audit': 'example-client Audit System',
+      'example-client Audit Platform': 'example-client Audit System',
+      'example-client Lms': 'example-client LMS',
+      'Learning Management System': 'example-client LMS',
+      'example-client Pdms': 'example-client PDMS',
+    });
+  });
+
+  const normalise = (name: string) => resolveAlias(canonicalise(name));
+
+  it('example-client -> Example Client Ltd (canonicalise + alias)', () => {
     expect(normalise('example-client')).toBe('Example Client Ltd');
   });
 
-  it('ISO/IEC 27001 → ISO 27001 (canonicalise handles it, alias passthrough)', () => {
-    expect(normalise('ISO/IEC 27001')).toBe('ISO 27001');
+  it('example-client design ltd -> Example Client Ltd', () => {
+    expect(normalise('example-client design ltd')).toBe('Example Client Ltd');
   });
 
-  it('Iso Iec 27001 → ISO 27001', () => {
-    expect(normalise('Iso Iec 27001')).toBe('ISO 27001');
-  });
-
-  it('example-client Audit Platform → example-client Audit System (alias resolves)', () => {
+  it('example-client Audit Platform -> example-client Audit System', () => {
     expect(normalise('example-client Audit Platform')).toBe('example-client Audit System');
   });
 
-  it('example-client audit → example-client Audit → example-client Audit System', () => {
-    // canonicalise: 'example-client audit' → 'example-client Audit' (title case)
-    // resolveAlias: 'example-client Audit' → 'example-client Audit System'
+  it('example-client audit -> example-client Audit System', () => {
     expect(normalise('example-client audit')).toBe('example-client Audit System');
+  });
+
+  it('ISO/IEC 27001 -> ISO 27001 (canonicalise handles it)', () => {
+    expect(normalise('ISO/IEC 27001')).toBe('ISO 27001');
+  });
+
+  it('ISO Certification -> ISO 27001 (baseline alias)', () => {
+    expect(normalise('ISO Certification')).toBe('ISO 27001');
   });
 
   it('unknown entity passes through both stages', () => {
     expect(normalise('Acme Corporation')).toBe('Acme Corporation');
-  });
-
-  it('ISO Certification → ISO 27001 (alias resolves)', () => {
-    expect(normalise('ISO Certification')).toBe('ISO 27001');
-  });
-});
-
-describe('ENTITY_ALIASES map', () => {
-  it('exports a non-empty alias map', () => {
-    expect(Object.keys(ENTITY_ALIASES).length).toBeGreaterThan(0);
-  });
-
-  it('all alias values are non-empty strings', () => {
-    for (const [key, value] of Object.entries(ENTITY_ALIASES)) {
-      expect(value, `alias for "${key}" should be a non-empty string`).toBeTruthy();
-    }
   });
 });

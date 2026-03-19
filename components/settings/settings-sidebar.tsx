@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Tags, Menu, Plug, Network, BookOpen } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Tags, Menu, Plug, Network, BookOpen, Layers } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ export type SettingsSection =
   | 'tags'
   | 'entities'
   | 'guides'
+  | 'layers'
   | 'team'
   | 'governance'
   | 'activity';
@@ -42,6 +43,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: 'tags', label: 'Tags', icon: Tags, group: 'content' },
   { id: 'entities', label: 'Entities', icon: Network, group: 'content' },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
+  { id: 'layers', label: 'Layers', icon: Layers, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Governance', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },

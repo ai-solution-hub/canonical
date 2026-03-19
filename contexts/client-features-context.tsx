@@ -6,7 +6,6 @@ import {
   isFeatureEnabled,
   type FeatureName,
   type FeatureToggle,
-  type LayerDefinition,
 } from '@/lib/client-config';
 
 // ---------------------------------------------------------------------------
@@ -16,8 +15,6 @@ import {
 interface ClientFeaturesContextValue {
   /** All feature toggles */
   features: Record<FeatureName, FeatureToggle>;
-  /** Layer vocabulary definitions (ordered) */
-  layerVocabulary: readonly LayerDefinition[];
   /** Check whether a named feature is enabled */
   isFeatureEnabled: (feature: FeatureName) => boolean;
   /** Client display name */
@@ -39,7 +36,6 @@ export function ClientFeaturesProvider({
   const value = useMemo<ClientFeaturesContextValue>(
     () => ({
       features: CLIENT_CONFIG.features,
-      layerVocabulary: CLIENT_CONFIG.layer_vocabulary,
       isFeatureEnabled,
       clientName: CLIENT_CONFIG.client_name,
     }),

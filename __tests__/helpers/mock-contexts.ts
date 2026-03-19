@@ -126,7 +126,6 @@ export function mockReadMarksContext(
 
 export interface MockClientFeaturesContextValue {
   features: Record<FeatureName, FeatureToggle>;
-  layerVocabulary: readonly LayerDefinition[];
   isFeatureEnabled: (feature: FeatureName) => boolean;
   clientName: string;
 }
@@ -140,13 +139,6 @@ const DEFAULT_FEATURES: Record<FeatureName, FeatureToggle> = {
   bid_management: { enabled: true, label: 'Bid Management', description: '' },
 };
 
-const DEFAULT_LAYERS: LayerDefinition[] = [
-  { key: 'sales_brief', label: 'Sales Brief', description: 'Positioning and messaging for internal sales', order: 1 },
-  { key: 'bid_detail', label: 'Bid Detail', description: 'Factual content for tender responses', order: 2 },
-  { key: 'company_reference', label: 'Company Reference', description: 'Controlled corporate documents', order: 3 },
-  { key: 'research', label: 'Research', description: 'Background material and market intelligence', order: 4 },
-];
-
 export function mockClientFeaturesContext(
   overrides: Partial<MockClientFeaturesContextValue> = {},
 ): MockClientFeaturesContextValue {
@@ -154,9 +146,46 @@ export function mockClientFeaturesContext(
 
   return {
     features,
-    layerVocabulary: overrides.layerVocabulary ?? DEFAULT_LAYERS,
     isFeatureEnabled: (feature: FeatureName) => features[feature]?.enabled ?? false,
     clientName: overrides.clientName ?? 'Knowledge Hub',
+    ...overrides,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Layer vocabulary context
+// ---------------------------------------------------------------------------
+
+export interface MockLayerVocabularyContextValue {
+  layers: LayerDefinition[];
+  loading: boolean;
+  error: string | null;
+  getLayerKeys: () => string[];
+  getLayerLabel: (key: string) => string;
+  getLayerDescription: (key: string) => string;
+  refresh: () => void;
+}
+
+const DEFAULT_LAYERS: LayerDefinition[] = [
+  { key: 'sales_brief', label: 'Sales Brief', description: 'Positioning and messaging for internal sales', order: 1 },
+  { key: 'bid_detail', label: 'Bid Detail', description: 'Factual content for tender responses', order: 2 },
+  { key: 'company_reference', label: 'Company Reference', description: 'Controlled corporate documents', order: 3 },
+  { key: 'research', label: 'Research', description: 'Background material and market intelligence', order: 4 },
+];
+
+export function mockLayerVocabularyContext(
+  overrides: Partial<MockLayerVocabularyContextValue> = {},
+): MockLayerVocabularyContextValue {
+  const layers = overrides.layers ?? DEFAULT_LAYERS;
+
+  return {
+    layers,
+    loading: false,
+    error: null,
+    getLayerKeys: () => layers.map((l) => l.key),
+    getLayerLabel: (key: string) => layers.find((l) => l.key === key)?.label ?? key,
+    getLayerDescription: (key: string) => layers.find((l) => l.key === key)?.description ?? '',
+    refresh: vi.fn(),
     ...overrides,
   };
 }

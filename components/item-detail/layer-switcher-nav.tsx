@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { isFeatureEnabled } from '@/lib/client-config';
-import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 
 export interface TopicLayerItem {
@@ -25,6 +25,8 @@ export function LayerSwitcherNav({
   currentItemId,
   topicLayers,
 }: LayerSwitcherNavProps) {
+  const { getLayerLabel } = useLayerVocabulary();
+
   if (!isFeatureEnabled('content_layers') || topicLayers.length <= 1) {
     return null;
   }

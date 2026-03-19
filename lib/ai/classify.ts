@@ -12,7 +12,8 @@ import { htmlToPlainText } from '@/lib/editor-utils';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entity-dedup';
-import { resolveAlias } from '@/lib/entity-aliases';
+import { resolveAlias, loadAliases } from '@/lib/entity-aliases';
+import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
 // Types
@@ -264,6 +265,13 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
 Available domains and subtopics:
 ${taxonomyStr}
 
+IMPORTANT disambiguation rules:
+- "${CLIENT_CONFIG.entity_examples.product_name}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.
+- Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.
+- Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.
+- Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.
+- Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.
+
 Content type: ${item.content_type}
 Title: ${item.title}
 
@@ -284,7 +292,7 @@ Classify this content. Return a JSON object with:
 Also extract named entities and relationships from the content:
 - entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
 - relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
-When extracting entities, prefer the full formal name of organisations (e.g. "Example Client Ltd" not "example-client"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "example-client Audit System" not "audit system").
+When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
 Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.`,
       },
     ],
@@ -334,6 +342,9 @@ Only include entities and relationships that are clearly stated or strongly impl
   // reserved for future use (short excerpt showing where the entity was found).
   // It is intentionally not populated during classification — a future enhancement
   // could extract surrounding text from the content to populate it.
+  // Load entity aliases from DB before entity/relationship storage
+  await loadAliases(supabase);
+
   if (result.entities?.length) {
     try {
       const entityRows = result.entities.map((e) => ({

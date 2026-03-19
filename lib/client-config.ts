@@ -65,6 +65,17 @@ export interface ClientConfig {
   };
   /** Content layer vocabulary — drives validation, UI labels, coverage grouping */
   layer_vocabulary: LayerDefinition[];
+  /** Examples used in AI classification prompts for entity extraction guidance */
+  entity_examples: {
+    /** Full formal organisation name, e.g. "Example Client Ltd" */
+    organisation_name: string;
+    /** Short/informal name to avoid, e.g. "example-client" */
+    organisation_short: string;
+    /** Canonical product name, e.g. "example-client Audit System" */
+    product_name: string;
+    /** Informal product name to avoid, e.g. "audit system" */
+    product_short: string;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +119,13 @@ export const CLIENT_CONFIG = {
     },
   },
 
+  entity_examples: {
+    organisation_name: 'Example Client Ltd',
+    organisation_short: 'example-client',
+    product_name: 'example-client Audit System',
+    product_short: 'audit system',
+  },
+
   layer_vocabulary: [
     {
       key: 'sales_brief',
@@ -142,6 +160,19 @@ export const CLIENT_CONFIG = {
 
 export type FeatureName = keyof typeof CLIENT_CONFIG.features;
 export type LayerKey = (typeof CLIENT_CONFIG.layer_vocabulary)[number]['key'];
+
+/**
+ * Static fallback layer definitions.
+ *
+ * Used by:
+ *   - LayerVocabularyProvider when the DB fetch fails
+ *   - Server-side validation (API routes) that cannot use React context
+ *   - Python pipeline (via layer-schemas.ts static exports)
+ *
+ * When adding new layers via the admin UI, also add them here and redeploy
+ * so that server-side validation accepts them.
+ */
+export const FALLBACK_LAYERS: readonly LayerDefinition[] = CLIENT_CONFIG.layer_vocabulary;
 
 /**
  * Check whether a feature is enabled in the static config.

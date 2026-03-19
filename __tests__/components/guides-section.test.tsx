@@ -37,12 +37,25 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 vi.mock('@/lib/client-config', () => ({
-  CLIENT_CONFIG: {
-    layer_vocabulary: [
-      { key: 'bid_detail', label: 'Bid Detail' },
-      { key: 'company_reference', label: 'Company Reference' },
+  CLIENT_CONFIG: { features: {} },
+}));
+
+vi.mock('@/contexts/layer-vocabulary-context', () => ({
+  useLayerVocabulary: () => ({
+    layers: [
+      { key: 'bid_detail', label: 'Bid Detail', description: '', order: 2 },
+      { key: 'company_reference', label: 'Company Reference', description: '', order: 3 },
     ],
-  },
+    loading: false,
+    error: null,
+    getLayerKeys: () => ['bid_detail', 'company_reference'],
+    getLayerLabel: (key: string) => {
+      const map: Record<string, string> = { bid_detail: 'Bid Detail', company_reference: 'Company Reference' };
+      return map[key] ?? key;
+    },
+    getLayerDescription: () => '',
+    refresh: vi.fn(),
+  }),
 }));
 
 vi.mock('@/lib/validation/guide-schemas', () => ({

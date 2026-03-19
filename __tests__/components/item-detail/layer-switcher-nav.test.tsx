@@ -37,6 +37,29 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+vi.mock('@/contexts/layer-vocabulary-context', () => ({
+  useLayerVocabulary: () => ({
+    layers: [
+      { key: 'sales_brief', label: 'Sales Brief', description: '', display_order: 1, is_active: true, id: 'l-1' },
+      { key: 'bid_detail', label: 'Bid Detail', description: '', display_order: 2, is_active: true, id: 'l-2' },
+      { key: 'company_reference', label: 'Company Reference', description: '', display_order: 3, is_active: true, id: 'l-3' },
+    ],
+    loading: false,
+    error: null,
+    getLayerKeys: () => ['sales_brief', 'bid_detail', 'company_reference'],
+    getLayerLabel: (key: string) => {
+      const labels: Record<string, string> = {
+        sales_brief: 'Sales Brief',
+        bid_detail: 'Bid Detail',
+        company_reference: 'Company Reference',
+      };
+      return labels[key] ?? key;
+    },
+    getLayerDescription: () => '',
+    refresh: vi.fn(),
+  }),
+}));
+
 import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
 import type { TopicLayerItem } from '@/components/item-detail/layer-switcher-nav';
 

@@ -5,7 +5,7 @@ import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GuideSectionEmpty } from './guide-section-empty';
-import { CLIENT_CONFIG } from '@/lib/client-config';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,20 +42,11 @@ interface GuideSectionProps {
 }
 
 // ---------------------------------------------------------------------------
-// Layer label lookup
-// ---------------------------------------------------------------------------
-
-function getLayerLabel(layerKey: string | null): string | null {
-  if (!layerKey) return null;
-  const layer = CLIENT_CONFIG.layer_vocabulary.find((l) => l.key === layerKey);
-  return layer?.label ?? layerKey;
-}
-
-// ---------------------------------------------------------------------------
 // Content item card
 // ---------------------------------------------------------------------------
 
 function ContentItemCard({ item }: { item: ContentItem }) {
+  const { getLayerLabel } = useLayerVocabulary();
   return (
     <Link
       href={`/item/${item.content_id}`}
@@ -85,7 +76,8 @@ function ContentItemCard({ item }: { item: ContentItem }) {
           <Badge variant="outline" className="text-[10px]">
             {getLayerLabel(item.content_layer)}
           </Badge>
-        )}
+        )
+        }
         {item.content_verified_at && (
           <span className="text-[10px] text-muted-foreground" title="Verified">
             Verified
@@ -101,7 +93,8 @@ function ContentItemCard({ item }: { item: ContentItem }) {
 // ---------------------------------------------------------------------------
 
 export function GuideSection({ section, sectionNumber, domainFilter, guideName }: GuideSectionProps) {
-  const layerLabel = getLayerLabel(section.expected_layer);
+  const { getLayerLabel } = useLayerVocabulary();
+  const layerLabel = section.expected_layer ? getLayerLabel(section.expected_layer) : null;
   const hasContent = section.content_items.length > 0;
 
   return (

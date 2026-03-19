@@ -33,6 +33,19 @@ vi.mock('sonner', () => ({
   },
 }));
 
+// Mock layer vocabulary context (used by LayerBadge inside ContentCard)
+vi.mock('@/contexts/layer-vocabulary-context', () => ({
+  useLayerVocabulary: () => ({
+    layers: [],
+    loading: false,
+    error: null,
+    getLayerKeys: () => [],
+    getLayerLabel: (key: string) => key,
+    getLayerDescription: () => '',
+    refresh: vi.fn(),
+  }),
+}));
+
 import { ContentCard } from '@/components/content-card';
 
 // ---------------------------------------------------------------------------

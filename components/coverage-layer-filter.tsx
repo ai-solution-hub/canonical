@@ -1,6 +1,7 @@
 'use client';
 
-import { CLIENT_CONFIG, isFeatureEnabled } from '@/lib/client-config';
+import { isFeatureEnabled } from '@/lib/client-config';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import {
   Select,
   SelectContent,
@@ -26,12 +27,12 @@ export function CoverageLayerFilter({
   value,
   onLayerChange,
 }: CoverageLayerFilterProps) {
+  const { layers } = useLayerVocabulary();
+
   // Only render when content_layers feature is enabled
   if (!isFeatureEnabled('content_layers')) {
     return null;
   }
-
-  const layers = CLIENT_CONFIG.layer_vocabulary;
 
   return (
     <Select

@@ -116,9 +116,19 @@ vi.mock('@/hooks/use-filter-data', () => ({
 
 vi.mock('@/lib/client-config', () => ({
   isFeatureEnabled: () => false,
-  CLIENT_CONFIG: {
-    layer_vocabulary: [],
-  },
+  CLIENT_CONFIG: { features: {} },
+}));
+
+vi.mock('@/contexts/layer-vocabulary-context', () => ({
+  useLayerVocabulary: () => ({
+    layers: [],
+    loading: false,
+    error: null,
+    getLayerKeys: () => [],
+    getLayerLabel: (key: string) => key,
+    getLayerDescription: () => '',
+    refresh: vi.fn(),
+  }),
 }));
 
 // Mock the Supabase client (used by sub-components like DomainFilter)

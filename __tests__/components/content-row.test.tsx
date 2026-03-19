@@ -88,7 +88,20 @@ vi.mock('@/components/domain-badge', () => ({
 // Mock client-config
 vi.mock('@/lib/client-config', () => ({
   isFeatureEnabled: () => false,
-  CLIENT_CONFIG: { layer_vocabulary: [] },
+  CLIENT_CONFIG: { features: {} },
+}));
+
+// Mock layer vocabulary context
+vi.mock('@/contexts/layer-vocabulary-context', () => ({
+  useLayerVocabulary: () => ({
+    layers: [],
+    loading: false,
+    error: null,
+    getLayerKeys: () => [],
+    getLayerLabel: (key: string) => key,
+    getLayerDescription: () => '',
+    refresh: vi.fn(),
+  }),
 }));
 
 // Mock validation/layer-schemas

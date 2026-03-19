@@ -1,7 +1,7 @@
 'use client';
 
-import { isFeatureEnabled, CLIENT_CONFIG } from '@/lib/client-config';
-import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { isFeatureEnabled } from '@/lib/client-config';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
@@ -17,6 +17,8 @@ export function ContentLayerSelector({
   canEdit,
   handleLayerChange,
 }: ContentLayerSelectorProps) {
+  const { layers, getLayerLabel, getLayerDescription } = useLayerVocabulary();
+
   if (!isFeatureEnabled('content_layers')) return null;
 
   // Editable layer selector (for editors)
@@ -39,7 +41,7 @@ export function ContentLayerSelector({
           >
             No layer
           </button>
-          {CLIENT_CONFIG.layer_vocabulary.map((layer) => {
+          {layers.map((layer) => {
             const isActive = item.metadata?.layer === layer.key;
             return (
               <button
@@ -60,9 +62,7 @@ export function ContentLayerSelector({
         </div>
         {!!item.metadata?.layer && (
           <p className="mt-1 text-xs text-muted-foreground">
-            {CLIENT_CONFIG.layer_vocabulary.find(
-              (l) => l.key === (item.metadata?.layer as string),
-            )?.description}
+            {getLayerDescription(item.metadata.layer as string)}
           </p>
         )}
       </section>
