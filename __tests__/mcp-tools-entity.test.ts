@@ -125,7 +125,7 @@ describe('MCP tools #14-16', () => {
 
     // Import and register tools
     const { registerTools } = await import('@/lib/mcp/tools');
-    registerTools(mockServer as never);
+    await registerTools(mockServer as never);
   });
 
   // ─────────────────────────────────────────
