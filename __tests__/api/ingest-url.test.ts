@@ -1,0 +1,553 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  createMockSupabaseClient,
+  configureRole,
+  configureUnauthenticated,
+} from '../helpers/mock-supabase';
+import { createTestRequest } from '../helpers/mock-next';
+
+// ---------------------------------------------------------------------------
+// Shared mock client
+// ---------------------------------------------------------------------------
+
+const mockSupabase = createMockSupabaseClient();
+
+const { mockCookies } = vi.hoisted(() => ({
+  mockCookies: vi.fn(),
+}));
+
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: vi.fn(async () => mockSupabase),
+  createServiceClient: vi.fn(() => mockSupabase),
+}));
+
+vi.mock('next/headers', () => ({
+  cookies: mockCookies,
+}));
+
+// ---------------------------------------------------------------------------
+// Mock external dependencies
+// ---------------------------------------------------------------------------
+
+const {
+  mockCheckRateLimit,
+  mockValidateUrl,
+  mockDetectContentType,
+  mockExtractFromUrl,
+  mockGenerateEmbedding,
+  mockClassifyContent,
+  mockGenerateSummary,
+  mockCheckForDuplicates,
+  mockFormatDedupWarning,
+} = vi.hoisted(() => ({
+  mockCheckRateLimit: vi.fn(),
+  mockValidateUrl: vi.fn(),
+  mockDetectContentType: vi.fn(),
+  mockExtractFromUrl: vi.fn(),
+  mockGenerateEmbedding: vi.fn(),
+  mockClassifyContent: vi.fn(),
+  mockGenerateSummary: vi.fn(),
+  mockCheckForDuplicates: vi.fn(),
+  mockFormatDedupWarning: vi.fn(),
+}));
+
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: mockCheckRateLimit,
+}));
+
+vi.mock('@/lib/extraction/url-validation', () => ({
+  validateUrl: mockValidateUrl,
+}));
+
+vi.mock('@/lib/extraction/content-type-detect', () => ({
+  detectContentType: mockDetectContentType,
+}));
+
+vi.mock('@/lib/extraction/url', () => ({
+  extractFromUrl: mockExtractFromUrl,
+}));
+
+vi.mock('@/lib/ai/embed', () => ({
+  generateEmbedding: mockGenerateEmbedding,
+}));
+
+vi.mock('@/lib/ai/classify', () => ({
+  classifyContent: mockClassifyContent,
+}));
+
+vi.mock('@/lib/ai/summarise', () => ({
+  generateSummary: mockGenerateSummary,
+}));
+
+vi.mock('@/lib/dedup', () => ({
+  checkForDuplicates: mockCheckForDuplicates,
+  formatDedupWarning: mockFormatDedupWarning,
+}));
+
+// Import route AFTER mocks are registered
+import { POST } from '@/app/api/ingest/url/route';
+
+// ---------------------------------------------------------------------------
+// Defaults & helpers
+// ---------------------------------------------------------------------------
+
+const SAMPLE_URL = 'https://example.com/article';
+
+const SAMPLE_EXTRACTION = {
+  title: 'Test Article',
+  content: '<p>This is a sufficiently long test article content that exceeds the minimum threshold for quality checks. It needs to be over five hundred characters to avoid the low-content warning. Let us add more text to make sure we pass the checks. Here is additional content about testing URL ingestion for the knowledge hub platform. The article discusses various aspects of content management and knowledge base systems. More filler text to ensure we comfortably exceed the threshold.</p>',
+  author: 'Test Author',
+  excerpt: 'A test article',
+  ogImage: 'https://example.com/image.jpg',
+  ogDescription: 'A test article description',
+  ogDate: '2026-01-01',
+  extractionMethod: 'readability' as const,
+  contentLength: 550,
+};
+
+const SAMPLE_EMBEDDING = [0.1, 0.2, 0.3];
+
+function setupSuccessPath() {
+  mockValidateUrl.mockReturnValue({ valid: true });
+  mockDetectContentType.mockReturnValue('article');
+  mockExtractFromUrl.mockResolvedValue(SAMPLE_EXTRACTION);
+  mockGenerateEmbedding.mockResolvedValue(SAMPLE_EMBEDDING);
+  mockCheckForDuplicates.mockResolvedValue({ has_duplicates: false, matches: [] });
+  mockFormatDedupWarning.mockReturnValue(null);
+  mockClassifyContent.mockResolvedValue(undefined);
+  mockGenerateSummary.mockResolvedValue(undefined);
+}
+
+// ---------------------------------------------------------------------------
+// Reset mocks before each test
+// ---------------------------------------------------------------------------
+
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  mockCookies.mockResolvedValue({ getAll: () => [], set: () => {} });
+
+  mockSupabase.from.mockReturnValue(mockSupabase._chain);
+  mockSupabase.auth.getUser.mockResolvedValue({
+    data: { user: { id: 'test-user-id', email: 'test@example.com' } },
+    error: null,
+  });
+  mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
+
+  const chainable = [
+    'select', 'insert', 'update', 'upsert', 'delete',
+    'eq', 'neq', 'in', 'is', 'not', 'ilike', 'contains',
+    'gte', 'lte', 'gt', 'lt', 'or', 'order', 'limit', 'range',
+  ] as const;
+  for (const method of chainable) {
+    mockSupabase._chain[method].mockReturnValue(mockSupabase._chain);
+  }
+  mockSupabase._chain.single.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.maybeSingle.mockResolvedValue({ data: null, error: null });
+  mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+    resolve({ data: [], error: null, count: 0 }),
+  );
+
+  // Default: rate limit allows
+  mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 9 });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Auth & Authorisation
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Auth', () => {
+  it('returns 401 for unauthenticated requests', async () => {
+    configureUnauthenticated(mockSupabase);
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Rate Limiting
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Rate Limiting', () => {
+  it('returns 429 when rate limited', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockCheckRateLimit.mockReturnValue({ allowed: false, remaining: 0 });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(429);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Validation
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Validation', () => {
+  it('returns 400 for missing URL', async () => {
+    configureRole(mockSupabase, 'editor');
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: {},
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for invalid URL format', async () => {
+    configureRole(mockSupabase, 'editor');
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: 'not-a-url' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for localhost URL (SSRF protection)', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockValidateUrl.mockReturnValue({
+      valid: false,
+      error: 'URLs pointing to localhost or loopback addresses are not allowed',
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: 'http://localhost:3000/secret' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('localhost');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// URL Already Exists
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Existing URL', () => {
+  it('returns existing item info when URL already in KB', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockValidateUrl.mockReturnValue({ valid: true });
+
+    // maybeSingle returns existing item
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: { id: 'existing-id', title: 'Existing Article' },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.url_already_exists).toBe(true);
+    expect(body.existing_item.id).toBe('existing-id');
+    expect(body.existing_item.title).toBe('Existing Article');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Successful Import
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Successful Import', () => {
+  beforeEach(() => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    // maybeSingle for URL check — no existing item
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // single for insert — returns new item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      error: null,
+    });
+
+    // then for content_history insert
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+
+    // single for final item fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy', ai_summary: 'A test summary' },
+      error: null,
+    });
+  });
+
+  it('returns 200 with item ID on successful HTML import', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe('new-item-id');
+    expect(body.title).toBe('Test Article');
+    expect(body.source_url).toBe(SAMPLE_URL);
+    expect(body.primary_domain).toBe('General Business');
+  });
+
+  it('passes content_type through when provided', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, content_type: 'blog' },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.content_type).toBe('blog');
+  });
+
+  it('passes user_tags through when provided', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL, user_tags: ['tag-a', 'tag-b'] },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+
+    // Verify insert was called with user_tags
+    const insertCall = mockSupabase._chain.insert.mock.calls[0];
+    expect(insertCall).toBeDefined();
+    const insertData = insertCall[0];
+    expect(insertData.user_tags).toEqual(['tag-a', 'tag-b']);
+  });
+
+  it('creates content_items record with correct fields', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    // Verify insert was called
+    expect(mockSupabase._chain.insert).toHaveBeenCalled();
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.title).toBe('Test Article');
+    expect(insertData.content).toBe(SAMPLE_EXTRACTION.content);
+    expect(insertData.source_url).toBe(SAMPLE_URL);
+    expect(insertData.source_domain).toBe('example.com');
+    expect(insertData.author_name).toBe('Test Author');
+    expect(insertData.created_by).toBe('test-user-id');
+  });
+
+  it('sets platform to web', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.platform).toBe('web');
+  });
+
+  it('sets metadata.ingestion_source to url_import', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    const insertData = mockSupabase._chain.insert.mock.calls[0][0];
+    expect(insertData.metadata.ingestion_source).toBe('url_import');
+    expect(insertData.metadata.extraction_method).toBe('readability');
+  });
+
+  it('calls classifyContent with correct params', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    expect(mockClassifyContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: 'new-item-id',
+        force: true,
+        userId: 'test-user-id',
+      }),
+    );
+  });
+
+  it('calls generateSummary', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    expect(mockGenerateSummary).toHaveBeenCalledWith(
+      expect.objectContaining({
+        itemId: 'new-item-id',
+        force: true,
+        userId: 'test-user-id',
+      }),
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Warnings & Edge Cases
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
+  it('returns warnings for failed classify', async () => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+    mockClassifyContent.mockRejectedValue(new Error('API rate limit'));
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.warnings).toContain('Classification failed: API rate limit');
+  });
+
+  it('returns 422 for content < 100 chars', async () => {
+    configureRole(mockSupabase, 'editor');
+    mockValidateUrl.mockReturnValue({ valid: true });
+    mockExtractFromUrl.mockResolvedValue({
+      ...SAMPLE_EXTRACTION,
+      content: 'Short content',
+      contentLength: 13,
+    });
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain('less than 100 characters');
+  });
+
+  it('returns warning for content 100-500 chars', async () => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+    mockExtractFromUrl.mockResolvedValue({
+      ...SAMPLE_EXTRACTION,
+      content: 'A'.repeat(200),
+      contentLength: 200,
+    });
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.warnings).toContain('Limited text extracted from this page. The content may be incomplete.');
+  });
+
+  it('returns dedup matches when found', async () => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    const dedupMatches = [
+      { id: 'dup-1', title: 'Similar Item', similarity: 0.95, match_type: 'near_duplicate' as const },
+    ];
+    mockCheckForDuplicates.mockResolvedValue({
+      has_duplicates: true,
+      matches: dedupMatches,
+    });
+    mockFormatDedupWarning.mockReturnValue('1 near-duplicate found');
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test', content_type: 'article', created_at: '2026-03-19' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.duplicate_matches).toHaveLength(1);
+    expect(body.duplicate_matches[0].id).toBe('dup-1');
+    expect(body.warnings).toContain('1 near-duplicate found');
+  });
+});

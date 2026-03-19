@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { CreateContentClient } from './create-content-client';
+import { NewItemTabs } from './new-item-tabs';
 
 export default async function NewItemPage() {
   // Server-side auth check
@@ -26,5 +26,5 @@ export default async function NewItemPage() {
     redirect('/browse');
   }
 
-  return <CreateContentClient />;
+  return <NewItemTabs />;
 }
