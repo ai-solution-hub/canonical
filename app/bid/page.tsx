@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { BidListCard } from '@/components/bid-list-card';
 import { BidStateBadge } from '@/components/bid-state-indicator';
-import { BidCreationForm } from '@/components/bid-creation-form';
+import { BidCreationWizard } from '@/components/bid-creation-wizard';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { formatDateUK } from '@/lib/format';
@@ -258,8 +258,8 @@ export default function BidsPage() {
         </div>
       )}
 
-      {/* Create dialog */}
-      <BidCreationForm
+      {/* Create wizard */}
+      <BidCreationWizard
         open={showCreate}
         onOpenChange={setShowCreate}
         onCreated={handleBidCreated}
