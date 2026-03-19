@@ -75,10 +75,9 @@ export async function GET(request: NextRequest) {
       .from('content_items')
       .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type')
       .not('previous_freshness', 'is', null)
-      .neq('freshness', 'fresh') // Skip transitions TO fresh (positive = silent)
-      // `as never` required: PostgREST .filter() compares column to a literal string
-      // value, but Supabase generated types don't allow arbitrary filter values.
-      .filter('previous_freshness', 'neq', 'freshness' as never);
+      .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
+    // Note: PostgREST cannot compare two columns directly, so we filter
+    // previous_freshness !== freshness in-app below (line ~93).
 
     if (queryError) {
       console.error('Failed to query freshness transitions:', queryError);
