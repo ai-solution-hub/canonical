@@ -104,6 +104,7 @@ export async function POST(
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    const warnings: string[] = [];
 
     for (const integration of integrations) {
       if (integration.action === 'skip') {
@@ -204,12 +205,18 @@ export async function POST(
         }
 
         // Re-generate embedding for the updated content
-        const embeddingText = `${questionText}\n\n${plainText}`;
-        const embedding = await generateEmbedding(embeddingText);
-        await supabase
-          .from('content_items')
-          .update({ embedding: JSON.stringify(embedding) })
-          .eq('id', integration.target_content_id);
+        try {
+          const embeddingText = `${questionText}\n\n${plainText}`;
+          const embedding = await generateEmbedding(embeddingText);
+          await supabase
+            .from('content_items')
+            .update({ embedding: JSON.stringify(embedding) })
+            .eq('id', integration.target_content_id);
+        } catch (embedErr) {
+          console.error(`Re-embedding failed for ${integration.target_content_id}:`, embedErr);
+          warnings.push(`Re-embedding failed for ${integration.target_content_id}: ${safeErrorMessage(embedErr, 'Unknown error')}`);
+          // Item is still updated — embedding will be stale but content is correct
+        }
 
         updated++;
         items.push({
@@ -232,6 +239,7 @@ export async function POST(
       updated,
       skipped,
       items,
+      warnings,
     });
   } catch (err) {
     return NextResponse.json(

@@ -124,27 +124,31 @@ export async function POST(request: NextRequest) {
       console.error('Failed to create initial version history:', historyErr);
     }
 
-    // Background tasks (fire-and-forget)
-    const backgroundTasks: Record<string, string> = {};
+    // AI processing — awaited before response to avoid serverless truncation
+    const warnings: string[] = [];
 
     if (auto_embed && embeddingValue) {
-      backgroundTasks.embedding = 'complete';
+      // Embedding already generated above
     } else if (auto_embed) {
-      backgroundTasks.embedding = 'failed';
+      warnings.push('Embedding generation failed');
     }
 
     if (auto_classify) {
-      backgroundTasks.classification = 'queued';
-      classifyInBackground(newItem.id, user.id).catch((err) =>
-        console.error('Background classification failed:', err),
-      );
+      try {
+        await classifyInBackground(newItem.id, user.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        warnings.push(`Classification failed: ${msg}`);
+      }
     }
 
     if (auto_summarise) {
-      backgroundTasks.summary = 'queued';
-      summariseInBackground(newItem.id, user.id).catch((err) =>
-        console.error('Background summary generation failed:', err),
-      );
+      try {
+        await summariseInBackground(newItem.id, user.id);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        warnings.push(`Summary generation failed: ${msg}`);
+      }
     }
 
     return NextResponse.json(
@@ -153,7 +157,7 @@ export async function POST(request: NextRequest) {
         title: newItem.title,
         content_type: newItem.content_type,
         created_at: newItem.created_at,
-        background_tasks: backgroundTasks,
+        warnings,
       },
       { status: 201 },
     );
@@ -166,7 +170,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Fire-and-forget background classification.
+ * Awaited classification step.
  * Delegates to the shared classifyContent() service and logs to pipeline_runs.
  */
 async function classifyInBackground(
@@ -178,6 +182,8 @@ async function classifyInBackground(
   let status: 'completed' | 'failed' = 'completed';
   let errorMessage: string | null = null;
 
+  let caughtError: unknown = null;
+
   try {
     const { classifyContent } = await import('@/lib/ai/classify');
     await classifyContent({ supabase, itemId, force: true, userId });
@@ -185,6 +191,7 @@ async function classifyInBackground(
     status = 'failed';
     errorMessage = err instanceof Error ? err.message : 'Unknown classification error';
     console.error(`Background classification failed for ${itemId}:`, err);
+    caughtError = err;
   }
 
   try {
@@ -198,10 +205,12 @@ async function classifyInBackground(
   } catch (logErr) {
     console.error('Failed to log classification pipeline run:', logErr);
   }
+
+  if (caughtError) throw caughtError;
 }
 
 /**
- * Fire-and-forget background summary generation.
+ * Awaited summary generation step.
  * Delegates to the shared generateSummary() service and logs to pipeline_runs.
  */
 async function summariseInBackground(
@@ -213,6 +222,8 @@ async function summariseInBackground(
   let status: 'completed' | 'failed' = 'completed';
   let errorMessage: string | null = null;
 
+  let caughtError: unknown = null;
+
   try {
     const { generateSummary } = await import('@/lib/ai/summarise');
     await generateSummary({ supabase, itemId, force: true, userId });
@@ -220,6 +231,7 @@ async function summariseInBackground(
     status = 'failed';
     errorMessage = err instanceof Error ? err.message : 'Unknown summary error';
     console.error(`Background summary failed for ${itemId}:`, err);
+    caughtError = err;
   }
 
   try {
@@ -233,4 +245,6 @@ async function summariseInBackground(
   } catch (logErr) {
     console.error('Failed to log summary pipeline run:', logErr);
   }
+
+  if (caughtError) throw caughtError;
 }
