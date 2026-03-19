@@ -55,7 +55,7 @@ vi.mock('@/components/tender-upload', () => ({
 }));
 
 vi.mock('@/components/tender-metadata-prompt', () => ({
-  TenderMetadataPrompt: ({ metadata, bidId }: { metadata: unknown; bidId: string }) => (
+  TenderMetadataPrompt: ({ bidId }: { metadata: unknown; bidId: string }) => (
     <div data-testid="tender-metadata-prompt" data-bid-id={bidId}>
       Metadata Prompt
     </div>

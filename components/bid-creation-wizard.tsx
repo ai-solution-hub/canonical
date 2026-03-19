@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, type FormEvent, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,8 +33,8 @@ interface ExtractedQuestionEntry {
   section_sequence: number;
   question_sequence: number;
   question_text: string;
-  word_limit?: number;
-  category?: string;
+  word_limit: number | null;
+  category: string;
 }
 
 /** Flatten ExtractionResult sections into a flat array for QuestionReview */
@@ -46,8 +45,8 @@ function flattenSections(sections: ExtractedSection[]): ExtractedQuestionEntry[]
       section_sequence: section.section_sequence,
       question_sequence: q.question_sequence,
       question_text: q.question_text,
-      word_limit: q.word_limit ?? undefined,
-      category: q.category ?? undefined,
+      word_limit: q.word_limit ?? null,
+      category: q.category ?? '',
     })),
   );
 }
@@ -55,8 +54,6 @@ function flattenSections(sections: ExtractedSection[]): ExtractedQuestionEntry[]
 const STEP_LABELS = ['Bid Details', 'Upload Document', 'Review Questions'] as const;
 
 export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreationWizardProps) {
-  const router = useRouter();
-
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
 
@@ -74,7 +71,7 @@ export function BidCreationWizard({ open, onOpenChange, onCreated }: BidCreation
   const [createdBid, setCreatedBid] = useState<{ id: string; name: string } | null>(null);
 
   // Step 2-3: Extraction results
-  const [extractionResult, setExtractionResult] = useState<ExtractionResult | null>(null);
+  const [, setExtractionResult] = useState<ExtractionResult | null>(null);
   const [extractedMetadata, setExtractedMetadata] = useState<TenderExtractedMetadata | null>(null);
   const [flatQuestions, setFlatQuestions] = useState<ExtractedQuestionEntry[]>([]);
 
