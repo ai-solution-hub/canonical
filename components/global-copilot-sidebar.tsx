@@ -4,7 +4,9 @@ import { createContext, useContext, useCallback, useMemo, type ReactNode } from 
 import { CopilotSidebar, useChatContext } from '@copilotkit/react-ui';
 import { useCopilotPageContext, type CopilotPage } from '@/contexts/copilot-page-context';
 import { buildSystemPrompt } from '@/lib/copilotkit/system-prompt';
+import { usePathname } from 'next/navigation';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { isPublicRoute } from '@/lib/routes';
 
 // ---------------------------------------------------------------------------
 // Sidebar open state context (shared with header toggle)
@@ -113,10 +115,24 @@ function getSidebarLabels(page: CopilotPage): SidebarLabels {
 
 export function GlobalCopilotSidebar({ children }: { children: ReactNode }) {
   const hydrated = useHydrated();
+  const pathname = usePathname();
   const { page, pageMetadata } = useCopilotPageContext();
 
   const labels = getSidebarLabels(page);
   const systemPrompt = buildSystemPrompt(page, pageMetadata);
+
+  // Skip CopilotKit sidebar entirely in E2E tests — matches
+  // CopilotKitProvider guard so we never render <CopilotSidebar>
+  // without a <CopilotKit> ancestor.
+  if (process.env.NEXT_PUBLIC_E2E === 'true') {
+    return <>{children}</>;
+  }
+
+  // Skip on public routes where CopilotKitProvider also skips —
+  // rendering <CopilotSidebar> without <CopilotKit> throws.
+  if (isPublicRoute(pathname)) {
+    return <>{children}</>;
+  }
 
   // Before hydration, render children directly — CopilotKit context
   // is not available yet (see CopilotKitProvider hydration guard).

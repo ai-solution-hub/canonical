@@ -3,7 +3,9 @@
 import { useCopilotReadable } from '@copilotkit/react-core';
 import { useCopilotPageContext } from '@/contexts/copilot-page-context';
 import { useUserRole } from '@/hooks/use-user-role';
+import { usePathname } from 'next/navigation';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { isPublicRoute } from '@/lib/routes';
 
 /**
  * Inner component that registers CopilotKit readables.
@@ -41,7 +43,11 @@ function CopilotReadableInner() {
  */
 export function GlobalCopilotReadable() {
   const hydrated = useHydrated();
+  const pathname = usePathname();
 
+  // Skip when CopilotKit context is not available
+  if (process.env.NEXT_PUBLIC_E2E === 'true') return null;
+  if (isPublicRoute(pathname)) return null;
   if (!hydrated) return null;
 
   return <CopilotReadableInner />;

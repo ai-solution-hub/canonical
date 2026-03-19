@@ -4,7 +4,9 @@ import { useCopilotAction } from '@copilotkit/react-core';
 import { SearchingIndicator } from '@/components/copilot-ui/searching-indicator';
 import { KBSearchResults } from '@/components/copilot-ui/kb-search-results';
 import { searchKnowledgeBase } from '@/lib/copilotkit/shared-actions';
+import { usePathname } from 'next/navigation';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { isPublicRoute } from '@/lib/routes';
 
 /**
  * Inner component that registers CopilotKit actions.
@@ -63,7 +65,11 @@ function SharedActionsInner() {
  */
 export function SharedCopilotActions() {
   const hydrated = useHydrated();
+  const pathname = usePathname();
 
+  // Skip when CopilotKit context is not available
+  if (process.env.NEXT_PUBLIC_E2E === 'true') return null;
+  if (isPublicRoute(pathname)) return null;
   if (!hydrated) return null;
 
   return <SharedActionsInner />;

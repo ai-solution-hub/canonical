@@ -94,7 +94,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-**24 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
+**28 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 
 ### RLS Model
 
@@ -301,6 +301,15 @@ when needed.
   `governance_request_changes`, `governance_revert`, `quality_flag`,
   `digest_ready`, `freshness_transition`, `coverage_alert`,
   `content_gap`. Other values will fail the DB check constraint.
+- **python-docx and Track Changes:** python-docx does not resolve tracked
+  changes (revisions) in `.docx` files. Documents with unaccepted Track Changes
+  will have incorrect text extracted — deleted text may be included and inserted
+  text may be missed. Always use `open_document_safe()` from
+  `scripts/docx_utils.py` (which resolves via pandoc) instead of
+  `Document(path)` directly. The `mammoth` npm package used in the TypeScript
+  tender extraction pathway handles Track Changes correctly — it includes
+  inserted text and excludes deleted text. See
+  `__tests__/lib/mammoth-track-changes.test.ts` for the regression test.
 - **GitHub-backed plugin marketplaces are shallow git clones:**
   `~/.claude/plugins/marketplaces/{name}/` is a git clone of the repo in
   `extraKnownMarketplaces`. After pushing new plugins to the remote, the
