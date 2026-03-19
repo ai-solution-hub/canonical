@@ -21,6 +21,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -129,6 +130,81 @@ def validate_content_quality(content: str, question_text: str) -> dict:
     }
 
 
+# ── Keyword extraction ─────────────────────────────────────────────────
+
+# Common English stop words to filter out of keywords
+_STOP_WORDS = frozenset({
+    "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
+    "being", "have", "has", "had", "do", "does", "did", "will", "would",
+    "could", "should", "may", "might", "shall", "can", "not", "no", "nor",
+    "so", "if", "than", "that", "this", "these", "those", "it", "its",
+    "you", "your", "we", "our", "they", "their", "he", "she", "him", "her",
+    "who", "whom", "which", "what", "when", "where", "how", "why", "all",
+    "each", "every", "both", "few", "more", "most", "other", "some", "such",
+    "only", "own", "same", "also", "about", "up", "out", "any", "into",
+    "very", "just", "as", "because", "through", "during", "before", "after",
+    "above", "below", "between", "under", "again", "further", "then", "once",
+    "here", "there", "please", "provide", "describe", "detail", "details",
+    "ensure", "including", "following", "approach", "used", "using",
+})
+
+
+def extract_keywords(
+    question_text: str,
+    answer_text: str,
+    primary_domain: str,
+    primary_subtopic: str,
+) -> list[str]:
+    """Extract 3-5 descriptive keywords from Q&A content.
+
+    Uses a simple deterministic approach:
+    1. Start with the primary_domain (if present)
+    2. Extract significant words from the question text
+    3. Supplement from answer text if needed
+    4. Return 3-5 unique, meaningful keywords
+
+    No AI calls — fast and deterministic.
+    """
+    keywords: list[str] = []
+
+    # Always include the domain as the first keyword
+    if primary_domain:
+        keywords.append(primary_domain)
+
+    # Include subtopic if it adds information beyond the domain
+    if primary_subtopic and primary_subtopic != primary_domain:
+        keywords.append(primary_subtopic)
+
+    # Extract significant words from the question
+    combined_text = question_text
+    if answer_text:
+        # Use first 300 chars of answer for keyword extraction
+        combined_text += " " + answer_text[:300]
+
+    # Tokenise: split on non-alphanumeric, keep words 3+ chars
+    words = re.findall(r"[a-zA-Z]{3,}", combined_text.lower())
+
+    # Count word frequencies (excluding stop words and existing keywords)
+    word_freq: dict[str, int] = {}
+    existing_lower = {k.lower() for k in keywords}
+    for word in words:
+        if word not in _STOP_WORDS and word not in existing_lower:
+            word_freq[word] = word_freq.get(word, 0) + 1
+
+    # Sort by frequency (descending), then alphabetically for stability
+    sorted_words = sorted(word_freq.items(), key=lambda x: (-x[1], x[0]))
+
+    # Add top words until we have 3-5 keywords
+    for word, _freq in sorted_words:
+        if len(keywords) >= 5:
+            break
+        keywords.append(word)
+
+    # Ensure at least 3 keywords if possible
+    return keywords[:5] if len(keywords) >= 3 else keywords
+
+
 def build_content_record(pair: dict, batch_name: str) -> dict:
     """Convert a classified Q&A pair dict into a Supabase content_items record."""
     # Build the content field: question + answer text for search indexing
@@ -155,6 +231,14 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
             answer_text = pair["answer_advanced"]
     ai_summary = truncate_at_word_boundary(answer_text, 200)
 
+    # Generate descriptive keywords from the question + answer text
+    keywords = extract_keywords(
+        pair.get("question_text", ""),
+        answer_text,
+        pair.get("primary_domain", ""),
+        pair.get("primary_subtopic", ""),
+    )
+
     record = {
         "title": title,
         "content": content,
@@ -170,10 +254,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "secondary_subtopic": pair.get("secondary_subtopic", ""),
         "classification_confidence": pair.get("classification_confidence", 0.0),
         "ai_summary": ai_summary,
-        "ai_keywords": [
-            pair.get("primary_domain", ""),
-            pair.get("section_name", "").lower().replace(" ", "-"),
-        ],
+        "ai_keywords": keywords,
         "metadata": {
             "source_file": pair.get("source_file", ""),
             "section_name": pair.get("section_name", ""),

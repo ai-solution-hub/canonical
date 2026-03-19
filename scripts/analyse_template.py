@@ -24,6 +24,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
+from docx_utils import open_document_safe
 from extract_tender_questions import _classify_header
 
 # Placeholder text patterns
@@ -165,18 +166,31 @@ def analyse_template(file_path: str) -> dict:
             - document_info: document metadata
             - column_mapping: per-table column assignments
     """
-    doc = Document(file_path)
+    doc, temp_path = open_document_safe(file_path)
+    try:
+        return _analyse_template_from_doc(doc, file_path)
+    finally:
+        if temp_path:
+            os.unlink(temp_path)
+
+
+def _analyse_template_from_doc(doc: Document, file_path: str) -> dict:
+    """Internal analysis from an already-opened Document."""
     section_map = _extract_section_headings(doc)
     fields = []
     warnings = []
     column_mapping = []
     sequence = 0
 
-    # Check for tracked changes
+    # Check for tracked changes — if we reach here after open_document_safe,
+    # the document has already been cleaned via pandoc. If Track Changes are
+    # still present, pandoc was unavailable.
     if _has_tracked_changes(doc):
         warnings.append(
-            "This document contains tracked changes. python-docx operates on the "
-            "accepted version. For best results, accept all changes in Word before uploading."
+            "This document contains tracked changes. python-docx does NOT resolve "
+            "tracked changes -- extracted text may include deleted content or miss "
+            "inserted content. Accept all changes in Word before uploading, or ensure "
+            "pandoc is installed for automatic resolution."
         )
 
     # Detect merged cells and nested tables

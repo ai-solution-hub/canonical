@@ -17,7 +17,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { canonicalise } from '@/lib/entity-dedup';
-import { resolveAlias } from '@/lib/entity-aliases';
+import { resolveAlias, loadAliases } from '@/lib/entity-aliases';
 
 // ── Env loading ──────────────────────────────────────────────────────────────
 
@@ -123,6 +123,9 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { persistSession: false },
   });
+
+  // Load entity aliases from DB before normalisation
+  await loadAliases(supabase);
 
   console.log(cli.apply ? '🔧 APPLY mode — changes will be written' : '👀 DRY RUN — no changes will be made');
   console.log('');

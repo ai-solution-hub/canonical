@@ -26,6 +26,30 @@ from typing import Optional
 from docx import Document
 
 
+# ── Text deduplication ──────────────────────────────────────────────────
+
+def deduplicate_repeated_text(text: str) -> str:
+    """Remove repeated text runs from a string.
+
+    When pandoc resolves Track Changes in .docx headings, the text content
+    can be repeated 2-3x across XML text runs, e.g.
+    "Product Support" -> "Product SupportProduct SupportProduct Support".
+
+    This function detects when the entire string is a repeated pattern and
+    returns just one copy. Only triggers when the string is an exact multiple
+    of a substring (length > 2 chars).
+    """
+    if len(text) < 6:
+        return text
+
+    for length in range(len(text) // 2, 2, -1):
+        prefix = text[:length]
+        if len(text) % length == 0 and text == prefix * (len(text) // length):
+            return prefix.strip()
+
+    return text
+
+
 # ── Header normalisation ────────────────────────────────────────────────
 
 # Map common header text variants to canonical names
@@ -387,6 +411,8 @@ def extract_qa_from_docx(file_path: str) -> list[dict]:
                     # (subsequent lines are often formatting artefacts).
                     if "\n" in heading_text:
                         heading_text = heading_text.split("\n")[0].strip()
+                    # Deduplicate repeated text runs (pandoc Track Changes artefact).
+                    heading_text = deduplicate_repeated_text(heading_text)
                     if heading_text:
                         current_section = heading_text
 

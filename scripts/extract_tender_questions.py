@@ -25,6 +25,8 @@ from typing import Optional
 
 from docx import Document
 
+from docx_utils import open_document_safe
+
 
 # ── Header normalisation ────────────────────────────────────────────────
 
@@ -378,7 +380,16 @@ def extract_tender_questions(file_path: str) -> dict:
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    doc = Document(file_path)
+    doc, temp_path = open_document_safe(file_path)
+    try:
+        return _extract_tender_questions_from_doc(doc)
+    finally:
+        if temp_path:
+            os.unlink(temp_path)
+
+
+def _extract_tender_questions_from_doc(doc: Document) -> dict:
+    """Internal extraction from an already-opened Document."""
 
     # Track sections and questions
     sections_map: dict[str, list[dict]] = {}  # section_name -> questions
