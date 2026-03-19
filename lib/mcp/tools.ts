@@ -1041,10 +1041,36 @@ export async function registerTools(server: McpServer): Promise<void> {
           content_type: item.content_type ?? args.content_type,
         };
 
+        // AI processing — awaited to avoid serverless truncation
+        const warnings: string[] = [];
+
+        if (!isDraft) {
+          try {
+            const classifyContent = await getClassifyContent();
+            await classifyContent({ supabase, itemId: item.id, force: true, userId });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            warnings.push(`Classification failed: ${msg}`);
+            console.error(`MCP create_content_item classification failed for ${item.id}:`, err);
+          }
+
+          try {
+            const generateSummary = await getGenerateSummary();
+            await generateSummary({ supabase, itemId: item.id, force: true, userId });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Unknown error';
+            warnings.push(`Summary generation failed: ${msg}`);
+            console.error(`MCP create_content_item summary failed for ${item.id}:`, err);
+          }
+        }
+
         const draftNote = isDraft
           ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
           : '';
-        const markdown = formatCreatedItem(created) + draftNote;
+        const warningNote = warnings.length > 0
+          ? `\n\n**Warnings:**\n${warnings.map(w => `- ${w}`).join('\n')}`
+          : '';
+        const markdown = formatCreatedItem(created) + draftNote + warningNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
@@ -1052,6 +1078,7 @@ export async function registerTools(server: McpServer): Promise<void> {
             governance_review_status: isDraft ? 'draft' : null,
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
+            warnings: warnings.length > 0 ? warnings : undefined,
           }),
         };
       } catch (err) {

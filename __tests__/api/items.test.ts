@@ -18,11 +18,15 @@ const {
   mockGenerateEmbedding,
   mockCheckRateLimit,
   mockGenerateSingleFieldChangeSummary,
+  mockClassifyContent,
+  mockGenerateSummary,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
   mockCheckRateLimit: vi.fn(),
   mockGenerateSingleFieldChangeSummary: vi.fn(),
+  mockClassifyContent: vi.fn(),
+  mockGenerateSummary: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -40,6 +44,14 @@ vi.mock('@/lib/ai/embed', () => ({
 
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: mockCheckRateLimit,
+}));
+
+vi.mock('@/lib/ai/classify', () => ({
+  classifyContent: mockClassifyContent,
+}));
+
+vi.mock('@/lib/ai/summarise', () => ({
+  generateSummary: mockGenerateSummary,
 }));
 
 vi.mock('@/lib/change-summary', () => ({
@@ -130,6 +142,8 @@ beforeEach(() => {
   mockGenerateEmbedding.mockResolvedValue(new Array(1024).fill(0));
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
   mockGenerateSingleFieldChangeSummary.mockReturnValue('Field updated');
+  mockClassifyContent.mockResolvedValue({ domains: [] });
+  mockGenerateSummary.mockResolvedValue({ summary_data: {} });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -290,7 +304,7 @@ describe('POST /api/items', () => {
     expect(insertCall.created_by).toBe('test-user-id');
   });
 
-  it('includes background_tasks in response when AI options enabled', async () => {
+  it('returns empty warnings array when AI options succeed', async () => {
     configureRole(mockSupabase, 'editor');
 
     const createdItem = {
@@ -317,10 +331,168 @@ describe('POST /api/items', () => {
     expect(res.status).toBe(201);
 
     const body = await res.json();
-    expect(body.background_tasks).toBeDefined();
-    expect(body.background_tasks.embedding).toBe('complete');
-    expect(body.background_tasks.classification).toBe('queued');
-    expect(body.background_tasks.summary).toBe('queued');
+    expect(body.warnings).toEqual([]);
+    expect(mockClassifyContent).toHaveBeenCalled();
+    expect(mockGenerateSummary).toHaveBeenCalled();
+  });
+
+  it('awaits classification and summarisation before returning', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'AI Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({
+        auto_classify: true,
+        auto_summarise: true,
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    // Verify both AI functions were called with the correct item ID
+    expect(mockClassifyContent).toHaveBeenCalledWith(
+      expect.objectContaining({ itemId: VALID_UUID, force: true }),
+    );
+    expect(mockGenerateSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ itemId: VALID_UUID, force: true }),
+    );
+  });
+
+  it('returns warnings when classification fails but still creates item', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Warn Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockClassifyContent.mockRejectedValueOnce(new Error('Claude API quota exceeded'));
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ auto_classify: true }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID);
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0]).toContain('Classification failed');
+    expect(body.warnings[0]).toContain('Claude API quota exceeded');
+  });
+
+  it('returns warnings when summarisation fails but still creates item', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Warn Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockGenerateSummary.mockRejectedValueOnce(new Error('Model overloaded'));
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ auto_summarise: true }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID);
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0]).toContain('Summary generation failed');
+    expect(body.warnings[0]).toContain('Model overloaded');
+  });
+
+  it('returns multiple warnings when both AI steps fail', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Double Fail',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockClassifyContent.mockRejectedValueOnce(new Error('API error'));
+    mockGenerateSummary.mockRejectedValueOnce(new Error('Timeout'));
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({ auto_classify: true, auto_summarise: true }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID);
+    expect(body.warnings).toHaveLength(2);
+    expect(body.warnings[0]).toContain('Classification failed');
+    expect(body.warnings[1]).toContain('Summary generation failed');
+  });
+
+  it('does not call classify/summarise when options are disabled', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'No AI Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({
+        auto_classify: false,
+        auto_summarise: false,
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.warnings).toEqual([]);
+    expect(mockClassifyContent).not.toHaveBeenCalled();
+    expect(mockGenerateSummary).not.toHaveBeenCalled();
   });
 });
 
