@@ -115,7 +115,7 @@ vi.mock('@/hooks/use-filter-data', () => ({
 }));
 
 vi.mock('@/lib/client-config', () => ({
-  isFeatureEnabled: (_feature: string) => false,
+  isFeatureEnabled: () => false,
   CLIENT_CONFIG: {
     layer_vocabulary: [],
   },

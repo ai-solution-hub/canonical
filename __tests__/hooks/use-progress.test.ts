@@ -54,10 +54,6 @@ function setupReadMarksQuery(dates: string[]) {
   mockSelect.mockReturnValue(chain);
 }
 
-function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
-}
-
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);

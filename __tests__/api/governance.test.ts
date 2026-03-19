@@ -533,9 +533,7 @@ describe('POST /api/governance/review', () => {
     });
 
     // Update chain resolves OK
-    let _thenCallCount = 0;
     mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      _thenCallCount++;
       return resolve({ data: null, error: null });
     });
 

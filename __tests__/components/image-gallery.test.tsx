@@ -23,7 +23,7 @@ vi.mock('@/lib/error', () => ({
 
 vi.mock('next/image', () => ({
   default: (props: Record<string, unknown>) => (
-    // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+    // eslint-disable-next-line @next/next/no-img-element
     <img {...props} src={props.src as string} alt={props.alt as string} />
   ),
 }));

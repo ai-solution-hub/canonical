@@ -13,7 +13,7 @@ import { render, screen } from '@testing-library/react';
 // ---------------------------------------------------------------------------
 
 const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn((_f: string) => false),
+  mockIsFeatureEnabled: vi.fn(() => false),
 }));
 
 vi.mock('@/lib/client-config', () => ({
