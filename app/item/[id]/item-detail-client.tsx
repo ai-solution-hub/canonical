@@ -18,6 +18,11 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { getDisplayTitle } from '@/lib/format';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import {
+  generateIngestUrlPrompt,
+  generateSummariseAndIngestPrompt,
+} from '@/lib/claude-prompts';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
 import { toast } from 'sonner';
 
@@ -577,6 +582,29 @@ export function ItemDetailClient({
               className="mb-6"
             />
           </CollapsibleSection>
+
+          {/* Claude actions — contextual ingestion prompts */}
+          {(item.source_url || (item.content && item.content.length > 5000)) && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {item.source_url && (
+                <ClaudePromptButton
+                  prompt={generateIngestUrlPrompt(item.source_url).prompt}
+                  label="Re-ingest source"
+                  size="sm"
+                />
+              )}
+              {item.content && item.content.length > 5000 && (
+                <ClaudePromptButton
+                  prompt={generateSummariseAndIngestPrompt(
+                    item.title ?? 'Untitled',
+                    item.content.slice(0, 500),
+                  ).prompt}
+                  label="Summarise and add to KB"
+                  size="sm"
+                />
+              )}
+            </div>
+          )}
 
           {/* Relationships group (collapsed by default) */}
           <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">

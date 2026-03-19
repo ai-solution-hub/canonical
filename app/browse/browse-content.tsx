@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 
 import { toast } from 'sonner';
 import { Upload, Plus, Loader2 } from 'lucide-react';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { ContentGrid } from '@/components/content-grid';
 import { ContentList } from '@/components/content-list';
 import { FilterPanel } from '@/components/filter-panel';
@@ -238,6 +240,11 @@ export function BrowseContent() {
                 <Upload className="size-3.5" />
                 Upload
               </Button>
+              <ClaudePromptButton
+                prompt={generateIngestDocumentPrompt().prompt}
+                label="Or let Claude handle it"
+                size="sm"
+              />
             </>
           )}
           <FilterBar
