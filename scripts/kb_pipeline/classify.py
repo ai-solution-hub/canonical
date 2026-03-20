@@ -229,7 +229,7 @@ def classify(
         secondary_subtopic=parsed.get("secondary_subtopic"),
         suggested_title=parsed.get("suggested_title", ""),
         ai_summary=parsed.get("ai_summary", ""),
-        ai_keywords=[normalise_keyword(kw) for kw in parsed.get("ai_keywords", [])],
+        ai_keywords=list(dict.fromkeys(normalise_keyword(kw) for kw in parsed.get("ai_keywords", []) if normalise_keyword(kw))),
         reasoning=parsed.get("reasoning", ""),
         is_fragment=flags.get("is_fragment", False),
         uncertain=flags.get("uncertain", False),
