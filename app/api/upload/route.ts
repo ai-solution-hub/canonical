@@ -495,7 +495,7 @@ export async function POST(request: NextRequest) {
     // Update source_documents with extracted text
     if (sourceDocumentId) {
       try {
-        const extractionMeta: Record<string, unknown> = {};
+        const extractionMeta: Record<string, string | number | boolean> = {};
         if (pageCount !== undefined) extractionMeta.page_count = pageCount;
         if (pdfTableCount > 0) extractionMeta.table_count = pdfTableCount;
         if (!extractedText) extractionMeta.extraction_failed = true;

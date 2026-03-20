@@ -14,10 +14,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { supabase } = await getAuthenticatedClient();
-    if (!supabase) {
+    const authResult = await getAuthenticatedClient();
+    if (!authResult) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
+    const { supabase } = authResult;
 
     const { id } = await params;
 
