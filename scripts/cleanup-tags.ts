@@ -119,15 +119,7 @@ export function processItemKeywords(
 
 // ── Script entry point (only runs when executed directly) ────────────────────
 
-if (typeof Bun !== 'undefined' && Bun.main === (Bun as Record<string, unknown>).argv?.[1]) {
-  runCli();
-} else if (
-  typeof require !== 'undefined' &&
-  typeof module !== 'undefined' &&
-  require.main === module
-) {
-  runCli();
-} else if (process.argv[1]?.endsWith('cleanup-tags.ts')) {
+if (process.argv[1]?.endsWith('cleanup-tags.ts')) {
   runCli();
 }
 

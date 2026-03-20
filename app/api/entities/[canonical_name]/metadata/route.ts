@@ -4,6 +4,7 @@ import {
   authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
 
@@ -76,7 +77,7 @@ export async function PATCH(
     // Update the row
     const { data: updated, error: updateError } = await supabase
       .from('entity_mentions')
-      .update({ metadata: mergedMetadata })
+      .update({ metadata: mergedMetadata as Json })
       .eq('id', existing.id)
       .select('id, canonical_name, entity_type, metadata')
       .single();
