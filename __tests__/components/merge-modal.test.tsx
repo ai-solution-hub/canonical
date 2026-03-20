@@ -95,9 +95,8 @@ describe('MergeModal', () => {
   it('shows total mentions across entities', () => {
     renderModal();
 
-    expect(
-      screen.getByText(/Total: 20 mentions across 3 entities/),
-    ).toBeInTheDocument();
+    const matches = screen.getAllByText(/update 20 mentions across.*3 entities/);
+    expect(matches.length).toBeGreaterThan(0);
   });
 
   it('pre-fills target name input with highest-mention entity', () => {
