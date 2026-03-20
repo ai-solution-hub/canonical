@@ -33,6 +33,7 @@ interface TransitionItem {
   primary_domain: string | null;
   updated_at: string | null;
   lifecycle_type: string | null;
+  content_owner_id: string | null;
 }
 
 function transitionTitle(title: string, from: FreshnessState, to: FreshnessState): string {
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
     // Find items where freshness changed (skip positive transitions to fresh)
     const { data: transitions, error: queryError } = await supabase
       .from('content_items')
-      .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type')
+      .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id')
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
     // Note: PostgREST cannot compare two columns directly, so we filter
@@ -131,14 +132,26 @@ export async function GET(request: NextRequest) {
     }
 
     // Idempotency: check for existing notifications created today
+    // Check both freshness_transition and owner_content_stale types
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
-    const existingIds = await getExistingNotificationIds(
-      supabase,
-      'freshness_transition',
-      changed.map((item) => item.id),
-      todayStart.toISOString(),
-    );
+    const [existingFreshnessIds, existingOwnerIds] = await Promise.all([
+      getExistingNotificationIds(
+        supabase,
+        'freshness_transition',
+        changed.map((item) => item.id),
+        todayStart.toISOString(),
+      ),
+      getExistingNotificationIds(
+        supabase,
+        'owner_content_stale',
+        changed.map((item) => item.id),
+        todayStart.toISOString(),
+      ),
+    ]);
+
+    // Merge both sets for dedup
+    const existingIds = new Set([...existingFreshnessIds, ...existingOwnerIds]);
 
     const newTransitions = changed.filter((item) => !existingIds.has(item.id));
 
@@ -151,50 +164,143 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Split into owned and unowned items
+    const ownedTransitions = newTransitions.filter((item) => item.content_owner_id);
+    const unownedTransitions = newTransitions.filter((item) => !item.content_owner_id);
+
+    // For unowned items, notify all admins + editors (existing behaviour)
+    // For owned items, notify the owner with owner_content_stale + admins with freshness_transition
+    const adminIds = await getUsersByRole(supabase, ['admin']);
+
     let notificationsCreated = 0;
 
-    if (newTransitions.length > BATCH_THRESHOLD) {
-      // Summary notification
-      const agingCount = newTransitions.filter((i) => i.freshness === 'aging').length;
-      const staleCount = newTransitions.filter((i) => i.freshness === 'stale').length;
-      const expiredCount = newTransitions.filter((i) => i.freshness === 'expired').length;
+    // --- Owned items: targeted owner_content_stale + admin freshness_transition ---
+    if (ownedTransitions.length > 0) {
+      const ownerNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
 
-      const summaryTitle = `${newTransitions.length} items changed freshness status`;
-      const summaryMessage = `${newTransitions.length} items changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Review the freshness report for details.`;
+      if (ownedTransitions.length > BATCH_THRESHOLD) {
+        // Summary notifications for owners (grouped by owner)
+        const ownerGroups = new Map<string, TransitionItem[]>();
+        for (const item of ownedTransitions) {
+          const ownerId = item.content_owner_id!;
+          if (!ownerGroups.has(ownerId)) ownerGroups.set(ownerId, []);
+          ownerGroups.get(ownerId)!.push(item);
+        }
 
-      const notifications = userIds.map((userId) => ({
-        userId,
-        type: 'freshness_transition' as const,
-        entityType: 'content_item',
-        entityId: newTransitions[0].id, // Representative item
-        title: summaryTitle,
-        message: summaryMessage,
-      }));
+        for (const [ownerId, items] of ownerGroups) {
+          const agingCount = items.filter((i) => i.freshness === 'aging').length;
+          const staleCount = items.filter((i) => i.freshness === 'stale').length;
+          const expiredCount = items.filter((i) => i.freshness === 'expired').length;
+          const summaryTitle = `${items.length} of your owned items changed freshness status`;
+          const summaryMessage = `${items.length} items you own changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Review the freshness report for details.`;
 
-      const { error: bulkError } = await createBulkNotifications(supabase, notifications);
-      if (!bulkError) notificationsCreated = notifications.length;
-    } else {
-      // Individual notifications
-      const notifications = newTransitions.flatMap((item) =>
-        userIds.map((userId) => ({
+          ownerNotifications.push({
+            userId: ownerId,
+            type: 'owner_content_stale' as const,
+            entityType: 'content_item',
+            entityId: items[0].id,
+            title: summaryTitle,
+            message: summaryMessage,
+          });
+        }
+
+        // Summary for admins
+        const agingCount = ownedTransitions.filter((i) => i.freshness === 'aging').length;
+        const staleCount = ownedTransitions.filter((i) => i.freshness === 'stale').length;
+        const expiredCount = ownedTransitions.filter((i) => i.freshness === 'expired').length;
+        const adminSummaryTitle = `${ownedTransitions.length} owned items changed freshness status`;
+        const adminSummaryMessage = `${ownedTransitions.length} owned items changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Owners have been notified.`;
+
+        for (const adminId of adminIds) {
+          ownerNotifications.push({
+            userId: adminId,
+            type: 'freshness_transition' as const,
+            entityType: 'content_item',
+            entityId: ownedTransitions[0].id,
+            title: adminSummaryTitle,
+            message: adminSummaryMessage,
+          });
+        }
+      } else {
+        // Individual notifications for each owned item
+        for (const item of ownedTransitions) {
+          // Notify the owner
+          ownerNotifications.push({
+            userId: item.content_owner_id!,
+            type: 'owner_content_stale' as const,
+            entityType: 'content_item',
+            entityId: item.id,
+            title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+            message: transitionMessage(
+              item.title, item.primary_domain, item.previous_freshness,
+              item.freshness, item.updated_at, item.lifecycle_type,
+            ),
+          });
+
+          // Notify admins only (not all editors)
+          for (const adminId of adminIds) {
+            ownerNotifications.push({
+              userId: adminId,
+              type: 'freshness_transition' as const,
+              entityType: 'content_item',
+              entityId: item.id,
+              title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+              message: transitionMessage(
+                item.title, item.primary_domain, item.previous_freshness,
+                item.freshness, item.updated_at, item.lifecycle_type,
+              ),
+            });
+          }
+        }
+      }
+
+      if (ownerNotifications.length > 0) {
+        const { error: bulkError } = await createBulkNotifications(supabase, ownerNotifications);
+        if (!bulkError) notificationsCreated += ownerNotifications.length;
+      }
+    }
+
+    // --- Unowned items: broadcast to all admins + editors (existing behaviour) ---
+    if (unownedTransitions.length > 0) {
+      if (unownedTransitions.length > BATCH_THRESHOLD) {
+        // Summary notification
+        const agingCount = unownedTransitions.filter((i) => i.freshness === 'aging').length;
+        const staleCount = unownedTransitions.filter((i) => i.freshness === 'stale').length;
+        const expiredCount = unownedTransitions.filter((i) => i.freshness === 'expired').length;
+
+        const summaryTitle = `${unownedTransitions.length} items changed freshness status`;
+        const summaryMessage = `${unownedTransitions.length} items changed freshness status: ${agingCount} ageing, ${staleCount} stale, ${expiredCount} expired. Review the freshness report for details.`;
+
+        const notifications = userIds.map((userId) => ({
           userId,
           type: 'freshness_transition' as const,
           entityType: 'content_item',
-          entityId: item.id,
-          title: transitionTitle(item.title, item.previous_freshness, item.freshness),
-          message: transitionMessage(
-            item.title,
-            item.primary_domain,
-            item.previous_freshness,
-            item.freshness,
-            item.updated_at,
-            item.lifecycle_type,
-          ),
-        })),
-      );
+          entityId: unownedTransitions[0].id,
+          title: summaryTitle,
+          message: summaryMessage,
+        }));
 
-      const { error: bulkError } = await createBulkNotifications(supabase, notifications);
-      if (!bulkError) notificationsCreated = notifications.length;
+        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        if (!bulkError) notificationsCreated += notifications.length;
+      } else {
+        // Individual notifications
+        const notifications = unownedTransitions.flatMap((item) =>
+          userIds.map((userId) => ({
+            userId,
+            type: 'freshness_transition' as const,
+            entityType: 'content_item',
+            entityId: item.id,
+            title: transitionTitle(item.title, item.previous_freshness, item.freshness),
+            message: transitionMessage(
+              item.title, item.primary_domain, item.previous_freshness,
+              item.freshness, item.updated_at, item.lifecycle_type,
+            ),
+          })),
+        );
+
+        const { error: bulkError } = await createBulkNotifications(supabase, notifications);
+        if (!bulkError) notificationsCreated += notifications.length;
+      }
     }
 
     // Log to pipeline_runs

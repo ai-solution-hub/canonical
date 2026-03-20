@@ -20,6 +20,13 @@ import {
   getReorientModule,
 } from './shared';
 
+interface OwnershipSummary {
+  owned_items: number;
+  stale_owned: number;
+  expired_owned: number;
+  needs_attention: number;
+}
+
 export async function registerDashboardTools(server: McpServer): Promise<void> {
   // -------------------------------------------------------------------------
   // 2. get_dashboard_summary
@@ -91,11 +98,60 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           }
         }
 
-        const markdown = truncateResponse(formatReorientation(data));
+        // Query content ownership summary for the requesting user
+        let ownershipSummary: OwnershipSummary | null = null;
+        try {
+          const { data: ownedItems } = await supabase
+            .from('content_items')
+            .select('id, freshness')
+            .eq('content_owner_id', userId)
+            .is('archived_at', null);
+
+          if (ownedItems && ownedItems.length > 0) {
+            const staleCount = ownedItems.filter(
+              (i: { freshness: string | null }) => i.freshness === 'stale',
+            ).length;
+            const expiredCount = ownedItems.filter(
+              (i: { freshness: string | null }) => i.freshness === 'expired',
+            ).length;
+            ownershipSummary = {
+              owned_items: ownedItems.length,
+              stale_owned: staleCount,
+              expired_owned: expiredCount,
+              needs_attention: staleCount + expiredCount,
+            };
+          }
+        } catch {
+          // Non-critical — ownership context is supplementary
+        }
+
+        let markdown = truncateResponse(formatReorientation(data));
+
+        // Append ownership section if the user owns any items
+        if (ownershipSummary && ownershipSummary.owned_items > 0) {
+          const ownerSection = [
+            '',
+            '## Content Ownership',
+            `You own ${ownershipSummary.owned_items} item${ownershipSummary.owned_items === 1 ? '' : 's'}`,
+          ];
+          if (ownershipSummary.needs_attention > 0) {
+            ownerSection.push(
+              `${ownershipSummary.needs_attention} need${ownershipSummary.needs_attention === 1 ? 's' : ''} attention (${ownershipSummary.stale_owned} stale, ${ownershipSummary.expired_owned} expired)`,
+            );
+          } else {
+            ownerSection.push('All your owned items are in good health');
+          }
+          markdown += '\n' + ownerSection.join('\n');
+        }
+
+        const structuredData = {
+          ...data,
+          ...(ownershipSummary && { ownership: ownershipSummary }),
+        };
 
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(data),
+          structuredContent: toStructuredContent(structuredData),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

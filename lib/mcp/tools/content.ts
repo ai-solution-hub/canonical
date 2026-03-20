@@ -1,9 +1,10 @@
 /**
- * Content item tool registrations (4 tools):
+ * Content item tool registrations (5 tools):
  *   4. get_content_item
  *  12. create_content_item
  *  19. update_content_item
  *  21. get_content_items
+ *  31. assign_content_owner
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -454,6 +455,83 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Batch fetch failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 31. assign_content_owner (write tool — admin only)
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'assign_content_owner',
+    {
+      title: 'Assign Content Owner',
+      description: 'Assign or change the content owner for one or more items. The owner receives targeted notifications when their content becomes stale or needs governance review. Requires admin role. Use this to delegate content maintenance responsibility to specific team members.',
+      inputSchema: {
+        item_ids: z.array(z.string().uuid()).min(1).max(50)
+          .describe('Content item IDs to assign (1-50)'),
+        owner_id: z.string().uuid()
+          .describe('User ID of the new owner'),
+      },
+      annotations: {
+        readOnlyHint: false,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const role = await checkMcpRole(extra.authInfo, ['admin']);
+        if (!role) {
+          return {
+            content: [{ type: 'text' as const, text: 'Permission denied: admin role required to assign content owners.' }],
+            isError: true,
+          };
+        }
+
+        const supabase = createMcpClient(extra.authInfo);
+        const userId = getMcpUserId(extra.authInfo);
+
+        // Call the bulk_assign_content_owner RPC
+        const { data: updatedCount, error } = await supabase.rpc('bulk_assign_content_owner', {
+          p_item_ids: args.item_ids,
+          p_owner_id: args.owner_id,
+          p_assigned_by: userId,
+        });
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to assign content owner: ${error.message}` }],
+            isError: true,
+          };
+        }
+
+        const count = updatedCount ?? 0;
+        const notFoundCount = args.item_ids.length - count;
+
+        let message = `Successfully assigned ownership of ${count} item${count === 1 ? '' : 's'} to user ${args.owner_id}.`;
+        if (notFoundCount > 0) {
+          message += ` ${notFoundCount} item${notFoundCount === 1 ? '' : 's'} not found or unchanged.`;
+        }
+        message += '\n\nThe owner will receive targeted notifications when their content becomes stale or needs governance review.';
+
+        return {
+          content: [{ type: 'text' as const, text: message }],
+          structuredContent: toStructuredContent({
+            action: 'assign_content_owner',
+            owner_id: args.owner_id,
+            requested: args.item_ids.length,
+            updated: count,
+            not_found: notFoundCount,
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.` }],
           isError: true,
         };
       }

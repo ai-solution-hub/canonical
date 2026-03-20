@@ -352,6 +352,7 @@ export type Database = {
           classification_reasoning: string | null
           classified_at: string | null
           content: string
+          content_owner_id: string | null
           content_type: string
           created_at: string
           created_by: string | null
@@ -406,6 +407,7 @@ export type Database = {
           classification_reasoning?: string | null
           classified_at?: string | null
           content: string
+          content_owner_id?: string | null
           content_type: string
           created_at?: string
           created_by?: string | null
@@ -460,6 +462,7 @@ export type Database = {
           classification_reasoning?: string | null
           classified_at?: string | null
           content?: string
+          content_owner_id?: string | null
           content_type?: string
           created_at?: string
           created_by?: string | null
@@ -1550,6 +1553,14 @@ export type Database = {
       }
     }
     Functions: {
+      bulk_assign_content_owner: {
+        Args: {
+          p_assigned_by: string
+          p_item_ids: string[]
+          p_owner_id: string
+        }
+        Returns: number
+      }
       bulk_delete_tags: {
         Args: { p_tags: string[]; p_type: string }
         Returns: number
@@ -1721,6 +1732,18 @@ export type Database = {
         }[]
       }
       get_content_gaps: { Args: never; Returns: Json }
+      get_content_owner_stats: {
+        Args: never
+        Returns: {
+          aging_count: number
+          expired_count: number
+          fresh_count: number
+          owner_id: string
+          stale_count: number
+          total_items: number
+          unverified_count: number
+        }[]
+      }
       get_content_win_rate: {
         Args: { p_content_item_id: string }
         Returns: {
