@@ -2,10 +2,12 @@
 
 Covers the deduplicate_repeated_text() function added to fix pandoc Track Changes
 artefacts where heading text is repeated 2-3x across XML text runs.
+Also covers Track Changes safe opening via open_document_safe().
 """
 
 import sys
 import os
+from unittest.mock import patch, MagicMock
 
 # Add scripts dir to path so we can import the module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -16,6 +18,7 @@ from extract_docx_tables import (
     deduplicate_repeated_text,
     normalize_header,
     detect_table_format,
+    extract_qa_from_docx,
 )
 
 
@@ -130,3 +133,64 @@ class TestDetectTableFormat:
     def test_unrecognised_returns_none(self):
         headers = ["Foo", "Bar", "Baz"]
         assert detect_table_format(headers) is None
+
+
+# ── Track Changes safe opening ─────────────────────────────────────────
+
+
+class TestExtractQaFromDocxTrackChanges:
+    """Tests that extract_qa_from_docx uses open_document_safe for TC handling."""
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_uses_open_document_safe(self, mock_open_safe, mock_exists):
+        """extract_qa_from_docx should call open_document_safe instead of Document()."""
+        # Create a mock document with no body elements
+        mock_doc = MagicMock()
+        mock_doc.element.body = []
+        mock_open_safe.return_value = (mock_doc, None)
+
+        result = extract_qa_from_docx("/fake/path/test.docx")
+
+        mock_open_safe.assert_called_once_with("/fake/path/test.docx")
+        assert result == []
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_cleans_up_temp_file(self, mock_open_safe, mock_exists):
+        """Temp file from TC resolution should be cleaned up after extraction."""
+        mock_doc = MagicMock()
+        mock_doc.element.body = []
+        temp_path = "/tmp/fake_resolved.docx"
+        mock_open_safe.return_value = (mock_doc, temp_path)
+
+        with patch("extract_docx_tables.os.unlink") as mock_unlink:
+            extract_qa_from_docx("/fake/path/test.docx")
+            mock_unlink.assert_called_once_with(temp_path)
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_no_cleanup_when_no_temp_file(self, mock_open_safe, mock_exists):
+        """No cleanup needed when document had no Track Changes."""
+        mock_doc = MagicMock()
+        mock_doc.element.body = []
+        mock_open_safe.return_value = (mock_doc, None)
+
+        with patch("extract_docx_tables.os.unlink") as mock_unlink:
+            extract_qa_from_docx("/fake/path/test.docx")
+            mock_unlink.assert_not_called()
+
+    @patch("extract_docx_tables.os.path.exists", return_value=True)
+    @patch("extract_docx_tables.open_document_safe")
+    def test_cleans_up_temp_file_on_exception(self, mock_open_safe, mock_exists):
+        """Temp file is cleaned up even if extraction raises an exception."""
+        mock_doc = MagicMock()
+        # Make body iteration raise an exception
+        mock_doc.element.body.__iter__ = MagicMock(side_effect=RuntimeError("test error"))
+        temp_path = "/tmp/fake_resolved.docx"
+        mock_open_safe.return_value = (mock_doc, temp_path)
+
+        with patch("extract_docx_tables.os.unlink") as mock_unlink:
+            with pytest.raises(RuntimeError, match="test error"):
+                extract_qa_from_docx("/fake/path/test.docx")
+            mock_unlink.assert_called_once_with(temp_path)

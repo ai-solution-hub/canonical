@@ -8,6 +8,7 @@ Tests cover:
   - Multi-paragraph response writing
   - Post-fill validation
   - Edge cases (missing indices, empty responses, column mismatch)
+  - Track Changes safe opening via open_document_safe
 """
 
 import pytest
@@ -16,6 +17,7 @@ from docx.shared import Pt, RGBColor
 import os
 import sys
 import tempfile
+from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from fill_template import (
@@ -1019,3 +1021,63 @@ class TestValidateCompletedDocument:
         fill_template(COMPLEX_FIXTURE, temp_output, mappings)
         warnings = _validate_completed_document(COMPLEX_FIXTURE, temp_output)
         assert warnings == []
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# TRACK CHANGES SAFE OPENING TESTS
+# ══════════════════════════════════════════════════════════════════════════
+
+
+class TestFillTemplateTrackChanges:
+    """Tests that fill_template uses open_document_safe for TC handling."""
+
+    @patch("fill_template.open_document_safe")
+    def test_uses_open_document_safe(self, mock_open_safe):
+        """fill_template should call open_document_safe instead of Document()."""
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_in:
+            _create_formatted_template(tmp_in.name)
+            output_path = tmp_in.name.replace(".docx", "_out.docx")
+
+            # Make open_document_safe return the real document (no TC)
+            real_doc = Document(tmp_in.name)
+            mock_open_safe.return_value = (real_doc, None)
+
+            try:
+                fill_template(
+                    tmp_in.name, output_path,
+                    [{"table_index": 0, "row_index": 1, "col_index": 1,
+                      "response_text": "TC test", "word_limit": None}]
+                )
+
+                mock_open_safe.assert_called_once_with(tmp_in.name)
+            finally:
+                os.unlink(tmp_in.name)
+                if os.path.exists(output_path):
+                    os.unlink(output_path)
+
+    @patch("fill_template.open_document_safe")
+    def test_cleans_up_temp_file(self, mock_open_safe):
+        """Temp file from TC resolution should be cleaned up after fill."""
+        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_in:
+            _create_formatted_template(tmp_in.name)
+            output_path = tmp_in.name.replace(".docx", "_out.docx")
+
+            real_doc = Document(tmp_in.name)
+            temp_path = "/tmp/fake_tc_resolved.docx"
+            mock_open_safe.return_value = (real_doc, temp_path)
+
+            try:
+                with patch("os.unlink") as mock_unlink:
+                    fill_template(
+                        tmp_in.name, output_path,
+                        [{"table_index": 0, "row_index": 1, "col_index": 1,
+                          "response_text": "TC cleanup test", "word_limit": None}]
+                    )
+
+                    mock_unlink.assert_called_once_with(temp_path)
+            finally:
+                # Clean up manually since os.unlink was mocked
+                if os.path.exists(tmp_in.name):
+                    os.unlink(tmp_in.name)
+                if os.path.exists(output_path):
+                    os.unlink(output_path)

@@ -40,6 +40,7 @@ if SCRIPTS_DIR not in sys.path:
 from extract_docx_tables import extract_qa_from_docx
 from dedup import exact_dedup, find_near_duplicates
 from keyword_classifier import classify_pairs, classification_summary
+from docx_utils import has_tracked_changes
 
 
 # ── Quality thresholds ─────────────────────────────────────────────────
@@ -263,8 +264,13 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
             "has_standard": bool(pair.get("answer_standard")),
             "has_advanced": bool(pair.get("answer_advanced")),
             "import_batch": batch_name,
+            "has_tracked_changes": pair.get("has_tracked_changes", False),
         },
     }
+
+    # Add batch tag to user_tags if present
+    if pair.get("_batch_tag"):
+        record["user_tags"] = [pair["_batch_tag"]]
 
     # Clean empty strings from ai_keywords
     record["ai_keywords"] = [k for k in record["ai_keywords"] if k]
@@ -307,6 +313,17 @@ def main():
         action="store_true",
         help="Skip idempotency check — import even if matching records exist",
     )
+    parser.add_argument(
+        "--batch-tag",
+        type=str,
+        default="",
+        help="Tag to add to user_tags for this import batch",
+    )
+    parser.add_argument(
+        "--require-clean",
+        action="store_true",
+        help="Abort if any .docx file contains unresolved Track Changes",
+    )
 
     args = parser.parse_args()
     start_time = time.time()
@@ -334,12 +351,37 @@ def main():
         print(f"  - {os.path.basename(f)}")
     print()
 
+    # ── Step 1b: Track Changes detection ───────────────────────────
+    print("[1b/9] Detecting Track Changes...")
+    tc_map = {}
+    tc_files = []
+    for filepath in files:
+        has_tc = has_tracked_changes(filepath)
+        tc_map[filepath] = has_tc
+        status = "HAS TRACK CHANGES" if has_tc else "clean"
+        print(f"  {os.path.basename(filepath)}: {status}")
+        if has_tc:
+            tc_files.append(filepath)
+
+    if tc_files:
+        print(f"\n  WARNING: {len(tc_files)} file(s) contain unresolved Track Changes.")
+        print("  Track Changes will be resolved automatically via pandoc during extraction.")
+        if args.require_clean:
+            print("  ERROR: --require-clean flag set. Aborting.")
+            sys.exit(1)
+    print()
+
     # ── Step 2: Extract Q&A pairs ───────────────────────────────────
     print("[2/9] Extracting Q&A pairs...")
     all_pairs = []
     for filepath in files:
         try:
             pairs = extract_qa_from_docx(filepath)
+            # Attach TC status and batch tag to each pair
+            for pair in pairs:
+                pair["has_tracked_changes"] = tc_map.get(filepath, False)
+                if args.batch_tag:
+                    pair["_batch_tag"] = args.batch_tag
             all_pairs.extend(pairs)
             print(f"  {os.path.basename(filepath)}: {len(pairs)} pairs")
         except Exception as e:

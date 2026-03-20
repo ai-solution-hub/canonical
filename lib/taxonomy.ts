@@ -44,4 +44,5 @@ export const CONTENT_TYPE_ICONS: Record<ContentType, string> = {
   methodology: 'Workflow',
   capability: 'Star',
   product_description: 'ShoppingBag',
+  document: 'FileText',
 };

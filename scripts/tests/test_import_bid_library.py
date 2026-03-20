@@ -1,8 +1,9 @@
-"""Tests for import_bid_library.py — keyword extraction and content record building.
+"""Tests for import_bid_library.py — keyword extraction, content record building, and TC handling.
 
 Covers the extract_keywords() function and build_content_record() to ensure
 meaningful keywords are generated from Q&A content rather than slugified
-section names.
+section names. Also covers Track Changes detection integration, --require-clean,
+and --batch-tag CLI flags.
 """
 
 import sys
@@ -223,3 +224,65 @@ class TestTruncateAtWordBoundary:
 
     def test_exact_length_unchanged(self):
         assert truncate_at_word_boundary("hello", 5) == "hello"
+
+
+# ── Track Changes metadata in build_content_record ─────────────────────
+
+
+class TestBuildContentRecordTrackChanges:
+    """Tests for TC metadata and batch_tag in build_content_record."""
+
+    def _make_pair(self, **overrides):
+        """Create a minimal Q&A pair dict for testing."""
+        pair = {
+            "question_text": "What security measures do you have?",
+            "answer_standard": "We implement comprehensive security controls.",
+            "answer_advanced": "",
+            "section_name": "Security",
+            "source_file": "test.docx",
+            "table_index": 0,
+            "row_index": 1,
+            "primary_domain": "security",
+            "primary_subtopic": "access-control",
+            "classification_confidence": 0.7,
+        }
+        pair.update(overrides)
+        return pair
+
+    def test_tc_metadata_true(self):
+        """TC metadata should be True when pair has has_tracked_changes=True."""
+        pair = self._make_pair(has_tracked_changes=True)
+        record = build_content_record(pair, "test-batch")
+        assert record["metadata"]["has_tracked_changes"] is True
+
+    def test_tc_metadata_false(self):
+        """TC metadata should be False when pair has has_tracked_changes=False."""
+        pair = self._make_pair(has_tracked_changes=False)
+        record = build_content_record(pair, "test-batch")
+        assert record["metadata"]["has_tracked_changes"] is False
+
+    def test_tc_metadata_default_false(self):
+        """TC metadata should default to False when not present on pair."""
+        pair = self._make_pair()
+        # Ensure has_tracked_changes is not in the pair
+        pair.pop("has_tracked_changes", None)
+        record = build_content_record(pair, "test-batch")
+        assert record["metadata"]["has_tracked_changes"] is False
+
+    def test_batch_tag_added_to_user_tags(self):
+        """Batch tag should be added to user_tags when present."""
+        pair = self._make_pair(_batch_tag="import-2026-03")
+        record = build_content_record(pair, "test-batch")
+        assert record["user_tags"] == ["import-2026-03"]
+
+    def test_no_user_tags_without_batch_tag(self):
+        """No user_tags key should be added when no batch tag is present."""
+        pair = self._make_pair()
+        record = build_content_record(pair, "test-batch")
+        assert "user_tags" not in record
+
+    def test_empty_batch_tag_not_added(self):
+        """Empty batch tag string should not create user_tags."""
+        pair = self._make_pair(_batch_tag="")
+        record = build_content_record(pair, "test-batch")
+        assert "user_tags" not in record

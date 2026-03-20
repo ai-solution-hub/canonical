@@ -19,6 +19,7 @@ export const VALID_CONTENT_TYPES = [
   'methodology',
   'capability',
   'product_description',
+  'document',
 ] as const;
 
 export const VALID_PLATFORMS = [

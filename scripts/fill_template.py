@@ -12,6 +12,7 @@ import os
 import sys
 
 from docx import Document
+from docx_utils import open_document_safe
 
 
 def _cell_text(cell) -> str:
@@ -132,7 +133,7 @@ def fill_template(
     Returns:
         Dict with fields_filled, fields_skipped, fields_failed, truncated, errors
     """
-    doc = Document(template_path)
+    doc, temp_path = open_document_safe(template_path)
 
     filled = 0
     skipped = 0
@@ -226,6 +227,10 @@ def fill_template(
 
     # Save completed document
     doc.save(output_path)
+
+    # Clean up temp file from Track Changes resolution
+    if temp_path:
+        os.unlink(temp_path)
 
     return {
         "fields_filled": filled,

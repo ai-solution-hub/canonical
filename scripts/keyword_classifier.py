@@ -297,6 +297,27 @@ def classify_pair(pair: dict) -> dict:
     enriched["secondary_domain"] = secondary_domain
     enriched["secondary_subtopic"] = secondary_subtopic
     enriched["classification_confidence"] = round(confidence, 3)
+
+    # ── Product name disambiguation ──────────────────────────────
+    # "Audit" is also a example-client product name (Advanced Audits).
+    # If the source file is an Audit product document and the content
+    # was classified under compliance>audit, it's more likely about
+    # the product's audit capabilities than audit processes.
+    source_file = pair.get("source_file", "").lower()
+    if (
+        "audit" in source_file
+        and enriched["primary_domain"] == "compliance"
+        and enriched["primary_subtopic"] == "audit"
+    ):
+        # Check if there are product-feature signals
+        pf_score = scores.get("product-feature", (0, ""))[0]
+        if pf_score > 0:
+            # Reclassify as product-feature
+            enriched["primary_domain"] = "product-feature"
+            enriched["primary_subtopic"] = scores["product-feature"][1]
+            enriched["secondary_domain"] = "compliance"
+            enriched["secondary_subtopic"] = "audit"
+
     return enriched
 
 

@@ -24,6 +24,7 @@ import re
 from typing import Optional
 
 from docx import Document
+from docx_utils import open_document_safe
 
 
 # ── Text deduplication ──────────────────────────────────────────────────
@@ -381,55 +382,59 @@ def extract_qa_from_docx(file_path: str) -> list[dict]:
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    doc = Document(file_path)
-    source_file = os.path.basename(file_path)
+    doc, temp_path = open_document_safe(file_path)
+    try:
+        source_file = os.path.basename(file_path)
 
-    all_pairs = []
-    current_section = ""
-    table_index = 0
+        all_pairs = []
+        current_section = ""
+        table_index = 0
 
-    # Iterate through the document body elements in order to track
-    # headings that appear before each table
-    for element in doc.element.body:
-        tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
+        # Iterate through the document body elements in order to track
+        # headings that appear before each table
+        for element in doc.element.body:
+            tag = element.tag.split("}")[-1] if "}" in element.tag else element.tag
 
-        if tag == "p":
-            # Check if this paragraph is a heading
-            style = element.find(
-                ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pStyle"
-            )
-            if style is not None:
-                style_val = style.get(
-                    "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", ""
+            if tag == "p":
+                # Check if this paragraph is a heading
+                style = element.find(
+                    ".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}pStyle"
                 )
-                if style_val.startswith("Heading"):
-                    # Extract the text content of this heading
-                    texts = element.itertext()
-                    heading_text = "".join(texts).strip()
-                    # Clean up duplicated text from merged/complex formatting runs.
-                    # Take only the first line if the heading spans multiple lines
-                    # (subsequent lines are often formatting artefacts).
-                    if "\n" in heading_text:
-                        heading_text = heading_text.split("\n")[0].strip()
-                    # Deduplicate repeated text runs (pandoc Track Changes artefact).
-                    heading_text = deduplicate_repeated_text(heading_text)
-                    if heading_text:
-                        current_section = heading_text
+                if style is not None:
+                    style_val = style.get(
+                        "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val", ""
+                    )
+                    if style_val.startswith("Heading"):
+                        # Extract the text content of this heading
+                        texts = element.itertext()
+                        heading_text = "".join(texts).strip()
+                        # Clean up duplicated text from merged/complex formatting runs.
+                        # Take only the first line if the heading spans multiple lines
+                        # (subsequent lines are often formatting artefacts).
+                        if "\n" in heading_text:
+                            heading_text = heading_text.split("\n")[0].strip()
+                        # Deduplicate repeated text runs (pandoc Track Changes artefact).
+                        heading_text = deduplicate_repeated_text(heading_text)
+                        if heading_text:
+                            current_section = heading_text
 
-        elif tag == "tbl":
-            # This is a table element — find the corresponding python-docx Table
-            if table_index < len(doc.tables):
-                table = doc.tables[table_index]
-                pairs = extract_qa_from_table(
-                    table,
-                    section_name=current_section,
-                    table_index=table_index,
-                    source_file=source_file,
-                )
-                all_pairs.extend(pairs)
-            table_index += 1
+            elif tag == "tbl":
+                # This is a table element — find the corresponding python-docx Table
+                if table_index < len(doc.tables):
+                    table = doc.tables[table_index]
+                    pairs = extract_qa_from_table(
+                        table,
+                        section_name=current_section,
+                        table_index=table_index,
+                        source_file=source_file,
+                    )
+                    all_pairs.extend(pairs)
+                table_index += 1
 
-    return all_pairs
+        return all_pairs
+    finally:
+        if temp_path:
+            os.unlink(temp_path)
 
 
 # ── CLI entry point ──────────────────────────────────────────────────────
