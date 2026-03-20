@@ -5,7 +5,7 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { BidOutcomeBodySchema } from '@/lib/validation/schemas';
+import { BidOutcomeBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid-state-machine';
 import type { BidState } from '@/lib/bid-state-machine';
 
@@ -53,7 +53,7 @@ export async function POST(
       );
     }
 
-    const bidMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
+    const bidMetadata = parseBidMetadata(bid.domain_metadata) ?? (bid.domain_metadata as Record<string, unknown> ?? {});
     const currentStatus = (bid.status as BidState) ?? 'draft';
 
     // Validate state transition

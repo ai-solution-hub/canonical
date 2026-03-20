@@ -9,6 +9,7 @@ import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
+import { parseBidMetadata } from '@/lib/validation/schemas';
 import type { Bid, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { BidState } from '@/types/bid';
 
@@ -37,7 +38,7 @@ interface BidListCardProps {
 }
 
 export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) {
-  const metadata = bid.domain_metadata as BidMetadata;
+  const metadata = (parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata) as BidMetadata;
   const bidStatus = (bid.status ?? metadata.status) as BidMetadata['status'];
   const stats = bid.question_stats;
   const totalQuestions = stats?.total_questions ?? 0;

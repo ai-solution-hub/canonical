@@ -7,7 +7,7 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { BidUpdateBodySchema } from '@/lib/validation/schemas';
+import { BidUpdateBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
 import { canTransition } from '@/lib/bid-state-machine';
 import type { BidState } from '@/lib/bid-state-machine';
 
@@ -71,6 +71,7 @@ export async function GET(
 
     return NextResponse.json({
       ...bid,
+      domain_metadata: parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata,
       question_stats: stats?.[0] ?? null,
       tender_documents: tenderDocuments,
     });
@@ -119,7 +120,7 @@ export async function PATCH(
       );
     }
 
-    const currentMetadata = (current.domain_metadata ?? {}) as Record<string, unknown>;
+    const currentMetadata = parseBidMetadata(current.domain_metadata) ?? (current.domain_metadata as Record<string, unknown> ?? {});
     const { name, description, status, ...metadataUpdates } = parsed.data;
 
     // Validate state transition if status is being changed

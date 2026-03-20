@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { isEncryptedDocx } from '@/lib/docx-utils';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBidMetadata } from '@/lib/validation/schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 30;
@@ -161,7 +162,7 @@ export async function POST(
     }
 
     // Update bid's domain_metadata.tender_document_ids array
-    const currentMetadata = (bid.domain_metadata ?? {}) as Record<string, unknown>;
+    const currentMetadata = parseBidMetadata(bid.domain_metadata) ?? (bid.domain_metadata as Record<string, unknown> ?? {});
     const existingDocIds = Array.isArray(currentMetadata.tender_document_ids)
       ? (currentMetadata.tender_document_ids as string[])
       : [];
