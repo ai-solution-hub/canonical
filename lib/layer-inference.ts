@@ -8,7 +8,6 @@
  * Spec: docs/plans/layer-suggestion-spec.md (Section 3)
  */
 
-import type { LayerDefinition } from '@/lib/client-config';
 
 // ---------------------------------------------------------------------------
 // Types
