@@ -3,6 +3,7 @@
  * re-upload detection logic.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { NextRequest } from 'next/server';
 import { createMockSupabaseClient } from '../helpers/mock-supabase';
 
 // ─── Mock modules ──────────────────────────────────────────────────────────
@@ -38,8 +39,8 @@ describe('Source Document Version Chain API', () => {
       '@/app/api/source-documents/[id]/versions/route'
     );
 
-    const request = new Request('http://localhost/api/source-documents/not-a-uuid/versions');
-    const response = await GET(request as any, {
+    const request = new Request('http://localhost/api/source-documents/not-a-uuid/versions') as unknown as NextRequest;
+    const response = await GET(request, {
       params: Promise.resolve({ id: 'not-a-uuid' }),
     });
 
@@ -62,7 +63,7 @@ describe('Source Document Version Chain API', () => {
     const request = new Request(
       `http://localhost/api/source-documents/${docId}/versions`,
     );
-    const response = await GET(request as any, {
+    const response = await GET(request as unknown as NextRequest, {
       params: Promise.resolve({ id: docId }),
     });
 
@@ -102,7 +103,7 @@ describe('Source Document Version Chain API', () => {
     const request = new Request(
       `http://localhost/api/source-documents/${docId}/versions`,
     );
-    const response = await GET(request as any, {
+    const response = await GET(request as unknown as NextRequest, {
       params: Promise.resolve({ id: docId }),
     });
 
@@ -126,7 +127,7 @@ describe('Source Document Detail API', () => {
     );
 
     const request = new Request('http://localhost/api/source-documents/bad-id');
-    const response = await GET(request as any, {
+    const response = await GET(request as unknown as NextRequest, {
       params: Promise.resolve({ id: 'bad-id' }),
     });
 
@@ -147,7 +148,7 @@ describe('Source Document Detail API', () => {
     const request = new Request(
       `http://localhost/api/source-documents/${docId}`,
     );
-    const response = await GET(request as any, {
+    const response = await GET(request as unknown as NextRequest, {
       params: Promise.resolve({ id: docId }),
     });
 
@@ -179,7 +180,7 @@ describe('Source Document Detail API', () => {
     });
 
     // Second call: fetch linked items (uses .then via chain)
-    mockServiceClient._chain.then.mockImplementationOnce((resolve: Function) =>
+    mockServiceClient._chain.then.mockImplementationOnce((resolve: (val: unknown) => void) =>
       resolve({ data: mockItems, error: null }),
     );
 
@@ -187,7 +188,7 @@ describe('Source Document Detail API', () => {
     const request = new Request(
       `http://localhost/api/source-documents/${docId}`,
     );
-    const response = await GET(request as any, {
+    const response = await GET(request as unknown as NextRequest, {
       params: Promise.resolve({ id: docId }),
     });
 
