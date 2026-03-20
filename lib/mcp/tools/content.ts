@@ -1,11 +1,12 @@
 /**
- * Content item tool registrations (6 tools):
+ * Content item tool registrations (7 tools):
  *   4. get_content_item
  *  12. create_content_item
  *  19. update_content_item
  *  21. get_content_items
  *  31. assign_content_owner
  *  33. get_document_versions
+ *  35. get_document_diff
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -689,6 +690,166 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Failed to retrieve document versions: ${message}. Check the ID is a valid source document UUID.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 35. get_document_diff
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_document_diff',
+    {
+      title: 'Get Source Document Diff',
+      description: 'Compare two versions of a source document. Shows added, modified, and removed Q&A pairs, plus which KB items are affected by the changes. Use when a client sends an updated document and you need to understand what changed.',
+      inputSchema: {
+        document_id: z.string().uuid().describe('Source document ID \u2014 returns the latest diff for this document'),
+        diff_id: z.string().uuid().optional().describe('Specific diff ID to retrieve (overrides document_id lookup)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // Primary flow: get latest diff for a document
+        // Find the document and its parent to get the diff pair
+        const { data: doc, error: docError } = await supabase
+          .from('source_documents')
+          .select('id, filename, parent_id')
+          .eq('id', args.document_id)
+          .single();
+
+        if (docError || !doc) {
+          return {
+            content: [{ type: 'text' as const, text: 'Document not found.' }],
+            isError: true,
+          };
+        }
+
+        // This document could be either the old or new version
+        // Try: this doc as new (has parent_id) -> diff between parent and this
+        // Or: this doc as old -> find child that references this as parent
+        let oldDoc: { id: string; filename: string };
+        let newDoc: { id: string; filename: string };
+
+        if (doc.parent_id) {
+          // This is a newer version - diff with parent
+          const { data: parent } = await supabase
+            .from('source_documents')
+            .select('id, filename')
+            .eq('id', doc.parent_id)
+            .single();
+
+          if (!parent) {
+            return {
+              content: [{ type: 'text' as const, text: 'Parent document not found.' }],
+              isError: true,
+            };
+          }
+
+          oldDoc = parent;
+          newDoc = { id: doc.id, filename: doc.filename };
+        } else {
+          // This might be the original - find child
+          const { data: child } = await supabase
+            .from('source_documents')
+            .select('id, filename')
+            .eq('parent_id', doc.id)
+            .order('version', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!child) {
+            return {
+              content: [{ type: 'text' as const, text: 'No version history found for this document. Upload an updated version to generate a diff.' }],
+            };
+          }
+
+          oldDoc = { id: doc.id, filename: doc.filename };
+          newDoc = child;
+        }
+
+        // Fetch diff entries
+        const { data: diffs, error: diffError } = await supabase
+          .from('source_document_diffs')
+          .select('diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status')
+          .eq('old_document_id', oldDoc.id)
+          .eq('new_document_id', newDoc.id);
+
+        if (diffError) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to fetch diff: ${diffError.message}` }],
+            isError: true,
+          };
+        }
+
+        if (!diffs || diffs.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: `No diff data found between ${oldDoc.filename} and ${newDoc.filename}. The diff may not have been computed yet.` }],
+          };
+        }
+
+        // Get affected content item titles
+        const affectedIds = diffs
+          .filter((d) => d.affected_content_item_id)
+          .map((d) => d.affected_content_item_id!);
+
+        const itemTitles = new Map<string, string>();
+        if (affectedIds.length > 0) {
+          const { data: items } = await supabase
+            .from('content_items')
+            .select('id, title')
+            .in('id', affectedIds);
+
+          for (const item of (items ?? [])) {
+            itemTitles.set(item.id, item.title ?? 'Untitled');
+          }
+        }
+
+        // Build formatter data
+        const { formatDocumentDiff } = await import('@/lib/mcp/formatters');
+
+        const formatterData = {
+          old_filename: oldDoc.filename,
+          new_filename: newDoc.filename,
+          summary: {
+            added: diffs.filter((d) => d.diff_type === 'added').length,
+            removed: diffs.filter((d) => d.diff_type === 'removed').length,
+            modified: diffs.filter((d) => d.diff_type === 'modified').length,
+            unchanged: diffs.filter((d) => d.diff_type === 'unchanged').length,
+            total_old: diffs.filter((d) => ['removed', 'modified', 'unchanged'].includes(d.diff_type)).length,
+            total_new: diffs.filter((d) => ['added', 'modified', 'unchanged'].includes(d.diff_type)).length,
+          },
+          entries: diffs.map((d) => ({
+            diff_type: d.diff_type as 'added' | 'removed' | 'modified' | 'unchanged',
+            old_question: d.old_question ?? undefined,
+            new_question: d.new_question ?? undefined,
+            old_content: d.old_content ?? undefined,
+            new_content: d.new_content ?? undefined,
+            similarity_score: d.similarity_score ?? undefined,
+            affected_item: d.affected_content_item_id
+              ? { id: d.affected_content_item_id, title: itemTitles.get(d.affected_content_item_id) ?? 'Unknown' }
+              : null,
+          })),
+        };
+
+        const markdown = truncateResponse(formatDocumentDiff(formatterData));
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(formatterData),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Document diff failed: ${message}` }],
           isError: true,
         };
       }
