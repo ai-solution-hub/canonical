@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
 import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
+import crypto from 'crypto';
 import mammoth from 'mammoth';
 
 export const maxDuration = 60;
@@ -193,6 +194,9 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // Compute MD5 hash for re-upload detection
+    const contentHash = crypto.createHash('md5').update(buffer).digest('hex');
+
     // Create pipeline_run record to track progress
     const serviceClient = createServiceClient();
     const { data: pipelineRun } = await serviceClient
@@ -215,6 +219,42 @@ export async function POST(request: NextRequest) {
       .single();
 
     pipelineRunId = pipelineRun?.id ?? null;
+
+    // Detect re-upload (same filename from same user)
+    let reuploadInfo: {
+      match_type: 'identical' | 'new_version';
+      existing_document_id: string;
+      existing_version: number;
+    } | null = null;
+
+    try {
+      const { data: reuploadMatch } = await serviceClient.rpc('detect_reupload', {
+        p_filename: filename,
+        p_uploaded_by: user.id,
+        p_content_hash: contentHash,
+      });
+
+      if (reuploadMatch && reuploadMatch.length > 0) {
+        const match = reuploadMatch[0];
+        if (match.match_type === 'identical') {
+          // Identical file already uploaded — warn but continue
+          reuploadInfo = {
+            match_type: 'identical',
+            existing_document_id: match.existing_document_id,
+            existing_version: match.existing_version,
+          };
+        } else {
+          reuploadInfo = {
+            match_type: 'new_version',
+            existing_document_id: match.existing_document_id,
+            existing_version: match.existing_version,
+          };
+        }
+      }
+    } catch (reuploadErr) {
+      console.error('Re-upload detection failed:', reuploadErr);
+      // Non-fatal — continue with upload
+    }
 
     // 1. Create content_item record first (to get UUID)
     const { data: newItem, error: insertError } = await supabase
@@ -299,6 +339,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Create source_documents row for lineage tracking
+    let sourceDocumentId: string | null = null;
+    try {
+      const newVersion = reuploadInfo ? reuploadInfo.existing_version + 1 : 1;
+      const parentId = reuploadInfo?.match_type === 'new_version'
+        ? reuploadInfo.existing_document_id
+        : null;
+
+      const { data: sourceDoc } = await serviceClient
+        .from('source_documents')
+        .insert({
+          filename,
+          original_filename: filename,
+          mime_type: mimeType,
+          file_size: file.size,
+          content_hash: contentHash,
+          version: newVersion,
+          parent_id: parentId,
+          storage_path: storagePath,
+          status: 'processing' as const,
+          uploaded_by: user.id,
+          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          ...(pipelineRunId ? { pipeline_run_id: pipelineRunId } : {}),
+        })
+        .select('id')
+        .single();
+
+      if (sourceDoc) {
+        sourceDocumentId = sourceDoc.id;
+        // Link content_item to source_document
+        await serviceClient
+          .from('content_items')
+          .update({ source_document_id: sourceDoc.id })
+          .eq('id', itemId);
+      }
+    } catch (srcDocErr) {
+      console.error('Source document tracking failed:', srcDocErr);
+      // Non-fatal — upload continues without lineage tracking
+    }
+
     // Step 1 complete: file uploaded
     if (pipelineRunId) {
       await updatePipelineProgress(pipelineRunId, {
@@ -379,6 +459,27 @@ export async function POST(request: NextRequest) {
         { error: 'File uploaded but failed to update content record.' },
         { status: 500 },
       );
+    }
+
+    // Update source_documents with extracted text
+    if (sourceDocumentId) {
+      try {
+        const extractionMeta: Record<string, unknown> = {};
+        if (pageCount !== undefined) extractionMeta.page_count = pageCount;
+        if (pdfTableCount > 0) extractionMeta.table_count = pdfTableCount;
+        if (!extractedText) extractionMeta.extraction_failed = true;
+
+        await serviceClient
+          .from('source_documents')
+          .update({
+            extracted_text: extractedText || null,
+            extraction_metadata: extractionMeta,
+            status: extractedText ? 'processing' : 'failed',
+          })
+          .eq('id', sourceDocumentId);
+      } catch (srcUpdateErr) {
+        console.error('Source document extraction update failed:', srcUpdateErr);
+      }
     }
 
     // Record initial version in content_history
@@ -551,6 +652,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Mark source document as processed
+    if (sourceDocumentId) {
+      try {
+        await serviceClient
+          .from('source_documents')
+          .update({ status: 'processed' })
+          .eq('id', sourceDocumentId);
+      } catch (srcStatusErr) {
+        console.error('Source document status update failed:', srcStatusErr);
+      }
+    }
+
     // Step 5 complete: all done
     if (pipelineRunId) {
       await updatePipelineProgress(pipelineRunId, {
@@ -575,6 +688,15 @@ export async function POST(request: NextRequest) {
       warnings,
       duplicate_matches,
       pipeline_run_id: pipelineRunId,
+      ...(sourceDocumentId && { source_document_id: sourceDocumentId }),
+      ...(reuploadInfo && {
+        reupload_detection: {
+          match_type: reuploadInfo.match_type,
+          previous_document_id: reuploadInfo.existing_document_id,
+          previous_version: reuploadInfo.existing_version,
+          new_version: reuploadInfo.existing_version + 1,
+        },
+      }),
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
       message: extractedText

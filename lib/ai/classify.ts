@@ -13,6 +13,7 @@ import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entity-aliases';
+import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
@@ -283,7 +284,7 @@ Classify this content. Return a JSON object with:
 - primary_subtopic: the best-fitting subtopic within that domain
 - secondary_domain: a second relevant domain (or null)
 - secondary_subtopic: a second relevant subtopic (or null)
-- ai_keywords: 3-8 descriptive keywords
+- ai_keywords: 3-8 specific keywords/phrases. Always lowercase unless the term is a proper noun, acronym, or named standard (e.g. "ISO 27001", "GDPR", "Cyber Essentials Plus"). Use singular form ("access control" not "access controls"). Do not include phrases longer than 4 words. Prefer concise, reusable keywords
 - ai_summary: one sentence summary (max 200 chars)
 - suggested_title: a clear, descriptive title (40-100 chars)
 - classification_confidence: 0.0-1.0
@@ -303,13 +304,20 @@ Only include entities and relationships that are clearly stated or strongly impl
     'return_classification',
   );
 
+  // Normalise AI keywords before storage to prevent duplicates
+  const normalisedKeywords = result.ai_keywords
+    .map(normaliseTag)
+    .filter((k) => k.length > 0);
+  // Deduplicate after normalisation (different forms may collapse)
+  const uniqueKeywords = [...new Set(normalisedKeywords)];
+
   // Update the content item with classification results
   const updateData: Record<string, unknown> = {
     primary_domain: result.primary_domain,
     primary_subtopic: result.primary_subtopic,
     secondary_domain: result.secondary_domain ?? null,
     secondary_subtopic: result.secondary_subtopic ?? null,
-    ai_keywords: result.ai_keywords,
+    ai_keywords: uniqueKeywords,
     ai_summary: result.ai_summary,
     suggested_title: result.suggested_title,
     classification_confidence: result.classification_confidence,
@@ -398,7 +406,7 @@ Only include entities and relationships that are clearly stated or strongly impl
     primary_subtopic: result.primary_subtopic,
     secondary_domain: result.secondary_domain ?? null,
     secondary_subtopic: result.secondary_subtopic ?? null,
-    ai_keywords: result.ai_keywords,
+    ai_keywords: uniqueKeywords,
     ai_summary: result.ai_summary,
     suggested_title: result.suggested_title,
     classification_confidence: result.classification_confidence,

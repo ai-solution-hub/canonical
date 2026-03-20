@@ -380,6 +380,7 @@ export type Database = {
           secondary_subtopic: string | null
           source_bid: string | null
           source_document: string | null
+          source_document_id: string | null
           source_domain: string | null
           source_url: string | null
           suggested_title: string | null
@@ -435,6 +436,7 @@ export type Database = {
           secondary_subtopic?: string | null
           source_bid?: string | null
           source_document?: string | null
+          source_document_id?: string | null
           source_domain?: string | null
           source_url?: string | null
           suggested_title?: string | null
@@ -490,6 +492,7 @@ export type Database = {
           secondary_subtopic?: string | null
           source_bid?: string | null
           source_document?: string | null
+          source_document_id?: string | null
           source_domain?: string | null
           source_url?: string | null
           suggested_title?: string | null
@@ -515,6 +518,13 @@ export type Database = {
             columns: ["source_bid"]
             isOneToOne: false
             referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_items_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
             referencedColumns: ["id"]
           },
         ]
@@ -1095,6 +1105,91 @@ export type Database = {
           },
         ]
       }
+      source_documents: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          content_hash: string
+          created_at: string
+          extracted_text: string | null
+          extraction_metadata: Json | null
+          file_size: number
+          filename: string
+          id: string
+          mime_type: string
+          original_filename: string
+          parent_id: string | null
+          pipeline_run_id: string | null
+          status: string
+          storage_path: string
+          uploaded_by: string
+          version: number
+          workspace_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          content_hash: string
+          created_at?: string
+          extracted_text?: string | null
+          extraction_metadata?: Json | null
+          file_size: number
+          filename: string
+          id?: string
+          mime_type: string
+          original_filename: string
+          parent_id?: string | null
+          pipeline_run_id?: string | null
+          status?: string
+          storage_path: string
+          uploaded_by: string
+          version?: number
+          workspace_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          content_hash?: string
+          created_at?: string
+          extracted_text?: string | null
+          extraction_metadata?: Json | null
+          file_size?: number
+          filename?: string
+          id?: string
+          mime_type?: string
+          original_filename?: string
+          parent_id?: string | null
+          pipeline_run_id?: string | null
+          status?: string
+          storage_path?: string
+          uploaded_by?: string
+          version?: number
+          workspace_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_documents_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_documents_pipeline_run_id_fkey"
+            columns: ["pipeline_run_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_documents_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       taxonomy_domains: {
         Row: {
           accepted_at: string | null
@@ -1606,6 +1701,19 @@ export type Database = {
         Returns: number
       }
       delete_tag: { Args: { p_tag: string; p_type: string }; Returns: number }
+      detect_reupload: {
+        Args: {
+          p_content_hash: string
+          p_filename: string
+          p_uploaded_by: string
+        }
+        Returns: {
+          existing_content_hash: string
+          existing_document_id: string
+          existing_version: number
+          match_type: string
+        }[]
+      }
       filter_by_keywords: {
         Args: { search_terms: string[] }
         Returns: string[]
@@ -1773,6 +1881,24 @@ export type Database = {
           fresh_pct: number
           gap_count: number
           total_items: number
+        }[]
+      }
+      get_document_version_chain: {
+        Args: { p_document_id: string }
+        Returns: {
+          content_hash: string
+          content_item_count: number
+          created_at: string
+          file_size: number
+          filename: string
+          id: string
+          mime_type: string
+          original_filename: string
+          parent_id: string
+          status: string
+          storage_path: string
+          uploaded_by: string
+          version: number
         }[]
       }
       get_domain_subtopic_counts: {
@@ -2289,3 +2415,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
