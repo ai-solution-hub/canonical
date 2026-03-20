@@ -62,8 +62,8 @@ describe('EDITABLE_FIELDS set', () => {
 });
 
 describe('constant arrays', () => {
-  it('VALID_CONTENT_TYPES should contain 14 KB types', () => {
-    expect(VALID_CONTENT_TYPES).toHaveLength(14);
+  it('VALID_CONTENT_TYPES should contain 15 KB types', () => {
+    expect(VALID_CONTENT_TYPES).toHaveLength(15);
   });
 
   it('VALID_CONTENT_TYPES should include key types', () => {
