@@ -53,16 +53,16 @@ Key directories:
 
 | Directory | Contents |
 |-----------|----------|
-| `app/` | Next.js 16 App Router — ~30 API route groups, ~12 page routes, `proxy.ts` auth middleware |
+| `app/` | Next.js 16 App Router — ~38 API route groups, ~19 page routes, `proxy.ts` auth middleware |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | ~210 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
+| `components/` | ~160 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
 | `hooks/` | ~35 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, claude-connected, etc.) |
-| `lib/` | ~81 utility modules — includes `mcp/` (30 tools, 10 resources, 5 prompts), `ai/` (service layer), `claude-prompts.ts` |
+| `lib/` | ~56 utility modules — includes `mcp/` (32 tools, 10 resources, 5 prompts), `ai/` (service layer), `claude-prompts.ts` |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
-| `supabase/` | ~70 migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest — ~213 test files |
+| `supabase/` | ~82 migrations + auto-generated types (`database.types.ts` — never edit manually) |
+| `__tests__/` | Vitest — ~249 test files |
 | `e2e/` | Playwright — 9 spec files. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
@@ -118,7 +118,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~213 test files, ~3,541 tests
+- **Location:** `__tests__/` — ~249 test files, ~4,106 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/`
@@ -192,6 +192,7 @@ Consult these references when adding or modifying UI elements.
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 | AI integration layers | `docs/reference/ai-integration-layers.md` | 5-layer architecture: how MCP, plugin, skills, CopilotKit interconnect |
+
 ### Remaining Roadmap
 
 | Item | Location | Status |
@@ -203,7 +204,7 @@ Consult these references when adding or modifying UI elements.
 | Document | Location | Purpose |
 |----------|----------|---------|
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
-| Classification prompt | `docs/reference/classification-prompt.md` | v4.1 classification prompt (7 domains, 34 subtopics) |
+| Classification prompt | `docs/reference/classification-prompt.md` | v4.2 classification prompt (7 domains, 34 subtopics) |
 | Search evaluation | `scripts/search-evaluation.json` | 24 search test cases |
 
 Historical planning documents (project plan, feasibility study, ADS v1.0, Phase
