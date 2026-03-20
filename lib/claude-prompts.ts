@@ -9,6 +9,7 @@
  */
 
 import type { ActiveBidSummary, DashboardData } from '@/lib/dashboard';
+import type { ContentSuggestion } from '@/lib/content-suggestions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -302,5 +303,40 @@ export function generateBulkIngestPrompt(context?: string): ClaudePrompt {
     prompt: `Help me add content to the Knowledge Base. Use the create_content_item tool for each item.${contextSection}\n\nValid content types are: article, blog, case_study, guide, note, policy, process, product_description, q_a_pair, research, whitepaper.\n\nFor each item, classify it with the appropriate domain, subtopic, and content type. Tag all items with the batch_tag "manual-ingest-${dateStamp}" so they can be tracked together.\n\nLet me know what content you'd like to add, or I can describe what I have.`,
     description: 'Add one or more items to the Knowledge Base',
     category: 'ingestion',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Content suggestion prompts
+// ---------------------------------------------------------------------------
+
+export function generateContentSuggestionPrompt(
+  suggestion: ContentSuggestion,
+): ClaudePrompt {
+  const contentType = suggestion.suggested_content_type ?? 'well-structured item';
+  const formattedDomain = suggestion.domain.replace(/-/g, ' ');
+  const formattedSubtopic = suggestion.subtopic.replace(/-/g, ' ');
+
+  return {
+    label: `Create ${contentType} for ${formattedSubtopic}`,
+    prompt: `We have a content gap in ${formattedDomain} / ${formattedSubtopic} (${suggestion.description}). Search the KB for any related content in this domain, then help me create a ${contentType} to fill this gap. Classify it under ${formattedDomain} / ${formattedSubtopic}.`,
+    description: suggestion.title,
+    category: 'coverage',
+  };
+}
+
+export function generateBulkGapFillingPrompt(
+  suggestions: ContentSuggestion[],
+): ClaudePrompt {
+  const gapList = suggestions
+    .slice(0, 5)
+    .map((s) => `- ${s.domain} / ${s.subtopic} (${s.suggestion_type.replace(/_/g, ' ')})`)
+    .join('\n');
+
+  return {
+    label: 'Fill content gaps',
+    prompt: `We have ${suggestions.length} content ${suggestions.length === 1 ? 'gap' : 'gaps'} in the Knowledge Base. The highest priority gaps are:\n\n${gapList}\n\nHelp me create content to fill these gaps, starting with the most critical. For each, search the KB for related content and draft a new item.`,
+    description: `${suggestions.length} ${suggestions.length === 1 ? 'gap' : 'gaps'} identified`,
+    category: 'coverage',
   };
 }

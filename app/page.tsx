@@ -10,6 +10,7 @@ import { fetchDashboardData } from '@/lib/dashboard';
 import { fetchReorientData } from '@/lib/reorient';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { ClaudeActionsSection } from '@/components/dashboard/claude-actions-section';
+import { ContentSuggestionsSection } from '@/components/dashboard/content-suggestions-section';
 import { generateSuggestedActions } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
@@ -122,6 +123,11 @@ async function DashboardContent() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <NeedsAttentionSection {...data.needs_attention} userRole={data.user_role} />
         <ActiveBidsSection bids={data.active_bids} />
+      </div>
+
+      {/* Content Suggestions */}
+      <div className="mt-6">
+        <ContentSuggestionsSection limit={5} />
       </div>
 
       {/* Suggested Actions for Claude */}
