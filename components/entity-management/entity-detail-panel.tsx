@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Loader2,
@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   FileText,
   ArrowRight,
+  Save,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   Sheet,
@@ -18,9 +20,26 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatContentType } from '@/lib/format';
+import {
+  deriveExpiryStatus,
+  type CertificationMetadata,
+  type FrameworkMetadata,
+  type RegistrationMetadata,
+  type ExpiryStatus,
+} from '@/lib/certification-status';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -53,6 +72,7 @@ interface EntityDetail {
   content_item_count: number;
   relationships: EntityRelationship[];
   relationship_count: number;
+  metadata?: Record<string, unknown>;
 }
 
 interface EntityDetailPanelProps {
@@ -90,11 +110,517 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Expiry status badge
+// ---------------------------------------------------------------------------
+
+const EXPIRY_STATUS_STYLES: Record<ExpiryStatus, string> = {
+  valid: 'bg-freshness-fresh-bg text-freshness-fresh',
+  expiring_soon: 'bg-freshness-aging-bg text-freshness-aging',
+  expired: 'bg-freshness-expired-bg text-freshness-expired',
+  unknown: 'bg-muted text-muted-foreground',
+};
+
+const EXPIRY_STATUS_LABELS: Record<ExpiryStatus, string> = {
+  valid: 'Valid',
+  expiring_soon: 'Expiring soon',
+  expired: 'Expired',
+  unknown: 'Unknown',
+};
+
+function ExpiryStatusBadge({ status }: { status: ExpiryStatus }) {
+  return (
+    <Badge
+      variant="outline"
+      className={cn('text-xs', EXPIRY_STATUS_STYLES[status])}
+    >
+      {EXPIRY_STATUS_LABELS[status]}
+    </Badge>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Enrichable entity types
+// ---------------------------------------------------------------------------
+
+const ENRICHABLE_TYPES = new Set(['certification', 'framework', 'regulation']);
+
+// ---------------------------------------------------------------------------
 // Relationship display helper
 // ---------------------------------------------------------------------------
 
 function formatRelationshipType(type: string): string {
   return type.replace(/_/g, ' ');
+}
+
+// ---------------------------------------------------------------------------
+// Metadata form sub-components
+// ---------------------------------------------------------------------------
+
+function CertificationMetadataForm({
+  metadata,
+  onChange,
+}: {
+  metadata: CertificationMetadata;
+  onChange: (updates: Partial<CertificationMetadata>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="cert-version" className="text-xs">
+            Version
+          </Label>
+          <Input
+            id="cert-version"
+            placeholder="e.g. 2022"
+            value={metadata.version ?? ''}
+            onChange={(e) => onChange({ version: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cert-issuing-body" className="text-xs">
+            Issuing body
+          </Label>
+          <Input
+            id="cert-issuing-body"
+            placeholder="e.g. BSI"
+            value={metadata.issuing_body ?? ''}
+            onChange={(e) => onChange({ issuing_body: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="cert-date-obtained" className="text-xs">
+            Date obtained
+          </Label>
+          <Input
+            id="cert-date-obtained"
+            type="date"
+            value={metadata.date_obtained ?? ''}
+            onChange={(e) => onChange({ date_obtained: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="cert-expiry-date" className="text-xs">
+            Expiry date
+          </Label>
+          <Input
+            id="cert-expiry-date"
+            type="date"
+            value={metadata.expiry_date ?? ''}
+            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="cert-scope" className="text-xs">
+          Scope
+        </Label>
+        <Input
+          id="cert-scope"
+          placeholder="e.g. Design, development, and hosting of SaaS"
+          value={metadata.scope ?? ''}
+          onChange={(e) => onChange({ scope: e.target.value || undefined })}
+          className="h-8 text-sm"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="cert-number" className="text-xs">
+          Certificate number
+        </Label>
+        <Input
+          id="cert-number"
+          placeholder="Certificate or registration number"
+          value={metadata.certificate_number ?? ''}
+          onChange={(e) => onChange({ certificate_number: e.target.value || undefined })}
+          className="h-8 text-sm"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="cert-holder" className="text-xs">
+            Holder
+          </Label>
+          <Select
+            value={metadata.holder ?? 'self'}
+            onValueChange={(value) =>
+              onChange({ holder: value as 'self' | 'supplier' })
+            }
+          >
+            <SelectTrigger id="cert-holder" className="h-8 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="self">Self (our organisation)</SelectItem>
+              <SelectItem value="supplier">Supplier</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        {metadata.holder === 'supplier' && (
+          <div className="space-y-1">
+            <Label htmlFor="cert-supplier" className="text-xs">
+              Supplier name
+            </Label>
+            <Input
+              id="cert-supplier"
+              placeholder="e.g. example-datacentre"
+              value={metadata.supplier_name ?? ''}
+              onChange={(e) => onChange({ supplier_name: e.target.value || undefined })}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="cert-notes" className="text-xs">
+          Notes
+        </Label>
+        <Input
+          id="cert-notes"
+          placeholder="Additional notes"
+          value={metadata.notes ?? ''}
+          onChange={(e) => onChange({ notes: e.target.value || undefined })}
+          className="h-8 text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function FrameworkMetadataForm({
+  metadata,
+  onChange,
+}: {
+  metadata: FrameworkMetadata;
+  onChange: (updates: Partial<FrameworkMetadata>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="fw-round" className="text-xs">
+            Round
+          </Label>
+          <Input
+            id="fw-round"
+            placeholder="e.g. 14"
+            value={metadata.round ?? ''}
+            onChange={(e) => onChange({ round: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fw-status" className="text-xs">
+            Status
+          </Label>
+          <Select
+            value={metadata.status ?? ''}
+            onValueChange={(value) =>
+              onChange({
+                status: (value || undefined) as
+                  | 'active'
+                  | 'expired'
+                  | 'pending'
+                  | undefined,
+              })
+            }
+          >
+            <SelectTrigger id="fw-status" className="h-8 text-sm">
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="fw-date-joined" className="text-xs">
+            Date joined
+          </Label>
+          <Input
+            id="fw-date-joined"
+            type="date"
+            value={metadata.date_joined ?? ''}
+            onChange={(e) => onChange({ date_joined: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fw-expiry-date" className="text-xs">
+            Expiry date
+          </Label>
+          <Input
+            id="fw-expiry-date"
+            type="date"
+            value={metadata.expiry_date ?? ''}
+            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="fw-lot" className="text-xs">
+            Lot
+          </Label>
+          <Input
+            id="fw-lot"
+            placeholder="e.g. Cloud Hosting"
+            value={metadata.lot ?? ''}
+            onChange={(e) => onChange({ lot: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fw-supplier-id" className="text-xs">
+            Supplier ID
+          </Label>
+          <Input
+            id="fw-supplier-id"
+            placeholder="Registration/supplier ID"
+            value={metadata.supplier_id ?? ''}
+            onChange={(e) => onChange({ supplier_id: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="fw-notes" className="text-xs">
+          Notes
+        </Label>
+        <Input
+          id="fw-notes"
+          placeholder="Additional notes"
+          value={metadata.notes ?? ''}
+          onChange={(e) => onChange({ notes: e.target.value || undefined })}
+          className="h-8 text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+function RegistrationMetadataForm({
+  metadata,
+  onChange,
+}: {
+  metadata: RegistrationMetadata;
+  onChange: (updates: Partial<RegistrationMetadata>) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="reg-number" className="text-xs">
+            Registration number
+          </Label>
+          <Input
+            id="reg-number"
+            placeholder="e.g. ZA123456"
+            value={metadata.registration_number ?? ''}
+            onChange={(e) => onChange({ registration_number: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="reg-body" className="text-xs">
+            Registering body
+          </Label>
+          <Input
+            id="reg-body"
+            placeholder="e.g. ICO"
+            value={metadata.registering_body ?? ''}
+            onChange={(e) => onChange({ registering_body: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label htmlFor="reg-date" className="text-xs">
+            Date registered
+          </Label>
+          <Input
+            id="reg-date"
+            type="date"
+            value={metadata.date_registered ?? ''}
+            onChange={(e) => onChange({ date_registered: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="reg-expiry" className="text-xs">
+            Expiry date
+          </Label>
+          <Input
+            id="reg-expiry"
+            type="date"
+            value={metadata.expiry_date ?? ''}
+            onChange={(e) => onChange({ expiry_date: e.target.value || undefined })}
+            className="h-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <Label htmlFor="reg-notes" className="text-xs">
+          Notes
+        </Label>
+        <Input
+          id="reg-notes"
+          placeholder="Additional notes"
+          value={metadata.notes ?? ''}
+          onChange={(e) => onChange({ notes: e.target.value || undefined })}
+          className="h-8 text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Metadata details section
+// ---------------------------------------------------------------------------
+
+function MetadataDetailsSection({
+  entityType,
+  canonicalName,
+  initialMetadata,
+}: {
+  entityType: string;
+  canonicalName: string;
+  initialMetadata?: Record<string, unknown>;
+}) {
+  const [metadata, setMetadata] = useState<Record<string, unknown>>(
+    initialMetadata ?? {},
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Reset when entity changes
+  useEffect(() => {
+    setMetadata(initialMetadata ?? {});
+    setSaveSuccess(false);
+    setSaveError(null);
+  }, [initialMetadata, canonicalName]);
+
+  const handleChange = useCallback(
+    (updates: Record<string, unknown>) => {
+      setMetadata((prev) => ({ ...prev, ...updates }));
+      setSaveSuccess(false);
+      setSaveError(null);
+    },
+    [],
+  );
+
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    setSaveError(null);
+    setSaveSuccess(false);
+    try {
+      const res = await fetch(
+        `/api/entities/${encodeURIComponent(canonicalName)}/metadata`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(metadata),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed to save (${res.status})`);
+      }
+      setSaveSuccess(true);
+    } catch (err) {
+      setSaveError(
+        err instanceof Error ? err.message : 'Failed to save metadata',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [canonicalName, metadata]);
+
+  const expiryDate = metadata.expiry_date as string | undefined;
+  const expiryStatus = deriveExpiryStatus(expiryDate);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold">Details</h4>
+        {expiryDate && <ExpiryStatusBadge status={expiryStatus} />}
+      </div>
+
+      {entityType === 'certification' && (
+        <CertificationMetadataForm
+          metadata={metadata as CertificationMetadata}
+          onChange={handleChange}
+        />
+      )}
+
+      {entityType === 'framework' && (
+        <FrameworkMetadataForm
+          metadata={metadata as FrameworkMetadata}
+          onChange={handleChange}
+        />
+      )}
+
+      {entityType === 'regulation' && (
+        <RegistrationMetadataForm
+          metadata={metadata as RegistrationMetadata}
+          onChange={handleChange}
+        />
+      )}
+
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving}
+          className="gap-1.5"
+        >
+          {saving ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Save className="size-3.5" />
+          )}
+          {saving ? 'Saving...' : 'Save details'}
+        </Button>
+
+        {saveSuccess && (
+          <span className="flex items-center gap-1 text-xs text-freshness-fresh">
+            <CheckCircle2 className="size-3.5" />
+            Saved
+          </span>
+        )}
+
+        {saveError && (
+          <span className="flex items-center gap-1 text-xs text-freshness-expired">
+            <AlertTriangle className="size-3" />
+            {saveError}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +671,9 @@ export function EntityDetailPanel({
     return () => { cancelled = true; };
   }, [open, canonicalName]);
 
+  const showMetadataSection =
+    detail && ENRICHABLE_TYPES.has(detail.effective_type);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -178,7 +707,7 @@ export function EntityDetailPanel({
 
         {!loading && !error && detail && (
           <div className="flex flex-col gap-6 pt-4">
-            {/* ── Type and stats ──────────────────────────────────── */}
+            {/* -- Type and stats ----------------------------------------- */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
                 <TypeBadge type={detail.effective_type} />
@@ -223,9 +752,21 @@ export function EntityDetailPanel({
               </div>
             </div>
 
+            {/* -- Metadata details (certification/framework/regulation) -- */}
+            {showMetadataSection && (
+              <>
+                <Separator />
+                <MetadataDetailsSection
+                  entityType={detail.effective_type}
+                  canonicalName={detail.canonical_name}
+                  initialMetadata={detail.metadata}
+                />
+              </>
+            )}
+
             <Separator />
 
-            {/* ── Variant names ───────────────────────────────────── */}
+            {/* -- Variant names ------------------------------------------ */}
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">
                 Name variants ({detail.variant_count})
@@ -252,7 +793,7 @@ export function EntityDetailPanel({
 
             <Separator />
 
-            {/* ── Content items ───────────────────────────────────── */}
+            {/* -- Content items ------------------------------------------ */}
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">
                 Content items ({detail.content_item_count})
@@ -292,7 +833,7 @@ export function EntityDetailPanel({
               )}
             </div>
 
-            {/* ── Relationships ───────────────────────────────────── */}
+            {/* -- Relationships ------------------------------------------ */}
             {detail.relationships.length > 0 && (
               <>
                 <Separator />

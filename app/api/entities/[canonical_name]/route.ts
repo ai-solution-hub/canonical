@@ -40,7 +40,7 @@ export async function GET(
     // ── Fetch all mentions for this canonical name ────────────────────
     const { data: mentions, error: mentionsError } = await supabase
       .from('entity_mentions')
-      .select('entity_type, entity_type_override, entity_name, content_item_id, confidence, context_snippet')
+      .select('entity_type, entity_type_override, entity_name, content_item_id, confidence, context_snippet, metadata')
       .eq('canonical_name', decodedName);
 
     if (mentionsError) {
@@ -63,6 +63,7 @@ export async function GET(
     const typesSeen = new Set<string>();
     let entityType = mentions[0].entity_type;
     let effectiveType = mentions[0].entity_type_override ?? mentions[0].entity_type;
+    let entityMetadata: Record<string, unknown> | undefined;
 
     for (const m of mentions) {
       variantNames.add(m.entity_name);
@@ -72,6 +73,15 @@ export async function GET(
         typesSeen.add(m.entity_type_override);
         effectiveType = m.entity_type_override;
         entityType = m.entity_type;
+      }
+      // Pick up metadata from the first mention that has non-empty metadata
+      if (
+        !entityMetadata &&
+        m.metadata &&
+        typeof m.metadata === 'object' &&
+        Object.keys(m.metadata as Record<string, unknown>).length > 0
+      ) {
+        entityMetadata = m.metadata as Record<string, unknown>;
       }
     }
 
@@ -123,6 +133,7 @@ export async function GET(
       content_item_count: contentItems.length,
       relationships,
       relationship_count: relationships.length,
+      metadata: entityMetadata ?? {},
     });
   } catch (err) {
     return NextResponse.json(

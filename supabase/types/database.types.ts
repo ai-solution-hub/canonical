@@ -621,6 +621,7 @@ export type Database = {
           entity_type: string
           entity_type_override: string | null
           id: string
+          metadata: Json | null
           normalisation_version: number | null
         }
         Insert: {
@@ -633,6 +634,7 @@ export type Database = {
           entity_type: string
           entity_type_override?: string | null
           id?: string
+          metadata?: Json | null
           normalisation_version?: number | null
         }
         Update: {
@@ -645,6 +647,7 @@ export type Database = {
           entity_type?: string
           entity_type_override?: string | null
           id?: string
+          metadata?: Json | null
           normalisation_version?: number | null
         }
         Relationships: [
@@ -2415,4 +2418,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-
