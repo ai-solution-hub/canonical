@@ -138,7 +138,8 @@ export function MergeModal({
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Total: {totalMentions} mentions across {entities.length} entities
+            This will update {totalMentions} mentions across {entities.length} entities
+            and consolidate relationships.
           </p>
         </div>
 

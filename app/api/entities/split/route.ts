@@ -70,11 +70,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if ALL mentions of the old canonical_name have been moved.
+    // If so, update entity_relationships to point to the new canonical_name.
+    let relationshipsUpdated = 0;
+
+    const { count: remainingCount, error: countErr } = await serviceClient
+      .from('entity_mentions')
+      .select('id', { count: 'exact', head: true })
+      .eq('canonical_name', canonical_name);
+
+    if (!countErr && (remainingCount === null || remainingCount === 0)) {
+      // All mentions moved — update entity_relationships too
+      const { data: srcUpdated, error: srcErr } = await serviceClient
+        .from('entity_relationships')
+        .update({ source_entity: new_canonical_name })
+        .eq('source_entity', canonical_name)
+        .select('id');
+
+      if (!srcErr && srcUpdated) {
+        relationshipsUpdated += srcUpdated.length;
+      }
+
+      const { data: tgtUpdated, error: tgtErr } = await serviceClient
+        .from('entity_relationships')
+        .update({ target_entity: new_canonical_name })
+        .eq('target_entity', canonical_name)
+        .select('id');
+
+      if (!tgtErr && tgtUpdated) {
+        relationshipsUpdated += tgtUpdated.length;
+      }
+    }
+
     return NextResponse.json({
       split: true,
       original: canonical_name,
       new_canonical_name,
       mentions_moved: mentionsUpdated,
+      relationships_updated: relationshipsUpdated,
     });
   } catch (err) {
     return NextResponse.json(
