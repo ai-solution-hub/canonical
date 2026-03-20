@@ -284,7 +284,7 @@ Classify this content. Return a JSON object with:
 - primary_subtopic: the best-fitting subtopic within that domain
 - secondary_domain: a second relevant domain (or null)
 - secondary_subtopic: a second relevant subtopic (or null)
-- ai_keywords: 3-8 specific keywords/phrases. Always lowercase unless the term is a proper noun, acronym, or named standard (e.g. "ISO 27001", "GDPR", "Cyber Essentials Plus"). Use singular form ("access control" not "access controls"). Do not include phrases longer than 4 words. Prefer concise, reusable keywords
+- ai_keywords: 3-5 specific keywords/phrases. Always lowercase unless the term is a proper noun, acronym, or named standard (e.g. "ISO 27001", "GDPR", "Cyber Essentials Plus"). Rules: (1) Use singular form ("access control" not "access controls"). (2) Maximum 4 words per keyword. (3) Prefer the BROADEST applicable term — use "access control" not "role-based access control" unless specificity is critical. (4) Never assign two keywords where one is a subset of the other (e.g. do not assign both "GDPR" and "GDPR compliance"). (5) Prefer reusing existing high-frequency tags over inventing new ones
 - ai_summary: one sentence summary (max 200 chars)
 - suggested_title: a clear, descriptive title (40-100 chars)
 - classification_confidence: 0.0-1.0

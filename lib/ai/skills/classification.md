@@ -37,10 +37,13 @@ Do **not** assign a secondary domain when:
 
 ## Keywords Guidance
 
-Generate **3–8 descriptive keywords** that:
+Generate **3–5 descriptive keywords** that:
 - Aid semantic search — choose terms a user would search for
 - Include specific terminology from the content (proper nouns, technical terms, standard names)
 - Avoid generic words like "information", "document", "content"
+- Prefer the BROADEST applicable term — "data protection" over "data protection impact assessment"
+- Never assign two keywords where one is a subset of the other
+- Prefer reusing established, high-frequency keywords over inventing new specific ones
 - Use UK English spelling throughout (e.g., "organisation", "programme", "colour")
 - Include acronyms if they appear in the content (e.g., "ISO 27001", "TUPE", "DBS")
 
