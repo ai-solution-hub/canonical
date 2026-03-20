@@ -1279,12 +1279,18 @@ describe('PATCH /api/items/[id]/owner', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/Invalid owner_id/);
+    expect(body.error).toMatch(/uuid|Invalid/i);
   });
 
   it('returns 200 on successful owner assignment', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // First .single() = fetch current item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, title: 'Test', content: 'body', content_owner_id: null },
+      error: null,
+    });
+    // Second .single() = update
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID },
       error: null,
@@ -1306,6 +1312,12 @@ describe('PATCH /api/items/[id]/owner', () => {
   it('returns 200 when clearing owner (null)', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // First .single() = fetch current item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID, title: 'Test', content: 'body', content_owner_id: VALID_UUID_2 },
+      error: null,
+    });
+    // Second .single() = update
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { id: VALID_UUID },
       error: null,

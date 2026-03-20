@@ -19,10 +19,7 @@ export async function GET() {
     const { supabase } = auth;
 
     // Call get_content_owner_stats RPC
-    // RPC exists in DB but types not yet regenerated — cast name and result
-    const { data, error: rpcError } = await (supabase.rpc as Function)(
-      'get_content_owner_stats',
-    ) as { data: ContentOwnerStats[] | null; error: { message: string } | null };
+    const { data, error: rpcError } = await supabase.rpc('get_content_owner_stats');
 
     if (rpcError) {
       return NextResponse.json(

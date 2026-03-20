@@ -79,8 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call bulk_assign_content_owner RPC
-    // RPC exists in DB but types not yet regenerated — cast via Function
-    const { data: rpcResult, error: rpcError } = await (supabase.rpc as Function)(
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
       'bulk_assign_content_owner',
       {
         p_item_ids: itemIds,

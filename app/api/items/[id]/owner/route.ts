@@ -21,6 +21,12 @@ export async function PATCH(
     const { user, supabase } = auth;
     const { id } = await params;
 
+    // Validate item ID format
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(id)) {
+      return NextResponse.json({ error: 'Invalid item ID' }, { status: 400 });
+    }
+
     const body = await request.json();
     const parsed = OwnerAssignSchema.safeParse(body);
     if (!parsed.success) {
@@ -40,11 +46,18 @@ export async function PATCH(
       .eq('id', id)
       .single();
 
-    if (fetchError || !current) {
+    if (fetchError) {
+      // PGRST116 = "not found" from .single() — anything else is a real error
+      if (fetchError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+      }
       return NextResponse.json(
-        { error: 'Item not found' },
-        { status: 404 },
+        { error: safeErrorMessage(fetchError, 'Failed to update content owner') },
+        { status: 500 },
       );
+    }
+    if (!current) {
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
     const currentData = current as Record<string, unknown>;
