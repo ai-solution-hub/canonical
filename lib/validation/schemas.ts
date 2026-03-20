@@ -948,3 +948,27 @@ export const LayerReorderSchema = z.object({
     )
     .min(1, 'At least one layer must be provided'),
 });
+
+// ──────────────────────────────────────────
+// Content Owner Assignment Schemas
+// ──────────────────────────────────────────
+
+/** PATCH /api/items/[id]/owner — assign or unassign a content owner */
+export const OwnerAssignSchema = z.object({
+  owner_id: z.string().uuid('owner_id must be a valid UUID').nullable(),
+});
+
+/** POST /api/content-owners/bulk-assign — bulk assign content owner */
+export const BulkOwnerAssignSchema = z.object({
+  item_ids: z.array(z.string().uuid()).min(1).max(500).optional(),
+  filter: z.object({
+    domain: z.string().optional(),
+    subtopic: z.string().optional(),
+    content_type: z.string().optional(),
+    unowned_only: z.boolean().default(true),
+  }).optional(),
+  owner_id: z.string().uuid('owner_id must be a valid UUID'),
+}).refine(
+  (data) => data.item_ids || data.filter,
+  { message: 'Either item_ids or filter must be provided' },
+);
