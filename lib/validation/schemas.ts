@@ -167,6 +167,9 @@ export const ItemCreateBodySchema = z.object({
 
   // Governance
   governance_review_status: z.enum(['draft']).optional(),
+
+  // Ingestion source tracking
+  ingestion_source: z.enum(['manual', 'copilotkit', 'upload', 'url_import']).optional(),
 });
 
 /** POST /api/items/:id/classify -- on-demand classification */

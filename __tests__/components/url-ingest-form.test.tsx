@@ -295,4 +295,117 @@ describe('UrlIngestForm', () => {
     expect(input).toHaveAttribute('id', 'ingest-url');
     expect(input).toHaveAttribute('autocomplete', 'url');
   });
+
+  describe('onSuggestManual callback', () => {
+    it('shows manual suggestion when content_length < 500 and onSuggestManual provided', async () => {
+      const onSuggestManual = vi.fn();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'new-item-456',
+          title: 'Brief Article',
+          source_url: 'https://example.com/brief',
+          content_type: 'article',
+          content_length: 200,
+          warnings: ['Limited text extracted'],
+          duplicate_matches: [],
+        }),
+      });
+
+      render(<UrlIngestForm onSuggestManual={onSuggestManual} />);
+
+      const input = screen.getByLabelText(/web page url/i);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'https://example.com/brief' } });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /import/i }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/Limited text extracted/)).toBeInTheDocument();
+      });
+
+      // The manual suggestion link should be present
+      const manualButton = screen.getByRole('button', { name: /pasting the content manually/i });
+      expect(manualButton).toBeInTheDocument();
+
+      await act(async () => {
+        fireEvent.click(manualButton);
+      });
+
+      expect(onSuggestManual).toHaveBeenCalledOnce();
+    });
+
+    it('does not show manual suggestion when content_length >= 500', async () => {
+      const onSuggestManual = vi.fn();
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'new-item-789',
+          title: 'Long Article',
+          source_url: 'https://example.com/long',
+          content_type: 'article',
+          content_length: 5000,
+          warnings: [],
+          duplicate_matches: [],
+        }),
+      });
+
+      render(<UrlIngestForm onSuggestManual={onSuggestManual} />);
+
+      const input = screen.getByLabelText(/web page url/i);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'https://example.com/long' } });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /import/i }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('success-card')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /pasting the content manually/i })).not.toBeInTheDocument();
+    });
+
+    it('does not show manual suggestion when onSuggestManual not provided', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'new-item-abc',
+          title: 'Short Article',
+          source_url: 'https://example.com/short',
+          content_type: 'article',
+          content_length: 100,
+          warnings: [],
+          duplicate_matches: [],
+        }),
+      });
+
+      render(<UrlIngestForm />);
+
+      const input = screen.getByLabelText(/web page url/i);
+
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'https://example.com/short' } });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /import/i }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('success-card')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /pasting the content manually/i })).not.toBeInTheDocument();
+    });
+  });
 });

@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       auto_summarise,
       auto_embed,
       governance_review_status,
+      ingestion_source,
     } = parsed.data;
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
@@ -97,6 +98,7 @@ export async function POST(request: NextRequest) {
       platform: 'manual',
       captured_date: new Date().toISOString(),
       created_by: user.id,
+      metadata: { ingestion_source: ingestion_source ?? 'manual' },
       ...(primary_domain && { primary_domain }),
       ...(primary_subtopic && { primary_subtopic }),
       ...(secondary_domain && { secondary_domain }),

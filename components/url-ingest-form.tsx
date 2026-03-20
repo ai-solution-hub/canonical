@@ -45,7 +45,12 @@ const INITIAL_STEPS: IngestionStep[] = [
  * waiting for the single API response. Uses semantic colour tokens throughout
  * and includes full WCAG 2.1 AA accessibility (labels, aria, keyboard nav).
  */
-export function UrlIngestForm() {
+interface UrlIngestFormProps {
+  /** Optional callback to switch to the manual write tab */
+  onSuggestManual?: () => void;
+}
+
+export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
   const [url, setUrl] = useState('');
   const [formState, setFormState] = useState<FormState>('idle');
   const [steps, setSteps] = useState<IngestionStep[]>(INITIAL_STEPS);
@@ -336,6 +341,22 @@ export function UrlIngestForm() {
               similarity: m.similarity,
             }))}
           />
+
+          {/* Low-quality extraction suggestion */}
+          {onSuggestManual && result.content_length < 500 && (
+            <p className="text-sm text-muted-foreground">
+              Limited text extracted from this page. Try{' '}
+              <button
+                type="button"
+                onClick={onSuggestManual}
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                pasting the content manually
+              </button>{' '}
+              instead.
+            </p>
+          )}
+
           <Button
             variant="outline"
             onClick={handleReset}

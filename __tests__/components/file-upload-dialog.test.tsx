@@ -3,7 +3,8 @@
  *
  * Tests the upload dialog including title, FileUpload component presence,
  * upload button state, upload count, close prevention during upload,
- * and file clearing on close.
+ * file clearing on close, IngestionProgress integration, DedupWarning
+ * integration, and Claude suggestion footer.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -25,6 +26,35 @@ vi.mock('@/components/file-upload', () => ({
   FileUpload: ({ files }: { files: unknown[] }) => (
     <div data-testid="file-upload">FileUpload ({files.length} files)</div>
   ),
+}));
+
+vi.mock('@/components/ingestion-progress', () => ({
+  IngestionProgress: ({ steps, compact }: { steps: unknown[]; compact?: boolean }) => (
+    <div data-testid="ingestion-progress" data-compact={compact}>
+      IngestionProgress ({(steps as Array<{ label: string }>).length} steps)
+    </div>
+  ),
+}));
+
+vi.mock('@/components/dedup-warning', () => ({
+  DedupWarning: ({ matches }: { matches: unknown[] }) => (
+    <div data-testid="dedup-warning">DedupWarning ({matches.length} matches)</div>
+  ),
+}));
+
+vi.mock('@/components/claude-prompt-button', () => ({
+  ClaudePromptButton: ({ label }: { label: string }) => (
+    <button data-testid="claude-prompt-button">{label}</button>
+  ),
+}));
+
+vi.mock('@/lib/claude-prompts', () => ({
+  generateIngestDocumentPrompt: () => ({
+    prompt: 'Test import document prompt',
+    label: 'Import document',
+    description: 'Import a document into the Knowledge Base',
+    category: 'ingestion',
+  }),
 }));
 
 import { FileUploadDialog } from '@/components/file-upload-dialog';
@@ -87,5 +117,21 @@ describe('FileUploadDialog', () => {
     // When no pending files, button just says "Upload"
     const uploadBtn = screen.getByRole('button', { name: /upload/i });
     expect(uploadBtn).toBeInTheDocument();
+  });
+
+  // --- New tests for IngestionProgress, DedupWarning, Claude suggestion ---
+
+  it('renders Claude suggestion footer', () => {
+    render(<FileUploadDialog {...defaultProps} />);
+
+    const claudeBtn = screen.getByTestId('claude-prompt-button');
+    expect(claudeBtn).toBeInTheDocument();
+    expect(claudeBtn).toHaveTextContent('Or let Claude handle complex documents');
+  });
+
+  it('does not show progress section when no files are processing', () => {
+    render(<FileUploadDialog {...defaultProps} />);
+
+    expect(screen.queryByTestId('file-progress-section')).not.toBeInTheDocument();
   });
 });
