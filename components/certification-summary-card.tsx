@@ -4,7 +4,9 @@ import { useState } from 'react';
 import { Shield, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
+import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
 import type { ExpiryStatus } from '@/lib/certification-status';
 
 // ---------------------------------------------------------------------------
@@ -389,6 +391,10 @@ export function CertificationSummaryCard({
     return null;
   }
 
+  const expiringCount = certifications.filter(
+    (c) => c.expiry_status === 'expiring_soon',
+  ).length;
+
   async function handleCopy() {
     try {
       const text = generateCopyText(certifications, registrations);
@@ -412,21 +418,28 @@ export function CertificationSummaryCard({
           <Shield className="size-4" aria-hidden="true" />
           Certifications We Hold
         </h3>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleCopy}
-          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          aria-label="Copy certification summary to clipboard"
-        >
-          {copied ? (
-            <Check className="size-3.5 text-freshness-fresh" aria-hidden="true" />
-          ) : (
-            <Copy className="size-3.5" aria-hidden="true" />
-          )}
-          {copied ? 'Copied' : 'Copy'}
-        </Button>
+        <div className="flex items-center gap-1">
+          <ClaudePromptButton
+            prompt={generateCertificationReviewPrompt(certifications.length, expiringCount).prompt}
+            label="Review with Claude"
+            size="sm"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+            aria-label="Copy certification summary to clipboard"
+          >
+            {copied ? (
+              <Check className="size-3.5 text-freshness-fresh" aria-hidden="true" />
+            ) : (
+              <Copy className="size-3.5" aria-hidden="true" />
+            )}
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
       </div>
 
       {/* Self-held certifications */}

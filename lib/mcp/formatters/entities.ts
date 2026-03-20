@@ -1,6 +1,7 @@
 /**
  * Entity relationship formatters for MCP tool responses.
  */
+import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Entity relationships
@@ -104,6 +105,132 @@ export function formatEntityOverview(overview: EntityOverview): string {
     for (const entity of overview.top_entities) {
       lines.push(`| ${entity.canonical_name} | ${entity.entity_type} | ${entity.mention_count} |`);
     }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Certification status report
+// ---------------------------------------------------------------------------
+
+export interface CertificationReportEntry {
+  canonical_name: string;
+  entity_type: string;
+  metadata: Record<string, unknown>;
+  expiry_status: string;
+  mention_count: number;
+  content_item_count: number;
+  holder?: string;
+  supplier_name?: string;
+}
+
+export interface CertificationReportData {
+  certifications: CertificationReportEntry[];
+  frameworks: CertificationReportEntry[];
+  registrations: CertificationReportEntry[];
+  summary: {
+    total_certifications: number;
+    valid: number;
+    expiring_soon: number;
+    expired: number;
+    unknown: number;
+  };
+}
+
+export function formatCertificationReport(
+  data: CertificationReportData,
+  includeSuppliers: boolean = false,
+): string {
+  const lines: string[] = ['# Certification Status Report', ''];
+
+  // Summary line
+  const s = data.summary;
+  lines.push(
+    `**Total:** ${s.total_certifications} | ` +
+    `Valid: ${s.valid} | ` +
+    `Expiring soon: ${s.expiring_soon} | ` +
+    `Expired: ${s.expired} | ` +
+    `Unknown: ${s.unknown}`,
+  );
+  lines.push('');
+
+  // Separate self-held from supplier certifications
+  const selfCerts = data.certifications.filter((c) => c.holder !== 'supplier');
+  const supplierCerts = data.certifications.filter((c) => c.holder === 'supplier');
+
+  // Certifications section
+  if (selfCerts.length > 0) {
+    lines.push(`## Certifications (${selfCerts.length} held)`, '');
+    lines.push('| Certification | Version | Issuer | Obtained | Expires | Status |');
+    lines.push('|---|---|---|---|---|---|');
+    for (const cert of selfCerts) {
+      const meta = cert.metadata;
+      const version = (meta.version as string) ?? '';
+      const issuer = (meta.issuing_body as string) ?? '';
+      const obtained = formatDateUK((meta.date_obtained as string) ?? null);
+      const expires = formatDateUK((meta.expiry_date as string) ?? null);
+      const status = cert.expiry_status.replace(/_/g, ' ');
+      lines.push(`| ${cert.canonical_name} | ${version} | ${issuer} | ${obtained} | ${expires} | ${status} |`);
+    }
+    lines.push('');
+  }
+
+  // Frameworks section
+  if (data.frameworks.length > 0) {
+    lines.push(`## Frameworks (${data.frameworks.length} active)`, '');
+    lines.push('| Framework | Round | Status | Joined | Expires |');
+    lines.push('|---|---|---|---|---|');
+    for (const fw of data.frameworks) {
+      const meta = fw.metadata;
+      const round = (meta.round as string) ?? '';
+      const status = (meta.status as string) ?? fw.expiry_status.replace(/_/g, ' ');
+      const joined = formatDateUK((meta.date_joined as string) ?? null);
+      const expires = formatDateUK((meta.expiry_date as string) ?? null);
+      lines.push(`| ${fw.canonical_name} | ${round} | ${status} | ${joined} | ${expires} |`);
+    }
+    lines.push('');
+  }
+
+  // Registrations section
+  if (data.registrations.length > 0) {
+    lines.push(`## Registrations (${data.registrations.length})`, '');
+    lines.push('| Registration | Number | Expires |');
+    lines.push('|---|---|---|');
+    for (const reg of data.registrations) {
+      const meta = reg.metadata;
+      const regNumber = (meta.registration_number as string) ?? '';
+      const expires = formatDateUK((meta.expiry_date as string) ?? null);
+      lines.push(`| ${reg.canonical_name} | ${regNumber} | ${expires} |`);
+    }
+    lines.push('');
+  }
+
+  // Evidence section
+  const allEntries = [...selfCerts, ...data.frameworks, ...data.registrations];
+  const evidenceEntries = allEntries.filter((e) => e.content_item_count > 0);
+  if (evidenceEntries.length > 0) {
+    lines.push('### Evidence', '');
+    for (const entry of evidenceEntries) {
+      lines.push(`- ${entry.canonical_name}: referenced in ${entry.content_item_count} content ${entry.content_item_count === 1 ? 'item' : 'items'}`);
+    }
+    lines.push('');
+  }
+
+  // Supplier certifications section
+  if (includeSuppliers && supplierCerts.length > 0) {
+    lines.push(`## Supplier Certifications (${supplierCerts.length})`, '');
+    lines.push('| Certification | Supplier | Version | Expires | Status |');
+    lines.push('|---|---|---|---|---|');
+    for (const cert of supplierCerts) {
+      const meta = cert.metadata;
+      const supplier = cert.supplier_name ?? (meta.supplier_name as string) ?? '';
+      const version = (meta.version as string) ?? '';
+      const expires = formatDateUK((meta.expiry_date as string) ?? null);
+      const status = cert.expiry_status.replace(/_/g, ' ');
+      lines.push(`| ${cert.canonical_name} | ${supplier} | ${version} | ${expires} | ${status} |`);
+    }
+    lines.push('');
   }
 
   return lines.join('\n');
