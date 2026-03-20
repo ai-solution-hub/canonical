@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
+import { parseBidMetadata } from '@/lib/validation/schemas';
 import {
   formatCoverageMatrix,
   formatBidDashboard,
@@ -300,14 +301,14 @@ export async function registerAppTools(server: McpServer): Promise<void> {
               p_project_id: args.bid_id,
             });
             const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.bid_id);
-            const meta = workspace.domain_metadata as Record<string, unknown> | null;
+            const meta = parseBidMetadata(workspace.domain_metadata);
             (result as unknown as Record<string, unknown>).focused_bid_detail = {
               id: workspace.id,
               name: workspace.name ?? 'Untitled Bid',
-              buyer: (meta?.buyer as string) ?? null,
-              status: (meta?.status as string) ?? 'draft',
-              deadline: (meta?.deadline as string) ?? null,
-              reference_number: (meta?.reference_number as string) ?? null,
+              buyer: meta?.buyer ?? null,
+              status: meta?.status ?? 'draft',
+              deadline: meta?.deadline ?? null,
+              reference_number: meta?.reference_number ?? null,
               description: workspace.description,
               question_stats: stats?.[0] ?? null,
               sections,

@@ -9,7 +9,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { parseBody } from '@/lib/validation';
-import { BidCreateBodySchema } from '@/lib/validation/schemas';
+import { BidCreateBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -91,6 +91,7 @@ export async function GET(request: NextRequest) {
 
     const bids = (workspaces ?? []).map((workspace) => ({
       ...workspace,
+      domain_metadata: parseBidMetadata(workspace.domain_metadata) ?? workspace.domain_metadata,
       question_stats: statsMap.get(workspace.id) ?? null,
     }));
 

@@ -12,6 +12,7 @@ import {
 import { useCopilotReadable } from '@copilotkit/react-core';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { parseBidMetadata } from '@/lib/validation/schemas';
 import type { UserRole } from '@/lib/roles';
 import type { BidMetadata, BidQuestion } from '@/types/bid';
 
@@ -102,7 +103,7 @@ export function BidContextProvider({
       const res = await fetch(`/api/bids/${bidId}`);
       if (!res.ok) return;
       const data = await res.json();
-      const metadata = (data.domain_metadata ?? {}) as BidMetadata;
+      const metadata = (parseBidMetadata(data.domain_metadata) ?? data.domain_metadata ?? {}) as BidMetadata;
       const stats = data.question_stats;
 
       setBid({
