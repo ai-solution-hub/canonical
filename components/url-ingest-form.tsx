@@ -19,6 +19,12 @@ interface ExistingItem {
   title: string;
 }
 
+interface LayerSuggestionInfo {
+  suggestedLayer: string;
+  reason: string;
+  confidence: string;
+}
+
 interface IngestResult {
   id: string;
   title: string;
@@ -30,6 +36,7 @@ interface IngestResult {
   content_length: number;
   warnings: string[];
   duplicate_matches: DedupMatch[];
+  suggested_layer?: LayerSuggestionInfo;
 }
 
 const INITIAL_STEPS: IngestionStep[] = [
@@ -342,6 +349,7 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
               title: m.title,
               similarity: m.similarity,
             }))}
+            suggestedLayer={result.suggested_layer}
           />
 
           {/* Low-quality extraction suggestion */}

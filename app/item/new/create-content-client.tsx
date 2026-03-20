@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
+import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/layer-suggestion-banner';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import {
   ClassificationFieldset,
@@ -91,6 +92,12 @@ export function CreateContentClient() {
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Layer suggestion state (shown after item creation)
+  const [layerSuggestion, setLayerSuggestion] = useState<{
+    itemId: string;
+    data: LayerSuggestionData;
+  } | null>(null);
 
   // Derived
   const isQAPair = contentType === 'q_a_pair';
@@ -179,8 +186,17 @@ export function CreateContentClient() {
 
         toast.success(`Content created.${taskMessage}`);
 
+        // Show layer suggestion banner if the API returned one
+        if (responseData.suggested_layer) {
+          setLayerSuggestion({
+            itemId: responseData.id,
+            data: responseData.suggested_layer as LayerSuggestionData,
+          });
+        }
+
         if (continueEditing) {
           reset(CREATE_CONTENT_DEFAULTS);
+          setLayerSuggestion(null);
           setIsSavingAndContinue(false);
         } else {
           router.push(`/item/${responseData.id}`);
@@ -237,6 +253,17 @@ export function CreateContentClient() {
           {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
         </h1>
       </div>
+
+      {/* Layer suggestion banner (shown after item creation) */}
+      {layerSuggestion && (
+        <div className="mb-6">
+          <LayerSuggestionBanner
+            itemId={layerSuggestion.itemId}
+            suggestedLayer={layerSuggestion.data}
+            onDismiss={() => setLayerSuggestion(null)}
+          />
+        </div>
+      )}
 
       {/* Mobile step indicator */}
       <MobileStepIndicator activeStep={activeStep} />
