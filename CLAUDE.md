@@ -124,7 +124,7 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 - **Python tests:** `python3 -m pytest scripts/tests/`
 - **E2E:** Playwright — 9 spec files in `e2e/tests/`, 261 tests (252 pass,
   9 skipped). Worker-scoped fixtures, multi-role auth (admin/editor/viewer).
-  See `docs/reference/e2e-test-flows.md` for details.
+  See `e2e/` directory for spec files and helpers.
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
 - **Agent escalation rule:** When test agents encounter unexpected production
@@ -192,8 +192,6 @@ Consult these references when adding or modifying UI elements.
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 | AI integration layers | `docs/reference/ai-integration-layers.md` | 5-layer architecture: how MCP, plugin, skills, CopilotKit interconnect |
-| MCP App build guide | `docs/reference/mcp-app-build-guide.md` | How to create, build, test, and deploy MCP Apps (lifecycle, patterns, Vercel) |
-
 ### Remaining Roadmap
 
 | Item | Location | Status |
@@ -206,9 +204,7 @@ Consult these references when adding or modifying UI elements.
 |----------|----------|---------|
 | Classification framework | `docs/reference/classification-framework.md` | Domain taxonomy details |
 | Classification prompt | `docs/reference/classification-prompt.md` | v4.1 classification prompt (7 domains, 34 subtopics) |
-| Search evaluation | `docs/reference/search-evaluation-guide.md` + `scripts/search-evaluation.json` | How to run search tests (24 test cases) |
-| Bid library import guide | `docs/reference/bid-library-import-guide.md` | Q&A import workflow and conventions |
-| E2E test flows + setup | `docs/reference/e2e-test-flows.md` + `e2e-test-setup.md` | 12 flows, test data creation runbook |
+| Search evaluation | `scripts/search-evaluation.json` | 24 search test cases |
 
 Historical planning documents (project plan, feasibility study, ADS v1.0, Phase
 6-7 specs, tool evaluations) are in `.planning/` — consult for decision context
