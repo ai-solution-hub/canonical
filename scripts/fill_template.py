@@ -135,6 +135,19 @@ def fill_template(
     """
     doc, temp_path = open_document_safe(template_path)
 
+    try:
+        return _fill_template_inner(doc, output_path, field_mappings)
+    finally:
+        if temp_path:
+            os.unlink(temp_path)
+
+
+def _fill_template_inner(
+    doc,
+    output_path: str,
+    field_mappings: list[dict],
+) -> dict:
+    """Inner implementation of fill_template (extracted for try/finally cleanup)."""
     filled = 0
     skipped = 0
     failed = 0
@@ -227,10 +240,6 @@ def fill_template(
 
     # Save completed document
     doc.save(output_path)
-
-    # Clean up temp file from Track Changes resolution
-    if temp_path:
-        os.unlink(temp_path)
 
     return {
         "fields_filled": filled,
