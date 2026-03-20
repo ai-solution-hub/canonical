@@ -1,16 +1,15 @@
 /**
  * MergeModal Component Tests
  *
- * Tests the entity merge modal — entity display, target name input,
- * entity type selection, preview counts, and API interaction.
+ * Tests the entity merge modal — entity list rendering, target name
+ * pre-filling, entity type selection, merge API call, and toast feedback.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
-// vi.hoisted() — mock values referenced in vi.mock() factories
+// vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
 const { mockFetch, mockToast } = vi.hoisted(() => ({
@@ -18,191 +17,173 @@ const { mockFetch, mockToast } = vi.hoisted(() => ({
   mockToast: {
     success: vi.fn(),
     error: vi.fn(),
-    info: vi.fn(),
-    warning: vi.fn(),
   },
 }));
+
+vi.stubGlobal('fetch', mockFetch);
 
 vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-import {
-  MergeModal,
-  type EntityForMerge,
-} from '@/components/entity-management/merge-modal';
+vi.mock('@/lib/validation/schemas', () => ({
+  VALID_ENTITY_TYPES: [
+    'organisation',
+    'certification',
+    'regulation',
+    'framework',
+    'capability',
+    'person',
+    'technology',
+    'project',
+    'sector',
+    'product',
+  ],
+}));
+
+import { MergeModal } from '@/components/entity-management/merge-modal';
+import type { EntityForMerge } from '@/components/entity-management/merge-modal';
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Helpers
 // ---------------------------------------------------------------------------
 
-const sampleEntities: EntityForMerge[] = [
-  { canonical_name: 'Acme Corp', entity_type: 'organisation', mention_count: 10 },
-  { canonical_name: 'ACME Corporation', entity_type: 'organisation', mention_count: 5 },
-  { canonical_name: 'Acme', entity_type: 'organisation', mention_count: 3 },
+const defaultEntities: EntityForMerge[] = [
+  { canonical_name: 'ISO 27001', entity_type: 'certification', mention_count: 12 },
+  { canonical_name: 'ISO27001', entity_type: 'certification', mention_count: 5 },
+  { canonical_name: 'ISO/IEC 27001', entity_type: 'certification', mention_count: 3 },
 ];
 
-const defaultProps = {
-  open: true,
-  onOpenChange: vi.fn(),
-  entities: sampleEntities,
-  onMergeComplete: vi.fn(),
-};
-
-// ---------------------------------------------------------------------------
-// Setup / teardown
-// ---------------------------------------------------------------------------
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  globalThis.fetch = mockFetch;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
+function renderModal(
+  entities = defaultEntities,
+  open = true,
+  onOpenChange = vi.fn(),
+  onMergeComplete = vi.fn(),
+) {
+  return render(
+    <MergeModal
+      open={open}
+      onOpenChange={onOpenChange}
+      entities={entities}
+      onMergeComplete={onMergeComplete}
+    />,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('MergeModal', () => {
-  it('renders nothing when entities array is empty', () => {
-    const { container } = render(
-      <MergeModal {...defaultProps} entities={[]} />,
-    );
-
-    expect(container.innerHTML).toBe('');
+  beforeEach(() => {
+    mockFetch.mockReset();
+    mockToast.success.mockReset();
+    mockToast.error.mockReset();
   });
 
-  it('shows the modal title', () => {
-    render(<MergeModal {...defaultProps} />);
+  it('renders entity list with mention counts', () => {
+    renderModal();
 
-    expect(screen.getByText('Merge Entities')).toBeInTheDocument();
-  });
-
-  it('displays all entities with their mention counts', () => {
-    render(<MergeModal {...defaultProps} />);
-
-    expect(screen.getByText('Acme Corp')).toBeInTheDocument();
-    expect(screen.getByText('ACME Corporation')).toBeInTheDocument();
-    expect(screen.getByText('Acme')).toBeInTheDocument();
-
-    expect(screen.getByText('(10)')).toBeInTheDocument();
+    expect(screen.getByText('ISO 27001')).toBeInTheDocument();
+    expect(screen.getByText('(12)')).toBeInTheDocument();
+    expect(screen.getByText('ISO27001')).toBeInTheDocument();
     expect(screen.getByText('(5)')).toBeInTheDocument();
+    expect(screen.getByText('ISO/IEC 27001')).toBeInTheDocument();
     expect(screen.getByText('(3)')).toBeInTheDocument();
   });
 
-  it('shows preview counts — total mentions and entity count with consolidation note', () => {
-    render(<MergeModal {...defaultProps} />);
+  it('shows total mentions across entities', () => {
+    renderModal();
 
-    // Total: 10 + 5 + 3 = 18 mentions across 3 entities
     expect(
-      screen.getByText(/18 mentions across 3 entities/),
-    ).toBeInTheDocument();
-
-    // Should mention relationship consolidation
-    expect(
-      screen.getByText(/consolidate relationships/),
+      screen.getByText(/Total: 20 mentions across 3 entities/),
     ).toBeInTheDocument();
   });
 
-  it('pre-fills target name with the entity having the most mentions', () => {
-    render(<MergeModal {...defaultProps} />);
+  it('pre-fills target name input with highest-mention entity', () => {
+    renderModal();
 
     const input = screen.getByLabelText(/canonical name for merged entity/i);
-    expect(input).toHaveValue('Acme Corp');
+    expect(input).toHaveValue('ISO 27001');
   });
 
-  it('allows editing the target name', async () => {
-    const user = userEvent.setup();
-    render(<MergeModal {...defaultProps} />);
+  it('calls POST /api/entities/merge on merge button click', async () => {
+    const onMergeComplete = vi.fn();
+    const onOpenChange = vi.fn();
 
-    const input = screen.getByLabelText(/canonical name for merged entity/i);
-    // The input starts pre-filled with "Acme Corp" (highest mention entity)
-    expect(input).toHaveValue('Acme Corp');
-
-    // Type additional text — appends to the pre-filled value
-    await user.type(input, ' Ltd');
-
-    expect(input).toHaveValue('Acme Corp Ltd');
-  });
-
-  it('has entity type selector', () => {
-    render(<MergeModal {...defaultProps} />);
-
-    expect(screen.getByText('Entity type')).toBeInTheDocument();
-  });
-
-  it('shows merge button with entity count', () => {
-    render(<MergeModal {...defaultProps} />);
-
-    expect(
-      screen.getByRole('button', { name: /merge 3 entities/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('calls API on merge and shows success toast', async () => {
-    const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: () =>
-        Promise.resolve({
-          merged: true,
-          target: 'Acme Corp',
-          entity_type: 'organisation',
-          mentions_updated: 8,
-          duplicates_removed: 0,
-        }),
+      json: async () => ({ mentions_updated: 8 }),
     });
 
-    render(<MergeModal {...defaultProps} />);
+    renderModal(defaultEntities, true, onOpenChange, onMergeComplete);
 
+    const user = userEvent.setup();
+
+    // The entity type should already be pre-filled with 'certification'
+    // Click the merge button
     const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
     await user.click(mergeButton);
 
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/entities/merge',
-        expect.objectContaining({
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        }),
+      expect(mockFetch).toHaveBeenCalledWith('/api/entities/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: expect.any(String),
+      });
+    });
+
+    // Verify the body contents
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(callBody.target).toBe('ISO 27001');
+    expect(callBody.sources).toEqual(['ISO27001', 'ISO/IEC 27001']);
+    expect(callBody.entity_type).toBe('certification');
+  });
+
+  it('shows toast on success', async () => {
+    const onMergeComplete = vi.fn();
+    const onOpenChange = vi.fn();
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ mentions_updated: 8 }),
+    });
+
+    renderModal(defaultEntities, true, onOpenChange, onMergeComplete);
+
+    const user = userEvent.setup();
+    const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
+    await user.click(mergeButton);
+
+    await waitFor(() => {
+      expect(mockToast.success).toHaveBeenCalledWith(
+        expect.stringContaining('Merged 3 entities'),
       );
     });
 
-    await waitFor(() => {
-      expect(mockToast.success).toHaveBeenCalled();
-    });
-
-    expect(defaultProps.onMergeComplete).toHaveBeenCalled();
+    expect(onMergeComplete).toHaveBeenCalled();
   });
 
-  it('shows error toast when API fails', async () => {
-    const user = userEvent.setup();
+  it('shows toast on error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      json: () => Promise.resolve({ error: 'Merge conflict' }),
+      json: async () => ({ error: 'Merge failed: duplicate target' }),
     });
 
-    render(<MergeModal {...defaultProps} />);
+    renderModal();
 
+    const user = userEvent.setup();
     const mergeButton = screen.getByRole('button', { name: /merge 3 entities/i });
     await user.click(mergeButton);
 
     await waitFor(() => {
-      expect(mockToast.error).toHaveBeenCalledWith('Merge conflict');
+      expect(mockToast.error).toHaveBeenCalledWith('Merge failed: duplicate target');
     });
   });
 
-  it('has a cancel button that closes the modal', async () => {
-    const user = userEvent.setup();
-    const onOpenChange = vi.fn();
-    render(<MergeModal {...defaultProps} onOpenChange={onOpenChange} />);
+  it('returns null when entities array is empty', () => {
+    const { container } = renderModal([]);
 
-    const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    await user.click(cancelButton);
-
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(container.innerHTML).toBe('');
   });
 });

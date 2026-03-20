@@ -119,8 +119,8 @@ export function MergeModal({
             Merge Entities
           </DialogTitle>
           <DialogDescription>
-            Merge {entities.length} entities into a single canonical form. All
-            mentions and relationships will be updated.
+            This will update {totalMentions} mentions across{' '}
+            {entities.length} entities and consolidate relationships.
           </DialogDescription>
         </DialogHeader>
 

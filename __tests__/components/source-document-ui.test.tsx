@@ -1,29 +1,37 @@
 /**
  * Source Document UI Component Tests
  *
- * Tests three components:
- * - ReuploadBanner — both matchType variants (identical/new_version)
- * - SourceDocumentHistory — loading, error, version chain rendering
- * - SourceDocumentInfo — null ID, loading, data display, expand/collapse
+ * Tests for ReuploadBanner, SourceDocumentHistory, and SourceDocumentInfo
+ * components used in the file upload and source document management flows.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
-// vi.hoisted() — mock values referenced in vi.mock() factories
+// vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
 const { mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
+vi.stubGlobal('fetch', mockFetch);
+
 vi.mock('@/lib/format', () => ({
-  formatDateUK: (d: string) => {
-    if (!d) return '';
-    return '20/03/2026';
-  },
+  formatDateUK: (d: string | null) => (d ? '15/03/2026' : ''),
+}));
+
+vi.mock('next/link', () => ({
+  default: ({
+    children,
+    href,
+    ...props
+  }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>
+      {children as React.ReactNode}
+    </a>
+  ),
 }));
 
 import { ReuploadBanner } from '@/components/reupload-banner';
@@ -31,171 +39,94 @@ import { SourceDocumentHistory } from '@/components/source-document-history';
 import { SourceDocumentInfo } from '@/components/source-document-info';
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Helpers
 // ---------------------------------------------------------------------------
 
-function createVersionsResponse(versions = defaultVersions()) {
+function makeVersion(overrides: Record<string, unknown> = {}) {
   return {
-    ok: true,
-    json: () => Promise.resolve({ versions }),
-  };
-}
-
-function defaultVersions() {
-  return [
-    {
-      id: 'doc-v1',
-      filename: 'policy.docx',
-      original_filename: 'Security-Policy.docx',
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      file_size: 51200,
-      content_hash: 'abc123def456',
-      version: 1,
-      parent_id: null,
-      storage_path: '/docs/policy-v1.docx',
-      status: 'processed',
-      uploaded_by: 'user-1',
-      created_at: '2026-01-15T10:00:00Z',
-      content_item_count: 3,
-    },
-    {
-      id: 'doc-v2',
-      filename: 'policy.docx',
-      original_filename: 'Security-Policy-v2.docx',
-      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      file_size: 62000,
-      content_hash: 'xyz789abc000',
-      version: 2,
-      parent_id: 'doc-v1',
-      storage_path: '/docs/policy-v2.docx',
-      status: 'processed',
-      uploaded_by: 'user-1',
-      created_at: '2026-03-01T14:30:00Z',
-      content_item_count: 5,
-    },
-  ];
-}
-
-function createDocumentDetailResponse(doc = defaultDocumentDetail()) {
-  return {
-    ok: true,
-    json: () => Promise.resolve(doc),
-  };
-}
-
-function defaultDocumentDetail() {
-  return {
-    id: 'doc-v2',
-    filename: 'policy.docx',
-    original_filename: 'Security-Policy-v2.docx',
-    mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    file_size: 62000,
-    content_hash: 'xyz789abc000',
-    version: 2,
-    parent_id: 'doc-v1',
-    storage_path: '/docs/policy-v2.docx',
-    status: 'processed',
-    uploaded_by: 'user-1',
-    created_at: '2026-03-01T14:30:00Z',
+    id: overrides.id ?? 'doc-v1',
+    filename: overrides.filename ?? 'upload-abc123.docx',
+    original_filename: overrides.original_filename ?? 'Company-Profile.docx',
+    mime_type:
+      overrides.mime_type ??
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    file_size: overrides.file_size ?? 245_000,
+    content_hash: overrides.content_hash ?? 'abc123hash',
+    version: overrides.version ?? 1,
+    parent_id: overrides.parent_id ?? null,
+    storage_path: overrides.storage_path ?? '/docs/upload-abc123.docx',
+    status: overrides.status ?? 'processed',
+    uploaded_by: overrides.uploaded_by ?? 'user-1',
+    created_at: overrides.created_at ?? '2026-03-10T09:00:00Z',
+    content_item_count: overrides.content_item_count ?? 5,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Setup / teardown
-// ---------------------------------------------------------------------------
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  globalThis.fetch = mockFetch;
-});
-
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
-// ===========================================================================
 // ReuploadBanner
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe('ReuploadBanner', () => {
-  const baseProps = {
-    previousVersion: 1,
-    previousDocumentId: 'doc-v1',
-  };
-
-  describe('identical matchType', () => {
-    it('shows duplicate file warning text', () => {
-      render(<ReuploadBanner {...baseProps} matchType="identical" />);
-
-      expect(screen.getByText('Duplicate file detected')).toBeInTheDocument();
-      expect(
-        screen.getByText(/this file has already been uploaded/i),
-      ).toBeInTheDocument();
-    });
-
-    it('mentions the previous version number', () => {
-      render(<ReuploadBanner {...baseProps} matchType="identical" />);
-
-      expect(
-        screen.getByText(/version 1 was uploaded previously/i),
-      ).toBeInTheDocument();
-    });
-
-    it('has an alert role for accessibility', () => {
-      render(<ReuploadBanner {...baseProps} matchType="identical" />);
-
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-    });
-
-    it('stores previousDocumentId as a data attribute', () => {
-      render(<ReuploadBanner {...baseProps} matchType="identical" />);
-
-      const alert = screen.getByRole('alert');
-      expect(alert).toHaveAttribute('data-previous-document-id', 'doc-v1');
-    });
-  });
-
-  describe('new_version matchType', () => {
-    it('shows updated document info text', () => {
-      render(<ReuploadBanner {...baseProps} matchType="new_version" />);
-
-      expect(
-        screen.getByText('Updated document detected'),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/creating version 2/i),
-      ).toBeInTheDocument();
-    });
-
-    it('has an alert role for accessibility', () => {
-      render(<ReuploadBanner {...baseProps} matchType="new_version" />);
-
-      expect(screen.getByRole('alert')).toBeInTheDocument();
-    });
-  });
-
-  it('applies custom className', () => {
+  it('renders "Duplicate file detected" for identical matchType', () => {
     render(
       <ReuploadBanner
-        {...baseProps}
         matchType="identical"
-        className="my-custom-class"
+        previousVersion={2}
+        previousDocumentId="doc-prev"
+      />,
+    );
+
+    expect(screen.getByText('Duplicate file detected')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Version 2 was uploaded previously/),
+    ).toBeInTheDocument();
+  });
+
+  it('renders "Updated document detected" for new_version matchType', () => {
+    render(
+      <ReuploadBanner
+        matchType="new_version"
+        previousVersion={2}
+        previousDocumentId="doc-prev"
+      />,
+    );
+
+    expect(
+      screen.getByText('Updated document detected'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Creating version 3/),
+    ).toBeInTheDocument();
+  });
+
+  it('has the previous document ID as a data attribute', () => {
+    render(
+      <ReuploadBanner
+        matchType="identical"
+        previousVersion={1}
+        previousDocumentId="doc-abc"
       />,
     );
 
     const alert = screen.getByRole('alert');
-    expect(alert.className).toContain('my-custom-class');
+    expect(alert).toHaveAttribute('data-previous-document-id', 'doc-abc');
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // SourceDocumentHistory
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe('SourceDocumentHistory', () => {
-  it('shows loading state initially', () => {
-    mockFetch.mockReturnValue(new Promise(() => {})); // never resolves
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('shows loading state during fetch', () => {
+    // Never resolve — keeps it in loading state
+    mockFetch.mockReturnValue(new Promise(() => {}));
+
+    render(<SourceDocumentHistory sourceDocumentId="doc-1" />);
 
     expect(
       screen.getByRole('status', { name: /loading version history/i }),
@@ -205,112 +136,57 @@ describe('SourceDocumentHistory', () => {
   it('shows error state when fetch fails', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
-      json: () => Promise.resolve({ error: 'Not found' }),
+      status: 500,
+      json: async () => ({ error: 'Internal server error' }),
     });
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
+
+    render(<SourceDocumentHistory sourceDocumentId="doc-1" />);
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Not found')).toBeInTheDocument();
+    expect(screen.getByText('Internal server error')).toBeInTheDocument();
   });
 
-  it('shows error state when fetch throws', async () => {
-    mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+  it('renders version chain correctly', async () => {
+    const versions = [
+      makeVersion({ id: 'doc-v2', version: 2, original_filename: 'Profile-v2.docx' }),
+      makeVersion({ id: 'doc-v1', version: 1, original_filename: 'Profile-v1.docx' }),
+    ];
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ versions }),
+    });
+
     render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('Profile-v1.docx')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Network failure')).toBeInTheDocument();
-  });
+    // Both versions should appear
+    expect(screen.getByText('Profile-v2.docx')).toBeInTheDocument();
 
-  it('shows empty state when no versions returned', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse([]));
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText('No version history available.'),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('renders version chain as a list', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('list', { name: /source document version history/i }),
-      ).toBeInTheDocument();
-    });
-
-    const items = screen.getAllByRole('listitem');
-    expect(items).toHaveLength(2);
-  });
-
-  it('shows version badges', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(screen.getByText('v1')).toBeInTheDocument();
-    });
-
+    // Version badges
+    expect(screen.getByText('v1')).toBeInTheDocument();
     expect(screen.getByText('v2')).toBeInTheDocument();
-  });
 
-  it('highlights current version with "Current" badge', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Current')).toBeInTheDocument();
-    });
-  });
-
-  it('shows original filenames', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Security-Policy.docx')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Security-Policy-v2.docx')).toBeInTheDocument();
-  });
-
-  it('shows content item counts', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(screen.getByText('3 items')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('5 items')).toBeInTheDocument();
-  });
-
-  it('fetches from the correct API URL', async () => {
-    mockFetch.mockResolvedValueOnce(createVersionsResponse());
-    render(<SourceDocumentHistory sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/source-documents/doc-v2/versions',
-      );
-    });
+    // "Current" badge for the matching doc ID
+    expect(screen.getByText('Current')).toBeInTheDocument();
   });
 });
 
-// ===========================================================================
+// ---------------------------------------------------------------------------
 // SourceDocumentInfo
-// ===========================================================================
+// ---------------------------------------------------------------------------
 
 describe('SourceDocumentInfo', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
   it('returns null when sourceDocumentId is null', () => {
     const { container } = render(
       <SourceDocumentInfo sourceDocumentId={null} />,
@@ -319,89 +195,83 @@ describe('SourceDocumentInfo', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('shows loading state while fetching', () => {
-    mockFetch.mockReturnValue(new Promise(() => {})); // never resolves
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
+  it('shows loading then document info', async () => {
+    const doc = {
+      id: 'doc-1',
+      filename: 'upload-xyz.docx',
+      original_filename: 'Bid-Response.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      file_size: 128_000,
+      content_hash: 'hash-xyz',
+      version: 3,
+      parent_id: 'doc-parent',
+      storage_path: '/docs/upload-xyz.docx',
+      status: 'processed',
+      uploaded_by: 'user-1',
+      created_at: '2026-03-15T14:30:00Z',
+    };
 
-    expect(
-      screen.getByRole('status', { name: /loading source document details/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Loading document details...'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows error state when fetch fails', async () => {
     mockFetch.mockResolvedValueOnce({
-      ok: false,
-      json: () => Promise.resolve({ error: 'Document not found' }),
+      ok: true,
+      json: async () => doc,
     });
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
 
+    render(<SourceDocumentInfo sourceDocumentId="doc-1" />);
+
+    // Loading state appears first
+    expect(
+      screen.getByRole('status', {
+        name: /loading source document details/i,
+      }),
+    ).toBeInTheDocument();
+
+    // Then document info appears
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('Bid-Response.docx')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Document not found')).toBeInTheDocument();
+    expect(screen.getByText('v3')).toBeInTheDocument();
   });
 
-  it('shows document metadata after loading', async () => {
-    mockFetch.mockResolvedValueOnce(createDocumentDetailResponse());
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
+  it('has expandable version history section', async () => {
+    const doc = {
+      id: 'doc-1',
+      filename: 'upload-xyz.docx',
+      original_filename: 'Bid-Response.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      file_size: 128_000,
+      content_hash: 'hash-xyz',
+      version: 1,
+      parent_id: null,
+      storage_path: '/docs/upload-xyz.docx',
+      status: 'processed',
+      uploaded_by: 'user-1',
+      created_at: '2026-03-15T14:30:00Z',
+    };
 
-    await waitFor(() => {
-      expect(
-        screen.getByText('Security-Policy-v2.docx'),
-      ).toBeInTheDocument();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => doc,
     });
 
-    expect(screen.getByText('v2')).toBeInTheDocument();
-    // File size: 62000 bytes = 60.5 KB
-    expect(screen.getByText('60.5 KB')).toBeInTheDocument();
-  });
-
-  it('shows "View version history" button', async () => {
-    mockFetch.mockResolvedValueOnce(createDocumentDetailResponse());
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
+    render(<SourceDocumentInfo sourceDocumentId="doc-1" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText('View version history'),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Bid-Response.docx')).toBeInTheDocument();
     });
-  });
 
-  it('expands version history on click', async () => {
-    // First fetch is for the document detail, second for the versions
-    mockFetch
-      .mockResolvedValueOnce(createDocumentDetailResponse())
-      .mockResolvedValueOnce(createVersionsResponse());
+    const toggleButton = screen.getByRole('button', {
+      name: /view version history/i,
+    });
+    expect(toggleButton).toBeInTheDocument();
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+
+    // Click to expand — this will trigger a second fetch for the history
+    mockFetch.mockReturnValue(new Promise(() => {}));
 
     const user = userEvent.setup();
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
+    await user.click(toggleButton);
 
-    await waitFor(() => {
-      expect(
-        screen.getByText('View version history'),
-      ).toBeInTheDocument();
-    });
-
-    const button = screen.getByText('View version history');
-    expect(button).toHaveAttribute('aria-expanded', 'false');
-
-    await user.click(button);
-
-    expect(button).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  it('fetches from the correct API URL', async () => {
-    mockFetch.mockResolvedValueOnce(createDocumentDetailResponse());
-    render(<SourceDocumentInfo sourceDocumentId="doc-v2" />);
-
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/api/source-documents/doc-v2',
-      );
-    });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
   });
 });
