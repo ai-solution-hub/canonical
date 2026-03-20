@@ -9,6 +9,7 @@ import {
   Merge,
   Scissors,
   ChevronDown,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ import { VALID_ENTITY_TYPES } from '@/lib/validation/schemas';
 import { MergeModal } from './merge-modal';
 import type { EntityForMerge } from './merge-modal';
 import { SplitModal } from './split-modal';
+import { EntityDetailPanel } from './entity-detail-panel';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,12 +101,14 @@ function EntityRowItem({
   onToggleSelect,
   onSplit,
   onEditType,
+  onViewDetail,
 }: {
   entity: EntityRow;
   isSelected: boolean;
   onToggleSelect: () => void;
   onSplit: () => void;
   onEditType: () => void;
+  onViewDetail: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -164,6 +168,17 @@ function EntityRowItem({
         >
           {entity.relationship_count}r
         </span>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="size-7 shrink-0 p-0"
+          title="View entity detail"
+          aria-label={`View detail for ${entity.canonical_name}`}
+          onClick={onViewDetail}
+        >
+          <Eye className="size-3.5" />
+        </Button>
 
         {entity.variant_count > 1 && (
           <Button
@@ -319,6 +334,9 @@ export function EntityList() {
   const [mergeOpen, setMergeOpen] = useState(false);
   const [splitEntity, setSplitEntity] = useState<EntityRow | null>(null);
   const [typeEditEntity, setTypeEditEntity] = useState<EntityRow | null>(null);
+
+  // Detail panel state
+  const [detailEntity, setDetailEntity] = useState<string | null>(null);
 
   // ─── Fetch ──────────────────────────────────────────────────────────
   const fetchEntities = useCallback(async () => {
@@ -542,6 +560,7 @@ export function EntityList() {
               onToggleSelect={() => toggleSelect(entity.canonical_name)}
               onSplit={() => setSplitEntity(entity)}
               onEditType={() => setTypeEditEntity(entity)}
+              onViewDetail={() => setDetailEntity(entity.canonical_name)}
             />
           ))}
         </div>
@@ -576,6 +595,12 @@ export function EntityList() {
           setTypeEditEntity(null);
           fetchEntities();
         }}
+      />
+
+      <EntityDetailPanel
+        canonicalName={detailEntity}
+        open={!!detailEntity}
+        onOpenChange={(open) => { if (!open) setDetailEntity(null); }}
       />
     </div>
   );
