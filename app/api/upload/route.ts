@@ -513,6 +513,44 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Topic suggestion — after layer inference
+    let topicSuggestion: { topicId: string; reason: string } | undefined;
+    if (extractedText) {
+      try {
+        const { suggestTopic } = await import('@/lib/topic-inference');
+
+        // Fetch domain/subtopic (set by classification above)
+        const { data: classified } = await serviceClient
+          .from('content_items')
+          .select('primary_domain, primary_subtopic')
+          .eq('id', itemId)
+          .single();
+
+        const effectiveDomain = classified?.primary_domain || '';
+        const effectiveSubtopic = classified?.primary_subtopic || '';
+
+        if (effectiveDomain && effectiveSubtopic) {
+          const suggestion = await suggestTopic(serviceClient, {
+            primaryDomain: effectiveDomain,
+            primarySubtopic: effectiveSubtopic,
+            title,
+            suggestedLayer: suggestedLayer?.suggestedLayer || '',
+          });
+
+          if (suggestion) {
+            topicSuggestion = { topicId: suggestion.topicId, reason: suggestion.reason };
+            await serviceClient.rpc('merge_item_metadata', {
+              p_item_id: itemId,
+              p_new_data: { topic_id: suggestion.topicId },
+            });
+          }
+        }
+      } catch (topicErr) {
+        console.error('Topic suggestion failed:', topicErr);
+        // Non-fatal — item is still usable without a topic suggestion
+      }
+    }
+
     // Step 5 complete: all done
     if (pipelineRunId) {
       await updatePipelineProgress(pipelineRunId, {
@@ -538,6 +576,7 @@ export async function POST(request: NextRequest) {
       duplicate_matches,
       pipeline_run_id: pipelineRunId,
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
+      ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',

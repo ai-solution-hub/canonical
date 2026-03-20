@@ -204,6 +204,38 @@ export async function POST(request: NextRequest) {
       // Non-fatal — item is still usable without a layer suggestion
     }
 
+    // Topic suggestion — after layer inference (uses layer for matching)
+    let topicSuggestion: { topicId: string; reason: string } | undefined;
+    try {
+      const { suggestTopic } = await import('@/lib/topic-inference');
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const serviceClient = createServiceClient();
+
+      const effectiveDomain = primary_domain || '';
+      const effectiveSubtopic = primary_subtopic || '';
+
+      if (effectiveDomain && effectiveSubtopic) {
+        const suggestion = await suggestTopic(serviceClient, {
+          primaryDomain: effectiveDomain,
+          primarySubtopic: effectiveSubtopic,
+          title,
+          suggestedLayer: suggestedLayer?.suggestedLayer || '',
+          embeddingArray,
+        });
+
+        if (suggestion) {
+          topicSuggestion = { topicId: suggestion.topicId, reason: suggestion.reason };
+          await serviceClient.rpc('merge_item_metadata', {
+            p_item_id: newItem.id,
+            p_new_data: { topic_id: suggestion.topicId },
+          });
+        }
+      }
+    } catch (topicErr) {
+      console.error('Topic suggestion failed:', topicErr);
+      // Non-fatal — item is still usable without a topic suggestion
+    }
+
     return NextResponse.json(
       {
         id: newItem.id,
@@ -213,6 +245,7 @@ export async function POST(request: NextRequest) {
         warnings,
         ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
         ...(suggestedLayer && { suggested_layer: suggestedLayer }),
+        ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
       },
       { status: 201 },
     );

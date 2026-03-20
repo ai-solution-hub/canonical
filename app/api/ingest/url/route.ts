@@ -186,7 +186,46 @@ export async function POST(request: NextRequest) {
       // Non-fatal — item is still usable without a layer suggestion
     }
 
-    // 17. Fetch final item state (post-classify)
+    // 17. Topic suggestion — after layer inference
+    let topicSuggestion: { topicId: string; reason: string } | undefined;
+    try {
+      const { suggestTopic } = await import('@/lib/topic-inference');
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const serviceClient = createServiceClient();
+
+      // Re-fetch domain/subtopic (set by classification in step 14)
+      const { data: classified } = await supabase
+        .from('content_items')
+        .select('primary_domain, primary_subtopic')
+        .eq('id', newItem.id)
+        .single();
+
+      const effectiveDomain = classified?.primary_domain || '';
+      const effectiveSubtopic = classified?.primary_subtopic || '';
+
+      if (effectiveDomain && effectiveSubtopic) {
+        const suggestion = await suggestTopic(serviceClient, {
+          primaryDomain: effectiveDomain,
+          primarySubtopic: effectiveSubtopic,
+          title: extracted.title || '',
+          suggestedLayer: suggestedLayer?.suggestedLayer || '',
+          embeddingArray,
+        });
+
+        if (suggestion) {
+          topicSuggestion = { topicId: suggestion.topicId, reason: suggestion.reason };
+          await serviceClient.rpc('merge_item_metadata', {
+            p_item_id: newItem.id,
+            p_new_data: { topic_id: suggestion.topicId },
+          });
+        }
+      }
+    } catch (topicErr) {
+      console.error('Topic suggestion failed:', topicErr);
+      // Non-fatal — item is still usable without a topic suggestion
+    }
+
+    // 18. Fetch final item state (post-classify)
     const { data: finalItem } = await supabase
       .from('content_items')
       .select('primary_domain, primary_subtopic, ai_summary')
@@ -205,6 +244,7 @@ export async function POST(request: NextRequest) {
       warnings,
       duplicate_matches: dedupMatches,
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
+      ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
     });
   } catch (err) {
     return NextResponse.json(

@@ -20,6 +20,7 @@ const {
   mockGenerateSingleFieldChangeSummary,
   mockClassifyContent,
   mockGenerateSummary,
+  mockSuggestTopic,
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockGenerateEmbedding: vi.fn(),
@@ -27,6 +28,7 @@ const {
   mockGenerateSingleFieldChangeSummary: vi.fn(),
   mockClassifyContent: vi.fn(),
   mockGenerateSummary: vi.fn(),
+  mockSuggestTopic: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -56,6 +58,10 @@ vi.mock('@/lib/ai/summarise', () => ({
 
 vi.mock('@/lib/change-summary', () => ({
   generateSingleFieldChangeSummary: mockGenerateSingleFieldChangeSummary,
+}));
+
+vi.mock('@/lib/topic-inference', () => ({
+  suggestTopic: mockSuggestTopic,
 }));
 
 // Import routes AFTER mocks are registered
@@ -144,6 +150,7 @@ beforeEach(() => {
   mockGenerateSingleFieldChangeSummary.mockReturnValue('Field updated');
   mockClassifyContent.mockResolvedValue({ domains: [] });
   mockGenerateSummary.mockResolvedValue({ summary_data: {} });
+  mockSuggestTopic.mockResolvedValue(null);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -493,6 +500,117 @@ describe('POST /api/items', () => {
     expect(body.warnings).toEqual([]);
     expect(mockClassifyContent).not.toHaveBeenCalled();
     expect(mockGenerateSummary).not.toHaveBeenCalled();
+  });
+
+  it('includes topic_suggestion in response when suggestTopic returns a match', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Topic Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockSuggestTopic.mockResolvedValueOnce({
+      topicId: 'compliance-kcsie',
+      reason: 'Existing topic group "compliance-kcsie" has bid_detail but is missing sales_brief',
+      existingLayers: [{ id: 'other-id', title: 'KCSIE Guide', layer: 'bid_detail' }],
+      missingLayers: ['sales_brief', 'research'],
+    });
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({
+        primary_domain: 'Compliance',
+        primary_subtopic: 'KCSIE',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.topic_suggestion).toBeDefined();
+    expect(body.topic_suggestion.topicId).toBe('compliance-kcsie');
+    expect(body.topic_suggestion.reason).toContain('compliance-kcsie');
+
+    // Verify merge_item_metadata was called with topic_id
+    const rpcCalls = mockSupabase.rpc.mock.calls;
+    const topicRpcCall = rpcCalls.find(
+      (call: unknown[]) => call[0] === 'merge_item_metadata' &&
+        (call[1] as Record<string, unknown>)?.p_new_data &&
+        ((call[1] as Record<string, Record<string, unknown>>).p_new_data as Record<string, unknown>).topic_id === 'compliance-kcsie',
+    );
+    expect(topicRpcCall).toBeDefined();
+  });
+
+  it('does not include topic_suggestion when suggestTopic returns null', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Solo Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockSuggestTopic.mockResolvedValueOnce(null);
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({
+        primary_domain: 'Engineering',
+        primary_subtopic: 'Processes',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.topic_suggestion).toBeUndefined();
+  });
+
+  it('still creates item when topic suggestion throws an error', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const createdItem = {
+      id: VALID_UUID,
+      title: 'Error Topic Article',
+      content_type: 'article',
+      created_at: '2026-03-05T12:00:00Z',
+    };
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: createdItem,
+      error: null,
+    });
+
+    mockSuggestTopic.mockRejectedValueOnce(new Error('DB connection timeout'));
+
+    const req = createTestRequest('/api/items', {
+      method: 'POST',
+      body: validCreateBody({
+        primary_domain: 'Compliance',
+        primary_subtopic: 'KCSIE',
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(201);
+
+    const body = await res.json();
+    expect(body.id).toBe(VALID_UUID);
+    // topic_suggestion should be absent (error is non-fatal)
+    expect(body.topic_suggestion).toBeUndefined();
   });
 });
 

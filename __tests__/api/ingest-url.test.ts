@@ -39,6 +39,7 @@ const {
   mockGenerateSummary,
   mockCheckForDuplicates,
   mockFormatDedupWarning,
+  mockSuggestTopic,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateUrl: vi.fn(),
@@ -49,6 +50,7 @@ const {
   mockGenerateSummary: vi.fn(),
   mockCheckForDuplicates: vi.fn(),
   mockFormatDedupWarning: vi.fn(),
+  mockSuggestTopic: vi.fn(),
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -82,6 +84,10 @@ vi.mock('@/lib/ai/summarise', () => ({
 vi.mock('@/lib/dedup', () => ({
   checkForDuplicates: mockCheckForDuplicates,
   formatDedupWarning: mockFormatDedupWarning,
+}));
+
+vi.mock('@/lib/topic-inference', () => ({
+  suggestTopic: mockSuggestTopic,
 }));
 
 // Import route AFTER mocks are registered
@@ -150,6 +156,7 @@ beforeEach(() => {
 
   // Default: rate limit allows
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 9 });
+  mockSuggestTopic.mockResolvedValue(null);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -293,6 +300,12 @@ describe('POST /api/ingest/url — Successful Import', () => {
       resolve({ data: null, error: null }),
     );
 
+    // single for domain/subtopic re-fetch (topic suggestion step)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      error: null,
+    });
+
     // single for final item fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: 'General Business', primary_subtopic: 'Strategy', ai_summary: 'A test summary' },
@@ -435,6 +448,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
     // single for final fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
@@ -493,6 +511,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
     // single for final fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
@@ -533,6 +556,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
     // single for final fetch
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
@@ -549,5 +577,91 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     expect(body.duplicate_matches).toHaveLength(1);
     expect(body.duplicate_matches[0].id).toBe('dup-1');
     expect(body.warnings).toContain('1 near-duplicate found');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Topic Suggestion
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Topic Suggestion', () => {
+  beforeEach(() => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    // maybeSingle for URL check — no existing item
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    // single for insert — returns new item
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      error: null,
+    });
+
+    // then for content_history insert
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+
+    // single for domain/subtopic re-fetch (for topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
+      error: null,
+    });
+
+    // single for final item fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: 'General Business', primary_subtopic: 'Strategy', ai_summary: 'A test summary' },
+      error: null,
+    });
+  });
+
+  it('includes topic_suggestion in response when topic match found', async () => {
+    mockSuggestTopic.mockResolvedValueOnce({
+      topicId: 'general-business-strategy',
+      reason: 'Existing topic group "general-business-strategy" covers this domain and subtopic',
+      existingLayers: [{ id: 'other-id', title: 'Strategy Guide', layer: 'bid_detail' }],
+      missingLayers: ['sales_brief', 'research'],
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.topic_suggestion).toBeDefined();
+    expect(body.topic_suggestion.topicId).toBe('general-business-strategy');
+  });
+
+  it('does not include topic_suggestion when no match found', async () => {
+    mockSuggestTopic.mockResolvedValueOnce(null);
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.topic_suggestion).toBeUndefined();
+  });
+
+  it('still returns success when topic suggestion fails', async () => {
+    mockSuggestTopic.mockRejectedValueOnce(new Error('Network timeout'));
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe('new-item-id');
+    expect(body.topic_suggestion).toBeUndefined();
   });
 });
