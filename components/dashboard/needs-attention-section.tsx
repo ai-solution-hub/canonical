@@ -1,4 +1,4 @@
-import { CheckCircle2, ShieldAlert, Eye, Clock, Flag } from 'lucide-react';
+import { CheckCircle2, ShieldAlert, Eye, Clock, Flag, Shield } from 'lucide-react';
 import { AttentionCard } from './attention-card';
 import {
   generateGovernancePrompt,
@@ -13,6 +13,7 @@ interface NeedsAttentionSectionProps {
   quality_flag_count: number | null;
   stale_content_count: number | null;
   expired_content_count: number | null;
+  expiringCertCount?: number;
   userRole?: string;
 }
 
@@ -22,17 +23,19 @@ export function NeedsAttentionSection({
   quality_flag_count,
   stale_content_count,
   expired_content_count,
+  expiringCertCount,
   userRole = 'viewer',
 }: NeedsAttentionSectionProps) {
   const isViewer = userRole === 'viewer';
 
   const totalAttention = isViewer
-    ? (stale_content_count ?? 0) + (expired_content_count ?? 0)
+    ? (stale_content_count ?? 0) + (expired_content_count ?? 0) + (expiringCertCount ?? 0)
     : (governance_review_count ?? 0) +
       (unverified_count ?? 0) +
       (quality_flag_count ?? 0) +
       (stale_content_count ?? 0) +
-      (expired_content_count ?? 0);
+      (expired_content_count ?? 0) +
+      (expiringCertCount ?? 0);
 
   const staleTotal = (stale_content_count ?? 0) + (expired_content_count ?? 0);
 
@@ -112,6 +115,18 @@ export function NeedsAttentionSection({
               }
             />
           )}
+          <AttentionCard
+            icon={Shield}
+            count={expiringCertCount ?? null}
+            label={`${(expiringCertCount ?? 0) === 1 ? 'certification' : 'certifications'} expiring soon`}
+            href="#compliance-status"
+            actionLabel="Review compliance"
+            claudePrompt={
+              expiringCertCount && expiringCertCount > 0
+                ? `Review the ${expiringCertCount} certification${expiringCertCount === 1 ? '' : 's'} expiring within the next 30 days. For each one, check whether renewal is underway and whether any bid responses reference the expiring certification. Provide a prioritised action plan.`
+                : undefined
+            }
+          />
         </div>
       )}
     </section>
