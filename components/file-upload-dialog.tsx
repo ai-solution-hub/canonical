@@ -22,6 +22,7 @@ import {
 import { FileUpload, type UploadFile } from '@/components/file-upload';
 import { IngestionProgress, type IngestionStep } from '@/components/ingestion-progress';
 import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
+import { ReuploadBanner } from '@/components/reupload-banner';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
@@ -50,6 +51,13 @@ interface FileSuggestedLayer {
   confidence: string;
 }
 
+/** Per-file re-upload detection info */
+interface FileReuploadInfo {
+  matchType: 'identical' | 'new_version';
+  previousVersion: number;
+  previousDocumentId: string;
+}
+
 /** Per-file state for progress and dedup tracking */
 interface FileUploadState {
   steps: IngestionStep[];
@@ -60,6 +68,7 @@ interface FileUploadState {
   layerMode: 'suggest' | 'change' | 'applied';
   selectedLayer: string;
   appliedLayerLabel: string;
+  reuploadInfo?: FileReuploadInfo;
 }
 
 let fileIdCounter = 0;
@@ -199,6 +208,15 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
       // Mark all steps as done
       const layerData: FileSuggestedLayer | undefined = data.suggested_layer ?? undefined;
 
+      // Capture re-upload detection info
+      const reuploadData: FileReuploadInfo | undefined = data.reupload_detection
+        ? {
+            matchType: data.reupload_detection.match_type,
+            previousVersion: data.reupload_detection.previous_version,
+            previousDocumentId: data.reupload_detection.previous_document_id,
+          }
+        : undefined;
+
       setFileStates((prev) => {
         const state = prev[fileId];
         if (!state) return prev;
@@ -222,6 +240,7 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
             showDedupWarning: dedupMatches.length > 0,
             suggestedLayer: layerData,
             selectedLayer: layerData?.suggestedLayer ?? '',
+            reuploadInfo: reuploadData,
           },
         };
       });
@@ -436,6 +455,14 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                       steps={state.steps}
                       warnings={f.status === 'done' ? state.warnings : undefined}
                     />
+                    {/* Re-upload detection banner per file */}
+                    {f.status === 'done' && state.reuploadInfo && (
+                      <ReuploadBanner
+                        matchType={state.reuploadInfo.matchType}
+                        previousVersion={state.reuploadInfo.previousVersion}
+                        previousDocumentId={state.reuploadInfo.previousDocumentId}
+                      />
+                    )}
                     {/* Dedup warning per file */}
                     {state.showDedupWarning && state.dedupMatches.length > 0 && (
                       <DedupWarning

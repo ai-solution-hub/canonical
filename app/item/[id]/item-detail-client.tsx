@@ -13,6 +13,7 @@ import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
 import { OrganiseSection } from '@/components/organise-section';
 import { EntityBadges } from '@/components/entity-badges';
+import { SourceDocumentInfo } from '@/components/source-document-info';
 import { VersionHistory } from '@/components/version-history';
 import { useUserRole } from '@/hooks/use-user-role';
 import { createClient } from '@/lib/supabase/client';
@@ -99,6 +100,7 @@ export interface ItemData {
   answer_standard?: string | null;
   answer_advanced?: string | null;
   content_owner_id?: string | null;
+  source_document_id?: string | null;
 }
 
 interface ItemDetailClientProps {
@@ -651,6 +653,12 @@ export function ItemDetailClient({
               setItem((prev) => ({ ...prev, content_owner_id: ownerId }))
             }
           />
+          {/* Source document lineage */}
+          {item.source_document_id && (
+            <div className="mt-4 border-t border-border pt-4">
+              <SourceDocumentInfo sourceDocumentId={item.source_document_id} />
+            </div>
+          )}
         </CollapsibleSection>
       </div>
     </>
