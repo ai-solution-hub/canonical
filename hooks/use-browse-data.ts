@@ -113,12 +113,22 @@ export function useBrowseData(): UseBrowseDataReturn {
   }, [filters.owner]);
 
   // Resolve entity filter to matching content_item IDs
+  // Supports filtering by entity name, entity type, or both
   const resolveEntityIds = useCallback(async (): Promise<string[] | null> => {
-    if (!filters.entity) return null;
-    const { data, error } = await supabase
+    if (!filters.entity && !filters.entity_type) return null;
+
+    let query = supabase
       .from('entity_mentions')
-      .select('content_item_id')
-      .eq('canonical_name', filters.entity);
+      .select('content_item_id');
+
+    if (filters.entity) {
+      query = query.eq('canonical_name', filters.entity);
+    }
+    if (filters.entity_type) {
+      query = query.eq('entity_type', filters.entity_type);
+    }
+
+    const { data, error } = await query;
     if (error) {
       console.error('Entity filter failed:', error);
       return null;
@@ -126,7 +136,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     // Deduplicate content_item_ids
     return [...new Set((data ?? []).map((row: { content_item_id: string }) => row.content_item_id))];
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [filters.entity]);
+  }, [filters.entity, filters.entity_type]);
 
   // Build the Supabase query with filters and cursor-based pagination
   const buildQuery = useCallback(

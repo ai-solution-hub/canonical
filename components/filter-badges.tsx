@@ -154,6 +154,15 @@ export function FilterBadges() {
     });
   }
 
+  if (filters.entity_type) {
+    badges.push({
+      id: 'entity-type',
+      label: 'Entity Type',
+      value: filters.entity_type.charAt(0).toUpperCase() + filters.entity_type.slice(1),
+      onRemove: () => removeFilter('entity_type'),
+    });
+  }
+
   if (filters.entity) {
     badges.push({
       id: 'entity',

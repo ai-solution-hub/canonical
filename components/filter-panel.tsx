@@ -27,6 +27,7 @@ import { FreshnessBadge } from '@/components/freshness-badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
+import { EntityCoOccurrence } from '@/components/entity-co-occurrence';
 
 interface FilterPanelProps {
   open: boolean;
@@ -46,6 +47,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     allWorkspaces,
     allUserTags,
     allEntities,
+    entityTypeCounts,
   } = useFilterData({ isOpen: open });
 
   const {
@@ -63,6 +65,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     handleFreshnessToggle,
     handleLayerToggle,
     handleEntityChange,
+    handleEntityTypeChange,
     handleOwnerChange,
     handleUserTagToggle,
     handleApply,
@@ -300,36 +303,86 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
             </>
           )}
 
-          {/* Entities — collapsed by default */}
-          {allEntities.length > 0 && (
+          {/* Entity Type — collapsed by default */}
+          {entityTypeCounts.length > 0 && (
             <>
-              <FilterSection title="Entities" defaultOpen={false}>
+              <FilterSection title="Entity Type" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
-                  {allEntities.map(({ name, count }) => {
-                    const isActive = draft.entity === name;
+                  {entityTypeCounts.map(({ type, count }) => {
+                    const isActive = draft.entity_type === type;
                     return (
                       <button
-                        key={name}
+                        key={type}
                         type="button"
-                        onClick={() => handleEntityChange(name)}
+                        onClick={() => handleEntityTypeChange(type)}
                         aria-pressed={isActive}
-                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs capitalize transition-colors ${
                           isActive
                             ? 'border-primary bg-primary/10 text-primary'
                             : 'border-border bg-muted text-foreground hover:bg-accent'
                         }`}
                       >
-                        {name}
+                        {type}
                         <span className="text-muted-foreground">{count}</span>
                       </button>
                     );
                   })}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Filter by entity mentioned in content
+                  Filter content by entity type
                 </p>
               </FilterSection>
 
+              <Separator className="my-3" />
+            </>
+          )}
+
+          {/* Entity Name — collapsed by default, filtered by selected type */}
+          {allEntities.length > 0 && (
+            <>
+              <FilterSection title="Entities" defaultOpen={false}>
+                <div className="flex flex-wrap gap-2">
+                  {allEntities
+                    .filter((e) => !draft.entity_type || e.type === draft.entity_type)
+                    .map(({ name, type, count }) => {
+                      const isActive = draft.entity === name;
+                      return (
+                        <button
+                          key={`${name}-${type}`}
+                          type="button"
+                          onClick={() => handleEntityChange(name)}
+                          aria-pressed={isActive}
+                          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                            isActive
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border bg-muted text-foreground hover:bg-accent'
+                          }`}
+                        >
+                          {name}
+                          <span className="text-muted-foreground">{count}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {draft.entity_type
+                    ? `Showing ${draft.entity_type} entities — clear type filter to see all`
+                    : 'Filter by entity mentioned in content'}
+                </p>
+              </FilterSection>
+
+              <Separator className="my-3" />
+            </>
+          )}
+
+          {/* Entity Co-occurrence — collapsed by default */}
+          {allEntities.length > 0 && (
+            <>
+              <EntityCoOccurrence
+                show={open}
+                defaultOpen={false}
+                onEntityClick={(name) => handleEntityChange(name)}
+              />
               <Separator className="my-3" />
             </>
           )}

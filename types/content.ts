@@ -184,6 +184,7 @@ export interface BrowseFilters {
   freshness?: string[]; // multi-select: fresh, aging, stale, expired
   layer?: string; // single layer filter from CLIENT_CONFIG vocabulary
   entity?: string; // entity canonical name — filter to items mentioning this entity
+  entity_type?: string; // entity type filter — organisation, certification, etc.
   quality_issues?: boolean; // filter to items with open quality flags
   include_drafts?: boolean; // include draft items (excluded by default)
   include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)

@@ -46,8 +46,8 @@ const MOCK_AUTHORS = [
 const MOCK_TAGS = { 'important': 5, 'review-needed': 3 };
 
 const MOCK_ENTITIES = [
-  { canonical_name: 'Acme Corp', mention_count: 8 },
-  { canonical_name: 'TechCo', mention_count: 3 },
+  { canonical_name: 'Acme Corp', entity_type: 'organisation', mention_count: 8 },
+  { canonical_name: 'TechCo', entity_type: 'technology', mention_count: 3 },
 ];
 
 let mockFetch: ReturnType<typeof vi.fn>;
@@ -61,7 +61,7 @@ function setupDefaultMocks() {
         return { data: MOCK_AUTHORS, error: null };
       case 'get_user_tag_counts':
         return { data: MOCK_TAGS, error: null };
-      case 'get_entity_name_counts':
+      case 'get_entity_summary':
         return { data: MOCK_ENTITIES, error: null };
       default:
         return { data: null, error: null };

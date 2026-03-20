@@ -57,6 +57,7 @@ export function useBrowseFilters() {
       freshness: freshnessRaw?.length ? freshnessRaw : undefined,
       layer: searchParams.get('layer') ?? undefined,
       entity: searchParams.get('entity') ?? undefined,
+      entity_type: searchParams.get('entity_type') ?? undefined,
       quality_issues: qualityIssues,
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
       include_qa: includeQa,
@@ -83,6 +84,7 @@ export function useBrowseFilters() {
     if (filters.freshness?.length) count += filters.freshness.length;
     if (filters.layer) count++;
     if (filters.entity) count++;
+    if (filters.entity_type) count++;
     if (filters.quality_issues) count++;
     if (filters.include_drafts) count++;
     if (filters.include_qa) count++;
@@ -176,6 +178,10 @@ export function useBrowseFilters() {
       if ('entity' in newFilters) {
         if (newFilters.entity) params.set('entity', newFilters.entity);
         else params.delete('entity');
+      }
+      if ('entity_type' in newFilters) {
+        if (newFilters.entity_type) params.set('entity_type', newFilters.entity_type);
+        else params.delete('entity_type');
       }
       if ('quality_issues' in newFilters) {
         if (newFilters.quality_issues) params.set('quality_issues', 'true');
