@@ -89,6 +89,42 @@ vi.mock('lucide-react', () => ({
   Link2: (props: Record<string, unknown>) => (
     <span data-testid="link-icon" aria-hidden={props['aria-hidden'] as string} />
   ),
+  Copy: (props: Record<string, unknown>) => (
+    <span data-testid="copy-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  ExternalLink: (props: Record<string, unknown>) => (
+    <span data-testid="external-link-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  AlertTriangle: (props: Record<string, unknown>) => (
+    <span data-testid="alert-triangle-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  X: (props: Record<string, unknown>) => (
+    <span data-testid="x-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  Check: (props: Record<string, unknown>) => (
+    <span data-testid="check-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  Minus: (props: Record<string, unknown>) => (
+    <span data-testid="minus-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+  SkipForward: (props: Record<string, unknown>) => (
+    <span data-testid="skip-icon" aria-hidden={props['aria-hidden'] as string} />
+  ),
+}));
+
+vi.mock('@/components/claude-prompt-button', () => ({
+  ClaudePromptButton: ({ prompt }: { prompt: { label: string } }) => (
+    <button data-testid="claude-prompt-button">{prompt.label}</button>
+  ),
+}));
+
+vi.mock('@/lib/claude-prompts', () => ({
+  generateIngestDocumentPrompt: () => ({
+    label: 'Let Claude handle it',
+    prompt: 'test prompt',
+    description: 'test',
+    category: 'ingestion',
+  }),
 }));
 
 vi.mock('@/components/ingestion-progress', () => ({

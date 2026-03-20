@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { IngestionProgress, type IngestionStep } from '@/components/ingestion-progress';
 import { IngestionSuccessCard } from '@/components/ingestion-success-card';
 import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
+import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 
 type FormState = 'idle' | 'processing' | 'success' | 'error';
 
@@ -344,17 +346,24 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
 
           {/* Low-quality extraction suggestion */}
           {onSuggestManual && result.content_length < 500 && (
-            <p className="text-sm text-muted-foreground">
-              Limited text extracted from this page. Try{' '}
-              <button
-                type="button"
-                onClick={onSuggestManual}
-                className="font-medium text-primary underline-offset-2 hover:underline"
-              >
-                pasting the content manually
-              </button>{' '}
-              instead.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Limited text extracted from this page. Try{' '}
+                <button
+                  type="button"
+                  onClick={onSuggestManual}
+                  className="font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  pasting the content manually
+                </button>
+                , or let Claude extract it:
+              </p>
+              <ClaudePromptButton
+                prompt={generateIngestDocumentPrompt()}
+                size="sm"
+                variant="outline"
+              />
+            </div>
           )}
 
           <Button

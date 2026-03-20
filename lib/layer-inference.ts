@@ -54,7 +54,7 @@ const LAYER_RESEARCH = 'research';
 // ---------------------------------------------------------------------------
 
 const COMPANY_REFERENCE_TYPES = new Set(['policy', 'compliance', 'certification']);
-const BID_DETAIL_TYPES = new Set(['case_study', 'product_description', 'capability', 'methodology']);
+const BID_DETAIL_TYPES = new Set(['product_description', 'capability', 'methodology']);
 
 // ---------------------------------------------------------------------------
 // Inference function
@@ -128,6 +128,14 @@ export function inferLayer(input: LayerInferenceInput): LayerSuggestion {
       suggestedLayer: LAYER_RESEARCH,
       reason: 'Research content type maps directly to the research layer',
       confidence: 'high',
+    };
+  }
+
+  if (input.contentType === 'case_study') {
+    return {
+      suggestedLayer: LAYER_BID_DETAIL,
+      reason: 'Case studies are typically used as bid evidence',
+      confidence: 'medium',
     };
   }
 
