@@ -252,34 +252,40 @@ def _fill_template_inner(
 
 def _validate_completed_document(original_path: str, completed_path: str) -> list[str]:
     """Compare original and completed documents for formatting issues."""
-    original = Document(original_path)
-    completed = Document(completed_path)
-    warnings = []
+    original, orig_temp = open_document_safe(original_path)
+    completed, comp_temp = open_document_safe(completed_path)
+    try:
+        warnings = []
 
-    if len(original.tables) != len(completed.tables):
-        warnings.append(
-            f"Table count mismatch: original has {len(original.tables)}, "
-            f"completed has {len(completed.tables)}"
-        )
-
-    for idx, (orig_table, comp_table) in enumerate(
-        zip(original.tables, completed.tables)
-    ):
-        if len(orig_table.rows) != len(comp_table.rows):
+        if len(original.tables) != len(completed.tables):
             warnings.append(
-                f"Table {idx}: row count mismatch "
-                f"({len(orig_table.rows)} vs {len(comp_table.rows)})"
+                f"Table count mismatch: original has {len(original.tables)}, "
+                f"completed has {len(completed.tables)}"
             )
 
-    for idx, (orig_section, comp_section) in enumerate(
-        zip(original.sections, completed.sections)
-    ):
-        if orig_section.page_width != comp_section.page_width:
-            warnings.append(f"Section {idx}: page width changed")
-        if orig_section.page_height != comp_section.page_height:
-            warnings.append(f"Section {idx}: page height changed")
+        for idx, (orig_table, comp_table) in enumerate(
+            zip(original.tables, completed.tables)
+        ):
+            if len(orig_table.rows) != len(comp_table.rows):
+                warnings.append(
+                    f"Table {idx}: row count mismatch "
+                    f"({len(orig_table.rows)} vs {len(comp_table.rows)})"
+                )
 
-    return warnings
+        for idx, (orig_section, comp_section) in enumerate(
+            zip(original.sections, completed.sections)
+        ):
+            if orig_section.page_width != comp_section.page_width:
+                warnings.append(f"Section {idx}: page width changed")
+            if orig_section.page_height != comp_section.page_height:
+                warnings.append(f"Section {idx}: page height changed")
+
+        return warnings
+    finally:
+        if orig_temp:
+            os.unlink(orig_temp)
+        if comp_temp:
+            os.unlink(comp_temp)
 
 
 if __name__ == "__main__":

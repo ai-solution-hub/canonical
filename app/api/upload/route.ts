@@ -51,6 +51,26 @@ function detectMimeType(filename: string, providedMime: string): string {
 }
 
 /**
+ * Validate file magic bytes match the declared MIME type.
+ * Prevents spoofed file extensions from reaching storage.
+ * Only validates PDF and DOCX — Markdown/TXT have no reliable magic bytes.
+ */
+function validateMagicBytes(buffer: Buffer, mimeType: string): boolean {
+  if (mimeType === 'application/pdf') {
+    // %PDF (hex: 25 50 44 46)
+    return buffer.length >= 4 &&
+      buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46;
+  }
+  if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    // PK\x03\x04 — ZIP archive signature (DOCX is a ZIP container)
+    return buffer.length >= 4 &&
+      buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04;
+  }
+  // Markdown and plain text have no magic bytes — trust the extension
+  return true;
+}
+
+/**
  * Derive a sensible title from the filename.
  * Strips extension, replaces hyphens/underscores with spaces, title-cases.
  */
@@ -193,6 +213,17 @@ export async function POST(request: NextRequest) {
     // Read file buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+
+    // Validate magic bytes match declared MIME type (PDF and DOCX only)
+    if (!validateMagicBytes(buffer, mimeType)) {
+      return NextResponse.json(
+        {
+          error:
+            'File content does not match its declared type. Ensure the file is a genuine PDF or DOCX.',
+        },
+        { status: 415 },
+      );
+    }
 
     // Compute MD5 hash for re-upload detection
     const contentHash = crypto.createHash('md5').update(buffer).digest('hex');

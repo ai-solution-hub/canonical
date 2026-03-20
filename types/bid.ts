@@ -16,11 +16,11 @@ export type BidState = typeof BID_STATES[number];
 
 // ---- Bid Container ----
 
-// NOTE: BidMetadata defines a strict TypeScript shape for domain_metadata JSONB,
-// but the database does not enforce this shape -- domain_metadata accepts any valid JSON.
-// All BidMetadata must be validated at the API layer (via Zod schemas)
-// before writing to the database. Never trust domain_metadata read from the DB to
-// conform to BidMetadata without runtime validation.
+// NOTE: BidMetadata defines the TypeScript shape for domain_metadata JSONB.
+// The `status` field is enforced at the database level via a dedicated `status`
+// column on `workspaces` with a CHECK constraint (synced to JSONB via trigger).
+// Other fields are validated at the API layer via `parseBidMetadata()` in
+// `lib/validation/schemas.ts`. Always validate domain_metadata at read boundaries.
 
 export interface BidMetadata {
   buyer: string;

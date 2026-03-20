@@ -425,7 +425,7 @@ export async function fetchTemplateRequirements(
 ): Promise<TemplateRequirement[]> {
   let query = supabase
     .from('template_requirements')
-    .select('*')
+    .select('id, template_name, template_version, template_type, section_ref, section_name, question_number, requirement_text, description, requirement_type, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, matching_keywords, matching_guidance, requirement_embedding, is_mandatory, sector_applicability, word_limit_guidance, display_order')
     .eq('template_name', templateName)
     .order('display_order');
 
