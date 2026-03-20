@@ -1108,6 +1108,76 @@ export type Database = {
           },
         ]
       }
+      source_document_diffs: {
+        Row: {
+          affected_content_item_id: string | null
+          created_at: string | null
+          diff_type: string
+          id: string
+          new_content: string | null
+          new_document_id: string
+          new_question: string | null
+          old_content: string | null
+          old_document_id: string
+          old_question: string | null
+          similarity_score: number | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          affected_content_item_id?: string | null
+          created_at?: string | null
+          diff_type: string
+          id?: string
+          new_content?: string | null
+          new_document_id: string
+          new_question?: string | null
+          old_content?: string | null
+          old_document_id: string
+          old_question?: string | null
+          similarity_score?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          affected_content_item_id?: string | null
+          created_at?: string | null
+          diff_type?: string
+          id?: string
+          new_content?: string | null
+          new_document_id?: string
+          new_question?: string | null
+          old_content?: string | null
+          old_document_id?: string
+          old_question?: string | null
+          similarity_score?: number | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "source_document_diffs_affected_content_item_id_fkey"
+            columns: ["affected_content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_document_diffs_new_document_id_fkey"
+            columns: ["new_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "source_document_diffs_old_document_id_fkey"
+            columns: ["old_document_id"]
+            isOneToOne: false
+            referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_documents: {
         Row: {
           archived_at: string | null
