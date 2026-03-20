@@ -22,6 +22,12 @@ const ACCEPT = {
   'text/plain': ['.txt'],
 };
 
+export interface UploadFileSuggestedLayer {
+  suggestedLayer: string;
+  reason: string;
+  confidence: string;
+}
+
 export interface UploadFile {
   id: string;
   file: File;
@@ -29,6 +35,7 @@ export interface UploadFile {
   progress: number;
   error?: string;
   resultId?: string;
+  suggestedLayer?: UploadFileSuggestedLayer;
 }
 
 function formatFileSize(bytes: number): string {

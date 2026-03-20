@@ -3,6 +3,15 @@
 // ---------------------------------------------------------------------------
 
 /**
+ * Layer suggestion from the inference engine, returned by API routes.
+ */
+interface LayerSuggestion {
+  suggestedLayer: string;
+  reason: string;
+  confidence: string;
+}
+
+/**
  * Result shape returned by ingestion handlers.
  */
 export interface IngestResult {
@@ -12,6 +21,8 @@ export interface IngestResult {
   domain?: string;
   warnings: string[];
   duplicateMatches?: Array<{ id: string; title: string; similarity: number }>;
+  /** Layer suggestion (auto-applied by CopilotKit actions) */
+  suggestedLayer?: string;
 }
 
 /**
@@ -55,6 +66,20 @@ export async function ingestUrl(params: {
     };
   }
 
+  // Auto-apply layer suggestion (CopilotKit = auto-assign, not suggest-and-confirm)
+  const suggestion: LayerSuggestion | undefined = data.suggested_layer;
+  if (suggestion?.suggestedLayer && data.id) {
+    try {
+      await fetch(`/api/items/${data.id}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer: suggestion.suggestedLayer }),
+      });
+    } catch {
+      // Non-fatal — item is still usable without layer update
+    }
+  }
+
   return {
     id: data.id,
     title: data.title,
@@ -62,6 +87,7 @@ export async function ingestUrl(params: {
     domain: data.primary_domain,
     warnings: data.warnings ?? [],
     duplicateMatches: data.duplicate_matches,
+    suggestedLayer: suggestion?.suggestedLayer,
   };
 }
 
@@ -112,12 +138,27 @@ export async function ingestText(params: {
     return { error: data.error ?? 'Failed to create content item' };
   }
 
+  // Auto-apply layer suggestion (CopilotKit = auto-assign)
+  const textSuggestion: LayerSuggestion | undefined = data.suggested_layer;
+  if (textSuggestion?.suggestedLayer && data.id) {
+    try {
+      await fetch(`/api/items/${data.id}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer: textSuggestion.suggestedLayer }),
+      });
+    } catch {
+      // Non-fatal
+    }
+  }
+
   return {
     id: data.id,
     title: data.title,
     contentType: data.content_type,
     warnings: data.warnings ?? [],
     duplicateMatches: data.duplicate_matches,
+    suggestedLayer: textSuggestion?.suggestedLayer,
   };
 }
 
@@ -168,11 +209,26 @@ export async function createQAPair(params: {
     return { error: data.error ?? 'Failed to create Q&A pair' };
   }
 
+  // Auto-apply layer suggestion (CopilotKit = auto-assign)
+  const qaSuggestion: LayerSuggestion | undefined = data.suggested_layer;
+  if (qaSuggestion?.suggestedLayer && data.id) {
+    try {
+      await fetch(`/api/items/${data.id}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer: qaSuggestion.suggestedLayer }),
+      });
+    } catch {
+      // Non-fatal
+    }
+  }
+
   return {
     id: data.id,
     title: data.title,
     contentType: 'q_a_pair',
     warnings: data.warnings ?? [],
     duplicateMatches: data.duplicate_matches,
+    suggestedLayer: qaSuggestion?.suggestedLayer,
   };
 }

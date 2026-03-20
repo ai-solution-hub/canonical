@@ -201,6 +201,34 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           content_type: item.content_type ?? args.content_type,
         };
 
+        // Layer inference — suggest and store a layer
+        let suggestedLayerKey: string | undefined;
+        if (!isDraft) {
+          try {
+            const { inferLayer } = await import('@/lib/layer-inference');
+            const suggestion = inferLayer({
+              contentType: args.content_type,
+              contentLength: args.content.length,
+              ingestionSource: 'manual',
+              hasBrief: false,
+              hasDetail: false,
+              hasReference: false,
+              isBidDiscovered: false,
+              title: args.title,
+            });
+            suggestedLayerKey = suggestion.suggestedLayer;
+
+            // Store the suggested layer via merge_item_metadata
+            await supabase.rpc('merge_item_metadata', {
+              p_item_id: item.id,
+              p_new_data: { layer: suggestion.suggestedLayer } as unknown as Json,
+            });
+          } catch (layerErr) {
+            // Non-fatal — item is still usable without a layer
+            console.error('MCP layer inference failed:', layerErr);
+          }
+        }
+
         // AI processing — awaited to avoid serverless truncation
         const warnings: string[] = [];
 
@@ -227,10 +255,13 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const draftNote = isDraft
           ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
           : '';
+        const layerNote = suggestedLayerKey
+          ? `\n\n**Layer:** ${suggestedLayerKey} (auto-assigned)`
+          : '';
         const warningNote = warnings.length > 0
           ? `\n\n**Warnings:**\n${warnings.map(w => `- ${w}`).join('\n')}`
           : '';
-        const markdown = formatCreatedItem(created) + draftNote + warningNote;
+        const markdown = formatCreatedItem(created) + draftNote + layerNote + warningNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
@@ -238,6 +269,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             governance_review_status: isDraft ? 'draft' : null,
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
+            suggested_layer: suggestedLayerKey ?? null,
             warnings: warnings.length > 0 ? warnings : undefined,
           }),
         };

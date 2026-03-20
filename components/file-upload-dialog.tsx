@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Upload } from 'lucide-react';
+import { Upload, Layers, Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,11 +12,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { FileUpload, type UploadFile } from '@/components/file-upload';
 import { IngestionProgress, type IngestionStep } from '@/components/ingestion-progress';
 import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
+import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 
 interface FileUploadDialogProps {
   open: boolean;
@@ -35,17 +43,29 @@ const UPLOAD_STEPS: IngestionStep[] = [
 /** Interval between cosmetic step advances (ms) */
 const STEP_ADVANCE_INTERVAL = 2500;
 
+/** Per-file layer suggestion info */
+interface FileSuggestedLayer {
+  suggestedLayer: string;
+  reason: string;
+  confidence: string;
+}
+
 /** Per-file state for progress and dedup tracking */
 interface FileUploadState {
   steps: IngestionStep[];
   dedupMatches: DedupMatch[];
   showDedupWarning: boolean;
   warnings: string[];
+  suggestedLayer?: FileSuggestedLayer;
+  layerMode: 'suggest' | 'change' | 'applied';
+  selectedLayer: string;
+  appliedLayerLabel: string;
 }
 
 let fileIdCounter = 0;
 
 export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) {
+  const { layers, getLayerLabel } = useLayerVocabulary();
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [fileStates, setFileStates] = useState<Record<string, FileUploadState>>({});
@@ -136,6 +156,9 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
         dedupMatches: [],
         showDedupWarning: false,
         warnings: [],
+        layerMode: 'suggest',
+        selectedLayer: '',
+        appliedLayerLabel: '',
       },
     }));
 
@@ -174,6 +197,8 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
       }
 
       // Mark all steps as done
+      const layerData: FileSuggestedLayer | undefined = data.suggested_layer ?? undefined;
+
       setFileStates((prev) => {
         const state = prev[fileId];
         if (!state) return prev;
@@ -195,6 +220,8 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
             warnings: data.warnings ?? [],
             dedupMatches,
             showDedupWarning: dedupMatches.length > 0,
+            suggestedLayer: layerData,
+            selectedLayer: layerData?.suggestedLayer ?? '',
           },
         };
       });
@@ -300,6 +327,57 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
     onOpenChange(isOpen);
   };
 
+  const handleApplyLayer = useCallback(async (fileId: string, layerKey: string) => {
+    const file = files.find((f) => f.id === fileId);
+    const resultId = file?.resultId;
+    if (!resultId) return;
+
+    try {
+      const res = await fetch(`/api/items/${resultId}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer: layerKey }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to update layer');
+      }
+      setFileStates((prev) => {
+        const state = prev[fileId];
+        if (!state) return prev;
+        return {
+          ...prev,
+          [fileId]: {
+            ...state,
+            layerMode: 'applied',
+            appliedLayerLabel: getLayerLabel(layerKey),
+          },
+        };
+      });
+      toast.success(`Layer set to ${getLayerLabel(layerKey)}`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update layer',
+      );
+    }
+  }, [files, getLayerLabel]);
+
+  const handleSetLayerMode = useCallback((fileId: string, mode: 'suggest' | 'change' | 'applied') => {
+    setFileStates((prev) => {
+      const state = prev[fileId];
+      if (!state) return prev;
+      return { ...prev, [fileId]: { ...state, layerMode: mode } };
+    });
+  }, []);
+
+  const handleSetSelectedLayer = useCallback((fileId: string, layerKey: string) => {
+    setFileStates((prev) => {
+      const state = prev[fileId];
+      if (!state) return prev;
+      return { ...prev, [fileId]: { ...state, selectedLayer: layerKey } };
+    });
+  }, []);
+
   const handleDismissDedupWarning = useCallback((fileId: string) => {
     setFileStates((prev) => {
       const state = prev[fileId];
@@ -365,6 +443,71 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                         onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
                         onDismiss={() => handleDismissDedupWarning(f.id)}
                       />
+                    )}
+                    {/* Layer suggestion per file */}
+                    {f.status === 'done' && state.suggestedLayer && (
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs" data-testid={`layer-suggestion-${f.id}`}>
+                        <Layers className="size-3 text-primary" aria-hidden="true" />
+                        {state.layerMode === 'applied' ? (
+                          <span className="text-muted-foreground">
+                            Layer: <span className="font-medium text-foreground">{state.appliedLayerLabel}</span>
+                          </span>
+                        ) : state.layerMode === 'change' ? (
+                          <>
+                            <Select
+                              value={state.selectedLayer}
+                              onValueChange={(val) => handleSetSelectedLayer(f.id, val)}
+                            >
+                              <SelectTrigger className="h-6 w-36 text-xs" aria-label="Select a layer">
+                                <SelectValue placeholder="Select layer..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {layers.map((layer) => (
+                                  <SelectItem key={layer.key} value={layer.key}>
+                                    {layer.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 gap-1 px-1.5 text-xs"
+                              onClick={() => handleApplyLayer(f.id, state.selectedLayer)}
+                            >
+                              <Check className="size-3" aria-hidden="true" />
+                              Apply
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-1.5 text-xs"
+                              onClick={() => handleSetLayerMode(f.id, 'suggest')}
+                            >
+                              Cancel
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-muted-foreground">
+                              Layer:{' '}
+                              <span className="font-medium text-foreground">
+                                {getLayerLabel(state.suggestedLayer.suggestedLayer)}
+                              </span>
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 gap-1 px-1.5 text-xs"
+                              onClick={() => handleSetLayerMode(f.id, 'change')}
+                              aria-label="Change layer"
+                            >
+                              <ChevronDown className="size-3" aria-hidden="true" />
+                              Change
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
