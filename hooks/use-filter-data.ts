@@ -59,8 +59,11 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
   const [userTagsLoaded, setUserTagsLoaded] = useState(false);
 
   // Entity names for filter
-  const [allEntities, setAllEntities] = useState<{ name: string; count: number }[]>([]);
+  const [allEntities, setAllEntities] = useState<{ name: string; type: string; count: number }[]>([]);
   const [entitiesLoaded, setEntitiesLoaded] = useState(false);
+
+  // Entity type counts for filter
+  const [entityTypeCounts, setEntityTypeCounts] = useState<{ type: string; count: number }[]>([]);
 
   // Fetch counts when panel opens via server-side aggregation RPC.
   // Results are cached for 30 seconds to avoid redundant fetches.
@@ -182,23 +185,38 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [isOpen, userTagsLoaded]);
 
-  // Fetch entity names when panel opens (server-side aggregation via RPC)
+  // Fetch entity names and type counts when panel opens
   useEffect(() => {
     if (!isOpen || entitiesLoaded) return;
     const fetchEntities = async () => {
       try {
-        const { data, error } = await supabase.rpc('get_entity_name_counts');
+        // Use get_entity_summary RPC to get entities with their types
+        const { data, error } = await supabase.rpc('get_entity_summary', {
+          p_limit: 50,
+        });
 
         if (error || !data) {
           setEntitiesLoaded(true);
           return;
         }
 
-        const entities = (data ?? []).map((row: { canonical_name: string; mention_count: number }) => ({
+        const entities = (data ?? []).map((row: { canonical_name: string; entity_type: string; mention_count: number }) => ({
           name: row.canonical_name,
+          type: row.entity_type,
           count: Number(row.mention_count),
         }));
         setAllEntities(entities);
+
+        // Compute type counts from entity data
+        const typeCounts = new Map<string, number>();
+        for (const entity of entities) {
+          typeCounts.set(entity.type, (typeCounts.get(entity.type) ?? 0) + entity.count);
+        }
+        setEntityTypeCounts(
+          Array.from(typeCounts.entries())
+            .map(([type, count]) => ({ type, count }))
+            .sort((a, b) => b.count - a.count),
+        );
       } catch {
         // Non-critical
       }
@@ -217,5 +235,6 @@ export function useFilterData({ isOpen }: UseFilterDataParams) {
     allWorkspaces,
     allUserTags,
     allEntities,
+    entityTypeCounts,
   };
 }

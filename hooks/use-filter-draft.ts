@@ -20,6 +20,7 @@ export interface FilterDraft {
   freshness: string[];
   layer: string;
   entity: string;
+  entity_type: string;
   quality_issues: boolean;
   include_drafts: boolean;
   include_qa: boolean;
@@ -52,6 +53,7 @@ function filtersTodraft(filters: BrowseFilters): FilterDraft {
     freshness: filters.freshness ?? [],
     layer: filters.layer ?? '',
     entity: filters.entity ?? '',
+    entity_type: filters.entity_type ?? '',
     quality_issues: filters.quality_issues ?? false,
     include_drafts: filters.include_drafts ?? false,
     include_qa: filters.include_qa ?? false,
@@ -186,6 +188,15 @@ export function useFilterDraft({
     }));
   }, []);
 
+  const handleEntityTypeChange = useCallback((entityType: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      entity_type: prev.entity_type === entityType ? '' : entityType,
+      // Clear entity name when entity type changes
+      entity: prev.entity_type === entityType ? prev.entity : '',
+    }));
+  }, []);
+
   const handleOwnerChange = useCallback((ownerValue: string) => {
     setDraft((prev) => ({
       ...prev,
@@ -233,6 +244,7 @@ export function useFilterDraft({
       freshness: draft.freshness.length ? draft.freshness : undefined,
       layer: draft.layer || undefined,
       entity: draft.entity || undefined,
+      entity_type: draft.entity_type || undefined,
       quality_issues: draft.quality_issues || undefined,
       include_drafts: draft.include_drafts || undefined,
       include_qa: draft.include_qa || undefined,
@@ -258,6 +270,7 @@ export function useFilterDraft({
       freshness: [],
       layer: '',
       entity: '',
+      entity_type: '',
       quality_issues: false,
       include_drafts: false,
       include_qa: false,
@@ -284,6 +297,7 @@ export function useFilterDraft({
     draft.freshness.length > 0,
     draft.layer,
     draft.entity,
+    draft.entity_type,
     draft.quality_issues,
     draft.include_drafts,
     draft.include_qa,
@@ -305,6 +319,7 @@ export function useFilterDraft({
     handleFreshnessToggle,
     handleLayerToggle,
     handleEntityChange,
+    handleEntityTypeChange,
     handleOwnerChange,
     handleUserTagToggle,
     handleApply,
