@@ -2,7 +2,8 @@
 
 import json
 import logging
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from typing import Optional, List
 
 import anthropic
@@ -108,6 +109,7 @@ class ClassificationResult:
     uncertain: bool
     requires_review: bool
     reason_if_flagged: str
+    entities: List[dict] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
     cache_creation_tokens: int = 0
@@ -199,6 +201,26 @@ def classify(
     parsed = json.loads(result_text)
     flags = parsed.get("flags", {})
 
+    # Parse entities from response (if the AI returned them)
+    raw_entities = parsed.get("entities", [])
+    ai_entities = []
+    for ent in raw_entities:
+        ent_type = ent.get("type", "")
+        if ent_type in VALID_ENTITY_TYPES:
+            ai_entities.append({
+                "entity_name": ent.get("name", ""),
+                "entity_type": ent_type,
+                "canonical_name": ent.get("canonical_name", ent.get("name", "")),
+                "confidence": ent.get("confidence", 0.8),
+            })
+
+    # Supplement with keyword-based entity extraction from the content
+    combined_text = f"{title} {content}"
+    keyword_entities = extract_entities_by_keyword(combined_text)
+
+    # Merge: AI entities take precedence, keyword entities fill gaps
+    entities = _merge_entities(ai_entities, keyword_entities)
+
     cls_result = ClassificationResult(
         primary_domain=parsed["primary_domain"],
         primary_subtopic=parsed["primary_subtopic"],
@@ -213,6 +235,7 @@ def classify(
         uncertain=flags.get("uncertain", False),
         requires_review=flags.get("requires_review", False),
         reason_if_flagged=flags.get("reason_if_flagged", ""),
+        entities=entities,
         input_tokens=input_tok,
         output_tokens=output_tok,
         cache_creation_tokens=cache_creation,
@@ -283,3 +306,270 @@ def _validate_classification(result, valid_domains, valid_subtopics):
     for w in warnings:
         logger.warning(f"Classification validation: {w}")
     return warnings
+
+
+# ──────────────────────────────────────────
+# Entity extraction constants
+# ──────────────────────────────────────────
+
+VALID_ENTITY_TYPES = frozenset([
+    "organisation", "certification", "regulation", "framework",
+    "capability", "person", "technology", "project", "sector",
+])
+
+# Known entities for keyword-based extraction.
+# Each entry: (pattern, entity_name, entity_type, canonical_name)
+# Patterns are compiled as case-insensitive regex.
+KNOWN_ENTITIES = [
+    # Organisations
+    (r"\bexample-client\b", "example-client", "organisation", "example-client"),
+    (r"\bICO\b", "ICO", "organisation", "ICO"),
+    (r"\bInformation Commissioner(?:'s)? Office\b", "Information Commissioner's Office", "organisation", "ICO"),
+    (r"\bNCSC\b", "NCSC", "organisation", "NCSC"),
+    (r"\bNational Cyber Security Centre\b", "National Cyber Security Centre", "organisation", "NCSC"),
+    (r"\bCompanies House\b", "Companies House", "organisation", "Companies House"),
+    (r"\bNHS\b", "NHS", "organisation", "NHS"),
+    (r"\bHMRC\b", "HMRC", "organisation", "HMRC"),
+    (r"\bFCA\b", "FCA", "organisation", "FCA"),
+    (r"\bBSI\b", "BSI", "organisation", "BSI"),
+    (r"\bOFSTED\b", "OFSTED", "organisation", "OFSTED"),
+    (r"\bCrown Commercial Service\b", "Crown Commercial Service", "organisation", "Crown Commercial Service"),
+    # Certifications
+    (r"\bISO[\s/]*27001\b", "ISO 27001", "certification", "ISO 27001"),
+    (r"\bISO[\s/]*9001\b", "ISO 9001", "certification", "ISO 9001"),
+    (r"\bISO[\s/]*14001\b", "ISO 14001", "certification", "ISO 14001"),
+    (r"\bISO[\s/]*22301\b", "ISO 22301", "certification", "ISO 22301"),
+    (r"\bCyber Essentials Plus\b", "Cyber Essentials Plus", "certification", "Cyber Essentials Plus"),
+    (r"\bCyber Essentials\b(?!\s+Plus)", "Cyber Essentials", "certification", "Cyber Essentials"),
+    (r"\bPCI[\s-]*DSS\b", "PCI DSS", "certification", "PCI DSS"),
+    (r"\bSOC\s*2\b", "SOC 2", "certification", "SOC 2"),
+    # Regulations
+    (r"\bGDPR\b", "GDPR", "regulation", "GDPR"),
+    (r"\bGeneral Data Protection Regulation\b", "General Data Protection Regulation", "regulation", "GDPR"),
+    (r"\bData Protection Act 2018\b", "Data Protection Act 2018", "regulation", "Data Protection Act 2018"),
+    (r"\bData Protection Act\b(?!\s+2018)", "Data Protection Act", "regulation", "Data Protection Act 2018"),
+    (r"\bPECR\b", "PECR", "regulation", "PECR"),
+    (r"\bFOI\b", "FOI", "regulation", "FOI"),
+    (r"\bFreedom of Information\b", "Freedom of Information", "regulation", "FOI"),
+    (r"\bRIDDOR\b", "RIDDOR", "regulation", "RIDDOR"),
+    (r"\bCDM\b", "CDM", "regulation", "CDM Regulations"),
+    (r"\bPPN\s*06/20\b", "PPN 06/20", "regulation", "PPN 06/20"),
+    (r"\bPPN\s*02/23\b", "PPN 02/23", "regulation", "PPN 02/23"),
+    # Frameworks
+    (r"\bITIL\b", "ITIL", "framework", "ITIL"),
+    (r"\bPRINCE2\b", "PRINCE2", "framework", "PRINCE2"),
+    (r"\bNIST\b", "NIST", "framework", "NIST"),
+    (r"\bOWASP\b", "OWASP", "framework", "OWASP"),
+    (r"\bWCAG\b", "WCAG", "framework", "WCAG"),
+    (r"\bSCRUM\b", "SCRUM", "framework", "Scrum"),
+    (r"\bAgile\b", "Agile", "framework", "Agile"),
+    # Technologies
+    (r"\bActive Directory\b", "Active Directory", "technology", "Active Directory"),
+    (r"\bAzure\b", "Azure", "technology", "Microsoft Azure"),
+    (r"\bMicrosoft Azure\b", "Microsoft Azure", "technology", "Microsoft Azure"),
+    (r"\bAWS\b", "AWS", "technology", "AWS"),
+    (r"\bAmazon Web Services\b", "Amazon Web Services", "technology", "AWS"),
+    (r"\bOffice 365\b", "Office 365", "technology", "Microsoft 365"),
+    (r"\bMicrosoft 365\b", "Microsoft 365", "technology", "Microsoft 365"),
+    (r"\bSharePoint\b", "SharePoint", "technology", "SharePoint"),
+    (r"\bSalesforce\b", "Salesforce", "technology", "Salesforce"),
+    (r"\bServiceNow\b", "ServiceNow", "technology", "ServiceNow"),
+    (r"\bJira\b", "Jira", "technology", "Jira"),
+    (r"\bSIEM\b", "SIEM", "technology", "SIEM"),
+    # Sectors
+    (r"\bpublic sector\b", "public sector", "sector", "Public Sector"),
+    (r"\bprivate sector\b", "private sector", "sector", "Private Sector"),
+    (r"\bhealthcare\b", "healthcare", "sector", "Healthcare"),
+    (r"\beducation\b", "education", "sector", "Education"),
+    (r"\bfinancial services\b", "financial services", "sector", "Financial Services"),
+    (r"\blocal government\b", "local government", "sector", "Local Government"),
+    (r"\bcentral government\b", "central government", "sector", "Central Government"),
+    (r"\bdefence\b", "defence", "sector", "Defence"),
+]
+
+# Compile regex patterns once at module level
+_COMPILED_ENTITY_PATTERNS = [
+    (re.compile(pattern, re.IGNORECASE), name, etype, canonical)
+    for pattern, name, etype, canonical in KNOWN_ENTITIES
+]
+
+# Module-level cache for entity aliases from DB
+_entity_aliases: Optional[dict] = None
+
+
+def load_entity_aliases() -> dict:
+    """Load entity aliases from the entity_aliases DB table.
+
+    Returns a dict mapping alias (lowercased) -> canonical name.
+    Caches the result for the lifetime of the process.
+    """
+    global _entity_aliases
+    if _entity_aliases is not None:
+        return _entity_aliases
+
+    try:
+        from .store import _request
+        status, data = _request(
+            "GET",
+            "entity_aliases?is_active=eq.true&select=alias,canonical",
+        )
+        if status in (200, 206) and isinstance(data, list):
+            _entity_aliases = {
+                row["alias"].lower(): row["canonical"]
+                for row in data
+                if row.get("alias") and row.get("canonical")
+            }
+            logger.info("Loaded %d entity aliases from DB", len(_entity_aliases))
+        else:
+            logger.warning("Failed to load entity aliases (status %s), using empty map", status)
+            _entity_aliases = {}
+    except Exception as e:
+        logger.warning("Entity alias loading failed: %s", e)
+        _entity_aliases = {}
+
+    return _entity_aliases
+
+
+def resolve_entity_alias(name: str) -> str:
+    """Resolve an entity name through the alias map.
+
+    Checks the cached alias map (loaded from entity_aliases table).
+    Returns the canonical name if a mapping exists, otherwise the original name.
+    """
+    aliases = _entity_aliases if _entity_aliases is not None else {}
+    return aliases.get(name.lower(), name)
+
+
+def reset_entity_aliases():
+    """Reset the entity aliases cache. Useful for testing."""
+    global _entity_aliases
+    _entity_aliases = None
+
+
+def extract_entities_by_keyword(text: str) -> List[dict]:
+    """Extract known entities from text using keyword matching.
+
+    Scans the text for known organisations, certifications, regulations,
+    frameworks, technologies, and sectors using pre-compiled regex patterns.
+
+    Args:
+        text: The text to scan for entities.
+
+    Returns:
+        List of entity dicts with keys: entity_name, entity_type,
+        canonical_name, confidence.
+    """
+    if not text or not text.strip():
+        return []
+
+    found = {}  # key: (canonical_name, entity_type) -> entity dict
+    for pattern, name, etype, canonical in _COMPILED_ENTITY_PATTERNS:
+        if pattern.search(text):
+            # Apply alias resolution
+            resolved = resolve_entity_alias(canonical)
+            key = (resolved.lower(), etype)
+            if key not in found:
+                found[key] = {
+                    "entity_name": name,
+                    "entity_type": etype,
+                    "canonical_name": resolved,
+                    "confidence": 0.9,  # keyword matches are high confidence
+                }
+
+    return list(found.values())
+
+
+def _merge_entities(
+    ai_entities: List[dict],
+    keyword_entities: List[dict],
+) -> List[dict]:
+    """Merge AI-extracted and keyword-extracted entities.
+
+    AI entities take precedence. Keyword entities are added only if they
+    don't overlap (same canonical_name + entity_type).
+    """
+    seen = set()
+    merged = []
+
+    for ent in ai_entities:
+        key = (ent["canonical_name"].lower(), ent["entity_type"])
+        if key not in seen:
+            seen.add(key)
+            merged.append(ent)
+
+    for ent in keyword_entities:
+        key = (ent["canonical_name"].lower(), ent["entity_type"])
+        if key not in seen:
+            seen.add(key)
+            merged.append(ent)
+
+    return merged
+
+
+# ──────────────────────────────────────────
+# Entity storage
+# ──────────────────────────────────────────
+
+def store_entities(
+    content_item_id: str,
+    entities: List[dict],
+) -> tuple:
+    """Store extracted entities in entity_mentions table.
+
+    Uses Supabase REST API to insert entity mentions, skipping duplicates
+    (UNIQUE constraint on canonical_name + entity_type + content_item_id).
+
+    Args:
+        content_item_id: UUID of the content item.
+        entities: List of dicts with entity_name, entity_type,
+                  canonical_name, confidence.
+
+    Returns:
+        Tuple of (stored_count, skipped_count).
+    """
+    from .store import _request
+
+    if not entities:
+        return (0, 0)
+
+    stored = 0
+    skipped = 0
+
+    for ent in entities:
+        ent_type = ent.get("entity_type", "")
+        if ent_type not in VALID_ENTITY_TYPES:
+            logger.warning("Skipping entity with invalid type: %s", ent_type)
+            skipped += 1
+            continue
+
+        canonical = ent.get("canonical_name", ent.get("entity_name", ""))
+        if not canonical:
+            skipped += 1
+            continue
+
+        # Apply alias resolution before storing
+        canonical = resolve_entity_alias(canonical)
+
+        record = {
+            "content_item_id": content_item_id,
+            "entity_type": ent_type,
+            "entity_name": ent.get("entity_name", canonical),
+            "canonical_name": canonical,
+            "confidence": ent.get("confidence", 0.9),
+        }
+
+        status, response = _request("POST", "entity_mentions", record)
+
+        if status in (200, 201):
+            stored += 1
+        elif status == 409:
+            # Duplicate — UNIQUE constraint violation, skip gracefully
+            skipped += 1
+        else:
+            logger.warning(
+                "Failed to store entity mention (status %s): %s — %s",
+                status, canonical, response,
+            )
+            skipped += 1
+
+    return (stored, skipped)

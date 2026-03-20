@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from .classify import classify, estimate_cost as classify_cost
+from .classify import classify, estimate_cost as classify_cost, store_entities, load_entity_aliases
 from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
 from .dedup import is_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
@@ -237,7 +237,16 @@ def process_url(
         result.item_id = id_or_error
         print(f"             ID: {id_or_error}")
 
-        # ── Step 7: Quality logging ──────────────────────────────────
+        # ── Step 7: Entity storage ───────────────────────────────────
+        if cls and cls.entities:
+            try:
+                load_entity_aliases()
+                stored, skipped = store_entities(id_or_error, cls.entities)
+                print(f"  [Entities] Stored {stored}, skipped {skipped}")
+            except Exception as e:
+                print(f"  [Entities] ERROR (non-blocking): {e}")
+
+        # ── Step 8: Quality logging ──────────────────────────────────
         _log_quality_flags(id_or_error, extracted, cls, batch_name, result)
 
     else:
