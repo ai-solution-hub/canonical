@@ -11,7 +11,7 @@ export { type ContentItemDetail, formatContentItem, type CreatedItem, formatCrea
 export { formatDashboardSummary, formatActiveBids, type FreshnessReport, formatFreshnessReport, formatReorientation } from './dashboard';
 export { type BidQuestionSummary, type BidSection, type BidDetail, formatBidDetail, type BidQuestionDetail, formatBidQuestion, type CitationResult, formatCitation, type ContentEffectiveness, formatContentEffectiveness } from './bids';
 export { type QualitySummary, formatQualitySummary, type CoverageGapResult, formatCoverageGaps, type AuditItem, type AuditResult, formatAuditResult, type DuplicatePair, type DuplicatePairsResult, formatDuplicatePairs } from './quality';
-export { type EntitySummaryResult, type EntityRelationship, type EntityOverview, formatEntitySummary, formatEntityOverview } from './entities';
+export { type EntitySummaryResult, type EntityRelationship, type EntityOverview, formatEntitySummary, formatEntityOverview, type CertificationReportEntry, type CertificationReportData, formatCertificationReport } from './entities';
 export { type DeleteContentResult, formatDeleteContent, type GovernanceStatusItemResult, type GovernanceStatusUpdateResult, formatGovernanceStatusUpdate } from './governance';
 export { type TemplateCoverageRequirement, type TemplateCoverageSection, type TemplateCoverageData, formatTemplateCoverage, type TemplateListItem, type TemplateListData, formatTemplateList, type TemplateGapsData, formatTemplateGaps } from './templates';
 export { formatClassification, formatSummaryResult } from './ai';

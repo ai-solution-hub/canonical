@@ -23,7 +23,7 @@ export interface ClaudePrompt {
   /** Brief explanation of what this prompt does */
   description: string;
   /** Category for grouping */
-  category: 'governance' | 'quality' | 'freshness' | 'bid' | 'coverage' | 'general' | 'ingestion';
+  category: 'governance' | 'quality' | 'freshness' | 'bid' | 'coverage' | 'general' | 'ingestion' | 'compliance';
 }
 
 // ---------------------------------------------------------------------------
@@ -338,5 +338,21 @@ export function generateBulkGapFillingPrompt(
     prompt: `We have ${suggestions.length} content ${suggestions.length === 1 ? 'gap' : 'gaps'} in the Knowledge Base. The highest priority gaps are:\n\n${gapList}\n\nHelp me create content to fill these gaps, starting with the most critical. For each, search the KB for related content and draft a new item.`,
     description: `${suggestions.length} ${suggestions.length === 1 ? 'gap' : 'gaps'} identified`,
     category: 'coverage',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Certification review prompts
+// ---------------------------------------------------------------------------
+
+export function generateCertificationReviewPrompt(
+  certCount: number,
+  expiringCount: number,
+): ClaudePrompt {
+  return {
+    label: 'Review certification status',
+    prompt: `Review our certification and framework status. We have ${certCount} ${certCount === 1 ? 'certification' : 'certifications'} on record${expiringCount > 0 ? ` and ${expiringCount} ${expiringCount === 1 ? 'is' : 'are'} expiring soon` : ''}. For each certification, check whether the version is current, the expiry date is correct, and we have adequate supporting evidence in the knowledge base. Flag any gaps.`,
+    description: `${certCount} ${certCount === 1 ? 'certification' : 'certifications'}, ${expiringCount} expiring`,
+    category: 'compliance',
   };
 }
