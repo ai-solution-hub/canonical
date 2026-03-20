@@ -98,6 +98,7 @@ export interface ItemData {
   reference?: string | null;
   answer_standard?: string | null;
   answer_advanced?: string | null;
+  content_owner_id?: string | null;
 }
 
 interface ItemDetailClientProps {
@@ -646,6 +647,9 @@ export function ItemDetailClient({
             startEdit={startEdit}
             saveEdit={saveEdit}
             readOnly={!canEdit}
+            onOwnerChanged={(ownerId) =>
+              setItem((prev) => ({ ...prev, content_owner_id: ownerId }))
+            }
           />
         </CollapsibleSection>
       </div>

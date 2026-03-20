@@ -104,6 +104,14 @@ export function useBrowseData(): UseBrowseDataReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [filters.quality_issues]);
 
+  // Resolve 'me' owner filter to current user's UUID
+  const resolveOwnerFilter = useCallback(async (): Promise<string | null> => {
+    if (!filters.owner || filters.owner !== 'me') return filters.owner ?? null;
+    const { data: { user } } = await supabase.auth.getUser();
+    return user?.id ?? null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, [filters.owner]);
+
   // Resolve entity filter to matching content_item IDs
   const resolveEntityIds = useCallback(async (): Promise<string[] | null> => {
     if (!filters.entity) return null;
@@ -129,6 +137,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       projectMatchIds?: string[] | null,
       qualityIssueIds?: string[] | null,
       entityMatchIds?: string[] | null,
+      resolvedOwner?: string | null,
     ) => {
       let query = supabase
         .from('content_items')
@@ -214,6 +223,14 @@ export function useBrowseData(): UseBrowseDataReturn {
         query = query.overlaps('user_tags', filters.user_tags);
       }
 
+      // Owner filter: 'unowned' filters null, UUID filters specific owner
+      // 'me' is resolved to the user's UUID by resolveOwnerFilter() before buildQuery
+      if (filters.owner === 'unowned') {
+        query = query.is('content_owner_id', null);
+      } else if (resolvedOwner) {
+        query = query.eq('content_owner_id', resolvedOwner);
+      }
+
       // Apply sorting + cursor
       const sort = filters.sort ?? 'captured_date';
       const order = filters.order ?? 'desc';
@@ -291,12 +308,13 @@ export function useBrowseData(): UseBrowseDataReturn {
       setItems([]);
       setCursor(null);
 
-      // Resolve keyword + project + quality issue + entity filters via server-side lookups
-      const [keywordIds, projectIds, qualityIds, entityIds] = await Promise.all([
+      // Resolve keyword + project + quality issue + entity + owner filters via server-side lookups
+      const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] = await Promise.all([
         resolveKeywordIds(),
         resolveWorkspaceIds(),
         resolveQualityIssueIds(),
         resolveEntityIds(),
+        resolveOwnerFilter(),
       ]);
       if (
         (keywordIds !== null && keywordIds.length === 0) ||
@@ -313,7 +331,7 @@ export function useBrowseData(): UseBrowseDataReturn {
         return;
       }
 
-      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds, qualityIds, entityIds);
+      const { data, count, error } = await buildQuery(null, true, keywordIds, projectIds, qualityIds, entityIds, resolvedOwner);
 
       // Discard stale response
       if (currentRequestId !== requestIdRef.current) return;
@@ -340,7 +358,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     };
 
     fetchData();
-  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, filters.sort, refreshCounter]);
+  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, resolveOwnerFilter, filters.sort, refreshCounter]);
 
   // Load more using cursor
   const handleLoadMore = useCallback(async () => {
@@ -348,13 +366,14 @@ export function useBrowseData(): UseBrowseDataReturn {
 
     setIsLoadingMore(true);
 
-    const [keywordIds, projectIds, qualityIds, entityIds] = await Promise.all([
+    const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] = await Promise.all([
       resolveKeywordIds(),
       resolveWorkspaceIds(),
       resolveQualityIssueIds(),
       resolveEntityIds(),
+      resolveOwnerFilter(),
     ]);
-    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds, entityIds);
+    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds, entityIds, resolvedOwner);
 
     if (error) {
       console.error('Failed to load more items:', error);
@@ -383,6 +402,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     resolveWorkspaceIds,
     resolveQualityIssueIds,
     resolveEntityIds,
+    resolveOwnerFilter,
     filters.sort,
   ]);
 

@@ -27,6 +27,8 @@ import {
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
+import { ContentOwnerSelector } from '@/components/content-owner-selector';
+import { ContentOwnerBadge } from '@/components/content-owner-badge';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -65,6 +67,7 @@ interface MetadataSidebarProps {
   startEdit: (field: string) => void;
   saveEdit: (field: string, value: unknown) => void;
   readOnly?: boolean;
+  onOwnerChanged?: (ownerId: string | null) => void;
 }
 
 export function MetadataSidebar({
@@ -75,11 +78,13 @@ export function MetadataSidebar({
   startEdit,
   saveEdit,
   readOnly = false,
+  onOwnerChanged,
 }: MetadataSidebarProps) {
   const { getDomainNames, getSubtopics, formatSubtopic } = useTaxonomy();
   const displayNames = useDisplayNames([
     item.created_by as string | null,
     item.updated_by as string | null,
+    item.content_owner_id as string | null,
   ]);
 
   // Quality flags
@@ -271,6 +276,34 @@ export function MetadataSidebar({
               </dd>
             </div>
           )}
+
+          {/* Content owner */}
+          <div>
+            <dt className="text-xs text-muted-foreground">Owner</dt>
+            <dd>
+              {readOnly ? (
+                <ContentOwnerBadge
+                  ownerName={
+                    item.content_owner_id
+                      ? displayNames.get(item.content_owner_id as string) ?? null
+                      : null
+                  }
+                  size="md"
+                />
+              ) : (
+                <ContentOwnerSelector
+                  itemId={item.id}
+                  currentOwnerId={(item.content_owner_id as string) ?? null}
+                  currentOwnerName={
+                    item.content_owner_id
+                      ? displayNames.get(item.content_owner_id as string) ?? null
+                      : null
+                  }
+                  onOwnerChanged={onOwnerChanged}
+                />
+              )}
+            </dd>
+          </div>
 
           {item.classification_confidence != null && (() => {
             const confidence = getConfidenceDisplay(item.classification_confidence as number | null);
