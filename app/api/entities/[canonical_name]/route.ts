@@ -98,7 +98,7 @@ export async function GET(
     const { data: relRows, error: relError } = await supabase
       .from('entity_relationships')
       .select('source_entity, relationship_type, target_entity, confidence')
-      .or(`source_entity.eq.${decodedName},target_entity.eq.${decodedName}`);
+      .or(`source_entity.eq."${decodedName.replace(/"/g, '\\"')}",target_entity.eq."${decodedName.replace(/"/g, '\\"')}"`);
 
     const relationships = (!relError && relRows)
       ? relRows.map((r) => ({
