@@ -444,20 +444,12 @@ export async function POST(request: NextRequest) {
           const warning = formatDedupWarning(dedupResult);
           if (warning) warnings.push(warning);
           // Provide structured matches for DedupWarning component
-          duplicate_matches = [
-            ...(dedupResult.exact_match ? [{
-              id: dedupResult.exact_match.id,
-              title: dedupResult.exact_match.title,
-              similarity: 1.0,
-              match_type: 'exact' as const,
-            }] : []),
-            ...(dedupResult.near_duplicates ?? []).map((nd: { id: string; title: string; similarity: number }) => ({
-              id: nd.id,
-              title: nd.title,
-              similarity: nd.similarity,
-              match_type: 'near_duplicate' as const,
-            })),
-          ];
+          duplicate_matches = dedupResult.matches.map((m) => ({
+            id: m.id,
+            title: m.title,
+            similarity: m.similarity,
+            match_type: m.match_type,
+          }));
         }
       } catch (dedupErr) {
         console.error('Dedup check failed:', dedupErr);

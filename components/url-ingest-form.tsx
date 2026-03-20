@@ -359,9 +359,9 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
                 , or let Claude extract it:
               </p>
               <ClaudePromptButton
-                prompt={generateIngestDocumentPrompt()}
+                prompt={generateIngestDocumentPrompt().prompt}
+                label="Let Claude extract it"
                 size="sm"
-                variant="outline"
               />
             </div>
           )}
