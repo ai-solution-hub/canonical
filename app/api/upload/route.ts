@@ -695,6 +695,77 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Trigger diff computation for re-uploads
+    let diffAvailable = false;
+    if (reuploadInfo?.match_type === 'new_version' && sourceDocumentId) {
+      try {
+        const { computeDocumentDiff } = await import('@/lib/document-diff');
+        const { analyseDocumentImpact } = await import(
+          '@/lib/source-document-impact'
+        );
+
+        // Get extracted text from old document
+        const { data: oldDoc } = await serviceClient
+          .from('source_documents')
+          .select('id, extracted_text')
+          .eq('id', reuploadInfo.existing_document_id)
+          .single();
+
+        if (oldDoc?.extracted_text && extractedText) {
+          // Compute diff
+          const diffResult = computeDocumentDiff(
+            oldDoc.id,
+            sourceDocumentId,
+            oldDoc.extracted_text,
+            extractedText,
+          );
+
+          // Store diff results
+          if (diffResult.entries.length > 0) {
+            const diffRows = diffResult.entries.map((entry) => ({
+              old_document_id: oldDoc.id,
+              new_document_id: sourceDocumentId,
+              diff_type: entry.diff_type,
+              old_question: entry.old_question ?? null,
+              new_question: entry.new_question ?? null,
+              old_content: entry.old_content ?? null,
+              new_content: entry.new_content ?? null,
+              similarity_score: entry.similarity_score ?? null,
+              status: 'pending_review',
+            }));
+
+            await serviceClient
+              .from('source_document_diffs')
+              .insert(diffRows);
+
+            diffAvailable = true;
+
+            // Run impact analysis
+            const impact = await analyseDocumentImpact(
+              serviceClient,
+              sourceDocumentId,
+            );
+
+            // Send notifications to affected content owners
+            if (impact.total_affected_items > 0) {
+              const { sendSourceDocumentUpdateNotifications } = await import(
+                '@/lib/source-document-notifications'
+              );
+              await sendSourceDocumentUpdateNotifications(
+                serviceClient,
+                impact,
+                sourceDocumentId,
+              );
+            }
+          }
+        }
+      } catch (diffErr) {
+        console.error('Diff computation failed:', diffErr);
+        warnings.push('Re-upload diff computation failed');
+        // Non-fatal — upload is still successful
+      }
+    }
+
     // Step 5 complete: all done
     if (pipelineRunId) {
       await updatePipelineProgress(pipelineRunId, {
@@ -730,6 +801,7 @@ export async function POST(request: NextRequest) {
       }),
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
+      ...(diffAvailable && { diff_available: true }),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',
