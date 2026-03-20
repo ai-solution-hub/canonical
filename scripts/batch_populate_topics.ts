@@ -112,7 +112,7 @@ async function main(): Promise<void> {
   }
 
   const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
-    global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(120_000) }) },
+    global: { fetch: (url, init) => fetch(url, { ...init, signal: AbortSignal.timeout(300_000) }) },
   });
 
   // ── Step 1: Fetch all active items ──
