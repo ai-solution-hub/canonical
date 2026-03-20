@@ -23,6 +23,7 @@ export interface FilterDraft {
   quality_issues: boolean;
   include_drafts: boolean;
   include_qa: boolean;
+  owner: string;
 }
 
 interface UseFilterDraftParams {
@@ -54,6 +55,7 @@ function filtersTodraft(filters: BrowseFilters): FilterDraft {
     quality_issues: filters.quality_issues ?? false,
     include_drafts: filters.include_drafts ?? false,
     include_qa: filters.include_qa ?? false,
+    owner: filters.owner ?? '',
   };
 }
 
@@ -184,6 +186,13 @@ export function useFilterDraft({
     }));
   }, []);
 
+  const handleOwnerChange = useCallback((ownerValue: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      owner: prev.owner === ownerValue ? '' : ownerValue,
+    }));
+  }, []);
+
   const handleUserTagToggle = useCallback((tag: string) => {
     setDraft((prev) => {
       const isSelected = prev.user_tags.includes(tag);
@@ -227,6 +236,7 @@ export function useFilterDraft({
       quality_issues: draft.quality_issues || undefined,
       include_drafts: draft.include_drafts || undefined,
       include_qa: draft.include_qa || undefined,
+      owner: draft.owner || undefined,
     });
     onClose();
   }, [draft, setFilters, onClose]);
@@ -251,6 +261,7 @@ export function useFilterDraft({
       quality_issues: false,
       include_drafts: false,
       include_qa: false,
+      owner: '',
     });
     onClearAuthorSearch?.();
     clearFilters();
@@ -276,6 +287,7 @@ export function useFilterDraft({
     draft.quality_issues,
     draft.include_drafts,
     draft.include_qa,
+    draft.owner,
   ].filter(Boolean).length;
 
   return {
@@ -293,6 +305,7 @@ export function useFilterDraft({
     handleFreshnessToggle,
     handleLayerToggle,
     handleEntityChange,
+    handleOwnerChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,

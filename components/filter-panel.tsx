@@ -63,6 +63,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     handleFreshnessToggle,
     handleLayerToggle,
     handleEntityChange,
+    handleOwnerChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,
@@ -357,6 +358,38 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               })}
             </div>
           </FilterSection>
+
+          {/* Content Owner — collapsed by default */}
+          <FilterSection title="Owner" defaultOpen={false}>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'me', label: 'My content' },
+                { value: 'unowned', label: 'Unowned' },
+              ].map((opt) => {
+                const isActive = draft.owner === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleOwnerChange(opt.value)}
+                    aria-pressed={isActive}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                      isActive
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-muted text-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Filter by content ownership
+            </p>
+          </FilterSection>
+
+          <Separator className="my-3" />
 
           {isFeatureEnabled('content_layers') && (
             <>

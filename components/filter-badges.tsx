@@ -190,6 +190,19 @@ export function FilterBadges() {
     });
   }
 
+  if (filters.owner) {
+    const ownerLabels: Record<string, string> = {
+      me: 'My content',
+      unowned: 'Unowned',
+    };
+    badges.push({
+      id: 'owner',
+      label: 'Owner',
+      value: ownerLabels[filters.owner] ?? filters.owner.slice(0, 8) + '\u2026',
+      onRemove: () => removeFilter('owner'),
+    });
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border-l-2 border-border bg-muted/30 px-3 py-2">
       {badges.map((badge) => (

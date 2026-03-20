@@ -32,6 +32,8 @@ export function useBrowseFilters() {
       ?.split(',')
       .filter(Boolean);
 
+    const ownerRaw = searchParams.get('owner') ?? undefined;
+
     const qualityIssues = searchParams.get('quality_issues') === 'true' || undefined;
     const includeQaExplicit = searchParams.get('include_qa') === 'true' || undefined;
     // When quality_issues is active, automatically include Q&A pairs so the
@@ -58,6 +60,7 @@ export function useBrowseFilters() {
       quality_issues: qualityIssues,
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
       include_qa: includeQa,
+      owner: ownerRaw,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -83,6 +86,7 @@ export function useBrowseFilters() {
     if (filters.quality_issues) count++;
     if (filters.include_drafts) count++;
     if (filters.include_qa) count++;
+    if (filters.owner) count++;
     return count;
   }, [filters]);
 
@@ -184,6 +188,10 @@ export function useBrowseFilters() {
       if ('include_qa' in newFilters) {
         if (newFilters.include_qa) params.set('include_qa', 'true');
         else params.delete('include_qa');
+      }
+      if ('owner' in newFilters) {
+        if (newFilters.owner) params.set('owner', newFilters.owner);
+        else params.delete('owner');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

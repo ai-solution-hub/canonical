@@ -62,6 +62,9 @@ const { GET: layersGet } = await import(
 const { GET: workspacesGet, POST: workspacesPost } = await import(
   '@/app/api/items/[id]/workspaces/route'
 );
+const { PATCH: ownerPatch } = await import(
+  '@/app/api/items/[id]/owner/route'
+);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1213,5 +1216,151 @@ describe('POST /api/items/[id]/workspaces', () => {
 
     const body = await res.json();
     expect(body.error).toMatch(/already exists/);
+  });
+});
+
+// =====================================================================
+// PATCH /api/items/[id]/owner
+// Uses getAuthorisedClient(['admin', 'editor'])
+// =====================================================================
+
+describe('PATCH /api/items/[id]/owner', () => {
+  const params = createTestParams({ id: VALID_UUID });
+
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for invalid item UUID', async () => {
+    configureRole(mockSupabase, 'editor');
+    const badParams = createTestParams({ id: 'bad' });
+
+    const req = createTestRequest('/api/items/bad/owner', {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params: badParams });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid item ID/);
+  });
+
+  it('returns 400 for invalid owner_id UUID', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: 'not-a-uuid' },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toMatch(/Invalid owner_id/);
+  });
+
+  it('returns 200 on successful owner assignment', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.owner_id).toBe(VALID_UUID_2);
+  });
+
+  it('returns 200 when clearing owner (null)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: null },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.owner_id).toBeNull();
+  });
+
+  it('returns 404 when item not found', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body.error).toBe('Item not found');
+  });
+
+  it('returns 500 on database error', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'DB error', code: '50000' },
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/owner`, {
+      method: 'PATCH',
+      body: { owner_id: VALID_UUID_2 },
+    });
+
+    const res = await ownerPatch(req, { params });
+    expect(res.status).toBe(500);
+
+    const body = await res.json();
+    expect(body.error).toBe('Failed to update content owner');
   });
 });
