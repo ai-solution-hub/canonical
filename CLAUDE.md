@@ -58,12 +58,12 @@ Key directories:
 | `components/` | ~160 custom + `copilot-ui/` (2) + `reader-cards/` (3) + `ui/` (23 shadcn) |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features) |
 | `hooks/` | ~35 custom hooks (browse-filters, keyboard-shortcuts, draft-stream, claude-connected, etc.) |
-| `lib/` | ~56 utility modules — includes `mcp/` (32 tools, 10 resources, 5 prompts), `ai/` (service layer), `claude-prompts.ts` |
+| `lib/` | ~56 utility modules — includes `mcp/` (33 tools, 10 resources, 5 prompts), `ai/` (service layer), `claude-prompts.ts` |
 | `types/` | TypeScript types (content, bid, bid-metadata, copilot, digest, review, template, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
-| `supabase/` | ~82 migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest — ~249 test files |
-| `e2e/` | Playwright — 9 spec files. Config: `playwright.config.ts` |
+| `supabase/` | ~85 migrations + auto-generated types (`database.types.ts` — never edit manually) |
+| `__tests__/` | Vitest — ~256 test files |
+| `e2e/` | Playwright — 11 spec files. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
 ## Environment
@@ -94,7 +94,7 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
 
 ## Schema
 
-**28 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
+**29 tables** — full reference: `docs/reference/SCHEMA-QUICK-REFERENCE.md`
 
 ### RLS Model
 
@@ -118,13 +118,13 @@ Role-based via `get_user_role()` SECURITY DEFINER helper:
 
 - **Framework:** Vitest — run via `bun run test` (NOT `bun test` — see Gotchas)
 - **Coverage:** `bun run test:coverage` (via `@vitest/coverage-v8`)
-- **Location:** `__tests__/` — ~249 test files, ~4,106 tests
+- **Location:** `__tests__/` — ~256 test files, ~4,183 tests
 - **Mock pattern:** Shared `createMockSupabaseClient()` in
   `__tests__/helpers/mock-supabase.ts` — all API tests use this
 - **Python tests:** `python3 -m pytest scripts/tests/`
-- **E2E:** Playwright — 9 spec files in `e2e/tests/`, 261 tests (252 pass,
-  9 skipped). Worker-scoped fixtures, multi-role auth (admin/editor/viewer).
-  See `e2e/` directory for spec files and helpers.
+- **E2E:** Playwright — 11 spec files in `e2e/tests/`. Worker-scoped fixtures,
+  multi-role auth (admin/editor/viewer). See `e2e/` directory for spec files
+  and helpers.
 - **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
   `.planning/specs/testing-expansion-spec.md` (all waves complete)
 - **Agent escalation rule:** When test agents encounter unexpected production
