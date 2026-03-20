@@ -39,7 +39,18 @@ export async function createClient() {
   );
 }
 
-/** Service client for operations that bypass RLS (admin API, pipeline compatibility) */
+/**
+ * Service client that bypasses RLS entirely via SUPABASE_SECRET_KEY.
+ *
+ * **When to use:** Admin-only routes (after `getAuthorisedClient(['admin'])`),
+ * cron jobs (after `verifyCronAuth()`), pipeline operations, storage uploads,
+ * and `auth.admin.*` calls (display name resolution, user management).
+ *
+ * **When NOT to use:** User-facing data queries — use `getAuthorisedClient()`
+ * from `lib/auth.ts` instead, which respects RLS.
+ *
+ * Audited S102: all 17 call sites verified as properly guarded.
+ */
 export function createServiceClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) {
