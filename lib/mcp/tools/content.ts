@@ -1,10 +1,11 @@
 /**
- * Content item tool registrations (5 tools):
+ * Content item tool registrations (6 tools):
  *   4. get_content_item
  *  12. create_content_item
  *  19. update_content_item
  *  21. get_content_items
  *  31. assign_content_owner
+ *  33. get_document_versions
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -564,6 +565,130 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Failed to assign content owner: ${message}. Ensure you have admin permissions.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 33. get_document_versions
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_document_versions',
+    {
+      title: 'Get Source Document Versions',
+      description: 'List all versions of a source document, showing the version chain and which KB items were created from each version.',
+      inputSchema: {
+        document_id: z.string().uuid().describe('Source document ID (any version in the chain)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+
+        // RPC added after last type generation — cast to bypass strict typing
+        // until types are regenerated. The RPC returns a TABLE with known columns.
+        interface VersionRow {
+          id: string;
+          filename: string;
+          original_filename: string;
+          mime_type: string;
+          file_size: number;
+          content_hash: string;
+          version: number;
+          parent_id: string | null;
+          storage_path: string;
+          status: string;
+          uploaded_by: string;
+          created_at: string;
+          content_item_count: number;
+        }
+
+        const { data, error } = await (supabase.rpc as CallableFunction)(
+          'get_document_version_chain',
+          { p_document_id: args.document_id },
+        );
+
+        if (error) {
+          return {
+            content: [{ type: 'text' as const, text: `Failed to retrieve document versions: ${(error as { message: string }).message}. Check the ID is a valid source document UUID.` }],
+            isError: true,
+          };
+        }
+
+        const versions = data as VersionRow[] | null;
+
+        if (!versions || versions.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: `No document found for ID: ${args.document_id}` }],
+            isError: true,
+          };
+        }
+
+        // Format as a version timeline
+        const lines: string[] = [];
+        lines.push(`## Document Version Chain`);
+        lines.push(`**Filename:** ${versions[0].filename}`);
+        lines.push(`**Total versions:** ${versions.length}`);
+        lines.push('');
+
+        for (const v of versions) {
+          const date = v.created_at
+            ? new Date(v.created_at).toLocaleDateString('en-GB', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })
+            : 'Unknown date';
+
+          const current = v.id === args.document_id ? ' **(requested)**' : '';
+          const itemCount = Number(v.content_item_count) || 0;
+
+          lines.push(`### Version ${v.version}${current}`);
+          lines.push(`- **ID:** ${v.id}`);
+          lines.push(`- **Status:** ${v.status}`);
+          lines.push(`- **Uploaded:** ${date}`);
+          lines.push(`- **File size:** ${v.file_size ? `${(v.file_size / 1024).toFixed(1)} KB` : 'Unknown'}`);
+          lines.push(`- **Content hash:** ${v.content_hash?.slice(0, 12) ?? 'N/A'}...`);
+          lines.push(`- **KB items created:** ${itemCount}`);
+          if (v.parent_id) {
+            lines.push(`- **Parent version:** ${v.parent_id}`);
+          }
+          lines.push('');
+        }
+
+        const markdown = truncateResponse(lines.join('\n'));
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent({
+            document_id: args.document_id,
+            filename: versions[0].filename,
+            total_versions: versions.length,
+            versions: versions.map((v) => ({
+              id: v.id,
+              version: v.version,
+              status: v.status,
+              filename: v.filename,
+              file_size: v.file_size,
+              content_hash: v.content_hash,
+              parent_id: v.parent_id,
+              uploaded_by: v.uploaded_by,
+              created_at: v.created_at,
+              content_item_count: Number(v.content_item_count) || 0,
+            })),
+          }),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Failed to retrieve document versions: ${message}. Check the ID is a valid source document UUID.` }],
           isError: true,
         };
       }
