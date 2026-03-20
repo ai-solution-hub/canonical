@@ -17,7 +17,11 @@ export type NotificationType =
   | 'digest_ready'
   | 'freshness_transition'
   | 'coverage_alert'
-  | 'content_gap';
+  | 'content_gap'
+  | 'owner_content_stale'
+  | 'owner_content_updated'
+  | 'owner_assignment'
+  | 'source_document_updated';
 
 export interface CreateNotificationParams {
   supabase: SupabaseClient<Database>;
