@@ -111,6 +111,7 @@ vi.mock('@/hooks/use-filter-data', () => ({
     allWorkspaces: mockAllWorkspaces.value,
     allUserTags: mockAllUserTags.value,
     allEntities: mockAllEntities.value,
+    entityTypeCounts: [],
   }),
 }));
 
