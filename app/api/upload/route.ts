@@ -404,6 +404,7 @@ export async function POST(request: NextRequest) {
 
     // 5. AI processing — awaited before response to avoid serverless truncation
     const warnings: string[] = [];
+    let duplicate_matches: { id: string; title: string; similarity: number; match_type: string }[] = [];
 
     if (extractedText) {
       // Embedding
@@ -442,6 +443,21 @@ export async function POST(request: NextRequest) {
         if (dedupResult.has_duplicates) {
           const warning = formatDedupWarning(dedupResult);
           if (warning) warnings.push(warning);
+          // Provide structured matches for DedupWarning component
+          duplicate_matches = [
+            ...(dedupResult.exact_match ? [{
+              id: dedupResult.exact_match.id,
+              title: dedupResult.exact_match.title,
+              similarity: 1.0,
+              match_type: 'exact' as const,
+            }] : []),
+            ...(dedupResult.near_duplicates ?? []).map((nd: { id: string; title: string; similarity: number }) => ({
+              id: nd.id,
+              title: nd.title,
+              similarity: nd.similarity,
+              match_type: 'near_duplicate' as const,
+            })),
+          ];
         }
       } catch (dedupErr) {
         console.error('Dedup check failed:', dedupErr);
@@ -527,6 +543,7 @@ export async function POST(request: NextRequest) {
       file_path: storagePath,
       content_length: extractedText.length,
       warnings,
+      duplicate_matches,
       pipeline_run_id: pipelineRunId,
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       message: extractedText
