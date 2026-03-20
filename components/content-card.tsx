@@ -13,6 +13,8 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { GovernanceBadge } from '@/components/governance-badge';
+import { QualityBadge } from '@/components/quality-badge';
+import { calculateQualityScore } from '@/lib/quality-score';
 import { AlertTriangle, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -28,6 +30,20 @@ import type { ContentListItem, SearchResult } from '@/types/content';
 
 function isSearchResult(item: ContentListItem | SearchResult): item is SearchResult {
   return 'similarity' in item;
+}
+
+/** Derive a composite quality score from the fields available on a list item */
+function qualityScoreForItem(item: ContentListItem | SearchResult) {
+  const meta = item.metadata as Record<string, unknown> | null;
+  return calculateQualityScore({
+    freshness: item.freshness,
+    classification_confidence: item.classification_confidence,
+    brief: item.brief,
+    // detail + reference are not fetched for list views — omitted intentionally
+    ai_summary: item.ai_summary,
+    citation_count:
+      typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+  });
 }
 
 /** Reusable quality flag badge */
@@ -168,6 +184,7 @@ function CardStatusRow({ item, hasQualityFlag, children }: {
       <time className="text-xs text-muted-foreground" dateTime={item.captured_date ?? undefined}>
         {formatSmartDate(item.captured_date)}
       </time>
+      <QualityBadge score={qualityScoreForItem(item)} />
       {children}
       {item.freshness && item.freshness !== 'fresh' && (
         <FreshnessBadge freshness={item.freshness} compact />
