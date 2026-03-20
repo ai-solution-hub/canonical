@@ -16,3 +16,4 @@ export { type DeleteContentResult, formatDeleteContent, type GovernanceStatusIte
 export { type TemplateCoverageRequirement, type TemplateCoverageSection, type TemplateCoverageData, formatTemplateCoverage, type TemplateListItem, type TemplateListData, formatTemplateList, type TemplateGapsData, formatTemplateGaps } from './templates';
 export { formatClassification, formatSummaryResult } from './ai';
 export { type CoverageMatrixData, formatCoverageMatrix, type BidDashboardData, formatBidDashboard } from './apps';
+export { type DocumentDiffData, formatDocumentDiff } from './documents';
