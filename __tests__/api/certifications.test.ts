@@ -152,9 +152,7 @@ beforeEach(() => {
 
 function setupFullMockData() {
   // Track call order to return different data for different .from() calls
-  let fromCallCount = 0;
-  mockSupabase.from.mockImplementation((table: string) => {
-    fromCallCount++;
+  mockSupabase.from.mockImplementation(() => {
     // Return the chain but configure .then() based on which query
     return mockSupabase._chain;
   });

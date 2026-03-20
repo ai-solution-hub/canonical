@@ -71,8 +71,6 @@ export function extractQAPairs(text: string): QAPair[] {
 function extractStructuredPairs(text: string): QAPair[] {
   // Split on lines that start with Q: or Question: (case-insensitive)
   // Keep the delimiter by using a capturing group in the split
-  const qMarker = /^(?:Q|Question)\s*:\s*/im;
-
   // Only match Q:/Question: when followed by a colon (not inside table cells).
   // Require the marker to be at the start of a line, not preceded by a pipe.
   const markerPattern = /^(?:Q|Question)\s*:/im;

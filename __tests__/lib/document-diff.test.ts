@@ -4,7 +4,6 @@ import {
   extractQAPairs,
   computeDocumentDiff,
 } from '@/lib/document-diff';
-import type { QAPair, DiffResult } from '@/lib/document-diff';
 
 // ---------------------------------------------------------------------------
 // stringSimilarity
