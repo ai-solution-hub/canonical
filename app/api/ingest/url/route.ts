@@ -161,7 +161,32 @@ export async function POST(request: NextRequest) {
       warnings.push(`Summary generation failed: ${msg}`);
     }
 
-    // 16. Fetch final item state (post-classify)
+    // 16. Layer inference — suggest and store a layer
+    let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
+    try {
+      const { inferLayer } = await import('@/lib/layer-inference');
+      const suggestion = inferLayer({
+        contentType,
+        contentLength: extracted.contentLength,
+        ingestionSource: 'url_import',
+        hasBrief: false,
+        hasDetail: false,
+        hasReference: false,
+        isBidDiscovered: false,
+        title: extracted.title || '',
+      });
+      suggestedLayer = suggestion;
+
+      await supabase.rpc('merge_item_metadata', {
+        p_item_id: newItem.id,
+        p_new_data: { layer: suggestion.suggestedLayer },
+      });
+    } catch (layerErr) {
+      console.error('Layer inference failed:', layerErr);
+      // Non-fatal — item is still usable without a layer suggestion
+    }
+
+    // 17. Fetch final item state (post-classify)
     const { data: finalItem } = await supabase
       .from('content_items')
       .select('primary_domain, primary_subtopic, ai_summary')
@@ -179,6 +204,7 @@ export async function POST(request: NextRequest) {
       content_length: extracted.contentLength,
       warnings,
       duplicate_matches: dedupMatches,
+      ...(suggestedLayer && { suggested_layer: suggestedLayer }),
     });
   } catch (err) {
     return NextResponse.json(

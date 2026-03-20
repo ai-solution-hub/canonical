@@ -478,6 +478,33 @@ export async function POST(request: NextRequest) {
       warnings.push('Text extraction failed — classification, embedding, and summary skipped');
     }
 
+    // Layer inference — suggest and store a layer if not explicitly provided
+    let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
+    if (extractedText) {
+      try {
+        const { inferLayer } = await import('@/lib/layer-inference');
+        const suggestion = inferLayer({
+          contentType: contentType,
+          contentLength: extractedText.length,
+          ingestionSource: 'upload',
+          hasBrief: false,
+          hasDetail: false,
+          hasReference: false,
+          isBidDiscovered: !!workspaceId,
+          title,
+        });
+        suggestedLayer = suggestion;
+
+        await serviceClient.rpc('merge_item_metadata', {
+          p_item_id: itemId,
+          p_new_data: { layer: suggestion.suggestedLayer },
+        });
+      } catch (layerErr) {
+        console.error('Layer inference failed:', layerErr);
+        // Non-fatal — item is still usable without a layer suggestion
+      }
+    }
+
     // Step 5 complete: all done
     if (pipelineRunId) {
       await updatePipelineProgress(pipelineRunId, {
@@ -501,6 +528,7 @@ export async function POST(request: NextRequest) {
       content_length: extractedText.length,
       warnings,
       pipeline_run_id: pipelineRunId,
+      ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'
         : 'File uploaded but text extraction failed. The file is stored and available for manual processing.',

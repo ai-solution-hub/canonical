@@ -173,6 +173,37 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Layer inference — suggest and store a layer if not explicitly provided
+    let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
+    try {
+      const { inferLayer } = await import('@/lib/layer-inference');
+      const plainTextForLayer = htmlToPlainText(content);
+      const effectiveSource = (ingestion_source ?? 'manual') as
+        'manual' | 'url_import' | 'upload' | 'copilotkit' | 'bid_library';
+      const suggestion = inferLayer({
+        contentType: content_type,
+        contentLength: plainTextForLayer.length,
+        ingestionSource: effectiveSource,
+        hasBrief: !!brief,
+        hasDetail: !!detail,
+        hasReference: !!reference,
+        isBidDiscovered: false,
+        title,
+      });
+      suggestedLayer = suggestion;
+
+      // Store the suggested layer in metadata via merge_item_metadata
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const serviceClient = createServiceClient();
+      await serviceClient.rpc('merge_item_metadata', {
+        p_item_id: newItem.id,
+        p_new_data: { layer: suggestion.suggestedLayer },
+      });
+    } catch (layerErr) {
+      console.error('Layer inference failed:', layerErr);
+      // Non-fatal — item is still usable without a layer suggestion
+    }
+
     return NextResponse.json(
       {
         id: newItem.id,
@@ -181,6 +212,7 @@ export async function POST(request: NextRequest) {
         created_at: newItem.created_at,
         warnings,
         ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
+        ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       },
       { status: 201 },
     );
