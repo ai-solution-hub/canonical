@@ -110,14 +110,6 @@ export default function BidSessionPage({
   );
   const orphanedSourceIds = useCitationOrphans(citationSourceIds);
 
-  // Editor ref for CopilotKit integration
-  const editorContentRef = useRef<string>('');
-
-  // Keep editor content ref in sync
-  useEffect(() => {
-    editorContentRef.current = editorContent;
-  }, [editorContent]);
-
   const bidName = bid?.name;
 
   // ── Loading state ──
@@ -199,7 +191,7 @@ export default function BidSessionPage({
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="size-4" aria-hidden="true" />
-            <span className="sr-only">Back to bid</span>
+            <span>Back to bid</span>
           </Link>
           <h1 className="text-lg font-semibold text-foreground truncate">
             {bidName}

@@ -444,7 +444,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <AlertDialogHeader>
             <AlertDialogTitle>Delete bid</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this bid? This cannot be
+              Are you sure you want to delete &ldquo;{bid?.name}&rdquo;? This cannot be
               undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
