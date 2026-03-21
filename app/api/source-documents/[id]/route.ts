@@ -18,8 +18,6 @@ export async function GET(
     if (!authResult) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
-    const { supabase } = authResult;
-
     const { id } = await params;
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

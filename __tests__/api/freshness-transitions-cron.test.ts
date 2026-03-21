@@ -6,7 +6,7 @@
  *   - Unowned items get `freshness_transition` to all admins + editors (existing behaviour)
  *   - Mixed batches handle both groups correctly
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------

@@ -21,8 +21,6 @@ export async function GET(
     if (!authResult) {
       return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
-    const { supabase } = authResult;
-
     const { id } = await params;
 
     // Validate UUID format

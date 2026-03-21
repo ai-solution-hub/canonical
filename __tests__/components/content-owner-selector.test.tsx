@@ -41,7 +41,7 @@ const MOCK_USERS = [
 ];
 
 function setupFetchMock() {
-  mockFetch.mockImplementation(async (url: string, options?: RequestInit) => {
+  mockFetch.mockImplementation(async (url: string) => {
     if (url === '/api/admin/users') {
       return {
         ok: true,

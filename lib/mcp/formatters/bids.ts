@@ -1,8 +1,8 @@
 /**
  * Bid-related formatters for MCP tool responses.
  */
-import { formatDateUK, formatContentType } from '@/lib/format';
-import { truncate, formatDeadline, formatProgress } from './shared';
+import { formatDateUK } from '@/lib/format';
+import { truncate, formatProgress } from './shared';
 
 // ---------------------------------------------------------------------------
 // Bid detail
