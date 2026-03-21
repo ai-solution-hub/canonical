@@ -28,6 +28,7 @@ import {
   SaveActionsBar,
   MobileStepIndicator,
 } from '@/components/create-content';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const ContentEditor = dynamic(
   () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
@@ -242,6 +243,7 @@ export function CreateContentClient() {
   }, []);
 
   return (
+    <ErrorBoundary label="Error loading content editor">
     <section aria-label="Create content" className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
       {/* Breadcrumb + Header */}
       <BreadcrumbNav
@@ -456,5 +458,6 @@ export function CreateContentClient() {
         </form>
       </FormProvider>
     </section>
+    </ErrorBoundary>
   );
 }

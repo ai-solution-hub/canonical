@@ -10,6 +10,7 @@ import { TemplateUpload } from '@/components/template-upload';
 import { TemplateFieldReview } from '@/components/template-field-review';
 import { TemplateFillProgress } from '@/components/template-fill-progress';
 import { TemplateCompletionSummary } from '@/components/template-completion-summary';
+import { ErrorBoundary } from '@/components/error-boundary';
 import type {
   FillResult,
   Template,
@@ -343,6 +344,7 @@ export default function TemplateCompletionPage() {
   }
 
   return (
+    <ErrorBoundary label="Error loading templates">
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -466,5 +468,6 @@ export default function TemplateCompletionPage() {
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
