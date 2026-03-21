@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import {
   Loader2,
   Sparkles,
@@ -90,7 +91,7 @@ interface ModeSelectorProps {
 
 function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
   return (
-    <div role="tablist" aria-label="Digest mode" className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
+    <div role="tablist" aria-label="Digest mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
       <button
         role="tab"
         id="tab-preset"
