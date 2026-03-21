@@ -1,9 +1,72 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   formatDocumentDiff,
   type DocumentDiffData,
 } from '@/lib/mcp/formatters';
 import { generateDocumentDiffReviewPrompt } from '@/lib/claude-prompts';
+
+// ──────────────────────────────────────────
+// Hoisted mocks for MCP tool handler tests
+// ──────────────────────────────────────────
+
+const mocks = vi.hoisted(() => {
+  // Each .from() call needs its own independent chain so different tables
+  // can return different results within the same handler invocation.
+  function makeChain(resolvedValue: { data: unknown; error: unknown } = { data: null, error: null }) {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    chain.select = vi.fn().mockReturnValue(chain);
+    chain.eq = vi.fn().mockReturnValue(chain);
+    chain.in = vi.fn().mockReturnValue(chain);
+    chain.order = vi.fn().mockReturnValue(chain);
+    chain.limit = vi.fn().mockReturnValue(chain);
+    chain.filter = vi.fn().mockReturnValue(chain);
+    chain.single = vi.fn().mockResolvedValue(resolvedValue);
+    chain.then = vi.fn((resolve: (v: unknown) => void) => resolve(resolvedValue));
+    return chain;
+  }
+
+  const fromMock = vi.fn().mockReturnValue(makeChain());
+
+  const mockSupabaseClient = {
+    from: fromMock,
+    rpc: vi.fn().mockResolvedValue({ data: [], error: null }),
+    _makeChain: makeChain,
+  };
+
+  return {
+    mockSupabaseClient,
+    fromMock,
+    createMcpClient: vi.fn().mockReturnValue(mockSupabaseClient),
+    checkMcpRole: vi.fn().mockResolvedValue('editor'),
+    makeChain,
+  };
+});
+
+vi.mock('@/lib/mcp/auth', () => ({
+  createMcpClient: mocks.createMcpClient,
+  getMcpUserId: vi.fn().mockReturnValue('user-123'),
+  getMcpUserRole: vi.fn().mockResolvedValue('editor'),
+  checkMcpRole: mocks.checkMcpRole,
+}));
+
+vi.mock('@/lib/ai/embed', () => ({ generateEmbedding: vi.fn() }));
+vi.mock('@/lib/ai/classify', () => ({ classifyContent: vi.fn() }));
+vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
+
+type ToolHandler = (args: Record<string, unknown>, extra: Record<string, unknown>) => Promise<unknown>;
+
+function createMockMcpServer() {
+  const tools: Record<string, { handler: ToolHandler }> = {};
+  return {
+    tools,
+    registerTool(name: string, _config: Record<string, unknown>, handler: ToolHandler) {
+      tools[name] = { handler };
+    },
+    getHandler(name: string): ToolHandler | undefined {
+      return tools[name]?.handler;
+    },
+  };
+}
 
 // ──────────────────────────────────────────
 // Fixtures
@@ -281,5 +344,105 @@ describe('generateDocumentDiffReviewPrompt', () => {
   it('includes correct description', () => {
     const prompt = generateDocumentDiffReviewPrompt('file.docx', 10, 4);
     expect(prompt.description).toBe('10 changes, 4 items affected');
+  });
+});
+
+// ──────────────────────────────────────────
+// get_document_diff handler — diff_id path
+// ──────────────────────────────────────────
+
+describe('get_document_diff handler — diff_id parameter', () => {
+  let server: ReturnType<typeof createMockMcpServer>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    server = createMockMcpServer();
+
+    const { registerContentTools } = await import('@/lib/mcp/tools/content');
+    await registerContentTools(server as never);
+  });
+
+  const extra = { authInfo: { token: 'test', clientId: 'test', scopes: [] } };
+
+  it('resolves documents via diff_id when provided', async () => {
+    const handler = server.getHandler('get_document_diff');
+    expect(handler).toBeDefined();
+
+    // Set up mock chain responses per .from() call
+    let fromCallCount = 0;
+    mocks.fromMock.mockImplementation((table: string) => {
+      fromCallCount++;
+      if (table === 'source_document_diffs' && fromCallCount === 1) {
+        // First call: look up the diff entry by diff_id
+        return mocks.makeChain({
+          data: { old_document_id: 'old-doc-id', new_document_id: 'new-doc-id' },
+          error: null,
+        });
+      }
+      if (table === 'source_documents' && fromCallCount === 2) {
+        // Second call: fetch old document filename
+        return mocks.makeChain({
+          data: { id: 'old-doc-id', filename: 'lib-v1.docx' },
+          error: null,
+        });
+      }
+      if (table === 'source_documents' && fromCallCount === 3) {
+        // Third call: fetch new document filename
+        return mocks.makeChain({
+          data: { id: 'new-doc-id', filename: 'lib-v2.docx' },
+          error: null,
+        });
+      }
+      if (table === 'source_document_diffs' && fromCallCount === 4) {
+        // Fourth call: fetch all diff entries for the pair
+        return mocks.makeChain({
+          data: [
+            {
+              diff_type: 'added',
+              old_question: null,
+              new_question: 'New Q?',
+              old_content: null,
+              new_content: 'New A.',
+              similarity_score: null,
+              affected_content_item_id: null,
+              status: null,
+            },
+          ],
+          error: null,
+        });
+      }
+      // content_items lookup for affected items (empty)
+      return mocks.makeChain({ data: [], error: null });
+    });
+
+    const result = await handler!(
+      { document_id: '00000000-0000-0000-0000-000000000099', diff_id: 'diff-id-123' },
+      extra,
+    ) as { content: { text: string }[]; isError?: boolean };
+
+    // Should have queried source_document_diffs first (not source_documents)
+    expect(mocks.fromMock.mock.calls[0][0]).toBe('source_document_diffs');
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain('lib-v1.docx');
+    expect(result.content[0].text).toContain('lib-v2.docx');
+  });
+
+  it('returns error when diff_id is not found', async () => {
+    const handler = server.getHandler('get_document_diff');
+
+    mocks.fromMock.mockImplementation(() => {
+      return mocks.makeChain({
+        data: null,
+        error: { message: 'not found' },
+      });
+    });
+
+    const result = await handler!(
+      { document_id: '00000000-0000-0000-0000-000000000099', diff_id: 'nonexistent' },
+      extra,
+    ) as { content: { text: string }[]; isError?: boolean };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('Diff entry not found');
   });
 });

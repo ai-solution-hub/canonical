@@ -39,6 +39,9 @@ export interface DiffResult {
 // Q&A extraction
 // ---------------------------------------------------------------------------
 
+/** Maximum number of Q&A pairs to extract from a single document. */
+export const MAX_QA_PAIRS = 1000;
+
 /**
  * Extract Q&A pairs from document text.
  *
@@ -49,16 +52,24 @@ export interface DiffResult {
  *
  * Multi-line answers are captured up to the next Q:/Question: marker or EOF.
  * Empty / whitespace-only pairs are filtered out.
+ * Results are capped at {@link MAX_QA_PAIRS} pairs.
  */
 export function extractQAPairs(text: string): QAPair[] {
   if (!text || text.trim().length === 0) return [];
 
   // Try structured Q/A patterns first
-  const pairs = extractStructuredPairs(text);
-  if (pairs.length > 0) return pairs;
+  let pairs = extractStructuredPairs(text);
+  if (pairs.length === 0) {
+    // Fall back to pipe-delimited table format
+    pairs = extractTablePairs(text);
+  }
 
-  // Fall back to pipe-delimited table format
-  return extractTablePairs(text);
+  if (pairs.length > MAX_QA_PAIRS) {
+    console.warn(`extractQAPairs: truncated ${pairs.length} pairs to ${MAX_QA_PAIRS}`);
+    pairs = pairs.slice(0, MAX_QA_PAIRS);
+  }
+
+  return pairs;
 }
 
 /**
