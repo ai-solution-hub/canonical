@@ -72,7 +72,7 @@ export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) 
   return (
     <div
       className={cn(
-        'group rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50',
+        'group relative rounded-lg border border-l-4 bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:bg-accent/50 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
         STATUS_BORDER_CLASS[bidStatus] ?? 'border-l-bid-draft-border',
         className,
       )}
@@ -83,7 +83,7 @@ export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) 
           <h3 className="truncate text-base font-semibold leading-tight">
             <Link
               href={`/bid/${bid.id}`}
-              className="text-foreground transition-colors hover:underline decoration-muted-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none"
+              className="text-foreground transition-colors hover:underline decoration-muted-foreground/40 outline-none after:absolute after:inset-0 after:content-['']"
             >
               {bid.name}
             </Link>
@@ -143,7 +143,7 @@ export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) 
 
         {/* Claude prompt button */}
         {claudePrompt && (
-          <div className="flex justify-end">
+          <div className="relative z-10 flex justify-end">
             <ClaudePromptButton
               prompt={claudePrompt}
               size="sm"

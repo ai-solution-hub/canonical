@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { roleBadgeVariant, roleLabel } from '@/lib/user-helpers';
 
 export function ProfileSection() {
@@ -186,7 +187,18 @@ export function ProfileSection() {
               placeholder="Minimum 8 characters"
               minLength={8}
               required
+              aria-describedby={newPassword.length > 0 ? 'password-requirements' : undefined}
             />
+            {newPassword.length > 0 && (
+              <div id="password-requirements" className="mt-1.5 space-y-1" aria-live="polite">
+                <p className={cn(
+                  'text-xs',
+                  newPassword.length >= 8 ? 'text-freshness-fresh' : 'text-muted-foreground'
+                )}>
+                  {newPassword.length >= 8 ? '\u2713' : '\u25CB'} At least 8 characters
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="confirm-password">Confirm Password</Label>
@@ -199,6 +211,14 @@ export function ProfileSection() {
               minLength={8}
               required
             />
+            {confirmPassword.length > 0 && (
+              <p className={cn(
+                'mt-1.5 text-xs',
+                newPassword === confirmPassword ? 'text-freshness-fresh' : 'text-destructive'
+              )} aria-live="polite">
+                {newPassword === confirmPassword ? '\u2713 Passwords match' : '\u2717 Passwords do not match'}
+              </p>
+            )}
           </div>
           <div className="flex justify-end">
             <Button type="submit" variant="outline" disabled={changingPassword}>

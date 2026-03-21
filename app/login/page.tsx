@@ -107,7 +107,7 @@ export default function LoginPage() {
     });
 
     if (signInError) {
-      if (signInError.message.toLowerCase().includes('rate')) {
+      if ('status' in signInError && signInError.status === 429) {
         setError('Too many attempts. Please wait a moment before trying again.');
       } else {
         setError(
@@ -137,7 +137,7 @@ export default function LoginPage() {
     });
 
     if (otpError) {
-      if (otpError.message.toLowerCase().includes('rate')) {
+      if ('status' in otpError && otpError.status === 429) {
         setError('Too many attempts. Please wait a moment before trying again.');
       } else {
         setError(
