@@ -611,7 +611,7 @@ export function ItemDetailClient({
           )}
 
           {/* Relationships group (collapsed by default) */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
+          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
             {/* Entity mentions — shows badges grouped by entity type */}
             <EntityBadges
               contentItemId={item.id}

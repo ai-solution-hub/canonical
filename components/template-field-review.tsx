@@ -306,9 +306,13 @@ export function TemplateFieldReview({
   // Keyboard navigation
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ignore if user is typing in an input/select/textarea
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      // Ignore if user is typing in an input/select/textarea/contentEditable
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const tag = target?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+      if (target?.isContentEditable) return;
+      const role = target?.getAttribute('role');
+      if (role === 'textbox' || role === 'searchbox' || role === 'combobox') return;
 
       switch (e.key) {
         case 'j': {

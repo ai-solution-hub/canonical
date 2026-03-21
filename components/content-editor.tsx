@@ -19,6 +19,7 @@ interface ContentEditorProps {
   minHeight?: string;
   className?: string;
   autofocus?: boolean;
+  labelId?: string;
 }
 
 export function ContentEditor({
@@ -30,6 +31,7 @@ export function ContentEditor({
   minHeight = '300px',
   className,
   autofocus = false,
+  labelId,
 }: ContentEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -48,6 +50,13 @@ export function ContentEditor({
     editable: !readOnly,
     immediatelyRender: false,
     autofocus: autofocus ? 'end' : false,
+    editorProps: {
+      attributes: {
+        ...(labelId && { 'aria-labelledby': labelId }),
+        role: 'textbox',
+        'aria-multiline': 'true',
+      },
+    },
     onUpdate: ({ editor: e }) => {
       onChange(e.getHTML());
     },
