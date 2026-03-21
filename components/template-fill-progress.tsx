@@ -32,6 +32,12 @@ export function TemplateFillProgress({
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Stabilise callback refs so polling interval is not torn down on parent re-renders
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   const pollStatus = useCallback(async () => {
     try {
       const res = await fetch(`/api/jobs/${jobId}/status`);
@@ -41,18 +47,18 @@ export function TemplateFillProgress({
 
       if (data.status === 'completed') {
         if (intervalRef.current) clearInterval(intervalRef.current);
-        onComplete(data.result ?? {});
+        onCompleteRef.current(data.result ?? {});
       } else if (data.status === 'failed') {
         if (intervalRef.current) clearInterval(intervalRef.current);
         const msg = data.error_message ?? 'Template fill failed';
         setError(msg);
-        onError(msg);
+        onErrorRef.current(msg);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to check job status';
       setError(msg);
     }
-  }, [jobId, onComplete, onError]);
+  }, [jobId]);
 
   useEffect(() => {
     pollStatus();
