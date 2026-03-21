@@ -36,6 +36,7 @@ interface WorkspacesContentProps {
     string,
     { item_count: number; last_activity: string | null }
   >;
+  loadError?: string;
 }
 
 function enrichWorkspaces(
@@ -52,6 +53,7 @@ function enrichWorkspaces(
 export function WorkspacesContent({
   initialWorkspaces,
   initialCounts,
+  loadError,
 }: WorkspacesContentProps) {
   const router = useRouter();
   const { canEdit, canAdmin } = useUserRole();
@@ -342,7 +344,18 @@ export function WorkspacesContent({
           Active Workspaces ({activeWorkspaces.length})
         </h2>
 
-        {activeWorkspaces.length === 0 ? (
+        {loadError ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-destructive/50 bg-destructive/10 py-12 text-center" role="alert">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => router.refresh()}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : activeWorkspaces.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
             <FolderOpen className="mb-3 size-10 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">

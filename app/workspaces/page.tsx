@@ -8,7 +8,7 @@ interface WorkspaceItemCount {
   last_activity: string | null;
 }
 
-async function getWorkspaces(): Promise<Workspace[]> {
+async function getWorkspaces(): Promise<{ workspaces: Workspace[]; error?: string }> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('workspaces')
@@ -18,9 +18,9 @@ async function getWorkspaces(): Promise<Workspace[]> {
 
   if (error) {
     console.error('Failed to fetch workspaces:', error.message);
-    return [];
+    return { workspaces: [], error: 'Failed to load workspaces. Please try refreshing the page.' };
   }
-  return (data ?? []) as Workspace[];
+  return { workspaces: (data ?? []) as Workspace[] };
 }
 
 async function getWorkspaceItemCounts(): Promise<
@@ -48,14 +48,14 @@ async function getWorkspaceItemCounts(): Promise<
 }
 
 export default async function WorkspacesPage() {
-  const [workspaces, counts] = await Promise.all([
+  const [result, counts] = await Promise.all([
     getWorkspaces(),
     getWorkspaceItemCounts(),
   ]);
 
   return (
     <section aria-label="Workspaces" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <WorkspacesContent initialWorkspaces={workspaces} initialCounts={counts} />
+      <WorkspacesContent initialWorkspaces={result.workspaces} initialCounts={counts} loadError={result.error} />
     </section>
   );
 }

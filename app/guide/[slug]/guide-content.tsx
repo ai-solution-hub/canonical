@@ -216,7 +216,7 @@ export function GuideContent({ slug }: { slug: string }) {
       )}
 
       {/* Main content + Sidebar */}
-      <div className="mt-6 flex gap-8">
+      <div className="mt-6 flex gap-4 lg:gap-8">
         {/* Main content */}
         <div className="min-w-0 flex-1 space-y-6">
           {sections.map((section, index) => (
