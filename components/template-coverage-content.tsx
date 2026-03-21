@@ -301,7 +301,7 @@ export function TemplateCoverageContent() {
             </div>
 
             <div className="mt-4">
-              <Progress value={scorePercent} className="h-2.5" />
+              <Progress value={scorePercent} className="h-2.5" aria-label="Template completion score" aria-valuetext={`${scorePercent}% complete`} />
             </div>
           </div>
 

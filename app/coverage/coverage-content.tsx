@@ -122,7 +122,7 @@ function FreshnessDistributionBar({ dist, total }: { dist: FreshnessDistribution
           />
         ))}
       </div>
-      <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {segments.map((seg) => (
           <span key={seg.key} className={seg.textClass}>{seg.count}</span>
         ))}
@@ -251,7 +251,7 @@ export function CoverageContent() {
   return (
     <div>
       {/* Toolbar */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <CoverageLayerFilter
           value={layerFilter}
           onLayerChange={handleLayerChange}

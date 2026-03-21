@@ -5,6 +5,7 @@ import {
   CheckCircle,
   AlertTriangle,
   Download,
+  Loader2,
   RefreshCw,
   ChevronDown,
   ChevronRight,
@@ -54,6 +55,7 @@ export function TemplateCompletionSummary({
   onDownloadOriginal,
 }: CompletionSummaryProps) {
   const [errorsExpanded, setErrorsExpanded] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const total = completion.fields_filled + completion.fields_skipped + completion.fields_failed;
   const successRate = total > 0 ? Math.round((completion.fields_filled / total) * 100) : 0;
@@ -150,9 +152,24 @@ export function TemplateCompletionSummary({
 
       {/* Actions */}
       <div className="flex gap-2">
-        <Button onClick={onDownload} className="flex-1">
-          <Download className="mr-2 size-4" aria-hidden="true" />
-          Download Completed Template
+        <Button
+          onClick={async () => {
+            setIsDownloading(true);
+            try {
+              await onDownload();
+            } finally {
+              setIsDownloading(false);
+            }
+          }}
+          disabled={isDownloading}
+          className="flex-1"
+        >
+          {isDownloading ? (
+            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+          ) : (
+            <Download className="mr-2 size-4" aria-hidden="true" />
+          )}
+          {isDownloading ? 'Downloading\u2026' : 'Download Completed Template'}
         </Button>
         <Button variant="outline" onClick={onRefill}>
           <RefreshCw className="mr-2 size-4" aria-hidden="true" />

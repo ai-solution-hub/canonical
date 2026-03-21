@@ -74,7 +74,7 @@ export default async function DocumentDiffPage({
   }
 
   // Fetch all diff entries for this document pair
-  const { data: entries } = await supabase
+  const { data: entries, error: entriesErr } = await supabase
     .from('source_document_diffs')
     .select(
       'id, diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
@@ -82,6 +82,18 @@ export default async function DocumentDiffPage({
     .eq('old_document_id', oldDoc.id)
     .eq('new_document_id', newDoc.id)
     .order('diff_type');
+
+  if (entriesErr) {
+    return (
+      <section aria-label="Document diff review" className="container px-4 py-8">
+        <div className="mx-auto max-w-4xl rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center">
+          <p className="text-sm text-destructive">
+            Failed to load diff entries: {entriesErr.message}
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   // Collect affected content item IDs to fetch titles in bulk
   const affectedIds = (entries ?? [])
@@ -131,7 +143,7 @@ export default async function DocumentDiffPage({
   }));
 
   return (
-    <section aria-label="Document diff review" className="container py-8">
+    <section aria-label="Document diff review" className="container px-4 py-8">
       <SourceDocumentDiffReview
         oldDocument={{
           id: oldDoc.id,

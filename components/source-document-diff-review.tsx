@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { formatDateUK } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -154,7 +155,7 @@ function ContentBlock({
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap">
+      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
         {content}
       </div>
     </div>
@@ -293,15 +294,14 @@ export function SourceDocumentDiffReview({
           Document Diff Review
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {oldDocument.filename} (v{oldDocument.version}) &rarr;{' '}
-          {newDocument.filename} (v{newDocument.version})
+          {oldDocument.filename} (v{oldDocument.version}, {formatDateUK(oldDocument.uploaded_at)}) &rarr;{' '}
+          {newDocument.filename} (v{newDocument.version}, {formatDateUK(newDocument.uploaded_at)})
         </p>
       </header>
 
       {/* Summary bar */}
       <div
         className="flex flex-wrap gap-4 rounded-lg border border-border bg-card p-4"
-        role="status"
         aria-label="Diff summary"
       >
         <SummaryItem label="Modified" count={summary.modified} type="modified" />

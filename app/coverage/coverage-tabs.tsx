@@ -127,7 +127,7 @@ function GapSummaryBanner({
           <button
             type="button"
             onClick={onViewTemplates}
-            className="mt-2 text-xs font-medium text-gap-summary-link underline underline-offset-2 hover:text-gap-summary-link-hover"
+            className="mt-2 min-h-[44px] text-xs font-medium text-gap-summary-link underline underline-offset-2 hover:text-gap-summary-link-hover"
           >
             View template coverage details
           </button>
