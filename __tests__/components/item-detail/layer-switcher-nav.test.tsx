@@ -129,4 +129,37 @@ describe('LayerSwitcherNav', () => {
     );
     expect(screen.getByLabelText('Content layers')).toBeInTheDocument();
   });
+
+  it('deduplicates items with the same layer key', () => {
+    mockIsFeatureEnabled.mockReturnValue(true);
+    // Simulate the old RPC bug: multiple items sharing the same layer
+    const duplicated: TopicLayerItem[] = [
+      { id: 'item-1', title: 'First sales brief', layer: 'sales_brief' },
+      { id: 'item-2', title: 'Second sales brief', layer: 'sales_brief' },
+      { id: 'item-3', title: 'Bid detail', layer: 'bid_detail' },
+      { id: 'item-4', title: 'Another bid detail', layer: 'bid_detail' },
+      { id: 'item-5', title: 'Company ref', layer: 'company_reference' },
+    ];
+    render(
+      <LayerSwitcherNav currentItemId="item-1" topicLayers={duplicated} />,
+    );
+    // Should show exactly 3 badges (one per unique layer), not 5
+    const badges = screen.getAllByText(/Sales Brief|Bid Detail|Company Reference/);
+    expect(badges).toHaveLength(3);
+  });
+
+  it('filters out items with null layer during dedup', () => {
+    mockIsFeatureEnabled.mockReturnValue(true);
+    const withNulls: TopicLayerItem[] = [
+      { id: 'item-1', title: 'Sales brief', layer: 'sales_brief' },
+      { id: 'item-2', title: 'No layer', layer: null },
+      { id: 'item-3', title: 'Bid detail', layer: 'bid_detail' },
+    ];
+    render(
+      <LayerSwitcherNav currentItemId="item-1" topicLayers={withNulls} />,
+    );
+    // Only 2 unique layers (null excluded)
+    const badges = screen.getAllByText(/Sales Brief|Bid Detail/);
+    expect(badges).toHaveLength(2);
+  });
 });

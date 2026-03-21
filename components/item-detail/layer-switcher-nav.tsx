@@ -27,7 +27,15 @@ export function LayerSwitcherNav({
 }: LayerSwitcherNavProps) {
   const { getLayerLabel } = useLayerVocabulary();
 
-  if (!isFeatureEnabled('content_layers') || topicLayers.length <= 1) {
+  // Deduplicate by layer key (belt-and-braces — RPC should already return
+  // distinct layers, but guard against duplicates at the UI level too)
+  const uniqueLayers = topicLayers.filter(
+    (item, index, arr) =>
+      item.layer != null &&
+      arr.findIndex((other) => other.layer === item.layer) === index,
+  );
+
+  if (!isFeatureEnabled('content_layers') || uniqueLayers.length <= 1) {
     return null;
   }
 
@@ -35,7 +43,7 @@ export function LayerSwitcherNav({
     <nav aria-label="Content layers" className="mb-4">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs font-medium text-muted-foreground mr-1">Layers:</span>
-        {topicLayers.map((layerItem) => {
+        {uniqueLayers.map((layerItem) => {
           const isCurrent = layerItem.id === currentItemId;
           const label = layerItem.layer
             ? getLayerLabel(layerItem.layer)
