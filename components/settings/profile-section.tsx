@@ -161,7 +161,7 @@ export function ProfileSection() {
             </p>
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !isDirty}>
               {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
               Save Changes
             </Button>

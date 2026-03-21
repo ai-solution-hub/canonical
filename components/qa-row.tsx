@@ -152,7 +152,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 gap-1 text-xs"
+                  className="h-6 min-h-[44px] min-w-[44px] gap-1 text-xs"
                   data-copy-answer=""
                   onClick={() => handleCopy(item.answer_standard!, 'Standard answer')}
                 >
@@ -179,7 +179,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 gap-1 text-xs"
+                  className="h-6 min-h-[44px] min-w-[44px] gap-1 text-xs"
                   {...(!hasStandard ? { 'data-copy-answer': '' } : {})}
                   onClick={() => handleCopy(item.answer_advanced!, 'Advanced answer')}
                 >

@@ -191,7 +191,7 @@ export function GuideContent({ slug }: { slug: string }) {
       <div className="mt-4">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-xl font-semibold text-foreground">{guide.name}</h1>
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-xs">
             {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
           </Badge>
           {guide.domain_filter && (

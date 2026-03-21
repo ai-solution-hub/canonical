@@ -148,16 +148,19 @@ describe('ProfileSection', () => {
 
   it('shows error toast when save fails', async () => {
     mockUpdateUser.mockResolvedValue({ error: new Error('Update failed') });
-    const user = userEvent.setup();
     render(<ProfileSection />);
 
     await waitFor(() => {
       expect(screen.getByLabelText('Display Name')).toBeInTheDocument();
     });
 
-    await user.clear(screen.getByLabelText('Display Name'));
-    await user.type(screen.getByLabelText('Display Name'), 'Fail Name');
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    // Use fireEvent.change for reliable controlled input modification (matches test 4 pattern)
+    fireEvent.change(screen.getByLabelText('Display Name'), {
+      target: { value: 'Fail Name' },
+    });
+
+    // Click save button (isDirty should now be true, enabling the button)
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
 
     await waitFor(() => {
       expect(mockToast.error).toHaveBeenCalledWith('Update failed');

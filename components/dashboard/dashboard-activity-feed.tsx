@@ -271,7 +271,7 @@ export function DashboardActivityFeed({
   }
 
   return (
-    <div className="space-y-4" role="feed">
+    <div className="space-y-4" role="feed" aria-busy="false">
       {timeGroups.map((section) => (
         <div key={section.key}>
           <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2 px-2">
