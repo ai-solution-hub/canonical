@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   stringSimilarity,
   extractQAPairs,
   computeDocumentDiff,
+  MAX_QA_PAIRS,
 } from '@/lib/document-diff';
 
 // ---------------------------------------------------------------------------
@@ -190,6 +191,29 @@ describe('extractQAPairs', () => {
     const pairs = extractQAPairs(text);
     expect(pairs).toHaveLength(1);
     expect(pairs[0].question).toBe('What is your name?');
+  });
+
+  it('caps extraction at MAX_QA_PAIRS', () => {
+    // Generate more than MAX_QA_PAIRS Q&A pairs
+    const count = MAX_QA_PAIRS + 50;
+    const lines: string[] = [];
+    for (let i = 0; i < count; i++) {
+      lines.push(`Q: Question number ${i}?`);
+      lines.push(`A: Answer number ${i}.`);
+    }
+    const text = lines.join('\n');
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const pairs = extractQAPairs(text);
+
+    expect(pairs).toHaveLength(MAX_QA_PAIRS);
+    expect(pairs[0].question).toBe('Question number 0?');
+    expect(pairs[MAX_QA_PAIRS - 1].question).toBe(`Question number ${MAX_QA_PAIRS - 1}?`);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`truncated ${count} pairs to ${MAX_QA_PAIRS}`),
+    );
+
+    warnSpy.mockRestore();
   });
 });
 

@@ -718,62 +718,103 @@ export async function registerContentTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
 
-        // Primary flow: get latest diff for a document
-        // Find the document and its parent to get the diff pair
-        const { data: doc, error: docError } = await supabase
-          .from('source_documents')
-          .select('id, filename, parent_id')
-          .eq('id', args.document_id)
-          .single();
-
-        if (docError || !doc) {
-          return {
-            content: [{ type: 'text' as const, text: 'Document not found.' }],
-            isError: true,
-          };
-        }
-
-        // This document could be either the old or new version
-        // Try: this doc as new (has parent_id) -> diff between parent and this
-        // Or: this doc as old -> find child that references this as parent
         let oldDoc: { id: string; filename: string };
         let newDoc: { id: string; filename: string };
 
-        if (doc.parent_id) {
-          // This is a newer version - diff with parent
-          const { data: parent } = await supabase
-            .from('source_documents')
-            .select('id, filename')
-            .eq('id', doc.parent_id)
+        if (args.diff_id) {
+          // ---- Direct diff lookup by diff_id ----
+          const { data: diffEntry, error: diffLookupError } = await supabase
+            .from('source_document_diffs')
+            .select('old_document_id, new_document_id')
+            .eq('id', args.diff_id)
+            .limit(1)
             .single();
 
-          if (!parent) {
+          if (diffLookupError || !diffEntry) {
             return {
-              content: [{ type: 'text' as const, text: 'Parent document not found.' }],
+              content: [{ type: 'text' as const, text: `Diff entry not found: ${args.diff_id}` }],
               isError: true,
             };
           }
 
-          oldDoc = parent;
-          newDoc = { id: doc.id, filename: doc.filename };
-        } else {
-          // This might be the original - find child
-          const { data: child } = await supabase
+          // Fetch filenames for both documents
+          const { data: oldDocRow } = await supabase
             .from('source_documents')
             .select('id, filename')
-            .eq('parent_id', doc.id)
-            .order('version', { ascending: false })
-            .limit(1)
+            .eq('id', diffEntry.old_document_id)
             .single();
 
-          if (!child) {
+          const { data: newDocRow } = await supabase
+            .from('source_documents')
+            .select('id, filename')
+            .eq('id', diffEntry.new_document_id)
+            .single();
+
+          if (!oldDocRow || !newDocRow) {
             return {
-              content: [{ type: 'text' as const, text: 'No version history found for this document. Upload an updated version to generate a diff.' }],
+              content: [{ type: 'text' as const, text: 'Source documents referenced by this diff no longer exist.' }],
+              isError: true,
             };
           }
 
-          oldDoc = { id: doc.id, filename: doc.filename };
-          newDoc = child;
+          oldDoc = oldDocRow;
+          newDoc = newDocRow;
+        } else {
+          // ---- Primary flow: get latest diff for a document ----
+          // Find the document and its parent to get the diff pair
+          const { data: doc, error: docError } = await supabase
+            .from('source_documents')
+            .select('id, filename, parent_id')
+            .eq('id', args.document_id)
+            .single();
+
+          if (docError || !doc) {
+            return {
+              content: [{ type: 'text' as const, text: 'Document not found.' }],
+              isError: true,
+            };
+          }
+
+          // This document could be either the old or new version
+          // Try: this doc as new (has parent_id) -> diff between parent and this
+          // Or: this doc as old -> find child that references this as parent
+
+          if (doc.parent_id) {
+            // This is a newer version - diff with parent
+            const { data: parent } = await supabase
+              .from('source_documents')
+              .select('id, filename')
+              .eq('id', doc.parent_id)
+              .single();
+
+            if (!parent) {
+              return {
+                content: [{ type: 'text' as const, text: 'Parent document not found.' }],
+                isError: true,
+              };
+            }
+
+            oldDoc = parent;
+            newDoc = { id: doc.id, filename: doc.filename };
+          } else {
+            // This might be the original - find child
+            const { data: child } = await supabase
+              .from('source_documents')
+              .select('id, filename')
+              .eq('parent_id', doc.id)
+              .order('version', { ascending: false })
+              .limit(1)
+              .single();
+
+            if (!child) {
+              return {
+                content: [{ type: 'text' as const, text: 'No version history found for this document. Upload an updated version to generate a diff.' }],
+              };
+            }
+
+            oldDoc = { id: doc.id, filename: doc.filename };
+            newDoc = child;
+          }
         }
 
         // Fetch diff entries
