@@ -21,6 +21,7 @@ import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { ErrorBoundary } from '@/components/error-boundary';
 import type { Bid, BidMetadata, BidState } from '@/types/bid';
 
 const BIDS_PER_PAGE = 20;
@@ -126,6 +127,7 @@ export default function BidsPage() {
   }
 
   return (
+    <ErrorBoundary label="Error loading bids">
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -266,6 +268,7 @@ export default function BidsPage() {
         onCreated={handleBidCreated}
       />
     </div>
+    </ErrorBoundary>
   );
 }
 

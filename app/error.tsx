@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function Error({
@@ -16,15 +16,19 @@ export default function Error({
   }, [error]);
 
   return (
-    <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-24 text-center">
-      <RefreshCw className="mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
-      <h2 className="mb-2 text-lg font-semibold text-foreground">
-        Couldn&apos;t load this page
-      </h2>
-      <p className="mb-6 text-sm text-muted-foreground">
-        This is usually temporary. Check your connection and try again.
-      </p>
-      <Button onClick={reset} variant="outline">
+    <div
+      role="alert"
+      className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-4 px-4 py-24 text-center"
+    >
+      <AlertTriangle className="size-8 text-muted-foreground" aria-hidden="true" />
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          An unexpected error occurred. Please try again.
+        </p>
+      </div>
+      <Button variant="outline" onClick={reset}>
+        <RefreshCw className="mr-2 size-4" aria-hidden="true" />
         Try again
       </Button>
     </div>

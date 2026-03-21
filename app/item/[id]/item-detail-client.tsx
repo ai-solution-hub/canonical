@@ -48,6 +48,7 @@ import {
   ItemBreadcrumb,
 } from '@/components/item-detail';
 import { TopicLayerComparison } from '@/components/topic-layer-comparison';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 import type {
   ContentListItem,
@@ -665,6 +666,7 @@ export function ItemDetailClient({
   );
 
   return (
+    <ErrorBoundary label="Error loading item details">
     <>
     <PanelGroup
       orientation="horizontal"
@@ -726,5 +728,6 @@ export function ItemDetailClient({
       />
     )}
     </>
+    </ErrorBoundary>
   );
 }
