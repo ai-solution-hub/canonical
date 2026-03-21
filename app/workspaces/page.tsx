@@ -54,8 +54,8 @@ export default async function WorkspacesPage() {
   ]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section aria-label="Workspaces" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <WorkspacesContent initialWorkspaces={workspaces} initialCounts={counts} />
-    </div>
+    </section>
   );
 }

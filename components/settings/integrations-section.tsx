@@ -397,20 +397,19 @@ export function IntegrationsSection() {
         <p className="mb-4 text-sm text-muted-foreground">
           Try these prompts after connecting to get started quickly.
         </p>
-        <div className="flex flex-col gap-2" role="list">
+        <ul className="flex flex-col gap-2">
           {QUICK_START_PROMPTS.map((prompt) => (
-            <div
+            <li
               key={prompt}
-              role="listitem"
               className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/50 px-4 py-3"
             >
               <p className="text-sm italic text-foreground">
                 &ldquo;{prompt}&rdquo;
               </p>
               <CopyButton value={prompt} label={`Copy prompt: ${prompt}`} />
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     </div>
   );

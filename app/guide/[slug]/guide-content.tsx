@@ -148,7 +148,7 @@ export function GuideContent({ slug }: { slug: string }) {
           <ArrowLeft className="size-3.5" aria-hidden="true" />
           Back to Guides
         </Link>
-        <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <div role="alert" className="mt-6 rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           {error ?? 'Guide not found'}
         </div>
       </section>
