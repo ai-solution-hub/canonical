@@ -25,7 +25,7 @@ vi.mock('next/headers', () => ({
 }));
 
 // Import route AFTER mocks are registered
-const { POST } = await import(
+const { POST, PATCH } = await import(
   '@/app/api/source-documents/[id]/diff/route'
 );
 
@@ -35,6 +35,8 @@ const { POST } = await import(
 
 const OLD_DOC_ID = '11111111-1111-1111-1111-111111111111';
 const NEW_DOC_ID = '22222222-2222-2222-2222-222222222222';
+const ENTRY_ID_1 = '33333333-3333-3333-3333-333333333333';
+const ENTRY_ID_2 = '44444444-4444-4444-4444-444444444444';
 
 // ---------------------------------------------------------------------------
 // Reset mocks before each test
@@ -68,7 +70,7 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests
+// POST Tests
 // ---------------------------------------------------------------------------
 
 describe('POST /api/source-documents/[id]/diff', () => {
@@ -381,5 +383,257 @@ describe('POST /api/source-documents/[id]/diff', () => {
 
     const body = await res.json();
     expect(body.error).toBe('Invalid JSON body');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH Tests
+// ---------------------------------------------------------------------------
+
+describe('PATCH /api/source-documents/[id]/diff', () => {
+  it('returns 401 when unauthenticated', async () => {
+    configureUnauthenticated(mockSupabase);
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for viewer role', async () => {
+    configureRole(mockSupabase, 'viewer');
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for empty entries array', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toBe('entries must be a non-empty array');
+  });
+
+  it('returns 400 for invalid UUID in entries', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: 'not-a-uuid', status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toContain('Invalid UUID in entries');
+  });
+
+  it('returns 400 for invalid status value', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'rejected' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toContain('Invalid status value');
+  });
+
+  it('returns 404 when entry IDs do not belong to document', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query returns no matching entries
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(404);
+
+    const body = await res.json();
+    expect(body.error).toContain('Entry IDs do not belong to this document');
+  });
+
+  it('successfully updates single entry status', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query: entry belongs to this document
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }], error: null }),
+    );
+
+    // Update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { status: 'applied' },
+            { status: 'pending_review' },
+            { status: 'pending_review' },
+          ],
+          error: null,
+        }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.updated).toHaveLength(1);
+    expect(body.updated[0].id).toBe(ENTRY_ID_1);
+    expect(body.updated[0].status).toBe('applied');
+    expect(body.summary.applied).toBe(1);
+    expect(body.summary.pending_review).toBe(2);
+  });
+
+  it('successfully updates multiple entries in bulk', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query: both entries belong to this document
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }, { id: ENTRY_ID_2 }], error: null }),
+    );
+
+    // Update succeeds (one batch since same status)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { status: 'dismissed' },
+            { status: 'dismissed' },
+          ],
+          error: null,
+        }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: {
+        entries: [
+          { id: ENTRY_ID_1, status: 'dismissed' },
+          { id: ENTRY_ID_2, status: 'dismissed' },
+        ],
+      },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.updated).toHaveLength(2);
+    expect(body.summary.dismissed).toBe(2);
+  });
+
+  it('sets reviewed_at and reviewed_by for applied status', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }], error: null }),
+    );
+
+    // Update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ status: 'applied' }], error: null }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    await PATCH(req, { params });
+
+    // Verify update was called with reviewed_at and reviewed_by
+    expect(mockSupabase._chain.update).toHaveBeenCalled();
+    const updateCall = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateCall.status).toBe('applied');
+    expect(updateCall.reviewed_at).toBeDefined();
+    expect(updateCall.reviewed_by).toBe('test-user-id');
+  });
+
+  it('clears reviewed_at and reviewed_by for pending_review reset', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }], error: null }),
+    );
+
+    // Update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ status: 'pending_review' }], error: null }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'pending_review' }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    await PATCH(req, { params });
+
+    // Verify update was called with null reviewed_at and reviewed_by
+    expect(mockSupabase._chain.update).toHaveBeenCalled();
+    const updateCall = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateCall.status).toBe('pending_review');
+    expect(updateCall.reviewed_at).toBeNull();
+    expect(updateCall.reviewed_by).toBeNull();
   });
 });

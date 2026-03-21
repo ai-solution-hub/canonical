@@ -22,6 +22,7 @@ export interface DiffReviewEntry {
 }
 
 export interface SourceDocumentDiffReviewProps {
+  documentId: string;
   oldDocument: {
     id: string;
     filename: string;
@@ -162,7 +163,169 @@ function ContentBlock({
   );
 }
 
-function DiffEntryCard({ entry }: { entry: DiffReviewEntry }) {
+// ---------------------------------------------------------------------------
+// Per-entry action buttons
+// ---------------------------------------------------------------------------
+
+function DiffEntryActions({
+  entry,
+  onStatusChange,
+  isLoading,
+}: {
+  entry: DiffReviewEntry;
+  onStatusChange: (id: string, status: string) => void;
+  isLoading: boolean;
+}) {
+  if (entry.diff_type === 'unchanged') return null;
+
+  if (entry.status === 'pending_review') {
+    return (
+      <div className="flex gap-1">
+        <button
+          onClick={() => onStatusChange(entry.id, 'applied')}
+          disabled={isLoading}
+          className="rounded-md bg-quality-good-bg px-2 py-1 text-xs font-medium text-quality-good transition-colors hover:bg-quality-good-bg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+          aria-label="Apply this change"
+        >
+          {isLoading ? 'Updating...' : 'Apply'}
+        </button>
+        <button
+          onClick={() => onStatusChange(entry.id, 'dismissed')}
+          disabled={isLoading}
+          className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+          aria-label="Dismiss this change"
+        >
+          Dismiss
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => onStatusChange(entry.id, 'pending_review')}
+      disabled={isLoading}
+      className="rounded-md bg-freshness-aging-bg px-2 py-1 text-xs font-medium text-freshness-aging transition-colors hover:bg-freshness-aging-bg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+      aria-label="Reset to pending review"
+    >
+      Reset
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Bulk actions toolbar
+// ---------------------------------------------------------------------------
+
+function BulkActionToolbar({
+  entries,
+  onBulkStatusChange,
+  isLoading,
+}: {
+  entries: DiffReviewEntry[];
+  onBulkStatusChange: (ids: string[], status: string) => void;
+  isLoading: boolean;
+}) {
+  const actionable = entries.filter((e) => e.diff_type !== 'unchanged');
+  const pendingIds = actionable
+    .filter((e) => e.status === 'pending_review')
+    .map((e) => e.id);
+  const reviewedIds = actionable
+    .filter((e) => e.status !== 'pending_review')
+    .map((e) => e.id);
+
+  if (actionable.length === 0) return null;
+
+  const counts = { pending_review: 0, applied: 0, dismissed: 0 };
+  actionable.forEach((e) => {
+    if (e.status in counts) counts[e.status as keyof typeof counts]++;
+  });
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3"
+      role="toolbar"
+      aria-label="Bulk review actions"
+    >
+      <button
+        onClick={() => onBulkStatusChange(pendingIds, 'applied')}
+        disabled={pendingIds.length === 0 || isLoading}
+        className="rounded-md bg-quality-good-bg px-3 py-1.5 text-xs font-medium text-quality-good transition-colors hover:bg-quality-good-bg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+        aria-label="Accept all pending changes"
+      >
+        Accept All Pending
+      </button>
+      <button
+        onClick={() => onBulkStatusChange(pendingIds, 'dismissed')}
+        disabled={pendingIds.length === 0 || isLoading}
+        className="rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+        aria-label="Dismiss all pending changes"
+      >
+        Dismiss All Pending
+      </button>
+      {reviewedIds.length > 0 && (
+        <button
+          onClick={() => onBulkStatusChange(reviewedIds, 'pending_review')}
+          disabled={isLoading}
+          className="rounded-md bg-freshness-aging-bg px-3 py-1.5 text-xs font-medium text-freshness-aging transition-colors hover:bg-freshness-aging-bg/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+          aria-label="Reset all reviewed changes to pending"
+        >
+          Reset All
+        </button>
+      )}
+      <span
+        className="ml-auto text-xs text-muted-foreground"
+        aria-live="polite"
+      >
+        {counts.pending_review} pending, {counts.applied} applied,{' '}
+        {counts.dismissed} dismissed
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Side-by-side content view for modified entries
+// ---------------------------------------------------------------------------
+
+function SideBySideContent({ entry }: { entry: DiffReviewEntry }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="rounded-md bg-destructive/5 p-1">
+        <ContentBlock label="Old answer:" content={entry.old_content ?? ''} />
+        {entry.old_question !== entry.new_question && entry.old_question && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Q: {entry.old_question}
+          </p>
+        )}
+      </div>
+      <div className="rounded-md bg-quality-good-bg/50 p-1">
+        <ContentBlock label="New answer:" content={entry.new_content ?? ''} />
+        {entry.old_question !== entry.new_question && entry.new_question && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Q: {entry.new_question}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Diff entry card (updated with actions + side-by-side support)
+// ---------------------------------------------------------------------------
+
+function DiffEntryCard({
+  entry,
+  onStatusChange,
+  isLoading,
+  viewMode,
+}: {
+  entry: DiffReviewEntry;
+  onStatusChange: (id: string, status: string) => void;
+  isLoading: boolean;
+  viewMode: 'card' | 'side-by-side';
+}) {
   const question =
     entry.diff_type === 'added'
       ? entry.new_question
@@ -173,7 +336,7 @@ function DiffEntryCard({ entry }: { entry: DiffReviewEntry }) {
       className="rounded-lg border border-border bg-card p-4 shadow-sm"
       aria-label={`${entry.diff_type} entry: ${question ?? 'No question'}`}
     >
-      {/* Header row: badge + similarity + status */}
+      {/* Header row: badge + similarity + actions + status */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DiffTypeBadge diffType={entry.diff_type} />
 
@@ -188,6 +351,12 @@ function DiffEntryCard({ entry }: { entry: DiffReviewEntry }) {
           )}
 
         <span className="flex-1" />
+
+        <DiffEntryActions
+          entry={entry}
+          onStatusChange={onStatusChange}
+          isLoading={isLoading}
+        />
 
         <StatusBadge status={entry.status} />
       </div>
@@ -211,27 +380,39 @@ function DiffEntryCard({ entry }: { entry: DiffReviewEntry }) {
 
       {/* Content blocks */}
       <div className="space-y-3">
-        {entry.diff_type === 'modified' && (
+        {entry.diff_type === 'modified' && viewMode === 'side-by-side' ? (
+          <SideBySideContent entry={entry} />
+        ) : (
           <>
-            {entry.old_content && (
-              <ContentBlock label="Old answer:" content={entry.old_content} />
+            {entry.diff_type === 'modified' && (
+              <>
+                {entry.old_content && (
+                  <ContentBlock
+                    label="Old answer:"
+                    content={entry.old_content}
+                  />
+                )}
+                {entry.new_content && (
+                  <ContentBlock
+                    label="New answer:"
+                    content={entry.new_content}
+                  />
+                )}
+              </>
             )}
-            {entry.new_content && (
-              <ContentBlock label="New answer:" content={entry.new_content} />
+
+            {entry.diff_type === 'added' && entry.new_content && (
+              <ContentBlock label="Answer:" content={entry.new_content} />
+            )}
+
+            {entry.diff_type === 'removed' && entry.old_content && (
+              <ContentBlock label="Answer:" content={entry.old_content} />
+            )}
+
+            {entry.diff_type === 'unchanged' && entry.old_content && (
+              <ContentBlock label="Answer:" content={entry.old_content} />
             )}
           </>
-        )}
-
-        {entry.diff_type === 'added' && entry.new_content && (
-          <ContentBlock label="Answer:" content={entry.new_content} />
-        )}
-
-        {entry.diff_type === 'removed' && entry.old_content && (
-          <ContentBlock label="Answer:" content={entry.old_content} />
-        )}
-
-        {entry.diff_type === 'unchanged' && entry.old_content && (
-          <ContentBlock label="Answer:" content={entry.old_content} />
         )}
       </div>
 
@@ -257,6 +438,7 @@ function DiffEntryCard({ entry }: { entry: DiffReviewEntry }) {
 // ---------------------------------------------------------------------------
 
 export function SourceDocumentDiffReview({
+  documentId,
   oldDocument,
   newDocument,
   summary,
@@ -264,9 +446,26 @@ export function SourceDocumentDiffReview({
 }: SourceDocumentDiffReviewProps) {
   const [activeFilter, setActiveFilter] = useState<DiffFilter>('all');
   const [showUnchanged, setShowUnchanged] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'side-by-side'>('card');
+
+  // Local state for optimistic updates
+  const [localEntries, setLocalEntries] = useState(entries);
+  const [localSummary, setLocalSummary] = useState<{
+    pending_review: number;
+    applied: number;
+    dismissed: number;
+  }>(() => {
+    const counts = { pending_review: 0, applied: 0, dismissed: 0 };
+    for (const e of entries) {
+      const s = e.status as keyof typeof counts;
+      if (s in counts) counts[s]++;
+    }
+    return counts;
+  });
+  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
 
   // Filter entries based on active filter and unchanged toggle
-  const filteredEntries = entries.filter((entry) => {
+  const filteredEntries = localEntries.filter((entry) => {
     // Hide unchanged unless toggled on
     if (entry.diff_type === 'unchanged' && !showUnchanged) return false;
 
@@ -276,6 +475,64 @@ export function SourceDocumentDiffReview({
 
   const totalVisible =
     summary.added + summary.removed + summary.modified;
+
+  const isAnyLoading = loadingIds.size > 0;
+
+  // Status update handler with optimistic update and rollback
+  async function handleStatusChange(entryIds: string[], newStatus: string) {
+    const previousEntries = [...localEntries];
+    const previousSummary = { ...localSummary };
+
+    // Optimistic update
+    setLocalEntries((prev) =>
+      prev.map((e) =>
+        entryIds.includes(e.id) ? { ...e, status: newStatus } : e,
+      ),
+    );
+    setLoadingIds((prev) => new Set([...prev, ...entryIds]));
+
+    // Recompute summary optimistically
+    const newSummaryCounts = { pending_review: 0, applied: 0, dismissed: 0 };
+    localEntries.forEach((e) => {
+      const s = entryIds.includes(e.id) ? newStatus : e.status;
+      if (s in newSummaryCounts)
+        newSummaryCounts[s as keyof typeof newSummaryCounts]++;
+    });
+    setLocalSummary(newSummaryCounts);
+
+    try {
+      const res = await fetch(`/api/source-documents/${documentId}/diff`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entries: entryIds.map((id) => ({ id, status: newStatus })),
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      const data = await res.json();
+      // Use server summary
+      setLocalSummary(data.summary);
+    } catch {
+      // Rollback
+      setLocalEntries(previousEntries);
+      setLocalSummary(previousSummary);
+    } finally {
+      setLoadingIds((prev) => {
+        const next = new Set(prev);
+        entryIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+  }
+
+  function handleSingleStatusChange(id: string, status: string) {
+    handleStatusChange([id], status);
+  }
+
+  function handleBulkStatusChange(ids: string[], status: string) {
+    if (ids.length === 0) return;
+    handleStatusChange(ids, status);
+  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -294,8 +551,10 @@ export function SourceDocumentDiffReview({
           Document Diff Review
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {oldDocument.filename} (v{oldDocument.version}, {formatDateUK(oldDocument.uploaded_at)}) &rarr;{' '}
-          {newDocument.filename} (v{newDocument.version}, {formatDateUK(newDocument.uploaded_at)})
+          {oldDocument.filename} (v{oldDocument.version},{' '}
+          {formatDateUK(oldDocument.uploaded_at)}) &rarr;{' '}
+          {newDocument.filename} (v{newDocument.version},{' '}
+          {formatDateUK(newDocument.uploaded_at)})
         </p>
       </header>
 
@@ -312,9 +571,14 @@ export function SourceDocumentDiffReview({
           count={summary.unchanged}
           type="unchanged"
         />
+        <span className="mx-2 text-border">|</span>
+        <span className="text-xs text-muted-foreground" aria-live="polite">
+          {localSummary.pending_review} pending, {localSummary.applied} applied,{' '}
+          {localSummary.dismissed} dismissed
+        </span>
       </div>
 
-      {/* Filter tabs */}
+      {/* Filter tabs + view mode toggle */}
       <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Filter diff entries">
         {FILTER_OPTIONS.map((option) => (
           <button
@@ -346,7 +610,50 @@ export function SourceDocumentDiffReview({
           />
           Show unchanged ({summary.unchanged})
         </label>
+
+        {/* Side-by-side toggle — only when modified entries exist */}
+        {localEntries.some((e) => e.diff_type === 'modified') && (
+          <div
+            className="ml-auto flex gap-1 rounded-lg bg-muted p-1"
+            role="radiogroup"
+            aria-label="View mode"
+          >
+            <button
+              role="radio"
+              aria-checked={viewMode === 'card'}
+              onClick={() => setViewMode('card')}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                viewMode === 'card'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Card View
+            </button>
+            <button
+              role="radio"
+              aria-checked={viewMode === 'side-by-side'}
+              onClick={() => setViewMode('side-by-side')}
+              className={cn(
+                'rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
+                viewMode === 'side-by-side'
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              Side-by-Side
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Bulk actions toolbar */}
+      <BulkActionToolbar
+        entries={localEntries}
+        onBulkStatusChange={handleBulkStatusChange}
+        isLoading={isAnyLoading}
+      />
 
       {/* Entries list */}
       <div
@@ -359,14 +666,20 @@ export function SourceDocumentDiffReview({
         {filteredEntries.length === 0 ? (
           <div className="rounded-lg border border-border bg-card p-8 text-center">
             <p className="text-muted-foreground">
-              {totalVisible === 0 && entries.length === 0
+              {totalVisible === 0 && localEntries.length === 0
                 ? 'No diff entries found.'
                 : 'No entries match the current filter.'}
             </p>
           </div>
         ) : (
           filteredEntries.map((entry) => (
-            <DiffEntryCard key={entry.id} entry={entry} />
+            <DiffEntryCard
+              key={entry.id}
+              entry={entry}
+              onStatusChange={handleSingleStatusChange}
+              isLoading={loadingIds.has(entry.id)}
+              viewMode={viewMode}
+            />
           ))
         )}
       </div>

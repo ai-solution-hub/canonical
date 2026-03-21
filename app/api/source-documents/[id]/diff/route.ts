@@ -345,3 +345,164 @@ export async function POST(
     );
   }
 }
+
+/**
+ * PATCH /api/source-documents/[id]/diff — update review status for diff entries.
+ *
+ * Allows editors/admins to mark diff entries as applied, dismissed, or
+ * reset them back to pending_review.
+ *
+ * Auth: editor or admin.
+ *
+ * Request body: { entries: Array<{ id: string, status: 'applied' | 'dismissed' | 'pending_review' }> }
+ * Response: { updated: Array<{ id, status, updated_at }>, summary: { pending_review, applied, dismissed } }
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const auth = await getAuthorisedClient(['editor', 'admin']);
+    if (!auth.success) return authFailureResponse(auth);
+    const { supabase, user } = auth;
+
+    const { id: documentId } = await params;
+
+    // Validate UUID format
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(documentId)) {
+      return NextResponse.json(
+        { error: 'Invalid document ID format' },
+        { status: 400 },
+      );
+    }
+
+    // Parse request body
+    let body: { entries?: Array<{ id?: string; status?: string }> };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON body' },
+        { status: 400 },
+      );
+    }
+
+    const { entries } = body;
+    const VALID_STATUSES = ['applied', 'dismissed', 'pending_review'];
+
+    // Validate entries array
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return NextResponse.json(
+        { error: 'entries must be a non-empty array' },
+        { status: 400 },
+      );
+    }
+
+    if (entries.length > 500) {
+      return NextResponse.json(
+        { error: 'entries array exceeds maximum of 500 items' },
+        { status: 400 },
+      );
+    }
+
+    // Validate each entry
+    for (const entry of entries) {
+      if (!entry.id || !uuidRegex.test(entry.id)) {
+        return NextResponse.json(
+          { error: `Invalid UUID in entries: ${entry.id ?? 'missing'}` },
+          { status: 400 },
+        );
+      }
+      if (!entry.status || !VALID_STATUSES.includes(entry.status)) {
+        return NextResponse.json(
+          { error: `Invalid status value: ${entry.status ?? 'missing'}. Must be one of: ${VALID_STATUSES.join(', ')}` },
+          { status: 400 },
+        );
+      }
+    }
+
+    const entryIds = entries.map((e) => e.id as string);
+
+    // Verify all entry IDs belong to this document's diff pair
+    const { data: matchingEntries } = await supabase
+      .from('source_document_diffs')
+      .select('id')
+      .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`)
+      .in('id', entryIds);
+
+    const matchingIds = new Set((matchingEntries ?? []).map((e) => e.id));
+    const missingIds = entryIds.filter((id) => !matchingIds.has(id));
+
+    if (missingIds.length > 0) {
+      return NextResponse.json(
+        { error: `Entry IDs do not belong to this document: ${missingIds.join(', ')}` },
+        { status: 404 },
+      );
+    }
+
+    // Group entries by target status for batch updates
+    const byStatus: Record<string, string[]> = {};
+    for (const entry of entries) {
+      const status = entry.status as string;
+      if (!byStatus[status]) byStatus[status] = [];
+      byStatus[status].push(entry.id as string);
+    }
+
+    const now = new Date().toISOString();
+    const updatedResults: Array<{ id: string; status: string; updated_at: string }> = [];
+
+    for (const [status, ids] of Object.entries(byStatus)) {
+      const isReviewed = status !== 'pending_review';
+      const updatePayload = {
+        status,
+        updated_at: now,
+        reviewed_at: isReviewed ? now : null,
+        reviewed_by: isReviewed ? user.id : null,
+      };
+
+      const { error: updateErr } = await supabase
+        .from('source_document_diffs')
+        .update(updatePayload)
+        .in('id', ids);
+
+      if (updateErr) {
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              updateErr,
+              'Failed to update diff entry status',
+            ),
+          },
+          { status: 500 },
+        );
+      }
+
+      for (const id of ids) {
+        updatedResults.push({ id, status, updated_at: now });
+      }
+    }
+
+    // Fetch summary counts for the entire diff pair
+    const { data: allEntries } = await supabase
+      .from('source_document_diffs')
+      .select('status')
+      .or(`old_document_id.eq.${documentId},new_document_id.eq.${documentId}`);
+
+    const summary = { pending_review: 0, applied: 0, dismissed: 0 };
+    for (const entry of allEntries ?? []) {
+      const s = entry.status as keyof typeof summary;
+      if (s in summary) {
+        summary[s]++;
+      }
+    }
+
+    return NextResponse.json({ updated: updatedResults, summary });
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to update diff entry status') },
+      { status: 500 },
+    );
+  }
+}

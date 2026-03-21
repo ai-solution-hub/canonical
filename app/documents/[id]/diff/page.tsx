@@ -145,6 +145,7 @@ export default async function DocumentDiffPage({
   return (
     <section aria-label="Document diff review" className="container px-4 py-8">
       <SourceDocumentDiffReview
+        documentId={oldDoc.id}
         oldDocument={{
           id: oldDoc.id,
           filename: oldDoc.filename,
