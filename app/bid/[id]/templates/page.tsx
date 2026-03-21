@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { TemplateUpload } from '@/components/template-upload';
@@ -26,6 +26,9 @@ interface BidQuestion {
 
 type WorkflowStep = 'upload' | 'analyse' | 'review' | 'fill' | 'complete';
 
+/** Maximum number of poll retries before timeout (150 x 2s = 5 minutes) */
+const MAX_POLL_RETRIES = 150;
+
 export default function TemplateCompletionPage() {
   const params = useParams<{ id: string }>();
   const bidId = params.id;
@@ -39,7 +42,9 @@ export default function TemplateCompletionPage() {
   const [latestCompletion, setLatestCompletion] = useState<TemplateCompletion | null>(null);
   const [fillResult, setFillResult] = useState<FillResult | null>(null);
   const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRetryCountRef = useRef(0);
 
   // Clear polling interval on unmount
   useEffect(() => {
@@ -140,9 +145,20 @@ export default function TemplateCompletionPage() {
 
       const { job_id } = await res.json();
 
-      // Poll for analysis completion
+      // Poll for analysis completion with retry bounds
+      pollRetryCountRef.current = 0;
+      setError(null);
       const poll = setInterval(async () => {
         try {
+          pollRetryCountRef.current += 1;
+          if (pollRetryCountRef.current >= MAX_POLL_RETRIES) {
+            clearInterval(poll);
+            pollIntervalRef.current = null;
+            setError('Analysis timed out after 5 minutes. Please try again.');
+            setStep('upload');
+            return;
+          }
+
           const statusRes = await fetch(`/api/jobs/${job_id}/status`);
           if (!statusRes.ok) return;
           const job = await statusRes.json();
@@ -338,6 +354,17 @@ export default function TemplateCompletionPage() {
     }
   }, [bidId, selectedTemplate]);
 
+  const handleRetry = useCallback(() => {
+    setError(null);
+    pollRetryCountRef.current = 0;
+    if (selectedTemplate) {
+      // Re-load template to determine correct step
+      loadTemplateDetail(selectedTemplate.id);
+    } else {
+      setStep('upload');
+    }
+  }, [selectedTemplate, loadTemplateDetail]);
+
   if (loading) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
@@ -402,6 +429,17 @@ export default function TemplateCompletionPage() {
               </span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Error banner — shown when polling times out */}
+      {error && (
+        <div className="flex items-center gap-3 rounded-lg border border-destructive/50 bg-destructive/10 p-4" role="alert">
+          <p className="flex-1 text-sm text-destructive">{error}</p>
+          <Button variant="outline" size="sm" onClick={handleRetry}>
+            <RefreshCw className="mr-1.5 size-3.5" aria-hidden="true" />
+            Retry
+          </Button>
         </div>
       )}
 

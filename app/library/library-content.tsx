@@ -570,6 +570,17 @@ export function LibraryContent() {
             onToggleSelect={bulk.toggleSelect}
           />
         )}
+
+        {/* Keyboard shortcut hints */}
+        {!isLoading && items.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">C</kbd>{' '}
+            to copy answer ·{' '}
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↑</kbd>{' '}
+            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↓</kbd>{' '}
+            to navigate
+          </p>
+        )}
       </div>
 
       {/* Tag dialog */}

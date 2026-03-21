@@ -1,6 +1,6 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import Link from 'next/link';
 import {
@@ -8,6 +8,7 @@ import {
   Building2,
   Calendar,
   ClipboardList,
+  Download,
   Hash,
   FileText,
   Upload,
@@ -36,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid-export-menu';
 import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
@@ -655,11 +657,12 @@ function OverviewTab({
           <ul className="mt-3 space-y-2">
             {bid.tender_documents?.map((doc) => (
               <li key={doc.path} className="flex items-center gap-2 text-sm">
-                <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
-                <span className="truncate">{doc.filename}</span>
-                <span className="text-xs text-muted-foreground">
+                <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <span className="min-w-0 truncate">{doc.filename}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">
                   ({Math.round(doc.size / 1024)} KB)
                 </span>
+                <TenderDownloadLink bidId={bidId} doc={doc} />
               </li>
             ))}
           </ul>
@@ -717,7 +720,7 @@ function DocumentsTab({
           <div className="divide-y">
             {tenderDocuments.map((doc) => (
               <div key={doc.path} className="flex items-center gap-3 px-4 py-3">
-                <FileText className="size-5 text-muted-foreground" aria-hidden="true" />
+                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{doc.filename}</p>
                   <p className="text-xs text-muted-foreground">
@@ -725,6 +728,7 @@ function DocumentsTab({
                     {doc.uploaded_at && ` · Uploaded ${formatDateUK(doc.uploaded_at)}`}
                   </p>
                 </div>
+                <TenderDownloadLink bidId={bidId} doc={doc} />
               </div>
             ))}
           </div>
@@ -738,6 +742,47 @@ function DocumentsTab({
         </div>
       )}
     </div>
+  );
+}
+
+function TenderDownloadLink({ bidId, doc }: { bidId: string; doc: TenderDocument }) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch(
+        `/api/bids/${bidId}/tender/download?path=${encodeURIComponent(doc.path)}`,
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? 'Failed to get download link');
+      }
+      const { download_url } = await res.json();
+      // Open signed URL in new tab to trigger browser download
+      window.open(download_url, '_blank');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Download failed';
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDownload}
+      disabled={downloading}
+      className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+      aria-label={`Download ${doc.filename}`}
+    >
+      {downloading ? (
+        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+      ) : (
+        <Download className="size-3.5" aria-hidden="true" />
+      )}
+      Download
+    </button>
   );
 }
 
