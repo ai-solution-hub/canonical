@@ -72,10 +72,10 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 30 tools (current as of S90)
+// Canonical lists — updated to 35 tools (current as of S104)
 // ---------------------------------------------------------------------------
 
-/** All 30 MCP tool names in registration order. */
+/** All 35 MCP tool names in registration order. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base',        // 1
   'get_dashboard_summary',        // 2
@@ -107,9 +107,14 @@ export const CANONICAL_TOOL_NAMES = [
   'get_template_coverage',        // 28
   'get_template_gaps',            // 29
   'update_governance_status',     // 30
+  'assign_content_owner',         // 31
+  'get_document_versions',        // 32
+  'suggest_content_creation',     // 33
+  'get_certification_status',     // 34
+  'get_document_diff',            // 35
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 30
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 35
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
@@ -136,6 +141,10 @@ export const READ_ONLY_TOOLS = new Set([
   'list_templates',
   'get_template_coverage',
   'get_template_gaps',
+  'get_document_versions',
+  'suggest_content_creation',
+  'get_certification_status',
+  'get_document_diff',
 ]);
 
 /** Write tools that modify data. */
@@ -147,6 +156,7 @@ export const WRITE_TOOLS = new Set([
   'update_content_item',     // 19
   'delete_content_item',     // 25
   'update_governance_status', // 30
+  'assign_content_owner',    // 31
 ]);
 
 /**
