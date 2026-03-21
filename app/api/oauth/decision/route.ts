@@ -11,6 +11,8 @@ import { parseBody } from '@/lib/validation';
 import { OAuthDecisionBodySchema } from '@/lib/validation/schemas';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   const formData = await request.formData();
 

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 10;
+
 /**
  * GET /api/plugin/download
  *

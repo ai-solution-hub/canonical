@@ -10,6 +10,8 @@ import {
 } from '@/lib/validation/jsonb';
 import type { Digest } from '@/types/digest';
 
+export const maxDuration = 30;
+
 export async function GET(request: NextRequest) {
   try {
     // Auth check

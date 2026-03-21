@@ -7,6 +7,8 @@ import {
   ReadMarkCheckParamsSchema,
 } from '@/lib/validation/schemas';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/read-marks?item_ids=uuid1,uuid2,...
  *

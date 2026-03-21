@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { safeErrorMessage } from '@/lib/error';
 
+export const maxDuration = 30;
+
 export async function GET() {
   const supabase = await createClient();
 

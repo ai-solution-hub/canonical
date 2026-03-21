@@ -19,4 +19,6 @@ const handler = protectedResourceHandler({
 
 const corsHandler = metadataCorsOptionsRequestHandler();
 
+export const maxDuration = 10;
+
 export { handler as GET, corsHandler as OPTIONS };

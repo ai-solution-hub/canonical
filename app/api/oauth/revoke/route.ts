@@ -14,6 +14,8 @@ const RevokeSchema = z.object({
   clientId: z.string().uuid('Invalid client ID'),
 });
 
+export const maxDuration = 30;
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 

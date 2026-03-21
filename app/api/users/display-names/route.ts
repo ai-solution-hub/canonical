@@ -6,6 +6,8 @@ import { safeErrorMessage } from '@/lib/error';
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export const maxDuration = 30;
+
 /**
  * POST /api/users/display-names — resolve user UUIDs to display names.
  *

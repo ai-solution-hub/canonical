@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 
+export const maxDuration = 30;
+
 export async function GET() {
   try {
     const auth = await getAuthenticatedClient();

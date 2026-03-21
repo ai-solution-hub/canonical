@@ -6,6 +6,8 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { fetchDashboardData } from '@/lib/dashboard';
 
+export const maxDuration = 30;
+
 /**
  * GET /api/dashboard
  *
