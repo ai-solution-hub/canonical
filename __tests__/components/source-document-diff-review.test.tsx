@@ -469,7 +469,7 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent();
 
-      const toggle = screen.getByLabelText('Show unchanged entries');
+      const toggle = screen.getByRole('checkbox', { name: /Show unchanged/ });
       await user.click(toggle);
 
       expect(
@@ -481,7 +481,7 @@ describe('SourceDocumentDiffReview', () => {
       const user = userEvent.setup();
       renderComponent();
 
-      const toggle = screen.getByLabelText('Show unchanged entries');
+      const toggle = screen.getByRole('checkbox', { name: /Show unchanged/ });
       // Show
       await user.click(toggle);
       expect(
@@ -522,10 +522,10 @@ describe('SourceDocumentDiffReview', () => {
       ).toBeInTheDocument();
     });
 
-    it('has a region for diff entries with aria-live', () => {
+    it('has a tabpanel for diff entries with aria-live', () => {
       renderComponent();
-      const region = screen.getByRole('region', { name: 'Diff entries' });
-      expect(region).toHaveAttribute('aria-live', 'polite');
+      const panel = screen.getByRole('tabpanel');
+      expect(panel).toHaveAttribute('aria-live', 'polite');
     });
 
     it('each diff entry card has an aria-label', () => {

@@ -51,7 +51,7 @@ describe('SettingsSidebar', () => {
       />,
     );
 
-    const nav = screen.getByLabelText('Settings navigation');
+    const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(within(nav).getByText('Personal')).toBeInTheDocument();
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('SettingsSidebar', () => {
       />,
     );
 
-    const nav = screen.getByLabelText('Settings navigation');
+    const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(within(nav).getByText('Personal')).toBeInTheDocument();
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Integrations')).toBeInTheDocument();
@@ -150,7 +150,7 @@ describe('SettingsMobileSidebar', () => {
     await user.click(triggerButton);
 
     // Sheet should show settings navigation
-    const nav = screen.getByLabelText('Settings navigation');
+    const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(nav).toBeInTheDocument();
   });
 });

@@ -122,7 +122,7 @@ describe('ContentList', () => {
         onToggleSelect={vi.fn()}
       />,
     );
-    const selectButtons = screen.getAllByRole('button', { name: 'Select' });
+    const selectButtons = screen.getAllByRole('checkbox', { name: 'Select' });
     expect(selectButtons).toHaveLength(2);
   });
 

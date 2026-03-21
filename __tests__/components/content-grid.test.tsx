@@ -145,7 +145,7 @@ describe('ContentGrid', () => {
         onToggleSelect={vi.fn()}
       />,
     );
-    const selectButtons = screen.getAllByRole('button', { name: 'Select' });
+    const selectButtons = screen.getAllByRole('checkbox', { name: 'Select' });
     expect(selectButtons).toHaveLength(2);
   });
 
@@ -161,7 +161,7 @@ describe('ContentGrid', () => {
         onToggleSelect={onToggle}
       />,
     );
-    const selectButtons = screen.getAllByRole('button', { name: 'Select' });
+    const selectButtons = screen.getAllByRole('checkbox', { name: 'Select' });
     await user.click(selectButtons[0]);
     expect(onToggle).toHaveBeenCalledWith('item-0');
   });
@@ -176,8 +176,8 @@ describe('ContentGrid', () => {
         onToggleSelect={vi.fn()}
       />,
     );
-    expect(screen.getByRole('button', { name: 'Deselect' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Select' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Deselect' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Select' })).toBeInTheDocument();
   });
 
   it('passes isRead prop from readItemIds Set', () => {
