@@ -56,6 +56,8 @@ interface FileReuploadInfo {
   matchType: 'identical' | 'new_version';
   previousVersion: number;
   previousDocumentId: string;
+  diffAvailable?: boolean;
+  newDocumentId?: string;
 }
 
 /** Per-file state for progress and dedup tracking */
@@ -214,6 +216,8 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
             matchType: data.reupload_detection.match_type,
             previousVersion: data.reupload_detection.previous_version,
             previousDocumentId: data.reupload_detection.previous_document_id,
+            diffAvailable: data.diff_available ?? false,
+            newDocumentId: data.source_document_id ?? undefined,
           }
         : undefined;
 
@@ -461,6 +465,8 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
                         matchType={state.reuploadInfo.matchType}
                         previousVersion={state.reuploadInfo.previousVersion}
                         previousDocumentId={state.reuploadInfo.previousDocumentId}
+                        diffAvailable={state.reuploadInfo.diffAvailable}
+                        diffDocumentId={state.reuploadInfo.newDocumentId}
                       />
                     )}
                     {/* Dedup warning per file */}

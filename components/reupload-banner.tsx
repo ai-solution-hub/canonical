@@ -1,6 +1,7 @@
 'use client';
 
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, GitCompareArrows } from 'lucide-react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
@@ -14,6 +15,10 @@ export interface ReuploadBannerProps {
   previousVersion: number;
   /** The ID of the previous source document */
   previousDocumentId: string;
+  /** Whether a Q&A pair diff was computed for this re-upload */
+  diffAvailable?: boolean;
+  /** The new document ID to link to the diff review page */
+  diffDocumentId?: string;
   /** Additional CSS class names */
   className?: string;
 }
@@ -36,6 +41,8 @@ export function ReuploadBanner({
   matchType,
   previousVersion,
   previousDocumentId,
+  diffAvailable,
+  diffDocumentId,
   className,
 }: ReuploadBannerProps) {
   const isIdentical = matchType === 'identical';
@@ -82,6 +89,16 @@ export function ReuploadBanner({
             ? `This file has already been uploaded (identical content). Version ${previousVersion} was uploaded previously.`
             : `This appears to be an update to a previously uploaded document. Creating version ${previousVersion + 1}.`}
         </p>
+        {diffAvailable && diffDocumentId && (
+          <Link
+            href={`/documents/${diffDocumentId}/diff`}
+            className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            target="_blank"
+          >
+            <GitCompareArrows className="size-3.5" aria-hidden="true" />
+            Review Q&amp;A changes
+          </Link>
+        )}
       </div>
     </div>
   );

@@ -7,7 +7,9 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  GitCompareArrows,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
@@ -183,6 +185,17 @@ export function SourceDocumentInfo({
           </div>
         </div>
       </div>
+
+      {/* ── Diff link (shown when document has a parent version) ── */}
+      {document.parent_id && (
+        <Link
+          href={`/documents/${document.id}/diff`}
+          className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
+        >
+          <GitCompareArrows className="size-3.5" aria-hidden="true" />
+          View changes from previous version
+        </Link>
+      )}
 
       {/* ── Expandable version history ── */}
       <div className="rounded-md border border-border">

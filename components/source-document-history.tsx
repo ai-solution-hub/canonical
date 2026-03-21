@@ -6,7 +6,9 @@ import {
   Loader2,
   AlertTriangle,
   Check,
+  GitCompareArrows,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
@@ -267,6 +269,15 @@ export function SourceDocumentHistory({
                   </>
                 )}
               </div>
+              {version.parent_id && (
+                <Link
+                  href={`/documents/${version.id}/diff`}
+                  className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+                >
+                  <GitCompareArrows className="size-3" aria-hidden="true" />
+                  View changes from v{version.version - 1}
+                </Link>
+              )}
             </div>
           </div>
         );
