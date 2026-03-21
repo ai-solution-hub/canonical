@@ -423,6 +423,7 @@ export default function DigestPage() {
   const [currentDigest, setCurrentDigest] = useState<Digest | null>(null);
   const [pastDigests, setPastDigests] = useState<PastDigestEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPastDigests, setLoadingPastDigests] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [periodDays, setPeriodDays] = useState('7');
 
@@ -456,6 +457,7 @@ export default function DigestPage() {
 
   // Fetch list of past digests
   const fetchPastDigests = useCallback(async () => {
+    setLoadingPastDigests(true);
     try {
       const res = await fetch('/api/digest/list?limit=10&offset=0');
       if (!res.ok) throw new Error('Failed to fetch digest list');
@@ -463,6 +465,8 @@ export default function DigestPage() {
       setPastDigests(data.digests ?? []);
     } catch (err) {
       console.error('Failed to fetch digest list:', err);
+    } finally {
+      setLoadingPastDigests(false);
     }
   }, []);
 
@@ -689,36 +693,43 @@ export default function DigestPage() {
       )}
 
       {/* Past digests */}
-      {pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0 && (
+      {(loadingPastDigests || pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0) && (
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Previous Digests
           </h2>
-          <ul className="space-y-2" aria-label="Previous digests">
-            {pastDigests
-              .filter((d) => d.id !== currentDigest?.id)
-              .map((digest) => (
-                <li key={digest.id}>
-                  <button
-                    onClick={() => loadDigest(digest.id)}
-                    className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                  >
-                    <div>
-                      <span className="text-sm font-medium text-foreground">
-                        {formatDate(digest.period_start)} &ndash;{' '}
-                        {formatDate(digest.period_end)}
+          {loadingPastDigests ? (
+            <div className="flex items-center justify-center py-4" role="status" aria-label="Loading past digests">
+              <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+              <span className="sr-only">Loading past digests</span>
+            </div>
+          ) : (
+            <ul className="space-y-2" aria-label="Previous digests">
+              {pastDigests
+                .filter((d) => d.id !== currentDigest?.id)
+                .map((digest) => (
+                  <li key={digest.id}>
+                    <button
+                      onClick={() => loadDigest(digest.id)}
+                      className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                    >
+                      <div>
+                        <span className="text-sm font-medium text-foreground">
+                          {formatDate(digest.period_start)} &ndash;{' '}
+                          {formatDate(digest.period_end)}
+                        </span>
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {digestTypeLabel(digest.digest_type)}
+                        </span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {digest.item_count} items
                       </span>
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {digestTypeLabel(digest.digest_type)}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {digest.item_count} items
-                    </span>
-                  </button>
-                </li>
-              ))}
-          </ul>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
         </section>
       )}
     </section>
