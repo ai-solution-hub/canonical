@@ -171,8 +171,9 @@ export function GuideResearchFeed({
         ))}
 
         {loading && (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="size-4 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center py-4" role="status" aria-label="Loading research">
+            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Loading research...</span>
           </div>
         )}
 

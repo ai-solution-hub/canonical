@@ -31,7 +31,8 @@ interface GuideCoverageResponse {
 
 function GuideCoverageSkeleton() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" role="status" aria-label="Loading coverage guides">
+      <span className="sr-only">Loading coverage guides...</span>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-20 rounded-xl" />

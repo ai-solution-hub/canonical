@@ -505,15 +505,18 @@ export function LibraryContent() {
         )}
 
         {isLoading ? (
-          Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4"
-            >
-              <div className="h-4 w-3/4 animate-pulse rounded bg-accent" />
-              <div className="h-3 w-1/3 animate-pulse rounded bg-accent" />
-            </div>
-          ))
+          <div role="status" aria-label="Loading library">
+            <span className="sr-only">Loading library...</span>
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4"
+              >
+                <div className="h-4 w-3/4 animate-pulse rounded bg-accent" />
+                <div className="h-3 w-1/3 animate-pulse rounded bg-accent" />
+              </div>
+            ))}
+          </div>
         ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             {activeCount > 0 ? (

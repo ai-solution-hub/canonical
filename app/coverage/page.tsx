@@ -13,7 +13,8 @@ export default function CoveragePage() {
 
 function CoveragePageSkeleton() {
   return (
-    <div>
+    <div role="status" aria-label="Loading coverage page">
+      <span className="sr-only">Loading coverage page...</span>
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div>

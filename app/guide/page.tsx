@@ -186,8 +186,9 @@ export default function GuidesPage() {
 
       <div className="mt-6">
         {loading && (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center py-16" role="status" aria-label="Loading guides">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+            <span className="sr-only">Loading guides...</span>
           </div>
         )}
 

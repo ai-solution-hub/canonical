@@ -31,7 +31,7 @@ import {
 
 const ContentEditor = dynamic(
   () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
-  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" /> },
+  { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" role="status" aria-label="Loading editor"><span className="sr-only">Loading editor...</span></div> },
 );
 import { toast } from 'sonner';
 import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
