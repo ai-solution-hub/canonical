@@ -193,7 +193,7 @@ export default function GuidesPage() {
         )}
 
         {!loading && error && (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
             {error}
           </div>
         )}

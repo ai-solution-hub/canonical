@@ -120,11 +120,12 @@ export function ConnectedAppsSection() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="flex items-center justify-center py-6">
+          <div role="status" aria-label="Loading connected apps" className="flex items-center justify-center py-6">
             <Loader2
               className="size-5 animate-spin text-muted-foreground"
-              aria-label="Loading connected apps"
+              aria-hidden="true"
             />
+            <span className="sr-only">Loading connected apps...</span>
           </div>
         ) : grants.length === 0 ? (
           <p className="py-4 text-center text-sm text-muted-foreground">

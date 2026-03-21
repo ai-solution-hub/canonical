@@ -367,7 +367,7 @@ export function WorkspacesContent({
                 {canEdit && (
                   <div className={cn(
                     'absolute left-2 top-2 z-10 transition-opacity',
-                    selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100',
+                    selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100 group-focus-within/select:opacity-100',
                   )}>
                     <Checkbox
                       checked={selectedIds.has(workspace.id)}
@@ -419,7 +419,7 @@ export function WorkspacesContent({
                   {canEdit && (
                     <div className={cn(
                       'absolute left-2 top-2 z-10 transition-opacity',
-                      selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100',
+                      selectedIds.size > 0 ? 'opacity-100' : 'opacity-0 group-hover/select:opacity-100 group-focus-within/select:opacity-100',
                     )}>
                       <Checkbox
                         checked={selectedIds.has(workspace.id)}
