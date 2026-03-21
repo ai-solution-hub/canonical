@@ -317,7 +317,7 @@ function DisplayNameNudge() {
       </div>
       <button
         type="button"
-        className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground"
+        className="shrink-0 rounded-md p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         onClick={() => {
           localStorage.setItem(NAME_NUDGE_DISMISS_KEY, new Date().toISOString());
           setNudgeDismissed(true);

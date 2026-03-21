@@ -323,7 +323,7 @@ export function SourceDocumentDiffReview({
             aria-selected={activeFilter === option.value}
             aria-label={`Show ${option.label.toLowerCase()} entries`}
             className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
               activeFilter === option.value
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-muted/80',
@@ -340,7 +340,7 @@ export function SourceDocumentDiffReview({
             type="checkbox"
             checked={showUnchanged}
             onChange={(e) => setShowUnchanged(e.target.checked)}
-            className="rounded border-border"
+            className="rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             aria-label="Show unchanged entries"
           />
           Show unchanged ({summary.unchanged})

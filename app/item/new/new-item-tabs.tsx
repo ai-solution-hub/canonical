@@ -42,7 +42,7 @@ export function NewItemTabs() {
               <button
                 type="button"
                 onClick={() => setShowUploadDialog(true)}
-                className="font-medium text-primary underline-offset-2 hover:underline"
+                className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
               >
                 Upload it
               </button>

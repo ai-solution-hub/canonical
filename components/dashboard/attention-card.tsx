@@ -36,7 +36,7 @@ export function AttentionCard({
         <div className="mt-0.5 flex items-center gap-2">
           <Link
             href={href}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
             aria-label={`${count} ${label} — ${actionLabel}`}
           >
             {actionLabel}

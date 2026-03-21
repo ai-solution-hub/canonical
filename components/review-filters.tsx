@@ -152,7 +152,7 @@ export function ReviewFilters({
                         key={value}
                         onClick={() => handleDomainToggle(value)}
                         aria-pressed={isSelected}
-                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
+                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                           isSelected ? 'bg-accent font-medium' : ''
                         }`}
                       >
@@ -181,7 +181,7 @@ export function ReviewFilters({
                         key={value}
                         onClick={() => handleContentTypeToggle(value)}
                         aria-pressed={isSelected}
-                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
+                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                           isSelected ? 'bg-accent font-medium' : ''
                         }`}
                       >
@@ -205,7 +205,7 @@ export function ReviewFilters({
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => handleSourceFileChange(undefined)}
-                    className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
+                    className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                       !filters.source_file ? 'bg-accent font-medium' : ''
                     }`}
                   >
@@ -218,7 +218,7 @@ export function ReviewFilters({
                     <button
                       key={value}
                       onClick={() => handleSourceFileChange(value)}
-                      className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent ${
+                      className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
                         filters.source_file === value ? 'bg-accent font-medium' : ''
                       }`}
                     >

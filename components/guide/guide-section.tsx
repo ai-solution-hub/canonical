@@ -50,7 +50,7 @@ function ContentItemCard({ item }: { item: ContentItem }) {
   return (
     <Link
       href={`/item/${item.content_id}`}
-      className="group block rounded-md border border-border bg-background p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
+      className="group block rounded-md border border-border bg-background p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-sm font-medium text-foreground group-hover:underline line-clamp-2">
