@@ -463,6 +463,7 @@ export function SourceDocumentDiffReview({
     return counts;
   });
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   // Filter entries based on active filter and unchanged toggle
   const filteredEntries = localEntries.filter((entry) => {
@@ -500,6 +501,8 @@ export function SourceDocumentDiffReview({
     });
     setLocalSummary(newSummaryCounts);
 
+    setUpdateError(null);
+
     try {
       const res = await fetch(`/api/source-documents/${documentId}/diff`, {
         method: 'PATCH',
@@ -513,9 +516,10 @@ export function SourceDocumentDiffReview({
       // Use server summary
       setLocalSummary(data.summary);
     } catch {
-      // Rollback
+      // Rollback and show error
       setLocalEntries(previousEntries);
       setLocalSummary(previousSummary);
+      setUpdateError('Failed to update review status. Please try again.');
     } finally {
       setLoadingIds((prev) => {
         const next = new Set(prev);
@@ -621,6 +625,7 @@ export function SourceDocumentDiffReview({
             <button
               role="radio"
               aria-checked={viewMode === 'card'}
+              aria-label="Card View"
               onClick={() => setViewMode('card')}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
@@ -634,6 +639,7 @@ export function SourceDocumentDiffReview({
             <button
               role="radio"
               aria-checked={viewMode === 'side-by-side'}
+              aria-label="Side-by-Side"
               onClick={() => setViewMode('side-by-side')}
               className={cn(
                 'rounded-md px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
@@ -654,6 +660,23 @@ export function SourceDocumentDiffReview({
         onBulkStatusChange={handleBulkStatusChange}
         isLoading={isAnyLoading}
       />
+
+      {/* Error message */}
+      {updateError && (
+        <div
+          className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-3"
+          role="alert"
+        >
+          <p className="text-sm text-destructive">{updateError}</p>
+          <button
+            onClick={() => setUpdateError(null)}
+            className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+            aria-label="Dismiss error"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Entries list */}
       <div

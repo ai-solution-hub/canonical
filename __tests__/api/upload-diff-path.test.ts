@@ -18,14 +18,13 @@
  *  - Call sendSourceDocumentUpdateNotifications if items are affected
  *  - Graceful degradation: errors are caught, upload still succeeds
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createMockSupabaseClient,
 } from '../helpers/mock-supabase';
 import {
   computeDocumentDiff,
   extractQAPairs,
-  type DiffResult,
 } from '@/lib/document-diff';
 import type { ImpactAnalysis } from '@/lib/source-document-impact';
 
@@ -186,6 +185,7 @@ describe('Upload diff path — analyseDocumentImpact', () => {
     });
 
     const impact = await analyseDocumentImpact(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient as any,
       'new-doc',
     );
@@ -212,6 +212,7 @@ describe('Upload diff path — analyseDocumentImpact', () => {
     );
 
     const impact = await analyseDocumentImpact(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mockClient as any,
       'new-doc',
     );
@@ -229,6 +230,7 @@ describe('Upload diff path — graceful degradation', () => {
   it('computeDocumentDiff does not throw for malformed text', () => {
     // The route wraps this in try/catch — verify the function itself is safe
     expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       computeDocumentDiff('old', 'new', null as any, undefined as any),
     ).not.toThrow();
   });
