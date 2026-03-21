@@ -129,8 +129,9 @@ export function GuideContent({ slug }: { slug: string }) {
   if (loading) {
     return (
       <section aria-label="Guide" className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        <div className="flex items-center justify-center py-16" role="status" aria-label="Loading guide">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">Loading guide...</span>
         </div>
       </section>
     );

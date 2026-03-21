@@ -316,7 +316,10 @@ export function BrowseContent() {
             <div ref={sentinelCallbackRef} aria-hidden="true" className="h-px w-full" />
           )}
           {isLoadingMore && (
-            <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            <div role="status" aria-label="Loading more items">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden="true" />
+              <span className="sr-only">Loading more items...</span>
+            </div>
           )}
           <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
             Showing {displayItems.length} of {totalCount?.toLocaleString('en-GB') ?? '...'} items

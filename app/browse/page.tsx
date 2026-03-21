@@ -11,7 +11,8 @@ export default function BrowsePage() {
 
 function BrowsePageSkeleton() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6" role="status" aria-label="Loading browse page">
+      <span className="sr-only">Loading browse page...</span>
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div className="h-7 w-48 animate-pulse rounded-md bg-accent" />
