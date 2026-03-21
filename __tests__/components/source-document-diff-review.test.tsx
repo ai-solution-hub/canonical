@@ -3,11 +3,12 @@
  *
  * Tests the diff review UI including summary rendering, diff entry badges,
  * filter tabs, content display, affected KB item links, similarity scores,
- * empty states, and unchanged entry visibility.
+ * empty states, unchanged entry visibility, action buttons, bulk actions,
+ * and side-by-side view toggle.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +41,21 @@ import {
   type SourceDocumentDiffReviewProps,
   type DiffReviewEntry,
 } from '@/components/source-document-diff-review';
+
+// ---------------------------------------------------------------------------
+// Fetch mock
+// ---------------------------------------------------------------------------
+
+const mockFetch = vi.fn();
+
+beforeEach(() => {
+  mockFetch.mockReset();
+  global.fetch = mockFetch;
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,6 +131,7 @@ const DEFAULT_SUMMARY = {
 
 function renderComponent(overrides?: Partial<SourceDocumentDiffReviewProps>) {
   const props: SourceDocumentDiffReviewProps = {
+    documentId: 'test-doc-id',
     oldDocument: OLD_DOC,
     newDocument: NEW_DOC,
     summary: DEFAULT_SUMMARY,
@@ -573,6 +590,276 @@ describe('SourceDocumentDiffReview', () => {
       ).toBeInTheDocument();
       expect(screen.queryByText('Old answer:')).not.toBeInTheDocument();
       expect(screen.queryByText('New answer:')).not.toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Per-entry action buttons
+  // -------------------------------------------------------------------------
+
+  describe('action buttons', () => {
+    it('shows Apply button on pending_review entries', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      expect(
+        screen.getByRole('button', { name: 'Apply this change' }),
+      ).toBeInTheDocument();
+    });
+
+    it('shows Dismiss button on pending_review entries', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      expect(
+        screen.getByRole('button', { name: 'Dismiss this change' }),
+      ).toBeInTheDocument();
+    });
+
+    it('shows Reset button on applied/dismissed entries', () => {
+      const appliedEntry = makeEntry({
+        id: 'diff-applied',
+        diff_type: 'modified',
+        old_content: 'old',
+        new_content: 'new',
+        status: 'applied',
+      });
+      renderComponent({ entries: [appliedEntry] });
+      expect(
+        screen.getByRole('button', { name: 'Reset to pending review' }),
+      ).toBeInTheDocument();
+    });
+
+    it('does not show action buttons on unchanged entries', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [UNCHANGED_ENTRY] });
+
+      // Show unchanged entries
+      const toggle = screen.getByRole('checkbox', { name: /Show unchanged/ });
+      await user.click(toggle);
+
+      expect(
+        screen.queryByRole('button', { name: 'Apply this change' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Dismiss this change' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Reset to pending review' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('optimistically updates status when Apply is clicked', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [{ id: 'diff-1', status: 'applied', updated_at: new Date().toISOString() }],
+          summary: { pending_review: 0, applied: 2, dismissed: 1 },
+        }),
+      });
+
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+
+      // After click, the entry should show Reset button (optimistic update)
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Reset to pending review' }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('action buttons are disabled while loading', async () => {
+      const user = userEvent.setup();
+      // Never resolve the fetch to keep loading state
+      mockFetch.mockReturnValueOnce(new Promise(() => {}));
+
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+
+      // The Reset button (from optimistic update) should be disabled
+      await waitFor(() => {
+        const resetButton = screen.getByRole('button', { name: 'Reset to pending review' });
+        expect(resetButton).toBeDisabled();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Bulk actions toolbar
+  // -------------------------------------------------------------------------
+
+  describe('bulk actions', () => {
+    it('shows Accept All Pending button', () => {
+      renderComponent();
+      expect(
+        screen.getByRole('button', { name: 'Accept all pending changes' }),
+      ).toBeInTheDocument();
+    });
+
+    it('shows Dismiss All Pending button', () => {
+      renderComponent();
+      expect(
+        screen.getByRole('button', { name: 'Dismiss all pending changes' }),
+      ).toBeInTheDocument();
+    });
+
+    it('shows Reset All button when entries are reviewed', () => {
+      renderComponent();
+      // REMOVED_ENTRY has status 'dismissed', so Reset All should be visible
+      expect(
+        screen.getByRole('button', { name: 'Reset all reviewed changes to pending' }),
+      ).toBeInTheDocument();
+    });
+
+    it('disables bulk buttons when no pending entries', () => {
+      const allApplied = [
+        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b' }),
+        makeEntry({ id: 'e2', diff_type: 'added', status: 'applied', new_content: 'c' }),
+      ];
+      renderComponent({ entries: allApplied });
+
+      const acceptBtn = screen.getByRole('button', { name: 'Accept all pending changes' });
+      const dismissBtn = screen.getByRole('button', { name: 'Dismiss all pending changes' });
+      expect(acceptBtn).toBeDisabled();
+      expect(dismissBtn).toBeDisabled();
+    });
+
+    it('bulk Accept All Pending triggers fetch', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [],
+          summary: { pending_review: 0, applied: 3, dismissed: 1 },
+        }),
+      });
+
+      renderComponent();
+
+      await user.click(
+        screen.getByRole('button', { name: 'Accept all pending changes' }),
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/source-documents/test-doc-id/diff',
+          expect.objectContaining({ method: 'PATCH' }),
+        );
+      });
+    });
+
+    it('bulk Dismiss All Pending triggers fetch', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [],
+          summary: { pending_review: 0, applied: 0, dismissed: 3 },
+        }),
+      });
+
+      renderComponent();
+
+      await user.click(
+        screen.getByRole('button', { name: 'Dismiss all pending changes' }),
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/source-documents/test-doc-id/diff',
+          expect.objectContaining({ method: 'PATCH' }),
+        );
+      });
+    });
+
+    it('displays status counts in the bulk toolbar', () => {
+      renderComponent();
+      const toolbar = screen.getByRole('toolbar', { name: 'Bulk review actions' });
+      // 2 pending (MODIFIED + ADDED), 0 applied, 1 dismissed (REMOVED)
+      expect(within(toolbar).getByText(/2 pending/)).toBeInTheDocument();
+      expect(within(toolbar).getByText(/1 dismissed/)).toBeInTheDocument();
+    });
+
+    it('summary counts update after status change', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [{ id: 'diff-1', status: 'applied' }],
+          summary: { pending_review: 0, applied: 1, dismissed: 0 },
+        }),
+      });
+
+      // Use a single pending entry to avoid multiple "Apply this change" buttons
+      const singleEntry = makeEntry({
+        id: 'diff-1',
+        diff_type: 'modified',
+        old_content: 'old text',
+        new_content: 'new text',
+        status: 'pending_review',
+      });
+      renderComponent({
+        entries: [singleEntry],
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+
+      await waitFor(() => {
+        const summaryRegion = screen.getByLabelText('Diff summary');
+        expect(within(summaryRegion).getByText(/0 pending/)).toBeInTheDocument();
+        expect(within(summaryRegion).getByText(/1 applied/)).toBeInTheDocument();
+      });
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Side-by-side view toggle
+  // -------------------------------------------------------------------------
+
+  describe('side-by-side view', () => {
+    it('shows view mode toggle when modified entries exist', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      expect(
+        screen.getByRole('radiogroup', { name: 'View mode' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('radio', { name: 'Card View' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('radio', { name: 'Side-by-Side' }),
+      ).toBeInTheDocument();
+    });
+
+    it('hides view mode toggle when no modified entries exist', () => {
+      renderComponent({
+        entries: [ADDED_ENTRY, REMOVED_ENTRY],
+        summary: { added: 1, removed: 1, modified: 0, unchanged: 0 },
+      });
+      expect(
+        screen.queryByRole('radiogroup', { name: 'View mode' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows Card View as default selected', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      const cardRadio = screen.getByRole('radio', { name: 'Card View' });
+      expect(cardRadio).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('switches to side-by-side layout when toggled', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('radio', { name: 'Side-by-Side' }));
+
+      const sideBySideRadio = screen.getByRole('radio', { name: 'Side-by-Side' });
+      expect(sideBySideRadio).toHaveAttribute('aria-checked', 'true');
+
+      // In side-by-side mode, a grid container should be present
+      // The grid layout has md:grid-cols-2 class
+      const grids = document.querySelectorAll('.grid');
+      expect(grids.length).toBeGreaterThan(0);
     });
   });
 });
