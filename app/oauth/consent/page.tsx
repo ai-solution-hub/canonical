@@ -8,11 +8,17 @@
  * Uses Warm Meridian design system — restrained palette, structured absence,
  * Card with primary border accent.
  */
+import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, ShieldX } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'Authorise Application',
+};
 
 interface ConsentPageProps {
   searchParams: Promise<{ authorization_id?: string }>;
@@ -85,7 +91,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
           <div className="mt-6 space-y-3 rounded-lg border border-border bg-accent/30 p-4">
             <DetailRow label="Application" value={authDetails.client.name} />
             {authDetails.client.uri && (
-              <DetailRow label="Website" value={authDetails.client.uri} />
+              <DetailRow label="Website" value={authDetails.client.uri} truncate />
             )}
             <DetailRow label="Account" value={user.email ?? user.id} />
             {scopes.length > 0 && (
@@ -183,17 +189,23 @@ function ErrorCard({ message }: { message: string }) {
             Authorisation Error
           </h2>
           <p className="text-sm text-muted-foreground">{message}</p>
+          <Link
+            href="/"
+            className="mt-2 text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Return home
+          </Link>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({ label, value, truncate }: { label: string; value: string; truncate?: boolean }) {
   return (
     <div>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm text-foreground">{value}</p>
+      <p className={`text-sm text-foreground${truncate ? ' max-w-xs truncate' : ''}`} title={truncate ? value : undefined}>{value}</p>
     </div>
   );
 }

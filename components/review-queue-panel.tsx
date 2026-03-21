@@ -92,7 +92,7 @@ export function ReviewQueuePanel({
                   </Badge>
                 )}
                 {isFlagged && (
-                  <span className="ml-auto" role="img" aria-label="Flagged for review">
+                  <span className="ml-auto" aria-label="Flagged for review">
                     <Flag
                       className="size-3.5 text-status-warning"
                       aria-hidden="true"
@@ -100,7 +100,7 @@ export function ReviewQueuePanel({
                   </span>
                 )}
                 {!isFlagged && item.verified_at && (
-                  <span className="ml-auto" role="img" aria-label="Verified">
+                  <span className="ml-auto" aria-label="Verified">
                     <Check
                       className="size-3.5 text-success"
                       aria-hidden="true"
