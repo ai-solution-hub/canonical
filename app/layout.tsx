@@ -42,7 +42,7 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-GB" suppressHydrationWarning>
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         <ThemeProvider>
           <ClientFeaturesProvider>

@@ -15,6 +15,7 @@ import {
   Loader2,
   Sparkles,
   MoreHorizontal,
+  AlertCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -107,7 +108,29 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     );
   }
 
-  if (!bid || !bidStatus) return null;
+  if (!bid || !bidStatus) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <Link
+          href="/bid"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="size-4" aria-hidden="true" />
+          Back to Bids
+        </Link>
+        <div className="mt-8 flex flex-col items-center justify-center py-20 text-center" role="alert">
+          <AlertCircle className="size-10 text-muted-foreground/50" aria-hidden="true" />
+          <h2 className="mt-4 text-lg font-semibold text-foreground">Bid not found</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This bid may have been deleted or you may not have access.
+          </p>
+          <Button asChild variant="outline" className="mt-4">
+            <Link href="/bid">Return to Bids</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">

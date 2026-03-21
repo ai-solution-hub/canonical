@@ -118,69 +118,75 @@ export default function BidSessionPage({
     editorContentRef.current = editorContent;
   }, [editorContent]);
 
+  const bidName = bid?.name;
+
   // ── Loading state ──
   if (loading) {
     return (
-      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
-        <SessionSkeleton />
-      </div>
+      <BidContextProvider bidId={id}>
+        <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
+          <SessionSkeleton />
+        </div>
+      </BidContextProvider>
     );
   }
 
   // ── Error state ──
   if (error) {
     return (
-      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <AlertCircle
-            className="size-10 text-muted-foreground/50"
-            aria-hidden="true"
-          />
-          <h2 className="mt-4 text-lg font-semibold text-foreground">
-            Couldn&apos;t load the session
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">{error}</p>
-          <Button
-            variant="outline"
-            onClick={fetchBidData}
-            className="mt-4"
-          >
-            Try again
-          </Button>
+      <BidContextProvider bidId={id}>
+        <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
+          <div className="flex flex-col items-center justify-center py-20 text-center" role="alert">
+            <AlertCircle
+              className="size-10 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <h2 className="mt-4 text-lg font-semibold text-foreground">
+              Couldn&apos;t load the session
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
+            <Button
+              variant="outline"
+              onClick={fetchBidData}
+              className="mt-4"
+            >
+              Try again
+            </Button>
+          </div>
         </div>
-      </div>
+      </BidContextProvider>
     );
   }
 
   if (!bid || questions.length === 0) {
     return (
-      <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
-        <Link
-          href={`/bid/${id}`}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="size-4" aria-hidden="true" />
-          Back to Bid
-        </Link>
-        <div className="mt-8 flex flex-col items-center justify-center py-20 text-center">
-          <AlertCircle
-            className="size-10 text-muted-foreground/50"
-            aria-hidden="true"
-          />
-          <h2 className="mt-4 text-lg font-semibold">No questions yet</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Upload a tender document and extract questions before starting a
-            session.
-          </p>
-          <Button asChild variant="outline" className="mt-4">
-            <Link href={`/bid/${id}`}>Go to Bid Detail</Link>
-          </Button>
+      <BidContextProvider bidId={id}>
+        <div className="mx-auto max-w-screen-2xl px-4 py-8 sm:px-6">
+          <Link
+            href={`/bid/${id}`}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="size-4" aria-hidden="true" />
+            Back to Bid
+          </Link>
+          <div className="mt-8 flex flex-col items-center justify-center py-20 text-center">
+            <AlertCircle
+              className="size-10 text-muted-foreground/50"
+              aria-hidden="true"
+            />
+            <h2 className="mt-4 text-lg font-semibold">No questions yet</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Upload a tender document and extract questions before starting a
+              session.
+            </p>
+            <Button asChild variant="outline" className="mt-4">
+              <Link href={`/bid/${id}`}>Go to Bid Detail</Link>
+            </Button>
+          </div>
         </div>
-      </div>
+      </BidContextProvider>
     );
   }
-
-  const bidName = bid.name;
 
   // ── Main session layout ──
   const sessionContent = (

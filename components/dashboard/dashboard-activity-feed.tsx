@@ -315,7 +315,7 @@ export function DashboardActivityFeed({
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {userName && <>{userName}</>}
-                      {userName && timestamp && <> &middot; </>}
+                      {userName && timestamp && <span aria-hidden="true"> &middot; </span>}
                       {!userName && group.count > 1 && timestamp && (
                         <>{timestamp}</>
                       )}

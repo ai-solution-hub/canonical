@@ -169,7 +169,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Compact search bar */}
-      <section className="mb-6 text-center">
+      <section className="mb-6 text-center" aria-label="Search">
         <h1 className="mb-4 text-fluid-2xl font-bold tracking-tight">
           Knowledge Hub
         </h1>

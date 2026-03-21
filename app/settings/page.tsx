@@ -158,7 +158,7 @@ function SettingsContent() {
   return (
     <div className={cn('mx-auto px-4 py-8 sm:px-6', canAdmin ? 'max-w-5xl' : 'max-w-3xl')}>
       <div className="mb-6 flex items-center gap-3">
-        <Settings className="size-6 text-muted-foreground" />
+        <Settings className="size-6 text-muted-foreground" aria-hidden="true" />
         <div className="flex-1">
           <h1 className="text-xl font-semibold">Settings</h1>
           <p className="text-sm text-muted-foreground">

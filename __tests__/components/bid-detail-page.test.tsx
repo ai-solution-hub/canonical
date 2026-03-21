@@ -278,16 +278,17 @@ describe('BidDetailPage', () => {
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
-  it('returns null when bid is null', () => {
+  it('shows not-found state when bid is null', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bid: null, bidStatus: 'drafting' }));
-    const { container } = render(<BidDetailPage params={mockParams} />);
-    expect(container.innerHTML).toBe('');
+    render(<BidDetailPage params={mockParams} />);
+    expect(screen.getByText('Bid not found')).toBeInTheDocument();
+    expect(screen.getByText('Return to Bids')).toBeInTheDocument();
   });
 
-  it('returns null when bidStatus is null', () => {
+  it('shows not-found state when bidStatus is null', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bidStatus: null }));
-    const { container } = render(<BidDetailPage params={mockParams} />);
-    expect(container.innerHTML).toBe('');
+    render(<BidDetailPage params={mockParams} />);
+    expect(screen.getByText('Bid not found')).toBeInTheDocument();
   });
 
   // ---- Header rendering ----

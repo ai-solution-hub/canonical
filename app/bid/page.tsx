@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Plus, Briefcase, LayoutGrid, List, Calendar, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -292,7 +293,7 @@ function BidListRow({ bid }: { bid: Bid }) {
   const proximity = getDeadlineProximity(metadata.deadline);
 
   return (
-    <a
+    <Link
       href={`/bid/${bid.id}`}
       className="flex items-center gap-4 px-4 py-3 transition-colors hover:bg-accent/50"
     >
@@ -326,7 +327,7 @@ function BidListRow({ bid }: { bid: Bid }) {
         </div>
       </div>
       <BidStateBadge state={bidStatus} />
-    </a>
+    </Link>
   );
 }
 

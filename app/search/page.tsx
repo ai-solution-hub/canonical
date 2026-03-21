@@ -117,7 +117,7 @@ function SearchResults() {
 
       {/* Error state */}
       {error && !isLoading && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+        <div role="alert" className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <p className="flex-1 text-sm text-muted-foreground">{error}</p>
           <Button
             variant="outline"

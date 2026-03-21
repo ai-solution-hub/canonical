@@ -28,7 +28,12 @@ export default async function ReviewPage() {
   }
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div role="status" aria-label="Loading review" className="flex items-center justify-center py-20">
+        <div className="size-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+        <span className="sr-only">Loading review...</span>
+      </div>
+    }>
       <ReviewContent />
     </Suspense>
   );
