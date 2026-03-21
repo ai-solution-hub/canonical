@@ -99,7 +99,7 @@ export function FilterBar({
 
         {/* Sort */}
         <Select value={sortOption} onValueChange={onSortChange}>
-          <SelectTrigger size="sm" className="w-auto gap-1.5">
+          <SelectTrigger size="sm" className="w-auto gap-1.5" aria-label="Sort by">
             <ArrowUpDown className="size-3.5" />
             <span className="hidden sm:inline">
               <SelectValue />

@@ -233,7 +233,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
               )}
               <div className="flex items-center gap-1.5">
                 <span className="text-muted-foreground">Confidence: </span>
-                <span className={`font-medium ${confidence.colourClass}`}>
+                <span className={cn('font-medium', confidence.colourClass)}>
                   {confidence.label}
                 </span>
               </div>

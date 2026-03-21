@@ -34,20 +34,22 @@ export function NewItemTabs() {
         </TabsList>
 
         <TabsContent value="write">
-          <CreateContentClient />
-          {/* Cross-method suggestion */}
-          <div className="mx-auto mt-4 max-w-4xl px-4 sm:px-6">
-            <p className="text-center text-xs text-muted-foreground">
-              Have a file instead?{' '}
-              <button
-                type="button"
-                onClick={() => setShowUploadDialog(true)}
-                className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-              >
-                Upload it
-              </button>
-            </p>
-          </div>
+          <section aria-label="Write new content">
+            <CreateContentClient />
+            {/* Cross-method suggestion */}
+            <div className="mx-auto mt-4 max-w-4xl px-4 sm:px-6">
+              <p className="text-center text-xs text-muted-foreground">
+                Have a file instead?{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowUploadDialog(true)}
+                  className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                >
+                  Upload it
+                </button>
+              </p>
+            </div>
+          </section>
         </TabsContent>
 
         <TabsContent value="url">

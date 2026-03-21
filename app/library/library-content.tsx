@@ -333,7 +333,7 @@ export function LibraryContent() {
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Source</label>
+                  <span className="text-xs font-medium text-muted-foreground">Source</span>
                   <Select
                     value={filters.source_file ?? '__all__'}
                     onValueChange={(v) => setFilters({ source_file: v === '__all__' ? undefined : v })}
@@ -353,7 +353,7 @@ export function LibraryContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Variant</label>
+                  <span className="text-xs font-medium text-muted-foreground">Variant</span>
                   <Select
                     value={filters.variant ?? 'all'}
                     onValueChange={(v) =>
@@ -374,7 +374,7 @@ export function LibraryContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Verified status</label>
+                  <span className="text-xs font-medium text-muted-foreground">Verified status</span>
                   <Select
                     value={filters.verified ?? 'all'}
                     onValueChange={(v) =>
@@ -393,7 +393,7 @@ export function LibraryContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Grouping</label>
+                  <span className="text-xs font-medium text-muted-foreground">Grouping</span>
                   <Select
                     value={groupBy}
                     onValueChange={(v) => setGroupBy(v as GroupBy)}

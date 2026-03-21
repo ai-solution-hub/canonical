@@ -274,9 +274,9 @@ export function DashboardActivityFeed({
     <div className="space-y-4" role="feed">
       {timeGroups.map((section) => (
         <div key={section.key}>
-          <h4 className="text-xs text-muted-foreground uppercase tracking-wider mb-2 px-2">
+          <h3 className="text-xs text-muted-foreground uppercase tracking-wider mb-2 px-2">
             {section.label}
-          </h4>
+          </h3>
           <div className="space-y-1">
             {section.items.map((group) => {
               const Icon = getActivityIcon(group.type);

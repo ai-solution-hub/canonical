@@ -14,7 +14,9 @@ import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
@@ -324,26 +326,24 @@ export function CreateContentClient() {
                 <SelectValue placeholder="Select content type..." />
               </SelectTrigger>
               <SelectContent>
-                {/* Common types first */}
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                  Common
-                </div>
-                {COMMON_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {formatContentType(type)}
-                  </SelectItem>
-                ))}
-                {/* All other types */}
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                  More types
-                </div>
-                {VALID_CONTENT_TYPES.filter(
-                  (t) => !(COMMON_TYPES as readonly string[]).includes(t),
-                ).map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {formatContentType(type)}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  <SelectLabel>Common</SelectLabel>
+                  {COMMON_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {formatContentType(type)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>More types</SelectLabel>
+                  {VALID_CONTENT_TYPES.filter(
+                    (t) => !(COMMON_TYPES as readonly string[]).includes(t),
+                  ).map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {formatContentType(type)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
             {errors.content_type && (
