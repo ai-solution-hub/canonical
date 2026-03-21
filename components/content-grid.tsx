@@ -183,6 +183,7 @@ export function ContentGrid({
             >
               {multiSelectMode && (
                 <button
+                  role="checkbox"
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -192,6 +193,7 @@ export function ContentGrid({
                   aria-label={
                     selectedIds?.has(item.id) ? 'Deselect' : 'Select'
                   }
+                  aria-checked={selectedIds?.has(item.id) ?? false}
                 >
                   <span
                     className={`size-3.5 rounded-sm border ${selectedIds?.has(item.id) ? 'border-primary bg-primary' : 'border-muted-foreground/40'}`}

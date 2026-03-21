@@ -151,7 +151,7 @@ export function SettingsSidebar({
   if (sections.length <= 1) return null;
 
   return (
-    <aside className="hidden w-56 shrink-0 md:block">
+    <aside className="hidden w-56 shrink-0 md:block" aria-label="Settings navigation">
       <SidebarNav
         sections={sections}
         activeSection={activeSection}

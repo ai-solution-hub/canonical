@@ -264,7 +264,7 @@ export function WorkspacesContent({
             onClick={() => setShowCreateDialog(true)}
             className="gap-1.5"
           >
-            <Plus className="size-4" />
+            <Plus className="size-4" aria-hidden="true" />
             New Workspace
           </Button>
         )}
@@ -296,7 +296,7 @@ export function WorkspacesContent({
 
       {/* Bulk action toolbar */}
       {selectedIds.size > 0 && canEdit && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border bg-card px-4 py-2">
+        <div className="mt-4 flex items-center gap-3 rounded-lg border bg-card px-4 py-2" role="toolbar" aria-label="Bulk actions" aria-live="polite">
           <span className="text-sm font-medium text-foreground">
             {selectedIds.size} selected
           </span>

@@ -65,6 +65,7 @@ export function CitationPanel({
         onClick={() => setIsExpanded(!isExpanded)}
         className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted/50 transition-colors"
         aria-expanded={isExpanded}
+        aria-controls="citation-panel-content"
         type="button"
       >
         <span className="flex items-center gap-2">
@@ -81,7 +82,7 @@ export function CitationPanel({
 
       {/* Expanded citation list */}
       {isExpanded && (
-        <div className="border-t divide-y">
+        <div id="citation-panel-content" className="border-t divide-y">
           {citations.map((citation, index) => {
             const source = sourceContent.find((s) => s.id === citation.source_id);
             const isExpandedCitation = expandedCitationIndex === index;

@@ -201,6 +201,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                     size="sm"
                     onClick={() => handleStatusTransition(transition)}
                     disabled={transitioning}
+                    aria-label={BID_STATE_LABELS[transition]}
                   >
                     {transitioning ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
