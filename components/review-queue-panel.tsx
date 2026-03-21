@@ -80,6 +80,7 @@ export function ReviewQueuePanel({
                 isCurrent && 'border-l-2 border-l-primary bg-accent',
               )}
               aria-current={isCurrent ? 'true' : undefined}
+              aria-label={title}
             >
               <div className="flex items-center gap-1.5">
                 {item.primary_domain && (

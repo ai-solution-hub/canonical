@@ -319,8 +319,10 @@ export function SourceDocumentDiffReview({
         {FILTER_OPTIONS.map((option) => (
           <button
             key={option.value}
+            id={`diff-tab-${option.value}`}
             role="tab"
             aria-selected={activeFilter === option.value}
+            aria-controls="diff-entries-panel"
             aria-label={`Show ${option.label.toLowerCase()} entries`}
             className={cn(
               'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
@@ -341,7 +343,6 @@ export function SourceDocumentDiffReview({
             checked={showUnchanged}
             onChange={(e) => setShowUnchanged(e.target.checked)}
             className="rounded border-border"
-            aria-label="Show unchanged entries"
           />
           Show unchanged ({summary.unchanged})
         </label>
@@ -349,9 +350,10 @@ export function SourceDocumentDiffReview({
 
       {/* Entries list */}
       <div
+        id="diff-entries-panel"
         className="space-y-4"
-        role="region"
-        aria-label="Diff entries"
+        role="tabpanel"
+        aria-labelledby={`diff-tab-${activeFilter}`}
         aria-live="polite"
       >
         {filteredEntries.length === 0 ? (

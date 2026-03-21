@@ -266,6 +266,7 @@ export function SearchBar({
                 handleKeyDown(e);
               }}
               role="combobox"
+              aria-label="Search the knowledge base"
               aria-expanded={dropdownVisible}
               aria-controls={listboxId}
               aria-autocomplete="list"
@@ -301,6 +302,7 @@ export function SearchBar({
             }}
             onKeyDown={handleKeyDown}
             role="combobox"
+            aria-label="Search the knowledge base"
             aria-expanded={dropdownVisible}
             aria-controls={listboxId}
             aria-autocomplete="list"

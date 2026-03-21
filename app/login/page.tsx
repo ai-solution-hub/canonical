@@ -285,6 +285,7 @@ export default function LoginPage() {
             ref={methodFirstRef}
             type="button"
             onClick={() => goToStep('password')}
+            aria-label="Sign in with password"
             className="w-full rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="flex items-center justify-between">
@@ -308,6 +309,7 @@ export default function LoginPage() {
             type="button"
             onClick={handleSendMagicLink}
             disabled={isLoading}
+            aria-label="Sign in with magic link"
             className="w-full rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
           >
             <div className="flex items-center justify-between">
@@ -421,7 +423,7 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">
             {"Didn't receive it?"}
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" aria-live="polite">
             <button
               type="button"
               onClick={handleResendMagicLink}

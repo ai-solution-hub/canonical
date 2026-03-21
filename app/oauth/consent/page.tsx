@@ -73,7 +73,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
       <Card className="w-full max-w-md border-t-2 border-t-primary">
         <CardContent className="px-8 py-8">
           <div className="flex flex-col items-center gap-2 text-center">
-            <ShieldCheck className="size-10 text-primary" />
+            <ShieldCheck className="size-10 text-primary" aria-hidden="true" />
             <h2 className="text-xl font-semibold text-foreground">
               Authorise {authDetails.client.name}
             </h2>
@@ -90,10 +90,10 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
             <DetailRow label="Account" value={user.email ?? user.id} />
             {scopes.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-muted-foreground">
+                <p id="requested-permissions-label" className="text-xs font-medium text-muted-foreground">
                   Requested permissions
                 </p>
-                <ul className="mt-1 list-inside list-disc text-sm text-foreground">
+                <ul aria-labelledby="requested-permissions-label" className="mt-1 list-inside list-disc text-sm text-foreground">
                   {scopes.map((scope) => (
                     <li key={scope}>{formatScope(scope)}</li>
                   ))}
@@ -119,7 +119,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
               value="approve"
               className="w-full"
             >
-              <ShieldCheck className="mr-2 size-4" />
+              <ShieldCheck className="mr-2 size-4" aria-hidden="true" />
               Approve
             </Button>
 
@@ -130,7 +130,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
               variant="outline"
               className="w-full"
             >
-              <ShieldX className="mr-2 size-4" />
+              <ShieldX className="mr-2 size-4" aria-hidden="true" />
               Deny
             </Button>
           </form>
@@ -178,7 +178,7 @@ function ErrorCard({ message }: { message: string }) {
     <Card className="w-full max-w-md border-t-2 border-t-destructive">
       <CardContent className="px-8 py-8">
         <div className="flex flex-col items-center gap-2 text-center">
-          <ShieldX className="size-10 text-destructive" />
+          <ShieldX className="size-10 text-destructive" aria-hidden="true" />
           <h2 className="text-lg font-semibold text-foreground">
             Authorisation Error
           </h2>

@@ -254,10 +254,10 @@ export function LibraryContent() {
               <>
                 {items.length} Q&A pair{items.length !== 1 ? 's' : ''}
                 {standardCount > 0 && (
-                  <span> · {standardCount} standard</span>
+                  <span><span aria-hidden="true"> · </span>{standardCount} standard</span>
                 )}
                 {advancedCount > 0 && (
-                  <span> · {advancedCount} advanced</span>
+                  <span><span aria-hidden="true"> · </span>{advancedCount} advanced</span>
                 )}
               </>
             )}

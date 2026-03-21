@@ -41,6 +41,7 @@ export function ItemTitleSection({
         {isEditing ? (
           <Input
             autoFocus
+            aria-label="Item title"
             value={editTitle}
             onChange={(e) => {
               setEditTitle(e.target.value);

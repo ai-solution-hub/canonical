@@ -87,6 +87,7 @@ export function ContentList({
               <div className="flex w-full items-center">
                 {multiSelectMode && (
                   <button
+                    role="checkbox"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -96,6 +97,7 @@ export function ContentList({
                     aria-label={
                       selectedIds?.has(item.id) ? 'Deselect' : 'Select'
                     }
+                    aria-checked={selectedIds?.has(item.id) ?? false}
                     style={{ minHeight: '44px', minWidth: '44px' }}
                   >
                     <span

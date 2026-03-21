@@ -15,7 +15,7 @@ export function BulkActions({
   onCancel,
 }: BulkActionsProps) {
   return (
-    <div className="mt-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+    <div className="mt-4 flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5" role="status" aria-live="polite">
       <span className="text-sm font-medium text-foreground">
         {selectedCount} selected
       </span>

@@ -492,7 +492,7 @@ export function ItemDetailClient({
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
-        <article className="min-w-0 flex-1">
+        <article className="min-w-0 flex-1" aria-label={item.title ?? 'Untitled'}>
           {/* Thumbnail (not shown for Q&A pairs) */}
           {item.thumbnail_url && !isQAPair ? (
             <Thumbnail
@@ -683,7 +683,7 @@ export function ItemDetailClient({
       </Panel>
       {showSplitReader && (
         <>
-          <PanelResizeHandle className="w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30" />
+          <PanelResizeHandle aria-label="Resize panels" className="w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30" />
           <Panel
             id="reader"
             defaultSize={`${panelLayout.reader ?? 45}%`}
