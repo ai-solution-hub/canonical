@@ -355,7 +355,7 @@ export function CreateContentClient() {
 
           {/* Content / Answer */}
           <div ref={contentRef} data-step="2" className="space-y-2">
-            <Label>
+            <Label id="content-editor-label">
               {isQAPair ? 'Answer' : 'Content'}{' '}
               <span className="text-destructive">*</span>
             </Label>
@@ -371,6 +371,7 @@ export function CreateContentClient() {
                   isQAPair ? 'Write the answer...' : 'Start writing...'
                 }
                 minHeight="300px"
+                labelId="content-editor-label"
               />
             </div>
             {errors.content && (

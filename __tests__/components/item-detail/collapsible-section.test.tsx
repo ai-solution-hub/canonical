@@ -37,13 +37,24 @@ describe('CollapsibleSection', () => {
     expect(screen.getByText('Visible content')).toBeInTheDocument();
   });
 
-  it('hides children when defaultOpen is false', () => {
+  it('hides children via hidden attribute when defaultOpen is false', () => {
     render(
       <CollapsibleSection title="Details" defaultOpen={false}>
         <p>Hidden content</p>
       </CollapsibleSection>,
     );
-    expect(screen.queryByText('Hidden content')).not.toBeInTheDocument();
+    // Content is in the DOM but hidden (DOM-preserving mode)
+    const content = screen.getByText('Hidden content');
+    expect(content.closest('[hidden]')).toBeTruthy();
+  });
+
+  it('removes children from DOM when lazy and defaultOpen is false', () => {
+    render(
+      <CollapsibleSection title="Details" defaultOpen={false} lazy>
+        <p>Lazy hidden</p>
+      </CollapsibleSection>,
+    );
+    expect(screen.queryByText('Lazy hidden')).not.toBeInTheDocument();
   });
 
   it('toggles on button click', async () => {
@@ -53,13 +64,16 @@ describe('CollapsibleSection', () => {
         <p>Toggle content</p>
       </CollapsibleSection>,
     );
-    expect(screen.queryByText('Toggle content')).not.toBeInTheDocument();
+    // Collapsed: content in DOM but hidden
+    expect(screen.getByText('Toggle content').closest('[hidden]')).toBeTruthy();
 
     await user.click(screen.getByRole('button'));
-    expect(screen.getByText('Toggle content')).toBeInTheDocument();
+    // Expanded: content visible (no hidden attribute)
+    expect(screen.getByText('Toggle content').closest('[hidden]')).toBeNull();
 
     await user.click(screen.getByRole('button'));
-    expect(screen.queryByText('Toggle content')).not.toBeInTheDocument();
+    // Collapsed again
+    expect(screen.getByText('Toggle content').closest('[hidden]')).toBeTruthy();
   });
 
   it('button has correct aria-expanded attribute', async () => {

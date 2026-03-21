@@ -206,6 +206,7 @@ export default function BidSessionPage({
           className="w-full shrink-0 lg:w-72 xl:w-80"
           aria-label="Question navigation"
         >
+          <h2 className="sr-only">Question Navigation</h2>
           <div className="rounded-lg border bg-card p-4">
             <QuestionNavigator
               questions={navigatorQuestions}
@@ -217,9 +218,9 @@ export default function BidSessionPage({
           {/* Current question display */}
           {currentQuestion && (
             <div className="mt-4 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
-              <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Current Question
-              </h3>
+              </p>
               {currentQuestion.section_name && (
                 <p className="mt-1 text-xs text-muted-foreground">
                   {currentQuestion.section_name}
@@ -239,6 +240,7 @@ export default function BidSessionPage({
 
         {/* Right panel: Response editor */}
         <main className="min-w-0 flex-1" aria-label="Response editor">
+          <h2 className="sr-only">Response Editor</h2>
           {responseLoading ? (
             <div className="flex items-center justify-center rounded-lg border py-20">
               <Loader2
