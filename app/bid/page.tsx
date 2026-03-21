@@ -159,11 +159,12 @@ export default function BidsPage() {
                 type="button"
                 aria-pressed={statusFilter === filter.id}
                 onClick={() => setStatusFilter(filter.id)}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                className={cn(
+                  'rounded-full px-3 py-1 text-sm font-medium transition-colors',
                   statusFilter === filter.id
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
+                    : 'bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                )}
               >
                 {filter.label}
               </button>
@@ -193,7 +194,7 @@ export default function BidsPage() {
               </Button>
             </div>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-              <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectTrigger className="h-8 w-[160px] text-xs" aria-label="Sort bids by">
                 <SelectValue placeholder="Sort by..." />
               </SelectTrigger>
               <SelectContent position="popper">
@@ -209,14 +210,14 @@ export default function BidsPage() {
       {/* Content */}
       <div className="mt-6">
         {loading ? (
-          <BidListSkeleton />
+          <BidListSkeleton viewMode={viewMode} />
         ) : bids.length === 0 ? (
           <EmptyState
             canEdit={canEdit}
             onCreateClick={() => setShowCreate(true)}
           />
         ) : filteredBids.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
+          <p className="py-8 text-center text-sm text-muted-foreground" role="status">
             No bids match the selected filter.
           </p>
         ) : viewMode === 'grid' ? (
@@ -246,7 +247,7 @@ export default function BidsPage() {
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-muted-foreground" role="status" aria-live="polite">
             Page {currentPage} of {totalPages}
           </span>
           <Button
@@ -334,7 +335,26 @@ function BidListRow({ bid }: { bid: Bid }) {
   );
 }
 
-function BidListSkeleton() {
+function BidListSkeleton({ viewMode }: { viewMode: 'grid' | 'list' }) {
+  if (viewMode === 'list') {
+    return (
+      <div className="divide-y rounded-lg border">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex animate-pulse items-center gap-4 px-4 py-3">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-48 rounded bg-muted" />
+              <div className="flex gap-3">
+                <div className="h-3 w-24 rounded bg-muted" />
+                <div className="h-3 w-20 rounded bg-muted" />
+              </div>
+            </div>
+            <div className="h-5 w-20 rounded-full bg-muted" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 3 }).map((_, i) => (

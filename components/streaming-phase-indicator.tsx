@@ -96,7 +96,7 @@ export function StreamingPhaseIndicator({
       {/* Cost on done */}
       {phase === 'done' && totalCost !== null && totalCost !== undefined && (
         <span className="text-xs text-muted-foreground">
-          Cost: ${totalCost.toFixed(4)}
+          Cost: {'\u00A3'}{totalCost.toFixed(4)}
         </span>
       )}
 

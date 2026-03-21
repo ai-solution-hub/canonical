@@ -38,6 +38,7 @@ export default function TemplateCompletionPage() {
   const [fillJobId, setFillJobId] = useState<string | null>(null);
   const [latestCompletion, setLatestCompletion] = useState<TemplateCompletion | null>(null);
   const [fillResult, setFillResult] = useState<FillResult | null>(null);
+  const [loadingTemplateId, setLoadingTemplateId] = useState<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clear polling interval on unmount
@@ -79,6 +80,7 @@ export default function TemplateCompletionPage() {
 
   const loadTemplateDetail = useCallback(
     async (templateId: string) => {
+      setLoadingTemplateId(templateId);
       try {
         const res = await fetch(`/api/bids/${bidId}/templates/${templateId}`);
         if (!res.ok) throw new Error('Failed to load template');
@@ -103,6 +105,8 @@ export default function TemplateCompletionPage() {
       } catch (err) {
         console.error('Failed to load template details:', err);
         toast.error('Failed to load template details');
+      } finally {
+        setLoadingTemplateId(null);
       }
     },
     [bidId],
@@ -336,9 +340,11 @@ export default function TemplateCompletionPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
-        <span className="sr-only">Loading template data</span>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden="true" />
+          <span className="sr-only">Loading template data</span>
+        </div>
       </div>
     );
   }
@@ -367,10 +373,16 @@ export default function TemplateCompletionPage() {
             {templates.map((t) => (
               <button
                 key={t.id}
-                className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50"
+                className="flex items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
                 onClick={() => loadTemplateDetail(t.id)}
+                aria-label={`Select template: ${t.name}`}
+                disabled={loadingTemplateId === t.id}
               >
-                <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                {loadingTemplateId === t.id ? (
+                  <Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" aria-hidden="true" />
+                ) : (
+                  <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{t.name}</p>
                   <p className="text-xs text-muted-foreground">
