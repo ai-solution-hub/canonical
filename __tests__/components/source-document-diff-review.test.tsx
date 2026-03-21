@@ -523,10 +523,10 @@ describe('SourceDocumentDiffReview', () => {
   // -------------------------------------------------------------------------
 
   describe('accessibility', () => {
-    it('has a back link with aria-label', () => {
+    it('has a back button with aria-label', () => {
       renderComponent();
       expect(
-        screen.getByRole('link', { name: 'Back to browse' }),
+        screen.getByRole('button', { name: 'Go back' }),
       ).toBeInTheDocument();
     });
 

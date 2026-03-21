@@ -81,7 +81,7 @@ function GuideCard({ guide }: { guide: Guide }) {
       {/* Section progress */}
       {hasStats && (
         <div className="mt-3">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>
               {stats.populated_sections}/{stats.total_sections} sections populated
             </span>
@@ -114,7 +114,7 @@ function GuideCard({ guide }: { guide: Guide }) {
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        <Badge variant="secondary" className="text-[10px]">
+        <Badge variant="secondary" className="text-xs">
           {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
         </Badge>
         {guide.domain_filter && (

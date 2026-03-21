@@ -541,13 +541,13 @@ export function SourceDocumentDiffReview({
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Back link */}
-      <Link
-        href="/browse"
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
-        aria-label="Back to browse"
+      <button
+        onClick={() => window.history.back()}
+        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        aria-label="Go back"
       >
-        &larr; Back to Browse
-      </Link>
+        &larr; Back
+      </button>
 
       {/* Page header */}
       <header>
