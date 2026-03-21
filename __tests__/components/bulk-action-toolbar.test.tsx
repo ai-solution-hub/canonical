@@ -84,7 +84,7 @@ describe('BulkActionToolbar', () => {
         })}
       />,
     );
-    expect(screen.getByText(/Re-classifying 2\/5/)).toBeInTheDocument();
+    expect(screen.getByText(/Re-classifying 2 of 5/)).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
   });
 

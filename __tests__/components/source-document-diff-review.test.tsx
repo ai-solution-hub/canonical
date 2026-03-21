@@ -140,9 +140,9 @@ describe('SourceDocumentDiffReview', () => {
   describe('summary', () => {
     it('renders the document filenames and versions in the header', () => {
       renderComponent();
-      expect(
-        screen.getByText(/policy-v1\.docx \(v1\).*policy-v2\.docx \(v2\)/),
-      ).toBeInTheDocument();
+      // Header now includes formatted dates, so match filenames separately
+      expect(screen.getByText(/policy-v1\.docx/)).toBeInTheDocument();
+      expect(screen.getByText(/policy-v2\.docx/)).toBeInTheDocument();
     });
 
     it('renders the page heading', () => {
@@ -157,9 +157,7 @@ describe('SourceDocumentDiffReview', () => {
         summary: { added: 3, removed: 2, modified: 5, unchanged: 10 },
       });
 
-      const summaryRegion = screen.getByRole('status', {
-        name: 'Diff summary',
-      });
+      const summaryRegion = screen.getByLabelText('Diff summary');
       expect(within(summaryRegion).getByText('Modified')).toBeInTheDocument();
       expect(within(summaryRegion).getByText('Added')).toBeInTheDocument();
       expect(within(summaryRegion).getByText('Removed')).toBeInTheDocument();

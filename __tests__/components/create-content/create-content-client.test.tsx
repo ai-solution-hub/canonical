@@ -96,6 +96,12 @@ vi.mock('@/components/ui/select', () => ({
   SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
     <div data-testid={`select-item-${value}`}>{children}</div>
   ),
+  SelectGroup: ({ children }: { children: React.ReactNode }) => (
+    <div role="group">{children}</div>
+  ),
+  SelectLabel: ({ children }: { children: React.ReactNode }) => (
+    <div>{children}</div>
+  ),
 }));
 
 import { CreateContentClient } from '@/app/item/new/create-content-client';

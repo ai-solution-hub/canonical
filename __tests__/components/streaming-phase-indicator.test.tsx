@@ -67,7 +67,7 @@ describe('StreamingPhaseIndicator', () => {
       <StreamingPhaseIndicator phase="done" totalCost={0.0123} />,
     );
 
-    expect(screen.getByText('Cost: $0.0123')).toBeInTheDocument();
+    expect(screen.getByText('Cost: £0.0123')).toBeInTheDocument();
   });
 
   it('shows cancel button for active phases and calls onCancel', async () => {

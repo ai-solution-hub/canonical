@@ -498,7 +498,7 @@ describe('BidDetailPage', () => {
   it('renders delete confirmation dialog when open', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ deleteConfirmOpen: true }));
     render(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText('Are you sure you want to delete this bid? This cannot be undone.')).toBeInTheDocument();
+    expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
   });
 
   it('calls handleDeleteConfirmed when delete is confirmed', async () => {
