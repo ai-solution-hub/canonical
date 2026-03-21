@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -280,10 +281,15 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
       {/* Tabs */}
       <div className="mt-6 border-b">
-        <nav className="flex gap-4" aria-label="Bid sections">
+        <div className="flex gap-4" role="tablist" aria-label="Bid sections" onKeyDown={handleTablistKeyDown}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              role="tab"
+              id={`bid-tab-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              aria-controls="bid-tabpanel"
+              tabIndex={activeTab === tab.id ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
                 'relative pb-2 text-sm font-medium transition-colors',
@@ -291,7 +297,6 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   ? 'text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
-              aria-current={activeTab === tab.id ? 'page' : undefined}
             >
               {tab.label}
               {tab.count !== undefined && tab.count > 0 && (
@@ -307,11 +312,11 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
               />
             </button>
           ))}
-        </nav>
+        </div>
       </div>
 
       {/* Tab content */}
-      <div className="mt-6">
+      <div className="mt-6" role="tabpanel" id="bid-tabpanel" aria-labelledby={`bid-tab-${activeTab}`}>
         {activeTab === 'overview' && (
           <OverviewTab
             bid={bid}

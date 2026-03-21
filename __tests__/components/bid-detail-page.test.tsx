@@ -398,7 +398,7 @@ describe('BidDetailPage', () => {
 
   it('renders all four tabs', () => {
     render(<BidDetailPage params={mockParams} />);
-    const nav = screen.getByRole('navigation', { name: 'Bid sections' });
+    const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     expect(within(nav).getByText('Overview')).toBeInTheDocument();
     expect(within(nav).getByText(/Questions/)).toBeInTheDocument();
     expect(within(nav).getByText('Responses')).toBeInTheDocument();
@@ -407,7 +407,7 @@ describe('BidDetailPage', () => {
 
   it('shows question count on the Questions tab', () => {
     render(<BidDetailPage params={mockParams} />);
-    const nav = screen.getByRole('navigation', { name: 'Bid sections' });
+    const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     expect(within(nav).getByText('10')).toBeInTheDocument();
   });
 
@@ -416,7 +416,7 @@ describe('BidDetailPage', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ setActiveTab: mockSetActiveTab }));
     const user = userEvent.setup();
     render(<BidDetailPage params={mockParams} />);
-    const nav = screen.getByRole('navigation', { name: 'Bid sections' });
+    const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     await user.click(within(nav).getByText(/Questions/));
     expect(mockSetActiveTab).toHaveBeenCalledWith('questions');
   });

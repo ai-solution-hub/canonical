@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import { useRouter } from 'next/navigation';
 import { Plus, ChevronDown, ChevronRight, FolderOpen, Archive, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -270,7 +271,7 @@ export function WorkspacesContent({
       </div>
 
       {/* Type filter */}
-      <div className="mt-4 flex gap-1" role="tablist" aria-label="Filter workspaces by type">
+      <div className="mt-4 flex gap-1" role="tablist" aria-label="Filter workspaces by type" onKeyDown={handleTablistKeyDown}>
         {TYPE_FILTERS.map(({ value, label }) => (
           <button
             key={value}
