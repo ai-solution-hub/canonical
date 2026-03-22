@@ -21,7 +21,8 @@ export type NotificationType =
   | 'owner_content_stale'
   | 'owner_content_updated'
   | 'owner_assignment'
-  | 'source_document_updated';
+  | 'source_document_updated'
+  | 'date_expiry_approaching';
 
 export interface CreateNotificationParams {
   supabase: SupabaseClient<Database>;

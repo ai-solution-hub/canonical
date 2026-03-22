@@ -12,6 +12,7 @@ import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { ClaudeActionsSection } from '@/components/dashboard/claude-actions-section';
 import { ContentSuggestionsSection } from '@/components/dashboard/content-suggestions-section';
 import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
+import { ExpiringContentSection } from '@/components/dashboard/expiring-content-section';
 import { generateSuggestedActions } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
@@ -129,6 +130,11 @@ async function DashboardContent() {
       {/* Compliance Status */}
       <div className="mt-6">
         <ComplianceStatusSection />
+      </div>
+
+      {/* Expiring Content — date-based reminders */}
+      <div className="mt-6">
+        <ExpiringContentSection />
       </div>
 
       {/* Content Suggestions */}
