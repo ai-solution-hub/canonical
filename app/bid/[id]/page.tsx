@@ -56,6 +56,7 @@ import { TenderUpload } from '@/components/tender-upload';
 import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBidActions } from '@/hooks/use-bid-actions';
+import { useBidExport } from '@/hooks/use-bid-export';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { BID_STATE_LABELS } from '@/lib/bid-state-machine';
@@ -520,56 +521,10 @@ function MobileActionMenu({
   onShowOutcomeDialog: () => void;
   onDelete: () => void;
 }) {
-  const [exporting, setExporting] = useState<'docx' | 'xlsx' | null>(null);
-  const isExporting = exporting !== null;
-
-  async function handleExport(format: 'docx' | 'xlsx') {
-    setExporting(format);
-    try {
-      const response = await fetch(`/api/bids/${bidId}/export/${format}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(
-          errorData?.error || `Export failed (${response.status})`,
-        );
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-
-      const safeName = bidName
-        .replace(/[^a-zA-Z0-9\s-]/g, '')
-        .replace(/\s+/g, '-')
-        .toLowerCase()
-        .slice(0, 50);
-
-      link.href = url;
-      link.download = `${safeName}-responses.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      const formatLabel = format === 'docx' ? 'Word' : 'Excel';
-      toast.success(`${formatLabel} export downloaded`);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Export failed';
-      toast.error(message);
-    } finally {
-      setExporting(null);
-    }
-  }
-
-  function handlePrint() {
-    window.print();
-  }
+  const { exporting, isExporting, handleExport, handlePrint } = useBidExport({
+    bidId,
+    bidName,
+  });
 
   const filteredTransitions = regularTransitions.filter(t => t !== 'withdrawn');
   const hasTransitions = filteredTransitions.length > 0;

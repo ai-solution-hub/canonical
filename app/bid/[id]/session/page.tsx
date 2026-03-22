@@ -287,18 +287,64 @@ export default function BidSessionPage({
             onOpenAll={() => setQuestionSheetOpen(true)}
           />
 
+          {/* Collapsible current question — essential context for response drafting */}
+          {currentQuestion && (
+            <details className="mt-2 rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+              <summary className="cursor-pointer px-4 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Current question
+              </summary>
+              <div className="px-4 pb-3">
+                {currentQuestion.section_name && (
+                  <p className="text-xs text-muted-foreground">
+                    {currentQuestion.section_name}
+                  </p>
+                )}
+                <p className="mt-1 text-sm text-foreground">
+                  {currentQuestion.question_text}
+                </p>
+                {currentQuestion.word_limit && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Word limit: {currentQuestion.word_limit}
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
+
           <Sheet open={questionSheetOpen} onOpenChange={setQuestionSheetOpen}>
-            <SheetContent side="left" className="w-80 overflow-y-auto">
+            <SheetContent side="left" className="w-[85vw] max-w-sm overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Questions</SheetTitle>
-                <SheetDescription>Navigate bid questions</SheetDescription>
+                <SheetDescription>
+                  {questions.length} question{questions.length !== 1 ? 's' : ''}
+                </SheetDescription>
               </SheetHeader>
-              <div className="mt-4">
+              <div className="mt-4 space-y-4">
                 <QuestionNavigator
                   questions={navigatorQuestions}
                   currentIndex={currentIndex}
                   onNavigate={(i) => { handleNavigate(i); setQuestionSheetOpen(false); }}
                 />
+                {currentQuestion && (
+                  <div className="rounded-lg border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)] p-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Current Question
+                    </p>
+                    {currentQuestion.section_name && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {currentQuestion.section_name}
+                      </p>
+                    )}
+                    <p className="mt-2 text-sm text-foreground">
+                      {currentQuestion.question_text}
+                    </p>
+                    {currentQuestion.word_limit && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Word limit: {currentQuestion.word_limit}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </SheetContent>
           </Sheet>
