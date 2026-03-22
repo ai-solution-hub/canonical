@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check, ChevronDown, ChevronRight } from 'lucide-react';
+import { Shield, Copy, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { cn } from '@/lib/utils';
@@ -204,6 +205,10 @@ function CertificationRow({
   cert: CertificationEntry;
   onEdit?: (name: string) => void;
 }) {
+  const needsRenewal = cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
+  // Navigate to the first content item for renewal context
+  const renewalItemId = cert.content_items?.[0]?.id;
+
   return (
     <div
       className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
@@ -229,6 +234,22 @@ function CertificationRow({
             )}
           </button>
           <ExpiryBadge status={cert.expiry_status} />
+          {needsRenewal && renewalItemId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              asChild
+            >
+              <Link
+                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(cert.canonical_name)}`}
+                aria-label={`Upload renewed ${cert.canonical_name} document`}
+              >
+                <RefreshCw className="size-3" aria-hidden="true" />
+                Renew
+              </Link>
+            </Button>
+          )}
         </div>
         <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
           {cert.metadata.issuing_body && (
@@ -264,6 +285,9 @@ function RegistrationRow({
   reg: RegistrationEntry;
   onEdit?: (name: string) => void;
 }) {
+  const needsRenewal = reg.expiry_status === 'expiring_soon' || reg.expiry_status === 'expired';
+  const renewalItemId = reg.content_items?.[0]?.id;
+
   return (
     <div
       className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
@@ -284,6 +308,22 @@ function RegistrationRow({
             {reg.canonical_name}
           </button>
           <ExpiryBadge status={reg.expiry_status} />
+          {needsRenewal && renewalItemId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              asChild
+            >
+              <Link
+                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(reg.canonical_name)}`}
+                aria-label={`Upload renewed ${reg.canonical_name} document`}
+              >
+                <RefreshCw className="size-3" aria-hidden="true" />
+                Renew
+              </Link>
+            </Button>
+          )}
         </div>
         <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
           {reg.metadata.registering_body && (

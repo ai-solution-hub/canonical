@@ -212,5 +212,5 @@ export const CONTENT_DETAIL_COLUMNS = `
   created_at, updated_at, created_by, updated_by,
   verified_by, source_bid, detail, reference,
   governance_review_status, governance_review_due, governance_reviewer_id,
-  source_document_id
+  source_document_id, expiry_date, lifecycle_type
 ` as const;

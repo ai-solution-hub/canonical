@@ -102,6 +102,8 @@ export interface ItemData {
   answer_advanced?: string | null;
   content_owner_id?: string | null;
   source_document_id?: string | null;
+  expiry_date?: string | null;
+  lifecycle_type?: string | null;
 }
 
 interface ItemDetailClientProps {
