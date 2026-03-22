@@ -763,11 +763,18 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.total_updated).toBe(0);
   });
 
-  it('handles null quality_score as first-time calculation (no notification)', async () => {
-    // Item has no previous score — first-time calculation should NOT trigger notification
-    // even if the calculated score is below threshold
+  it('handles null quality_score as first-time calculation (flags if below threshold)', async () => {
+    // Item has no previous score — first-time calculation.
+    // Per spec: "wasAboveThreshold = oldScore === null || oldScore >= threshold"
+    // So null is treated as "was above", meaning first-time items WILL be flagged
+    // if the calculated score falls below threshold. This is intentional —
+    // the backfill should have set initial scores for existing items.
+    //
+    // Mock data: expired=0, conf=0.2->4, completeness=0, summary=0, citations=0
+    // Calculated score = 4, which is below the default threshold of 40.
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
+      title: 'New Item',
       freshness: 'expired',
       classification_confidence: 0.2,
       brief: null,
@@ -782,7 +789,7 @@ describe('GET /api/cron/quality-score', () => {
         return {
           select: vi.fn().mockReturnValue({
             then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: [], error: null }),
+              resolve({ data: [], error: null }), // No governance config -> default threshold 40
             ),
           }),
         };
@@ -829,11 +836,25 @@ describe('GET /api/cron/quality-score', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    // null → calculated score: this is a first calculation, not a drop
-    // The logic treats null as "was above threshold" for first-time items
-    // Per spec: "wasAboveThreshold = oldScore === null || oldScore >= threshold"
-    // This means first-time items WILL be flagged if below threshold
-    // This is intentional — the backfill should have set initial scores
     expect(body.total_updated).toBe(1);
+
+    // Score 4 < threshold 40, and null is treated as "was above" -> flagged
+    expect(body.dropped_below_threshold).toBe(1);
+
+    // Verify notifications were created for admin users
+    expect(mockCreateBulkNotifications).toHaveBeenCalled();
+    const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
+      userId: string;
+      type: string;
+      entityId: string;
+      title: string;
+    }>;
+    expect(notifications.length).toBe(2); // One per admin
+    for (const notif of notifications) {
+      expect(notif.type).toBe('quality_flag');
+      expect(notif.entityId).toBe(item.id);
+      expect(notif.title).toContain('New Item');
+      expect([ADMIN_ID_1, ADMIN_ID_2]).toContain(notif.userId);
+    }
   });
 });
