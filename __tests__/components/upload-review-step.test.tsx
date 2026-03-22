@@ -4,8 +4,8 @@
  * Tests the review/confirm UI displayed after file upload completes,
  * allowing users to publish, edit, or discard uploaded draft items.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import {
   UploadReviewStep,
   type UploadReviewItem,
@@ -87,6 +87,11 @@ function defaultProps(overrides: Partial<UploadReviewStepProps> = {}): UploadRev
 describe('UploadReviewStep', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
   });
 
   describe('Rendering', () => {
@@ -491,6 +496,261 @@ describe('UploadReviewStep', () => {
         // First card should be gone, second should remain
         expect(screen.queryByTestId('review-card-item-1')).not.toBeInTheDocument();
         expect(screen.getByTestId('review-card-item-2')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Skip review checkbox', () => {
+    it('renders skip review checkbox in active review state', () => {
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      expect(screen.getByTestId('skip-review-checkbox')).toBeInTheDocument();
+      expect(screen.getByText('Skip review for future uploads')).toBeInTheDocument();
+    });
+
+    it('renders skip review checkbox in completion state', async () => {
+      const onPublish = vi.fn().mockResolvedValue(undefined);
+      render(<UploadReviewStep {...defaultProps({ onPublish })} />);
+
+      fireEvent.click(screen.getByTestId('publish-button'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('review-complete')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('skip-review-checkbox')).toBeInTheDocument();
+      expect(screen.getByText('Skip review for future uploads')).toBeInTheDocument();
+    });
+
+    it('sets localStorage when checked', () => {
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      const checkbox = screen.getByTestId('skip-review-checkbox');
+      fireEvent.click(checkbox);
+
+      expect(localStorage.getItem('kh_skip_upload_review')).toBe('true');
+    });
+
+    it('removes localStorage key when unchecked', () => {
+      localStorage.setItem('kh_skip_upload_review', 'true');
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      const checkbox = screen.getByTestId('skip-review-checkbox');
+      // First click unchecks (it reads 'true' from localStorage on mount)
+      fireEvent.click(checkbox);
+
+      expect(localStorage.getItem('kh_skip_upload_review')).toBeNull();
+    });
+
+    it('reads initial checked state from localStorage', () => {
+      localStorage.setItem('kh_skip_upload_review', 'true');
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      const checkbox = screen.getByTestId('skip-review-checkbox');
+      expect(checkbox).toHaveAttribute('data-state', 'checked');
+    });
+
+    it('checkbox has an accessible label', () => {
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      // The checkbox is wrapped in a label element
+      const label = screen.getByText('Skip review for future uploads');
+      expect(label.closest('label')).toBeInTheDocument();
+    });
+  });
+
+  describe('Focus management', () => {
+    it('focuses next card after publishing an item from a multi-item list', async () => {
+      const onPublish = vi.fn().mockResolvedValue(undefined);
+      render(
+        <UploadReviewStep
+          {...defaultProps({
+            items: [singleItem, itemWithWarnings, itemNoClassification],
+            onPublish,
+          })}
+        />,
+      );
+
+      // Publish the first item
+      const firstCard = screen.getByTestId('review-card-item-1');
+      const publishBtn = within(firstCard).getByTestId('publish-button');
+      fireEvent.click(publishBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('review-card-item-1')).not.toBeInTheDocument();
+      });
+
+      // After requestAnimationFrame, focus should move to the next card
+      await act(async () => {
+        // Flush requestAnimationFrame
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+
+      const secondCard = screen.getByTestId('review-card-item-2');
+      expect(document.activeElement).toBe(secondCard);
+    });
+
+    it('focuses completion area when last item is published', async () => {
+      const onPublish = vi.fn().mockResolvedValue(undefined);
+      render(<UploadReviewStep {...defaultProps({ onPublish })} />);
+
+      fireEvent.click(screen.getByTestId('publish-button'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('review-complete')).toBeInTheDocument();
+      });
+
+      // After requestAnimationFrame, focus should move to the completion area
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+      });
+
+      const completionArea = screen.getByTestId('review-complete');
+      expect(document.activeElement).toBe(completionArea);
+    });
+
+    it('review cards have tabIndex -1 for programmatic focus', () => {
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      const card = screen.getByTestId('review-card-item-1');
+      expect(card).toHaveAttribute('tabindex', '-1');
+    });
+  });
+
+  describe('Discard all', () => {
+    it('shows Discard all button for multi-item uploads', () => {
+      render(
+        <UploadReviewStep
+          {...defaultProps({ items: [singleItem, itemWithWarnings] })}
+        />,
+      );
+
+      expect(screen.getByTestId('discard-all-button')).toBeInTheDocument();
+      expect(screen.getByTestId('discard-all-button')).toHaveTextContent('Discard all (2)');
+    });
+
+    it('does not show Discard all for single-item upload', () => {
+      render(<UploadReviewStep {...defaultProps()} />);
+
+      expect(screen.queryByTestId('discard-all-button')).not.toBeInTheDocument();
+    });
+
+    it('shows confirmation dialog when Discard all is clicked', () => {
+      render(
+        <UploadReviewStep
+          {...defaultProps({ items: [singleItem, itemWithWarnings] })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+
+      expect(screen.getByTestId('discard-all-confirmation')).toBeInTheDocument();
+      expect(screen.getByText(/Are you sure you want to discard all 2 items/)).toBeInTheDocument();
+    });
+
+    it('hides Discard all button when confirmation is shown', () => {
+      render(
+        <UploadReviewStep
+          {...defaultProps({ items: [singleItem, itemWithWarnings] })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+
+      // The "Discard all" trigger button should be hidden while confirmation is shown
+      expect(screen.queryByTestId('discard-all-button')).not.toBeInTheDocument();
+    });
+
+    it('dismisses confirmation when Cancel is clicked', () => {
+      render(
+        <UploadReviewStep
+          {...defaultProps({ items: [singleItem, itemWithWarnings] })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+      expect(screen.getByTestId('discard-all-confirmation')).toBeInTheDocument();
+
+      // Click Cancel within the confirmation
+      const confirmation = screen.getByTestId('discard-all-confirmation');
+      fireEvent.click(within(confirmation).getByText('Cancel'));
+
+      expect(screen.queryByTestId('discard-all-confirmation')).not.toBeInTheDocument();
+      // Discard all button should reappear
+      expect(screen.getByTestId('discard-all-button')).toBeInTheDocument();
+    });
+
+    it('calls onDiscard for each item when confirmed (no onDiscardAll)', async () => {
+      const onDiscard = vi.fn().mockResolvedValue(undefined);
+      render(
+        <UploadReviewStep
+          {...defaultProps({
+            items: [singleItem, itemWithWarnings],
+            onDiscard,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+      fireEvent.click(screen.getByTestId('confirm-discard-all-button'));
+
+      await waitFor(() => {
+        expect(onDiscard).toHaveBeenCalledWith('item-1');
+        expect(onDiscard).toHaveBeenCalledWith('item-2');
+      });
+
+      // Should show completion state
+      await waitFor(() => {
+        expect(screen.getByTestId('review-complete')).toBeInTheDocument();
+      });
+    });
+
+    it('calls onDiscardAll when provided', async () => {
+      const onDiscardAll = vi.fn().mockResolvedValue(undefined);
+      render(
+        <UploadReviewStep
+          {...defaultProps({
+            items: [singleItem, itemWithWarnings],
+            onDiscardAll,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+      fireEvent.click(screen.getByTestId('confirm-discard-all-button'));
+
+      await waitFor(() => {
+        expect(onDiscardAll).toHaveBeenCalled();
+      });
+    });
+
+    it('shows loading state during discard all', async () => {
+      let resolveDiscard: () => void;
+      const discardPromise = new Promise<void>((resolve) => {
+        resolveDiscard = resolve;
+      });
+      const onDiscardAll = vi.fn().mockReturnValue(discardPromise);
+
+      render(
+        <UploadReviewStep
+          {...defaultProps({
+            items: [singleItem, itemWithWarnings],
+            onDiscardAll,
+          })}
+        />,
+      );
+
+      fireEvent.click(screen.getByTestId('discard-all-button'));
+      fireEvent.click(screen.getByTestId('confirm-discard-all-button'));
+
+      await waitFor(() => {
+        expect(screen.getByText('Discarding all...')).toBeInTheDocument();
+      });
+
+      resolveDiscard!();
+
+      await waitFor(() => {
+        expect(screen.queryByText('Discarding all...')).not.toBeInTheDocument();
       });
     });
   });
