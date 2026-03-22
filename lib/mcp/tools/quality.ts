@@ -1,10 +1,11 @@
 /**
- * Quality tool registrations (5 tools):
+ * Quality tool registrations (6 tools):
  *   8. get_quality_summary
  *  17. get_coverage_gaps
  *  18. audit_content
  *  26. find_all_duplicates
  *  31. suggest_content_creation
+ *  36. get_quality_actions
  */
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -14,6 +15,7 @@ import {
   formatCoverageGaps,
   formatAuditResult,
   formatDuplicatePairs,
+  formatQualityActions,
   truncateResponse,
 } from '@/lib/mcp/formatters';
 import type {
@@ -472,6 +474,52 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Content suggestion analysis failed: ${message}.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 36. get_quality_actions
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_quality_actions',
+    {
+      title: 'Quality Improvement Actions',
+      description: 'Get prioritised, actionable quality improvement suggestions for existing content items. Analyses items below the quality threshold and identifies specific deficiencies: stale freshness, low classification confidence, missing summaries, incomplete depth layers, and zero citations. Use this to understand what existing content needs attention and how to improve quality scores.',
+      inputSchema: {
+        domain: z.string().optional().describe('Filter to a specific domain'),
+        limit: z.number().min(1).max(50).optional().describe('Maximum actions to return (default: 15)'),
+        score_threshold: z.number().min(0).max(100).optional().describe('Override quality threshold (default: from governance config or 40)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        destructiveHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const { getTopQualityActions } = await import('@/lib/quality-actions');
+
+        const result = await getTopQualityActions(supabase, {
+          domain: args.domain || undefined,
+          limit: args.limit ?? 15,
+          scoreThreshold: args.score_threshold ?? undefined,
+        });
+
+        const markdown = truncateResponse(formatQualityActions(result));
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(result),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Quality actions analysis failed: ${message}.` }],
           isError: true,
         };
       }
