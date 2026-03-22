@@ -618,6 +618,44 @@ export async function POST(request: NextRequest) {
       warnings.push('Text extraction failed — classification, embedding, and summary skipped');
     }
 
+    // Quality score — calculate and store after AI processing (classification + summary)
+    if (extractedText) {
+      try {
+        const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+
+        // Fetch the latest item state (classification and summary may have updated fields)
+        const { data: latestItem } = await serviceClient
+          .from('content_items')
+          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, metadata')
+          .eq('id', itemId)
+          .single();
+
+        if (latestItem) {
+          const meta = latestItem.metadata as Record<string, unknown> | null;
+          const score = calculateAndRoundQualityScore({
+            freshness: latestItem.freshness,
+            classification_confidence: latestItem.classification_confidence,
+            brief: latestItem.brief,
+            detail: latestItem.detail,
+            reference: latestItem.reference,
+            ai_summary: latestItem.ai_summary,
+            citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+          });
+
+          await serviceClient
+            .from('content_items')
+            .update({
+              quality_score: score,
+              quality_score_updated_at: new Date().toISOString(),
+            })
+            .eq('id', itemId);
+        }
+      } catch (qualityErr) {
+        console.error('Quality score calculation failed:', qualityErr);
+        warnings.push('Quality score calculation failed');
+      }
+    }
+
     // Layer inference — suggest and store a layer if not explicitly provided
     let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
     if (extractedText) {

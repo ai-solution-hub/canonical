@@ -277,6 +277,49 @@ export async function PATCH(
       warnings.push('Content updated — use "Classify" to reclassify this item');
     }
 
+    // Recalculate quality score if a quality-relevant field changed
+    const qualityRelevantFields = [
+      'freshness', 'classification_confidence', 'brief', 'detail',
+      'reference', 'ai_summary', 'content', 'title',
+    ];
+    if (qualityRelevantFields.includes(field)) {
+      try {
+        const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+
+        // Fetch the updated item's current state
+        const { data: updatedForQuality } = await supabase
+          .from('content_items')
+          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score')
+          .eq('id', id)
+          .single();
+
+        if (updatedForQuality) {
+          const meta = updatedForQuality.metadata as Record<string, unknown> | null;
+          const newScore = calculateAndRoundQualityScore({
+            freshness: updatedForQuality.freshness,
+            classification_confidence: updatedForQuality.classification_confidence,
+            brief: updatedForQuality.brief,
+            detail: updatedForQuality.detail,
+            reference: updatedForQuality.reference,
+            ai_summary: updatedForQuality.ai_summary,
+            citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+          });
+
+          await supabase
+            .from('content_items')
+            .update({
+              previous_quality_score: updatedForQuality.quality_score ?? null,
+              quality_score: newScore,
+              quality_score_updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
+        }
+      } catch (qualityErr) {
+        console.error('Quality score recalculation failed:', qualityErr);
+        warnings.push('Quality score recalculation failed');
+      }
+    }
+
     const response: Record<string, unknown> = { success: true };
     if (warnings.length > 0) {
       response.warnings = warnings;
