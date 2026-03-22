@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
+import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
 import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/layer-suggestion-banner';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import {
@@ -101,6 +102,9 @@ export function CreateContentClient() {
     itemId: string;
     data: LayerSuggestionData;
   } | null>(null);
+
+  // Dedup matches state (shown after item creation if duplicates found)
+  const [dedupMatches, setDedupMatches] = useState<DedupMatch[]>([]);
 
   // Derived
   const isQAPair = contentType === 'q_a_pair';
@@ -197,6 +201,13 @@ export function CreateContentClient() {
           });
         }
 
+        // Show dedup warning if the API found potential duplicates
+        if (responseData.duplicate_matches?.length > 0) {
+          setDedupMatches(responseData.duplicate_matches as DedupMatch[]);
+        } else {
+          setDedupMatches([]);
+        }
+
         if (continueEditing) {
           reset(CREATE_CONTENT_DEFAULTS);
           setLayerSuggestion(null);
@@ -265,6 +276,17 @@ export function CreateContentClient() {
             itemId={layerSuggestion.itemId}
             suggestedLayer={layerSuggestion.data}
             onDismiss={() => setLayerSuggestion(null)}
+          />
+        </div>
+      )}
+
+      {/* Dedup warning (shown after item creation if duplicates found) */}
+      {dedupMatches.length > 0 && (
+        <div className="mb-6">
+          <DedupWarning
+            matches={dedupMatches}
+            onViewMatch={(id) => window.open(`/item/${id}`, '_blank')}
+            onDismiss={() => setDedupMatches([])}
           />
         </div>
       )}
