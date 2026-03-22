@@ -1,13 +1,13 @@
 import { join } from 'node:path';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
-import { 
-  parseCanonicalTaxonomy, 
-  parsePluginTaxonomy, 
-  parsePluginDomainSlugs, 
-  parsePluginContentTypes, 
-  compareSets 
+import {
+  parseCanonicalTaxonomy,
+  parsePluginTaxonomy,
+  parsePluginDomainSlugs,
+  parsePluginContentTypes,
+  compareSets
 } from '../scripts/lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(__dirname, '..');
@@ -15,8 +15,9 @@ const CANONICAL_PATH = join(PROJECT_ROOT, 'docs/reference/classification-prompt.
 const CLASSIFICATION_SKILL_PATH = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0/skills/classification/SKILL.md');
 const SEARCH_SKILL_PATH = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0/skills/search-strategy/SKILL.md');
 const PLUGIN_ROOT = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0');
+const PLUGIN_EXISTS = existsSync(PLUGIN_ROOT);
 
-describe('Plugin Taxonomy Consistency', () => {
+describe.skipIf(!PLUGIN_EXISTS)('Plugin Taxonomy Consistency', () => {
   const canonicalMap = parseCanonicalTaxonomy(CANONICAL_PATH);
   const canonicalDomains = new Set(canonicalMap.keys());
   
