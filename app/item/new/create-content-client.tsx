@@ -23,6 +23,8 @@ import {
 import { BreadcrumbNav } from '@/components/breadcrumb-nav';
 import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
 import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/layer-suggestion-banner';
+import { GuideSectionBanner } from '@/components/guide-section-banner';
+import type { GuideSectionMatch } from '@/lib/guide-section-mapping';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import {
   ClassificationFieldset,
@@ -102,6 +104,10 @@ export function CreateContentClient() {
     itemId: string;
     data: LayerSuggestionData;
   } | null>(null);
+
+  // Guide section suggestions state (shown after item creation)
+  const [guideSections, setGuideSections] = useState<GuideSectionMatch[]>([]);
+  const [guideSectionsDismissed, setGuideSectionsDismissed] = useState(false);
 
   // Dedup matches state (shown after item creation if duplicates found)
   const [dedupMatches, setDedupMatches] = useState<DedupMatch[]>([]);
@@ -208,9 +214,19 @@ export function CreateContentClient() {
           setDedupMatches([]);
         }
 
+        // Show guide section suggestions if the API returned any
+        if (responseData.guide_section_suggestions?.length > 0) {
+          setGuideSections(responseData.guide_section_suggestions as GuideSectionMatch[]);
+          setGuideSectionsDismissed(false);
+        } else {
+          setGuideSections([]);
+        }
+
         if (continueEditing) {
           reset(CREATE_CONTENT_DEFAULTS);
           setLayerSuggestion(null);
+          setGuideSections([]);
+          setGuideSectionsDismissed(false);
           setIsSavingAndContinue(false);
         } else {
           router.push(`/item/${responseData.id}`);
@@ -276,6 +292,16 @@ export function CreateContentClient() {
             itemId={layerSuggestion.itemId}
             suggestedLayer={layerSuggestion.data}
             onDismiss={() => setLayerSuggestion(null)}
+          />
+        </div>
+      )}
+
+      {/* Guide section suggestions banner (shown after item creation) */}
+      {!guideSectionsDismissed && guideSections.length > 0 && (
+        <div className="mb-6">
+          <GuideSectionBanner
+            guideSections={guideSections}
+            onDismiss={() => setGuideSectionsDismissed(true)}
           />
         </div>
       )}
