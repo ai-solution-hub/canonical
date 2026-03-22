@@ -122,12 +122,12 @@ describe('LayerSwitcherNav', () => {
     expect(compRef.closest('a')).toHaveAttribute('href', '/item/layer-2');
   });
 
-  it('has nav with aria-label="Content layers"', () => {
+  it('has nav with aria-label="Content depth"', () => {
     mockIsFeatureEnabled.mockReturnValue(true);
     render(
       <LayerSwitcherNav currentItemId="layer-0" topicLayers={createLayers(2)} />,
     );
-    expect(screen.getByLabelText('Content layers')).toBeInTheDocument();
+    expect(screen.getByLabelText('Content depth')).toBeInTheDocument();
   });
 
   it('deduplicates items with the same layer key', () => {

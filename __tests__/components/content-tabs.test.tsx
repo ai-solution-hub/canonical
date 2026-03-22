@@ -113,7 +113,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Detailed')).toBeInTheDocument();
+    expect(screen.getByText('In Depth')).toBeInTheDocument();
   });
 
   it('renders Takeaways tab when takeaways exist', () => {
@@ -160,7 +160,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Technical')).toBeInTheDocument();
+    expect(screen.getByText('Supporting Detail')).toBeInTheDocument();
   });
 
   it('shows human-authored brief content when brief is provided', () => {

@@ -40,7 +40,7 @@ test.describe('Viewer role restrictions', () => {
 
     // Viewer should NOT see admin-only sections
     await expect(settingsNav.getByText('Team')).not.toBeVisible();
-    await expect(settingsNav.getByText('Governance')).not.toBeVisible();
+    await expect(settingsNav.getByText('Quality Review')).not.toBeVisible();
   });
 });
 
@@ -65,7 +65,7 @@ test.describe('Editor role access', () => {
 
     // Editor should NOT see system admin sections
     await expect(settingsNav.getByText('Team')).not.toBeVisible();
-    await expect(settingsNav.getByText('Governance')).not.toBeVisible();
+    await expect(settingsNav.getByText('Quality Review')).not.toBeVisible();
   });
 });
 
@@ -88,10 +88,10 @@ test.describe('Admin role full access', () => {
     // Admin sees everything
     await expect(settingsNav.getByText('Profile')).toBeVisible();
     await expect(settingsNav.getByText('Integrations')).toBeVisible();
-    await expect(settingsNav.getByText('Taxonomy')).toBeVisible();
+    await expect(settingsNav.getByText('Domain Coverage')).toBeVisible();
     await expect(settingsNav.getByText('Tags')).toBeVisible();
     await expect(settingsNav.getByText('Team')).toBeVisible();
-    await expect(settingsNav.getByText('Governance')).toBeVisible();
+    await expect(settingsNav.getByText('Quality Review')).toBeVisible();
     await expect(settingsNav.getByText('Activity')).toBeVisible();
   });
 });

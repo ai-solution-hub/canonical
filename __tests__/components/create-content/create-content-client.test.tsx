@@ -328,7 +328,7 @@ describe('CreateContentClient', () => {
       // Fieldset legends should appear
       expect(screen.getByText('Classification')).toBeInTheDocument();
       expect(screen.getByText('Provenance')).toBeInTheDocument();
-      expect(screen.getByText('Progressive Depth (optional)')).toBeInTheDocument();
+      expect(screen.getByText('Content depth (optional)')).toBeInTheDocument();
     });
 
     it('toggle has aria-expanded attribute', async () => {

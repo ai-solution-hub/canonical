@@ -59,12 +59,12 @@ describe('SettingsSidebar', () => {
     // All 9 section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Integrations')).toBeInTheDocument();
-    expect(within(nav).getByText('Taxonomy')).toBeInTheDocument();
+    expect(within(nav).getByText('Domain Coverage')).toBeInTheDocument();
     expect(within(nav).getByText('Tags')).toBeInTheDocument();
-    expect(within(nav).getByText('Entities')).toBeInTheDocument();
+    expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
     expect(within(nav).getByText('Team')).toBeInTheDocument();
-    expect(within(nav).getByText('Governance')).toBeInTheDocument();
+    expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
     expect(within(nav).getByText('Activity')).toBeInTheDocument();
   });
 
@@ -114,7 +114,7 @@ describe('SettingsSidebar', () => {
       />,
     );
 
-    await user.click(screen.getByText('Governance'));
+    await user.click(screen.getByText('Quality Review'));
     expect(mockOnSectionChange).toHaveBeenCalledWith('governance');
   });
 
@@ -143,7 +143,7 @@ describe('SettingsMobileSidebar', () => {
     );
 
     // The trigger button should show the active section label
-    const triggerButton = screen.getByRole('button', { name: /Governance/i });
+    const triggerButton = screen.getByRole('button', { name: /Quality Review/i });
     expect(triggerButton).toBeInTheDocument();
 
     // Click to open sheet
