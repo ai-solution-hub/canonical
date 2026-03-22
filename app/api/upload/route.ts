@@ -449,6 +449,22 @@ export async function POST(request: NextRequest) {
       extractedText = '';
     }
 
+    // 3b. Date extraction — run after text extraction, before classification
+    // Non-blocking: failures logged as warnings but do not disrupt the upload
+    let expiryDate: string | null = null;
+    let temporalReferences: import('@/lib/date-extraction').TemporalReference[] = [];
+    if (extractedText) {
+      try {
+        const { extractTemporalReferences, findExpiryDate, extractDates } = await import('@/lib/date-extraction');
+        temporalReferences = extractTemporalReferences(extractedText);
+        const dates = extractDates(extractedText);
+        expiryDate = findExpiryDate(dates);
+      } catch (dateErr) {
+        console.error('Date extraction failed:', dateErr);
+        // Non-fatal — continue without date extraction
+      }
+    }
+
     // 4. Update the content_item with extracted content, file_path, and metadata
     const updateData: Record<string, unknown> = {
       content: extractedText || '',
@@ -472,7 +488,17 @@ export async function POST(request: NextRequest) {
     if (!extractedText) {
       metadataUpdate.extraction_failed = true;
     }
+    // Store temporal references from date extraction
+    if (temporalReferences.length > 0) {
+      metadataUpdate.temporal_references = temporalReferences;
+    }
     updateData.metadata = metadataUpdate;
+
+    // Set expiry_date and lifecycle_type if a high/medium confidence expiry date was found
+    if (expiryDate) {
+      updateData.expiry_date = expiryDate;
+      updateData.lifecycle_type = 'date_bound';
+    }
 
     updateData.updated_by = user.id;
 
@@ -537,6 +563,12 @@ export async function POST(request: NextRequest) {
     // 5. AI processing — awaited before response to avoid serverless truncation
     const warnings: string[] = [];
     let duplicate_matches: { id: string; title: string; similarity: number; match_type: string }[] = [];
+
+    // Warn if an expiry date was auto-detected and applied
+    if (expiryDate) {
+      const formatted = new Date(expiryDate).toLocaleDateString('en-GB');
+      warnings.push(`Expiry date detected: ${formatted} — lifecycle type set to date_bound`);
+    }
 
     if (extractedText) {
       // Embedding

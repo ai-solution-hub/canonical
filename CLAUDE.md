@@ -297,7 +297,11 @@ when needed.
   `governance_review_needed`, `governance_approve`,
   `governance_request_changes`, `governance_revert`, `quality_flag`,
   `digest_ready`, `freshness_transition`, `coverage_alert`,
-  `content_gap`. Other values will fail the DB check constraint.
+  `content_gap`, `owner_content_stale`, `owner_content_updated`,
+  `owner_assignment`, `source_document_updated`,
+  `date_expiry_approaching`. Other values will fail the DB check
+  constraint. Valid entity types: `content_item`, `digest`,
+  `template_requirement`, `domain`, `source_document`, `entity_mention`.
 - **python-docx and Track Changes:** python-docx does not resolve tracked
   changes (revisions) in `.docx` files. Documents with unaccepted Track Changes
   will have incorrect text extracted — deleted text may be included and inserted

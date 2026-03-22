@@ -110,12 +110,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (changed.length === 0) {
+      // Still check date-based expiry reminders even when no freshness transitions
+      const expiryNotificationsCreated = await checkDateExpiryReminders(supabase);
+
       // Clean up old notifications even when no transitions
       await cleanupExpiredNotifications(supabase);
 
       return NextResponse.json({
         transitions: counts,
-        notifications_created: 0,
+        notifications_created: expiryNotificationsCreated,
+        expiry_reminders_created: expiryNotificationsCreated,
         executed_at: new Date().toISOString(),
       });
     }
@@ -312,12 +316,20 @@ export async function GET(request: NextRequest) {
       result: { transitions: counts, new_transitions: newTransitions.length, notifications_created: notificationsCreated } as unknown as Json,
     });
 
+    // ── Date-based expiry reminders ──────────────────────────────────────────
+    // After freshness transitions, check for items and entities approaching
+    // their expiry_date within the next 30 days. Sends date_expiry_approaching
+    // notifications with idempotency (one per item/entity per day).
+    const expiryNotificationsCreated = await checkDateExpiryReminders(supabase);
+    notificationsCreated += expiryNotificationsCreated;
+
     // Clean up expired+dismissed notifications (§10b.7)
     await cleanupExpiredNotifications(supabase);
 
     return NextResponse.json({
       transitions: counts,
       notifications_created: notificationsCreated,
+      expiry_reminders_created: expiryNotificationsCreated,
       executed_at: new Date().toISOString(),
     });
   } catch (err) {
@@ -326,6 +338,221 @@ export async function GET(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+/**
+ * Check for content items and entity mentions with expiry dates within
+ * the next 30 days. Creates date_expiry_approaching notifications with
+ * idempotency (one per item/entity per day).
+ *
+ * Returns the number of notifications created.
+ */
+async function checkDateExpiryReminders(
+  supabase: ReturnType<typeof createServiceClient>,
+): Promise<number> {
+  let notificationsCreated = 0;
+
+  try {
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+
+    // ── 1. Content items with expiry_date within 30 days ──────────────────
+    const { data: expiringItems, error: expiringError } = await supabase
+      .from('content_items')
+      .select('id, title, expiry_date, content_owner_id, primary_domain')
+      .not('expiry_date', 'is', null)
+      .lte('expiry_date', thirtyDaysFromNow.toISOString())
+      .is('archived_at', null);
+
+    if (expiringError) {
+      console.error('Failed to query expiring content items:', expiringError);
+      return 0;
+    }
+
+    // Filter to items whose expiry_date is in the future or today
+    // (items already past their date should still get a notification)
+    const qualifying = (expiringItems ?? []).filter((item) => {
+      if (!item.expiry_date) return false;
+      return true;
+    });
+
+    if (qualifying.length > 0) {
+      // Idempotency: check for existing date_expiry_approaching notifications today
+      const existingExpiryIds = await getExistingNotificationIds(
+        supabase,
+        'date_expiry_approaching',
+        qualifying.map((item) => item.id),
+        todayStart.toISOString(),
+      );
+
+      const newExpiring = qualifying.filter((item) => !existingExpiryIds.has(item.id));
+
+      if (newExpiring.length > 0) {
+        // Fetch admins for fallback recipients
+        const adminIds = await getUsersByRole(supabase, ['admin']);
+
+        const expiryNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
+
+        for (const item of newExpiring) {
+          const expiryDateObj = new Date(item.expiry_date!);
+          const daysRemaining = Math.ceil(
+            (expiryDateObj.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+          );
+          const formattedDate = expiryDateObj.toLocaleDateString('en-GB');
+          const daysText = daysRemaining <= 0
+            ? 'has expired'
+            : daysRemaining === 1
+              ? '1 day remaining'
+              : `${daysRemaining} days remaining`;
+
+          const notifTitle = `"${item.title}" expires on ${formattedDate}`;
+          const notifMessage = `Content item "${item.title}" has an expiry date of ${formattedDate} (${daysText}). Review and update if needed.`;
+
+          if (item.content_owner_id) {
+            // Notify owner
+            expiryNotifications.push({
+              userId: item.content_owner_id,
+              type: 'date_expiry_approaching' as const,
+              entityType: 'content_item',
+              entityId: item.id,
+              title: notifTitle,
+              message: notifMessage,
+            });
+          } else {
+            // Notify all admins
+            for (const adminId of adminIds) {
+              expiryNotifications.push({
+                userId: adminId,
+                type: 'date_expiry_approaching' as const,
+                entityType: 'content_item',
+                entityId: item.id,
+                title: notifTitle,
+                message: notifMessage,
+              });
+            }
+          }
+        }
+
+        if (expiryNotifications.length > 0) {
+          const { error: bulkError } = await createBulkNotifications(
+            supabase,
+            expiryNotifications,
+          );
+          if (!bulkError) notificationsCreated += expiryNotifications.length;
+        }
+      }
+    }
+
+    // ── 2. Entity mentions with metadata expiry_date within 30 days ───────
+    // Query entity_mentions where metadata->>'expiry_date' is within 30 days
+    const { data: expiringEntities, error: entityError } = await supabase
+      .from('entity_mentions')
+      .select('id, canonical_name, entity_type, metadata')
+      .not('metadata', 'is', null);
+
+    if (entityError) {
+      console.error('Failed to query entity mentions for expiry:', entityError);
+      return notificationsCreated;
+    }
+
+    // Filter to entities with expiry_date in metadata within 30 days
+    interface EntityWithExpiry {
+      id: string;
+      canonical_name: string;
+      entity_type: string;
+      expiry_date: Date;
+    }
+
+    const entitiesWithExpiry: EntityWithExpiry[] = [];
+    for (const entity of expiringEntities ?? []) {
+      const meta = entity.metadata as Record<string, unknown> | null;
+      if (!meta?.expiry_date) continue;
+
+      const expiryDate = new Date(meta.expiry_date as string);
+      if (isNaN(expiryDate.getTime())) continue;
+
+      // Within 30 days from now (future or past)
+      if (expiryDate <= thirtyDaysFromNow) {
+        entitiesWithExpiry.push({
+          id: entity.id,
+          canonical_name: entity.canonical_name,
+          entity_type: entity.entity_type,
+          expiry_date: expiryDate,
+        });
+      }
+    }
+
+    if (entitiesWithExpiry.length > 0) {
+      // Deduplicate by canonical_name — one notification per entity, not per mention
+      // For each canonical_name, select the mention with the nearest expiry date
+      const entityMap = new Map<string, EntityWithExpiry>();
+      for (const entity of entitiesWithExpiry) {
+        const existing = entityMap.get(entity.canonical_name);
+        if (!existing || entity.expiry_date < existing.expiry_date) {
+          entityMap.set(entity.canonical_name, entity);
+        }
+      }
+
+      const uniqueEntities = Array.from(entityMap.values());
+
+      // Idempotency: check for existing notifications today
+      const existingEntityIds = await getExistingNotificationIds(
+        supabase,
+        'date_expiry_approaching',
+        uniqueEntities.map((e) => e.id),
+        todayStart.toISOString(),
+      );
+
+      const newEntityExpiring = uniqueEntities.filter(
+        (e) => !existingEntityIds.has(e.id),
+      );
+
+      if (newEntityExpiring.length > 0) {
+        const adminIds = await getUsersByRole(supabase, ['admin']);
+        const entityNotifications: Array<Omit<import('@/lib/notifications').CreateNotificationParams, 'supabase'>> = [];
+
+        for (const entity of newEntityExpiring) {
+          const daysRemaining = Math.ceil(
+            (entity.expiry_date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
+          );
+          const formattedDate = entity.expiry_date.toLocaleDateString('en-GB');
+          const daysText = daysRemaining <= 0
+            ? 'has expired'
+            : daysRemaining === 1
+              ? '1 day remaining'
+              : `${daysRemaining} days remaining`;
+
+          const notifTitle = `"${entity.canonical_name}" expires on ${formattedDate}`;
+          const notifMessage = `The ${entity.entity_type} "${entity.canonical_name}" has an expiry date of ${formattedDate} (${daysText}). Consider uploading the renewed document.`;
+
+          for (const adminId of adminIds) {
+            entityNotifications.push({
+              userId: adminId,
+              type: 'date_expiry_approaching' as const,
+              entityType: 'entity_mention',
+              entityId: entity.id,
+              title: notifTitle,
+              message: notifMessage,
+            });
+          }
+        }
+
+        if (entityNotifications.length > 0) {
+          const { error: bulkError } = await createBulkNotifications(
+            supabase,
+            entityNotifications,
+          );
+          if (!bulkError) notificationsCreated += entityNotifications.length;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Date expiry reminder check failed:', err);
+  }
+
+  return notificationsCreated;
 }
 
 async function cleanupExpiredNotifications(supabase: ReturnType<typeof createServiceClient>) {
