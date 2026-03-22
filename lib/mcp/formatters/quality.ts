@@ -248,7 +248,7 @@ export function formatQualityActions(data: QualityActionsResult): string {
     const a = data.actions[i];
     const priorityLabel = a.priority.charAt(0).toUpperCase() + a.priority.slice(1);
     const scoreText = a.currentScore !== null ? `Score: ${a.currentScore}` : 'Score: unscored';
-    lines.push(`## ${i + 1}. "${a.itemTitle}" -- ${scoreText} (${priorityLabel})`);
+    lines.push(`## ${i + 1}. "${a.itemTitle}" — ${scoreText} (${priorityLabel})`);
     if (a.domain) {
       lines.push(`**Domain:** ${a.domain}`);
     }

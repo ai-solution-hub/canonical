@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   suggestQualityActions,
+  getTopQualityActions,
   type QualityActionInput,
   type QualityAction,
 } from '@/lib/quality-actions';
+import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -111,11 +113,19 @@ describe('suggestQualityActions', () => {
     expect(classActions[0].action).toContain('30%');
   });
 
-  it('does not suggest reclassify for confidence >= 0.5', () => {
-    const item = makeItem({ classification_confidence: 0.5 });
+  it('does not suggest reclassify for confidence >= 0.6', () => {
+    const item = makeItem({ classification_confidence: 0.6 });
     const actions = suggestQualityActions([item]);
     const classActions = actions.filter(a => a.category === 'classification');
     expect(classActions).toHaveLength(0);
+  });
+
+  it('suggests reclassify for confidence just below 0.6', () => {
+    const item = makeItem({ classification_confidence: 0.59 });
+    const actions = suggestQualityActions([item]);
+    const classActions = actions.filter(a => a.category === 'classification');
+    expect(classActions).toHaveLength(1);
+    expect(classActions[0].priority).toBe('high');
   });
 
   it('does not suggest reclassify for null confidence', () => {
@@ -576,5 +586,316 @@ describe('suggestQualityActions', () => {
     });
     const actions = suggestQualityActions([item]);
     expect(actions[0].currentScore).toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Score drop actions (Issue 1)
+  // -------------------------------------------------------------------------
+
+  it('generates critical score_drop action when item drops below threshold', () => {
+    const item = makeItem({
+      id: 'dropped-1',
+      previous_quality_score: 50,
+      quality_score: 30,
+      freshness: 'fresh',
+    });
+    const actions = suggestQualityActions([item], { threshold: 40 });
+    const dropActions = actions.filter(a => a.category === 'score_drop');
+
+    expect(dropActions).toHaveLength(1);
+    expect(dropActions[0].priority).toBe('critical');
+    expect(dropActions[0].action).toContain('was 50');
+    expect(dropActions[0].action).toContain('now 30');
+    expect(dropActions[0].action).toContain('review urgently');
+    expect(dropActions[0].estimatedScoreImpact).toBe(20); // 50 - 30
+  });
+
+  it('does not generate score_drop when previous score was already below threshold', () => {
+    const item = makeItem({
+      previous_quality_score: 35,
+      quality_score: 30,
+    });
+    const actions = suggestQualityActions([item], { threshold: 40 });
+    const dropActions = actions.filter(a => a.category === 'score_drop');
+    expect(dropActions).toHaveLength(0);
+  });
+
+  it('does not generate score_drop when current score is above threshold', () => {
+    const item = makeItem({
+      previous_quality_score: 60,
+      quality_score: 50,
+    });
+    const actions = suggestQualityActions([item], { threshold: 40 });
+    const dropActions = actions.filter(a => a.category === 'score_drop');
+    expect(dropActions).toHaveLength(0);
+  });
+
+  it('does not generate score_drop when previous score is null', () => {
+    const item = makeItem({
+      previous_quality_score: null,
+      quality_score: 30,
+    });
+    const actions = suggestQualityActions([item], { threshold: 40 });
+    const dropActions = actions.filter(a => a.category === 'score_drop');
+    expect(dropActions).toHaveLength(0);
+  });
+
+  it('uses default threshold of 40 when not specified', () => {
+    const item = makeItem({
+      previous_quality_score: 45,
+      quality_score: 35,
+      freshness: 'fresh',
+    });
+    // No options passed — should use default threshold of 40
+    const actions = suggestQualityActions([item]);
+    const dropActions = actions.filter(a => a.category === 'score_drop');
+    expect(dropActions).toHaveLength(1);
+  });
+
+  it('score_drop action appears first (critical priority)', () => {
+    const item = makeItem({
+      id: 'dropped-sort',
+      previous_quality_score: 50,
+      quality_score: 30,
+      freshness: 'expired', // also generates a high-priority action
+      ai_summary: null, // also generates a high-priority action
+    });
+    const actions = suggestQualityActions([item], { threshold: 40 });
+
+    expect(actions.length).toBeGreaterThan(1);
+    expect(actions[0].category).toBe('score_drop');
+    expect(actions[0].priority).toBe('critical');
+  });
+
+  // -------------------------------------------------------------------------
+  // Deduplication (Issue 3)
+  // -------------------------------------------------------------------------
+
+  it('returns all actions per item when deduplicateByItem is false', () => {
+    const item = makeItem({
+      id: 'multi-issue',
+      freshness: 'expired',
+      ai_summary: null,
+      content_owner_id: null,
+    });
+    const actions = suggestQualityActions([item], { deduplicateByItem: false });
+    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    expect(itemActions.length).toBeGreaterThan(1);
+  });
+
+  it('keeps only highest-priority action per item when deduplicateByItem is true', () => {
+    const item = makeItem({
+      id: 'multi-issue',
+      freshness: 'expired', // high priority
+      ai_summary: null, // high priority
+      content_owner_id: null, // medium priority
+      source_url: null, // low priority
+    });
+    const actions = suggestQualityActions([item], { deduplicateByItem: true });
+    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    expect(itemActions).toHaveLength(1);
+    expect(itemActions[0].priority).toBe('high');
+  });
+
+  it('deduplicates across multiple items correctly', () => {
+    const items = [
+      makeItem({
+        id: 'item-a',
+        freshness: 'expired',
+        ai_summary: null,
+      }),
+      makeItem({
+        id: 'item-b',
+        classification_confidence: 0.2,
+        source_url: null,
+      }),
+    ];
+    const actions = suggestQualityActions(items, { deduplicateByItem: true });
+
+    expect(actions).toHaveLength(2);
+    expect(actions.find(a => a.itemId === 'item-a')).toBeDefined();
+    expect(actions.find(a => a.itemId === 'item-b')).toBeDefined();
+  });
+
+  it('does not deduplicate by default', () => {
+    const item = makeItem({
+      id: 'multi-issue',
+      freshness: 'expired',
+      ai_summary: null,
+    });
+    // No deduplicateByItem option
+    const actions = suggestQualityActions([item]);
+    const itemActions = actions.filter(a => a.itemId === 'multi-issue');
+    expect(itemActions.length).toBeGreaterThan(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getTopQualityActions (Issue 4)
+// ---------------------------------------------------------------------------
+
+describe('getTopQualityActions', () => {
+  let mockClient: MockSupabaseClient;
+
+  /** Helper to configure governance_config response. */
+  function configureGovConfig(
+    rows: Array<{ domain: string | null; quality_score_threshold: number | null }>,
+  ) {
+    // First from() call is governance_config
+    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: rows, error: null }),
+    );
+  }
+
+  /** Helper to configure content_items response. */
+  function configureContentItems(
+    items: Array<Record<string, unknown>>,
+  ) {
+    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: items, error: null }),
+    );
+  }
+
+  beforeEach(() => {
+    mockClient = createMockSupabaseClient();
+  });
+
+  it('passes domain filter to the query', async () => {
+    configureGovConfig([]);
+    configureContentItems([]);
+
+    await getTopQualityActions(mockClient as never, {
+      domain: 'Compliance',
+    });
+
+    // eq should be called with primary_domain = 'Compliance'
+    expect(mockClient._chain.eq).toHaveBeenCalledWith(
+      'primary_domain',
+      'Compliance',
+    );
+  });
+
+  it('respects per-domain threshold from governance_config', async () => {
+    configureGovConfig([
+      { domain: 'Compliance', quality_score_threshold: 60 },
+    ]);
+    configureContentItems([
+      {
+        id: 'item-1',
+        title: 'Test',
+        suggested_title: null,
+        content_type: 'article',
+        primary_domain: 'Compliance',
+        primary_subtopic: null,
+        freshness: 'expired',
+        classification_confidence: 0.9,
+        ai_summary: 'Summary text that is long enough.',
+        brief: 'Brief',
+        detail: 'Detail',
+        reference: 'Reference',
+        content_owner_id: 'user-1',
+        source_url: 'https://example.com',
+        quality_score: 55, // below 60 threshold for Compliance
+        previous_quality_score: null,
+        metadata: { citation_count: 3 },
+      },
+    ]);
+
+    const result = await getTopQualityActions(mockClient as never);
+
+    // lte should be called with maxThreshold >= 60
+    expect(mockClient._chain.lte).toHaveBeenCalledWith(
+      'quality_score',
+      60,
+    );
+  });
+
+  it('respects scoreThreshold override', async () => {
+    configureGovConfig([]);
+    configureContentItems([]);
+
+    await getTopQualityActions(mockClient as never, {
+      scoreThreshold: 70,
+    });
+
+    // lte should be called with the override threshold
+    expect(mockClient._chain.lte).toHaveBeenCalledWith(
+      'quality_score',
+      70,
+    );
+  });
+
+  it('limits results to the specified limit', async () => {
+    configureGovConfig([]);
+    // Return many items that will generate actions
+    const items = Array.from({ length: 20 }, (_, i) => ({
+      id: `item-${i}`,
+      title: `Item ${i}`,
+      suggested_title: null,
+      content_type: 'article',
+      primary_domain: 'Corporate Information',
+      primary_subtopic: null,
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      ai_summary: null,
+      brief: null,
+      detail: null,
+      reference: null,
+      content_owner_id: null,
+      source_url: null,
+      quality_score: 10,
+      previous_quality_score: null,
+      metadata: null,
+    }));
+    configureContentItems(items);
+
+    const result = await getTopQualityActions(mockClient as never, {
+      limit: 5,
+    });
+
+    expect(result.actions.length).toBeLessThanOrEqual(5);
+    expect(result.total_actions).toBeLessThanOrEqual(5);
+  });
+
+  it('returns correct priority breakdown', async () => {
+    configureGovConfig([]);
+    configureContentItems([
+      {
+        id: 'item-1',
+        title: 'Expired Item',
+        suggested_title: null,
+        content_type: 'article',
+        primary_domain: 'Corporate Information',
+        primary_subtopic: null,
+        freshness: 'expired',
+        classification_confidence: 0.9,
+        ai_summary: 'A comprehensive summary of the content that is long enough.',
+        brief: 'Brief',
+        detail: 'Detail',
+        reference: 'Reference',
+        content_owner_id: 'user-1',
+        source_url: 'https://example.com',
+        quality_score: 30,
+        previous_quality_score: null,
+        metadata: { citation_count: 3 },
+      },
+    ]);
+
+    const result = await getTopQualityActions(mockClient as never);
+
+    expect(result.by_priority).toBeDefined();
+    expect(result.total_actions).toBe(result.actions.length);
+  });
+
+  it('throws on Supabase query error', async () => {
+    configureGovConfig([]);
+    // Configure the content_items query to return an error
+    mockClient._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: { message: 'Connection refused' } }),
+    );
+
+    await expect(
+      getTopQualityActions(mockClient as never),
+    ).rejects.toThrow('Failed to fetch quality items: Connection refused');
   });
 });

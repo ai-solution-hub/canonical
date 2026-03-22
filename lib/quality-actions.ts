@@ -46,6 +46,7 @@ export interface QualityActionInput {
 }
 
 export type QualityActionCategory =
+  | 'score_drop'
   | 'freshness'
   | 'classification'
   | 'completeness'
@@ -95,13 +96,39 @@ const PRIORITY_ORDER: Record<QualityActionPriority, number> = {
  */
 export function suggestQualityActions(
   items: QualityActionInput[],
+  options?: {
+    threshold?: number;
+    deduplicateByItem?: boolean;
+  },
 ): QualityAction[] {
+  const threshold = options?.threshold ?? 40;
   const actions: QualityAction[] = [];
 
   for (const item of items) {
     const itemTitle =
       item.suggested_title || item.title || 'Untitled';
     const citationCount = extractCitationCount(item.metadata);
+
+    // 0. Score drop — critical priority if item dropped below threshold
+    if (
+      item.previous_quality_score !== null &&
+      item.previous_quality_score !== undefined &&
+      item.previous_quality_score >= threshold &&
+      (item.quality_score ?? 0) < threshold
+    ) {
+      const oldScore = item.previous_quality_score;
+      const newScore = item.quality_score ?? 0;
+      actions.push({
+        itemId: item.id,
+        itemTitle,
+        action: `Quality score dropped below threshold (was ${oldScore}, now ${newScore}) — review urgently`,
+        category: 'score_drop',
+        priority: 'critical',
+        estimatedScoreImpact: oldScore - newScore,
+        currentScore: item.quality_score,
+        domain: item.primary_domain,
+      });
+    }
 
     // a. Freshness — weight 30%, so fixing this can gain up to 30 points
     if (
@@ -126,7 +153,7 @@ export function suggestQualityActions(
     // b. Classification confidence — weight 20%
     if (
       item.classification_confidence !== null &&
-      item.classification_confidence < 0.5
+      item.classification_confidence < 0.6
     ) {
       const confidencePercent = Math.round(
         item.classification_confidence * 100,
@@ -243,6 +270,19 @@ export function suggestQualityActions(
     if (priorityDiff !== 0) return priorityDiff;
     return b.estimatedScoreImpact - a.estimatedScoreImpact;
   });
+
+  // Deduplicate: keep only the highest-priority action per itemId
+  if (options?.deduplicateByItem) {
+    const seen = new Set<string>();
+    const deduped: QualityAction[] = [];
+    for (const action of actions) {
+      if (!seen.has(action.itemId)) {
+        seen.add(action.itemId);
+        deduped.push(action);
+      }
+    }
+    return deduped;
+  }
 
   return actions;
 }
@@ -375,7 +415,9 @@ export async function getTopQualityActions(
   }
 
   // 5. Generate actions from qualifying items
-  const allActions = suggestQualityActions(qualifyingItems);
+  const allActions = suggestQualityActions(qualifyingItems, {
+    threshold: defaultThreshold,
+  });
 
   // 6. Limit results
   const limited = allActions.slice(0, limit);
