@@ -170,7 +170,10 @@ export const ItemCreateBodySchema = z.object({
   governance_review_status: z.enum(['draft']).optional(),
 
   // Ingestion source tracking
-  ingestion_source: z.enum(['manual', 'copilotkit', 'upload', 'url_import']).optional(),
+  ingestion_source: z.enum(['manual', 'copilotkit', 'upload', 'url_import', 'upload_autosplit']).optional(),
+
+  // Source document linkage (for batch creation and lineage tracking)
+  source_document_id: z.string().uuid('source_document_id must be a valid UUID').optional(),
 });
 
 /** POST /api/items/:id/classify -- on-demand classification */

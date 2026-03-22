@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       auto_embed,
       governance_review_status,
       ingestion_source,
+      source_document_id,
     } = parsed.data;
 
     // Generate embedding synchronously before INSERT (fast, ~200ms)
@@ -113,6 +114,7 @@ export async function POST(request: NextRequest) {
       ...(reference && { reference }),
       ...(embeddingValue && { embedding: embeddingValue }),
       ...(governance_review_status && { governance_review_status }),
+      ...(source_document_id && { source_document_id }),
     };
 
     // Single INSERT with embedding included
