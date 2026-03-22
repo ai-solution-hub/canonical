@@ -79,7 +79,7 @@ export function extractQAPairs(text: string): QAPair[] {
  * A:/Answer: marker to separate question from answer text.
  * Handles multi-line answers up to the next block or end of text.
  */
-function extractStructuredPairs(text: string): QAPair[] {
+export function extractStructuredPairs(text: string): QAPair[] {
   // Split on lines that start with Q: or Question: (case-insensitive)
   // Keep the delimiter by using a capturing group in the split
   // Only match Q:/Question: when followed by a colon (not inside table cells).
@@ -123,7 +123,7 @@ function extractStructuredPairs(text: string): QAPair[] {
  * Expects rows like: | Question text | Answer text |
  * Skips header separator rows (e.g. |---|---|).
  */
-function extractTablePairs(text: string): QAPair[] {
+export function extractTablePairs(text: string): QAPair[] {
   const lines = text.split('\n').filter((l) => l.includes('|'));
   if (lines.length < 2) return [];
 
