@@ -51,6 +51,16 @@ export interface ExtractedRelationship {
   target: string;
 }
 
+/** AI-extracted temporal reference from content classification. */
+export interface ClassificationTemporalReference {
+  /** ISO 8601 date string */
+  date: string;
+  /** What this date refers to (e.g. "ICO registration expiry") */
+  context: string;
+  /** Classification of the date's purpose */
+  context_type: 'expiry' | 'effective' | 'historical' | 'unknown';
+}
+
 export interface ClassificationResult {
   primary_domain: string;
   primary_subtopic: string;
@@ -63,6 +73,8 @@ export interface ClassificationResult {
   classification_reasoning: string;
   entities?: ExtractedEntity[];
   relationships?: ExtractedRelationship[];
+  /** AI-extracted temporal references — optional, returned when Claude detects dates */
+  temporal_references?: ClassificationTemporalReference[];
   cached?: boolean;
 }
 
@@ -90,7 +102,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
   const { data: item, error: fetchError } = await supabase
     .from('content_items')
     .select(
-      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, ai_summary, suggested_title, classification_confidence, classification_reasoning',
+      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, ai_summary, suggested_title, classification_confidence, classification_reasoning, metadata',
     )
     .eq('id', itemId)
     .single();
@@ -244,6 +256,32 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                 required: ['source', 'relationship', 'target'],
               },
             },
+            temporal_references: {
+              type: 'array',
+              description:
+                'Dates and temporal references found in the content (expiry dates, renewal dates, effective dates, etc.)',
+              items: {
+                type: 'object',
+                properties: {
+                  date: {
+                    type: 'string',
+                    description: 'ISO 8601 date string (YYYY-MM-DD)',
+                  },
+                  context: {
+                    type: 'string',
+                    description:
+                      'What this date refers to (e.g. "ICO registration expiry")',
+                  },
+                  context_type: {
+                    type: 'string',
+                    enum: ['expiry', 'effective', 'historical', 'unknown'],
+                    description:
+                      'Classification: expiry (when something becomes invalid), effective (when something started), historical (background context), unknown',
+                  },
+                },
+                required: ['date', 'context', 'context_type'],
+              },
+            },
           },
           required: [
             'primary_domain',
@@ -294,7 +332,9 @@ Also extract named entities and relationships from the content:
 - entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
 - relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
 When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
-Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.`,
+Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.
+
+Also extract any temporal references (dates, deadlines, expiry dates, renewal dates) from the content. Classify each as expiry (when something becomes invalid or needs renewal), effective (when something started or was issued), historical (background context such as founding dates), or unknown. For each temporal reference, provide the ISO date string (YYYY-MM-DD), the surrounding context snippet, and the context_type. If no temporal references are found, omit the array.`,
       },
     ],
   });
@@ -333,6 +373,19 @@ Only include entities and relationships that are clearly stated or strongly impl
     updateData.embedding = JSON.stringify(embedding);
   } catch (embedErr) {
     console.error('Embedding regeneration during classification failed:', embedErr);
+  }
+
+  // Store AI-extracted temporal references in item metadata (non-blocking)
+  if (result.temporal_references?.length) {
+    try {
+      const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
+      updateData.metadata = {
+        ...existingMetadata,
+        ai_temporal_references: result.temporal_references,
+      };
+    } catch (temporalErr) {
+      console.error('Failed to merge temporal references into metadata:', temporalErr);
+    }
   }
 
   const { error: updateError } = await supabase
@@ -413,5 +466,6 @@ Only include entities and relationships that are clearly stated or strongly impl
     classification_reasoning: result.classification_reasoning,
     entities: result.entities,
     relationships: result.relationships,
+    temporal_references: result.temporal_references,
   };
 }

@@ -13,6 +13,7 @@ export { classifyContent } from './classify';
 export type {
   ClassifyParams,
   ClassificationResult,
+  ClassificationTemporalReference,
   ExtractedEntity,
   ExtractedRelationship,
 } from './classify';
