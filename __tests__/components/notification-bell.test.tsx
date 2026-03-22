@@ -229,6 +229,32 @@ describe('NotificationBell', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/item/item-abc');
   });
 
+  it('navigates to diff review page for source_document notifications', async () => {
+    const user = userEvent.setup();
+    const notification = createNotification({
+      id: 'n-doc-1',
+      entity_type: 'source_document',
+      entity_id: 'doc-uuid-123',
+      type: 'source_document_updated',
+      title: 'Source document updated',
+    });
+    mockNotifications.value = [notification];
+    mockUnreadCount.value = 1;
+
+    render(<NotificationBell />);
+
+    await user.click(screen.getByRole('button', { name: 'Notifications (1 unread)' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Source document updated')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Source document updated'));
+
+    expect(mockMarkAsRead).toHaveBeenCalledWith(['n-doc-1']);
+    expect(mockRouter.push).toHaveBeenCalledWith('/documents/doc-uuid-123/diff');
+  });
+
   it('shows "Mark all as read" button when there are unread notifications', async () => {
     const user = userEvent.setup();
     mockNotifications.value = [

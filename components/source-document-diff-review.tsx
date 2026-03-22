@@ -19,6 +19,7 @@ export interface DiffReviewEntry {
   similarity_score?: number;
   affected_item?: { id: string; title: string };
   status: string;
+  reviewer_note?: string;
 }
 
 export interface SourceDocumentDiffReviewProps {
@@ -159,6 +160,59 @@ function ContentBlock({
       <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
         {content}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reviewer note input
+// ---------------------------------------------------------------------------
+
+function ReviewerNoteInput({
+  entryId,
+  existingNote,
+  onNoteChange,
+}: {
+  entryId: string;
+  existingNote?: string;
+  onNoteChange: (id: string, note: string) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(!!existingNote);
+  const [noteText, setNoteText] = useState(existingNote ?? '');
+
+  if (!isExpanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsExpanded(true)}
+        className="mt-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        aria-label="Add a reviewer note"
+      >
+        Add note
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-3">
+      <label
+        htmlFor={`reviewer-note-${entryId}`}
+        className="mb-1 block text-xs font-medium text-muted-foreground"
+      >
+        Reviewer note
+      </label>
+      <textarea
+        id={`reviewer-note-${entryId}`}
+        value={noteText}
+        onChange={(e) => {
+          setNoteText(e.target.value);
+          onNoteChange(entryId, e.target.value);
+        }}
+        placeholder="Add a note explaining your review decision..."
+        rows={2}
+        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        aria-label="Reviewer note"
+      />
     </div>
   );
 }
@@ -312,17 +366,80 @@ function SideBySideContent({ entry }: { entry: DiffReviewEntry }) {
 }
 
 // ---------------------------------------------------------------------------
-// Diff entry card (updated with actions + side-by-side support)
+// Completion summary banner
+// ---------------------------------------------------------------------------
+
+function CompletionBanner({
+  entries,
+}: {
+  entries: DiffReviewEntry[];
+}) {
+  const actionable = entries.filter((e) => e.diff_type !== 'unchanged');
+  if (actionable.length === 0) return null;
+
+  const pendingCount = actionable.filter((e) => e.status === 'pending_review').length;
+  if (pendingCount > 0) return null;
+
+  const appliedCount = actionable.filter((e) => e.status === 'applied').length;
+  const dismissedCount = actionable.filter((e) => e.status === 'dismissed').length;
+
+  // Collect unique affected KB items from reviewed entries
+  const affectedItems = new Map<string, string>();
+  for (const entry of entries) {
+    if (entry.affected_item && entry.diff_type !== 'unchanged') {
+      affectedItems.set(entry.affected_item.id, entry.affected_item.title);
+    }
+  }
+
+  return (
+    <div
+      className="rounded-lg border border-quality-good/30 bg-quality-good-bg p-4"
+      role="status"
+      aria-label="Review complete"
+    >
+      <h2 className="text-sm font-semibold text-quality-good">
+        All changes reviewed
+      </h2>
+      <p className="mt-1 text-sm text-foreground">
+        {appliedCount} applied, {dismissedCount} dismissed
+      </p>
+      {affectedItems.size > 0 && (
+        <div className="mt-3">
+          <p className="mb-1 text-xs font-medium text-muted-foreground">
+            Affected KB items:
+          </p>
+          <ul className="list-inside list-disc space-y-0.5">
+            {Array.from(affectedItems.entries()).map(([id, title]) => (
+              <li key={id} className="text-sm">
+                <Link
+                  href={`/item/${id}`}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  {title}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Diff entry card (updated with actions + side-by-side support + notes)
 // ---------------------------------------------------------------------------
 
 function DiffEntryCard({
   entry,
   onStatusChange,
+  onNoteChange,
   isLoading,
   viewMode,
 }: {
   entry: DiffReviewEntry;
   onStatusChange: (id: string, status: string) => void;
+  onNoteChange: (id: string, note: string) => void;
   isLoading: boolean;
   viewMode: 'card' | 'side-by-side';
 }) {
@@ -429,6 +546,15 @@ function DiffEntryCard({
           </Link>
         </div>
       )}
+
+      {/* Reviewer note */}
+      {entry.diff_type !== 'unchanged' && (
+        <ReviewerNoteInput
+          entryId={entry.id}
+          existingNote={entry.reviewer_note}
+          onNoteChange={onNoteChange}
+        />
+      )}
     </article>
   );
 }
@@ -464,6 +590,13 @@ export function SourceDocumentDiffReview({
   });
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [updateError, setUpdateError] = useState<string | null>(null);
+
+  // Per-entry note state — tracks notes that have been typed but not yet saved
+  const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
+
+  function handleNoteChange(id: string, note: string) {
+    setPendingNotes((prev) => ({ ...prev, [id]: note }));
+  }
 
   // Filter entries based on active filter and unchanged toggle
   const filteredEntries = localEntries.filter((entry) => {
@@ -504,17 +637,44 @@ export function SourceDocumentDiffReview({
     setUpdateError(null);
 
     try {
+      // Build the entries payload, attaching pending notes where applicable
+      const patchEntries = entryIds.map((id) => {
+        const note = pendingNotes[id];
+        const payload: { id: string; status: string; note?: string } = { id, status: newStatus };
+        if (note !== undefined) {
+          payload.note = note;
+        }
+        return payload;
+      });
+
       const res = await fetch(`/api/source-documents/${documentId}/diff`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          entries: entryIds.map((id) => ({ id, status: newStatus })),
-        }),
+        body: JSON.stringify({ entries: patchEntries }),
       });
       if (!res.ok) throw new Error('Failed to update');
       const data = await res.json();
       // Use server summary
       setLocalSummary(data.summary);
+
+      // Clear saved notes from pending state and persist to local entries
+      const savedNoteIds = entryIds.filter((id) => pendingNotes[id] !== undefined);
+      if (savedNoteIds.length > 0) {
+        setLocalEntries((prev) =>
+          prev.map((e) =>
+            savedNoteIds.includes(e.id) && pendingNotes[e.id] !== undefined
+              ? { ...e, reviewer_note: pendingNotes[e.id] }
+              : e,
+          ),
+        );
+        setPendingNotes((prev) => {
+          const next = { ...prev };
+          for (const id of savedNoteIds) {
+            delete next[id];
+          }
+          return next;
+        });
+      }
     } catch {
       // Rollback and show error
       setLocalEntries(previousEntries);
@@ -540,14 +700,14 @@ export function SourceDocumentDiffReview({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      {/* Back link */}
-      <button
-        onClick={() => window.history.back()}
+      {/* Back link — navigates to the new document's detail page */}
+      <Link
+        href={`/documents/${newDocument.id}`}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-        aria-label="Go back"
+        aria-label={`Back to ${newDocument.filename}`}
       >
-        &larr; Back
-      </button>
+        &larr; Back to {newDocument.filename}
+      </Link>
 
       {/* Page header */}
       <header>
@@ -561,6 +721,9 @@ export function SourceDocumentDiffReview({
           {formatDateUK(newDocument.uploaded_at)})
         </p>
       </header>
+
+      {/* Completion banner — shown when all actionable entries have been reviewed */}
+      <CompletionBanner entries={localEntries} />
 
       {/* Summary bar */}
       <div
@@ -700,6 +863,7 @@ export function SourceDocumentDiffReview({
               key={entry.id}
               entry={entry}
               onStatusChange={handleSingleStatusChange}
+              onNoteChange={handleNoteChange}
               isLoading={loadingIds.has(entry.id)}
               viewMode={viewMode}
             />
