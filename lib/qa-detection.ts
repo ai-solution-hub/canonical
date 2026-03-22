@@ -1,10 +1,12 @@
 /**
  * Q&A pair detection engine for uploaded documents.
  *
- * Detects Q&A pairs in mammoth HTML output using three strategies:
+ * Detects Q&A pairs in mammoth HTML output using four strategies:
  *   1. Table extraction — HTML tables with recognisable Q/A column headers
  *   2. Numbered list extraction — "Q1: ... A1: ..." or "1. Question\nAnswer" patterns
  *   3. Heading-paragraph extraction — headings that are questions followed by answer paragraphs
+ *   4. Text fallback — "Q: ... A: ..." and "Question: ... Answer: ..." markers
+ *      (delegates to extractStructuredPairs from document-diff.ts)
  *
  * This module is deterministic (no AI calls) and operates on HTML strings.
  * It ports header normalisation logic from the Python pipeline
@@ -14,14 +16,14 @@
  */
 
 import { parse as parseHTML, type HTMLElement } from 'node-html-parser';
-import { stringSimilarity } from '@/lib/document-diff';
+import { stringSimilarity, extractStructuredPairs } from '@/lib/document-diff';
 
 // ---------------------------------------------------------------------------
 // Public types — exported for Phase 2/3 consumption
 // ---------------------------------------------------------------------------
 
 /** Source strategy that detected the Q&A pair. */
-export type DetectionSource = 'table' | 'list' | 'heading';
+export type DetectionSource = 'table' | 'list' | 'heading' | 'text';
 
 /** Confidence level for a detected pair. */
 export type DetectionConfidence = 'high' | 'medium' | 'low';
@@ -694,10 +696,12 @@ function extractTablesWithSectionContext(root: HTMLElement): DetectedQAPair[] {
  *      numbered question/answer patterns
  *   3. Heading-paragraph extraction (medium confidence) — detects headings
  *      that are questions followed by answer paragraphs
+ *   4. Text fallback (medium confidence) — detects "Q: ... A: ..." and
+ *      "Question: ... Answer: ..." markers via extractStructuredPairs
  *
- * All strategies are attempted. Table results take priority; list and
- * heading results are appended only for content not already covered by
- * table extraction.
+ * All strategies are attempted. Table results take priority; list, heading,
+ * and text fallback results are appended only for content not already
+ * covered by higher-priority strategies.
  *
  * @param html - mammoth HTML output string
  * @returns Array of detected Q&A pairs, empty if none found
@@ -727,7 +731,22 @@ export function detectQAPairs(html: string): DetectedQAPair[] {
   // Strategy 3: Heading-paragraph extraction
   const headingPairs = extractFromHeadingParagraphs(root);
 
-  // Combine results: tables first, then list/heading pairs that don't
+  // Strategy 4: Text fallback — extractStructuredPairs from document-diff.ts
+  // Catches "Q: ... A: ..." and "Question: ... Answer: ..." marker patterns
+  // that the numbered list strategy does not cover.
+  const structuredPairs = extractStructuredPairs(plainText);
+  const textFallbackPairs: DetectedQAPair[] = structuredPairs.map((sp) => ({
+    question: sp.question,
+    answer: sp.answer,
+    answerAdvanced: '',
+    source: 'text' as DetectionSource,
+    confidence: 'medium' as DetectionConfidence,
+    sectionName: '',
+    tableIndex: -1,
+    rowIndex: -1,
+  }));
+
+  // Combine results: tables first, then list/heading/text pairs that don't
   // duplicate table-extracted questions
   const allPairs = [...tablePairs];
 
@@ -743,6 +762,16 @@ export function detectQAPairs(html: string): DetectedQAPair[] {
 
   // Deduplicate heading pairs against all existing pairs
   for (const pair of headingPairs) {
+    const isDuplicate = allPairs.some(
+      (existing) => stringSimilarity(existing.question, pair.question) > 0.8,
+    );
+    if (!isDuplicate) {
+      allPairs.push(pair);
+    }
+  }
+
+  // Deduplicate text fallback pairs against all existing pairs
+  for (const pair of textFallbackPairs) {
     const isDuplicate = allPairs.some(
       (existing) => stringSimilarity(existing.question, pair.question) > 0.8,
     );

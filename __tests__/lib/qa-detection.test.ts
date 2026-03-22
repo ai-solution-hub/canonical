@@ -827,3 +827,199 @@ describe('document-diff exports', () => {
     expect(typeof extractTablePairs).toBe('function');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 12. Text fallback extraction (Finding 1)
+// ---------------------------------------------------------------------------
+
+describe('detectQAPairs — text fallback extraction', () => {
+  it('detects plain "Q: ... A: ..." markers via extractStructuredPairs fallback', () => {
+    const html = `<p>Q: What is X?</p>
+<p>A: X is a framework for quality management.</p>
+<p>Q: How does Y work?</p>
+<p>A: Y integrates with existing systems via API.</p>`;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs.length).toBeGreaterThanOrEqual(2);
+
+    // Find the text-sourced pairs (may also match via list strategy)
+    const xPair = pairs.find((p) => p.question.includes('What is X'));
+    expect(xPair).toBeDefined();
+    expect(xPair!.answer).toContain('framework for quality management');
+
+    const yPair = pairs.find((p) => p.question.includes('How does Y work'));
+    expect(yPair).toBeDefined();
+    expect(yPair!.answer).toContain('integrates with existing systems');
+  });
+
+  it('detects "Question: ... Answer: ..." markers via text fallback', () => {
+    const html = `<p>Question: What certifications do you hold?</p>
+<p>Answer: We hold ISO 9001 and ISO 14001 certifications.</p>
+<p>Question: How do you handle data protection?</p>
+<p>Answer: We comply with UK GDPR and have a dedicated DPO.</p>`;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs.length).toBeGreaterThanOrEqual(2);
+
+    const certPair = pairs.find((p) => p.question.includes('certifications'));
+    expect(certPair).toBeDefined();
+    expect(certPair!.answer).toContain('ISO 9001');
+
+    const dataPair = pairs.find((p) => p.question.includes('data protection'));
+    expect(dataPair).toBeDefined();
+    expect(dataPair!.answer).toContain('UK GDPR');
+  });
+
+  it('does not duplicate text fallback pairs already found by other strategies', () => {
+    // Table extraction should find this, so text fallback should not add a duplicate
+    const html = `
+      <table>
+        <tr><th>Question</th><th>Answer</th></tr>
+        <tr><td>What is your policy?</td><td>We follow best practice.</td></tr>
+      </table>
+      <p>Q: What is your policy?</p>
+      <p>A: We follow best practice.</p>
+    `;
+
+    const pairs = detectQAPairs(html);
+    // Should deduplicate — only one pair for this question
+    const policyPairs = pairs.filter((p) =>
+      p.question.toLowerCase().includes('what is your policy'),
+    );
+    expect(policyPairs).toHaveLength(1);
+    // Table version should win (higher confidence)
+    expect(policyPairs[0].source).toBe('table');
+  });
+
+  it('assigns medium confidence and text source to fallback pairs', () => {
+    // Use "Question:/Answer:" format which only extractStructuredPairs handles,
+    // not the numbered list extractor (which needs Q1:/A1: or "1. Question:")
+    const html = `<div>Question: Describe your waste management approach
+Answer: We operate a zero-waste-to-landfill policy across all sites.</div>`;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs.length).toBeGreaterThanOrEqual(1);
+
+    const wastePair = pairs.find((p) => p.question.includes('waste management'));
+    expect(wastePair).toBeDefined();
+    expect(wastePair!.source).toBe('text');
+    expect(wastePair!.confidence).toBe('medium');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 13. Positional fallback — all-empty headers (Finding 2)
+// ---------------------------------------------------------------------------
+
+describe('detectQAPairs — positional fallback for empty headers', () => {
+  it('falls back to positional detection for a 5-column table with all-empty headers', () => {
+    // All <th> elements are empty — should trigger positional_5col format
+    const html = `
+      <table>
+        <tr><th></th><th></th><th></th><th></th><th></th></tr>
+        <tr>
+          <td>What is your environmental policy?</td>
+          <td>We follow ISO 14001 standards and have a dedicated environmental team.</td>
+          <td>Additional notes here</td>
+          <td>Category A</td>
+          <td>Mandatory</td>
+        </tr>
+        <tr>
+          <td>How do you manage waste?</td>
+          <td>Zero waste to landfill since 2020.</td>
+          <td>More notes</td>
+          <td>Category B</td>
+          <td>Optional</td>
+        </tr>
+      </table>
+    `;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs).toHaveLength(2);
+    // Positional: column 0 = question, column 1 = standard answer
+    expect(pairs[0].question).toBe('What is your environmental policy?');
+    expect(pairs[0].answer).toContain('ISO 14001');
+    expect(pairs[0].source).toBe('table');
+    expect(pairs[0].confidence).toBe('high');
+    expect(pairs[1].question).toBe('How do you manage waste?');
+    expect(pairs[1].answer).toContain('Zero waste to landfill');
+  });
+
+  it('falls back to positional detection for a 6-column table with all-empty headers', () => {
+    // All <th> elements are empty — should trigger positional_6col format
+    const html = `
+      <table>
+        <tr><th></th><th></th><th></th><th></th><th></th><th></th></tr>
+        <tr>
+          <td>What training do you provide?</td>
+          <td>Standard induction plus annual refresher.</td>
+          <td>NVQ qualifications and NEBOSH certification for key staff.</td>
+          <td>HR</td>
+          <td>1</td>
+          <td>Required</td>
+        </tr>
+      </table>
+    `;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs).toHaveLength(1);
+    // Positional 6-col: column 0 = question, column 1 = standard, column 2 = advanced
+    expect(pairs[0].question).toBe('What training do you provide?');
+    expect(pairs[0].answer).toContain('Standard induction');
+    expect(pairs[0].answerAdvanced).toContain('NVQ qualifications');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 14. inferEmptyHeaders — 6-column table with partial empty headers (Finding 3)
+// ---------------------------------------------------------------------------
+
+describe('detectQAPairs — inferEmptyHeaders on tables with partial empty headers', () => {
+  it('infers standard and advanced columns when headers 1-2 are empty but column 0 is Question', () => {
+    // Column 0 = "Question", columns 1 and 2 have empty headers but contain answer data
+    // inferEmptyHeaders should fill: col 1 -> "standard", col 2 -> "advanced"
+    const html = `
+      <table>
+        <tr>
+          <th>Question</th>
+          <th></th>
+          <th></th>
+          <th>Section</th>
+          <th>Number</th>
+          <th>Notes</th>
+        </tr>
+        <tr>
+          <td>What is your approach to sustainability?</td>
+          <td>We follow ISO 14001 environmental management standards.</td>
+          <td>Beyond ISO 14001, we implement circular economy principles and publish annual ESG reports.</td>
+          <td>Environment</td>
+          <td>1</td>
+          <td>Mandatory</td>
+        </tr>
+        <tr>
+          <td>How do you ensure supply chain integrity?</td>
+          <td>Regular audits of all tier-1 suppliers.</td>
+          <td>AI-powered supply chain monitoring with real-time risk scoring across all tiers.</td>
+          <td>Procurement</td>
+          <td>2</td>
+          <td>Optional</td>
+        </tr>
+      </table>
+    `;
+
+    const pairs = detectQAPairs(html);
+    expect(pairs).toHaveLength(2);
+
+    // First pair: question, standard answer (inferred col 1), advanced answer (inferred col 2)
+    expect(pairs[0].question).toBe('What is your approach to sustainability?');
+    expect(pairs[0].answer).toContain('ISO 14001');
+    expect(pairs[0].answerAdvanced).toContain('circular economy');
+    expect(pairs[0].sectionName).toBe('Environment');
+
+    // Second pair
+    expect(pairs[1].question).toBe('How do you ensure supply chain integrity?');
+    expect(pairs[1].answer).toContain('Regular audits');
+    expect(pairs[1].answerAdvanced).toContain('AI-powered supply chain');
+    expect(pairs[1].sectionName).toBe('Procurement');
+  });
+});
