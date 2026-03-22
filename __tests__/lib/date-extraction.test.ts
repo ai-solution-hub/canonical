@@ -323,6 +323,22 @@ describe('extractDates', () => {
       expect(results[0].date).toBe('2027-03-25');
       expect(results[0].context_type).toBe('expiry');
     });
+
+    it('extracts ISO date but not years from a year range in the same text', () => {
+      const results = extractDates(
+        'Budget period 2020-2025 and expiry 2027-03-15'
+      );
+      // Should extract the ISO date 2027-03-15 as expiry
+      const isoDate = findByDate(results, '2027-03-15');
+      expect(isoDate).toBeDefined();
+      expect(isoDate!.context_type).toBe('expiry');
+
+      // Should NOT extract 2020 or 2025 from the year range "2020-2025"
+      const year2020 = findByDate(results, '2020-12-31');
+      const year2025 = findByDate(results, '2025-12-31');
+      expect(year2020).toBeUndefined();
+      expect(year2025).toBeUndefined();
+    });
   });
 
   // ──────────────────────────────────────────
