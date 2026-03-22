@@ -1,6 +1,8 @@
 'use client';
 
-import { Layers } from 'lucide-react';
+import Link from 'next/link';
+import { Layers, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ExpiryStatus } from '@/lib/certification-status';
 
@@ -126,6 +128,8 @@ function FrameworkRow({
   const statusStyle = framework.metadata.status
     ? STATUS_STYLES[framework.metadata.status]
     : undefined;
+  const needsRenewal = framework.expiry_status === 'expiring_soon' || framework.expiry_status === 'expired';
+  const renewalItemId = framework.content_items?.[0]?.id;
 
   return (
     <div
@@ -147,6 +151,22 @@ function FrameworkRow({
             {framework.canonical_name}
           </button>
           <ExpiryBadge status={framework.expiry_status} />
+          {needsRenewal && renewalItemId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 px-2 text-xs"
+              asChild
+            >
+              <Link
+                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(framework.canonical_name)}`}
+                aria-label={`Upload renewed ${framework.canonical_name} document`}
+              >
+                <RefreshCw className="size-3" aria-hidden="true" />
+                Renew
+              </Link>
+            </Button>
+          )}
           {statusStyle && (
             <span className={cn('text-xs font-medium', statusStyle.className)}>
               {statusStyle.label}
