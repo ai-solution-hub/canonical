@@ -157,9 +157,11 @@ describe('SourceDocumentDiffReview', () => {
   describe('summary', () => {
     it('renders the document filenames and versions in the header', () => {
       renderComponent();
-      // Header now includes formatted dates, so match filenames separately
-      expect(screen.getByText(/policy-v1\.docx/)).toBeInTheDocument();
-      expect(screen.getByText(/policy-v2\.docx/)).toBeInTheDocument();
+      // Header now includes formatted dates, so match filenames within the banner element.
+      // policy-v2.docx also appears in the back link, so scope to <header>.
+      const header = screen.getByRole('banner');
+      expect(within(header).getByText(/policy-v1\.docx/)).toBeInTheDocument();
+      expect(within(header).getByText(/policy-v2\.docx/)).toBeInTheDocument();
     });
 
     it('renders the page heading', () => {
@@ -523,11 +525,13 @@ describe('SourceDocumentDiffReview', () => {
   // -------------------------------------------------------------------------
 
   describe('accessibility', () => {
-    it('has a back button with aria-label', () => {
+    it('has a back link pointing to the new document', () => {
       renderComponent();
-      expect(
-        screen.getByRole('button', { name: 'Go back' }),
-      ).toBeInTheDocument();
+      const backLink = screen.getByRole('link', {
+        name: /back to policy-v2\.docx/i,
+      });
+      expect(backLink).toBeInTheDocument();
+      expect(backLink).toHaveAttribute('href', '/documents/doc-new-id');
     });
 
     it('has a tablist for filter buttons', () => {
@@ -860,6 +864,149 @@ describe('SourceDocumentDiffReview', () => {
       // The grid layout has md:grid-cols-2 class
       const grids = document.querySelectorAll('.grid');
       expect(grids.length).toBeGreaterThan(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Completion banner
+  // -------------------------------------------------------------------------
+
+  describe('completion banner', () => {
+    it('does not show when entries are still pending', () => {
+      renderComponent();
+      expect(
+        screen.queryByRole('status', { name: 'Review complete' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows when all actionable entries are reviewed', () => {
+      const allReviewed = [
+        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b', affected_item: { id: 'item-1', title: 'Item One' } }),
+        makeEntry({ id: 'e2', diff_type: 'added', status: 'dismissed', new_content: 'c' }),
+        // Unchanged entries do not count — their status is irrelevant
+        makeEntry({ id: 'e3', diff_type: 'unchanged', old_content: 'x' }),
+      ];
+      renderComponent({
+        entries: allReviewed,
+        summary: { added: 1, removed: 0, modified: 1, unchanged: 1 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      expect(banner).toBeInTheDocument();
+      expect(within(banner).getByText('All changes reviewed')).toBeInTheDocument();
+      expect(within(banner).getByText(/1 applied, 1 dismissed/)).toBeInTheDocument();
+    });
+
+    it('lists affected KB items with links', () => {
+      const allReviewed = [
+        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b', affected_item: { id: 'item-1', title: 'Data Policy' } }),
+        makeEntry({ id: 'e2', diff_type: 'removed', status: 'dismissed', old_content: 'c', affected_item: { id: 'item-2', title: 'Access Control' } }),
+      ];
+      renderComponent({
+        entries: allReviewed,
+        summary: { added: 0, removed: 1, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      const dataLink = within(banner).getByRole('link', { name: 'Data Policy' });
+      expect(dataLink).toHaveAttribute('href', '/item/item-1');
+      const accessLink = within(banner).getByRole('link', { name: 'Access Control' });
+      expect(accessLink).toHaveAttribute('href', '/item/item-2');
+    });
+
+    it('does not show when there are no actionable entries', () => {
+      renderComponent({
+        entries: [UNCHANGED_ENTRY],
+        summary: { added: 0, removed: 0, modified: 0, unchanged: 1 },
+      });
+      expect(
+        screen.queryByRole('status', { name: 'Review complete' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Reviewer notes
+  // -------------------------------------------------------------------------
+
+  describe('reviewer notes', () => {
+    it('shows "Add note" button on actionable entries', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      expect(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      ).toBeInTheDocument();
+    });
+
+    it('does not show "Add note" button on unchanged entries', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [UNCHANGED_ENTRY] });
+
+      const toggle = screen.getByRole('checkbox', { name: /Show unchanged/ });
+      await user.click(toggle);
+
+      expect(
+        screen.queryByRole('button', { name: 'Add a reviewer note' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('expands textarea when "Add note" is clicked', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+
+      expect(
+        screen.getByLabelText('Reviewer note'),
+      ).toBeInTheDocument();
+    });
+
+    it('shows existing note in expanded state', () => {
+      const entryWithNote = makeEntry({
+        id: 'diff-noted',
+        diff_type: 'modified',
+        old_content: 'old',
+        new_content: 'new',
+        reviewer_note: 'This was checked by the legal team.',
+      });
+      renderComponent({ entries: [entryWithNote] });
+
+      const textarea = screen.getByLabelText('Reviewer note');
+      expect(textarea).toBeInTheDocument();
+      expect(textarea).toHaveValue('This was checked by the legal team.');
+    });
+
+    it('includes note in PATCH payload when status changes', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [{ id: 'diff-1', status: 'applied', updated_at: new Date().toISOString() }],
+          summary: { pending_review: 0, applied: 1, dismissed: 0 },
+        }),
+      });
+
+      renderComponent({
+        entries: [MODIFIED_ENTRY],
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      // Expand the note textarea
+      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      const textarea = screen.getByLabelText('Reviewer note');
+      await user.type(textarea, 'Approved by legal');
+
+      // Apply the change
+      await user.click(screen.getByRole('button', { name: 'Apply this change' }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/source-documents/test-doc-id/diff',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: expect.stringContaining('Approved by legal'),
+          }),
+        );
+      });
     });
   });
 });

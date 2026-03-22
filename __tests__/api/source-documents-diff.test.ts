@@ -636,4 +636,42 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(updateCall.reviewed_at).toBeNull();
     expect(updateCall.reviewed_by).toBeNull();
   });
+
+  it('includes reviewer_note when note is provided in entry', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Verification query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }], error: null }),
+    );
+
+    // Update succeeds (individual update for entry with note)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ status: 'applied' }], error: null }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: {
+        entries: [{ id: ENTRY_ID_1, status: 'applied', note: 'Checked by legal team' }],
+      },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+
+    // Verify update was called with reviewer_note
+    expect(mockSupabase._chain.update).toHaveBeenCalled();
+    const updateCall = mockSupabase._chain.update.mock.calls[0][0];
+    expect(updateCall.reviewer_note).toBe('Checked by legal team');
+    expect(updateCall.status).toBe('applied');
+    expect(updateCall.reviewed_by).toBe('test-user-id');
+  });
 });

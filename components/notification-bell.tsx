@@ -102,7 +102,13 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
   function handleClickNotification(notification: Notification) {
     markAsRead([notification.id]);
     setOpen(false);
-    router.push(`/item/${notification.entity_id}`);
+
+    // Route source document notifications to the diff review page
+    if (notification.entity_type === 'source_document') {
+      router.push(`/documents/${notification.entity_id}/diff`);
+    } else {
+      router.push(`/item/${notification.entity_id}`);
+    }
   }
 
   const badgeLabel =

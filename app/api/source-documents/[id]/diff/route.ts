@@ -111,14 +111,29 @@ export async function GET(
     }
 
     // Fetch all diff entries for this document pair
+    // reviewer_note column added in migration 20260322192634 — not yet in generated types
     const { data: entries, error: entriesErr } = await supabase
       .from('source_document_diffs')
       .select(
-        'id, diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
+        'id, diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status, reviewer_note',
       )
       .eq('old_document_id', oldDoc.id)
       .eq('new_document_id', newDoc.id)
-      .order('diff_type');
+      .order('diff_type') as unknown as {
+        data: Array<{
+          id: string;
+          diff_type: string;
+          old_question: string | null;
+          new_question: string | null;
+          old_content: string | null;
+          new_content: string | null;
+          similarity_score: number | null;
+          affected_content_item_id: string | null;
+          status: string;
+          reviewer_note: string | null;
+        }> | null;
+        error: { message: string; code?: string } | null;
+      };
 
     if (entriesErr) {
       return NextResponse.json(
@@ -182,6 +197,7 @@ export async function GET(
           }
         : undefined,
       status: entry.status,
+      reviewer_note: entry.reviewer_note ?? undefined,
     }));
 
     return NextResponse.json({
@@ -379,7 +395,7 @@ export async function PATCH(
     }
 
     // Parse request body
-    let body: { entries?: Array<{ id?: string; status?: string }> };
+    let body: { entries?: Array<{ id?: string; status?: string; note?: string }> };
     try {
       body = await request.json();
     } catch {
@@ -442,9 +458,13 @@ export async function PATCH(
       );
     }
 
-    // Group entries by target status for batch updates
+    // Separate entries with notes (need individual updates) from those without
+    const entriesWithNotes = entries.filter((e) => e.note !== undefined);
+    const entriesWithoutNotes = entries.filter((e) => e.note === undefined);
+
+    // Group note-free entries by target status for batch updates
     const byStatus: Record<string, string[]> = {};
-    for (const entry of entries) {
+    for (const entry of entriesWithoutNotes) {
       const status = entry.status as string;
       if (!byStatus[status]) byStatus[status] = [];
       byStatus[status].push(entry.id as string);
@@ -482,6 +502,38 @@ export async function PATCH(
       for (const id of ids) {
         updatedResults.push({ id, status, updated_at: now });
       }
+    }
+
+    // Handle entries with notes individually (notes are per-entry)
+    for (const entry of entriesWithNotes) {
+      const status = entry.status as string;
+      const isReviewed = status !== 'pending_review';
+      const updatePayload = {
+        status,
+        updated_at: now,
+        reviewed_at: isReviewed ? now : null,
+        reviewed_by: isReviewed ? user.id : null,
+        reviewer_note: entry.note ?? null,
+      };
+
+      const { error: updateErr } = await supabase
+        .from('source_document_diffs')
+        .update(updatePayload)
+        .eq('id', entry.id as string);
+
+      if (updateErr) {
+        return NextResponse.json(
+          {
+            error: safeErrorMessage(
+              updateErr,
+              'Failed to update diff entry status',
+            ),
+          },
+          { status: 500 },
+        );
+      }
+
+      updatedResults.push({ id: entry.id as string, status, updated_at: now });
     }
 
     // Fetch summary counts for the entire diff pair
