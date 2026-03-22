@@ -26,6 +26,8 @@ import {
 } from '@/lib/format';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { FreshnessBadge } from '@/components/freshness-badge';
+import { ExpiryDateDisplay } from '@/components/expiry-date-display';
+import { TemporalReferencesSection } from '@/components/temporal-references-section';
 import { GovernanceBadge } from '@/components/governance-badge';
 import { ContentOwnerSelector } from '@/components/content-owner-selector';
 import { ContentOwnerBadge } from '@/components/content-owner-badge';
@@ -265,6 +267,14 @@ export function MetadataSidebar({
             </div>
           )}
 
+          {/* Expiry date — shown when item has an expiry_date set */}
+          {(item as ItemData & { expiry_date?: string | null; lifecycle_type?: string | null }).expiry_date && (
+            <ExpiryDateDisplay
+              expiryDate={(item as ItemData & { expiry_date?: string | null }).expiry_date!}
+              lifecycleType={(item as ItemData & { lifecycle_type?: string | null }).lifecycle_type ?? null}
+            />
+          )}
+
           {/* Governance review status */}
           {item.governance_review_status && (
             <div>
@@ -431,6 +441,20 @@ export function MetadataSidebar({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Temporal references — extracted dates from content */}
+      {item.metadata &&
+        Array.isArray(
+          (item.metadata as Record<string, unknown>).temporal_references,
+        ) &&
+        ((item.metadata as Record<string, unknown>).temporal_references as unknown[]).length > 0 && (
+          <TemporalReferencesSection
+            temporalReferences={
+              (item.metadata as Record<string, unknown>)
+                .temporal_references as import('@/lib/date-extraction').TemporalReference[]
+            }
+          />
+        )}
 
       <SourceMetadata
         contentType={item.content_type as string}
