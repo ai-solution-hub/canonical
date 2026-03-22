@@ -17,3 +17,4 @@ export { type TemplateCoverageRequirement, type TemplateCoverageSection, type Te
 export { formatClassification, formatSummaryResult } from './ai';
 export { type CoverageMatrixData, formatCoverageMatrix, type BidDashboardData, formatBidDashboard } from './apps';
 export { type DocumentDiffData, formatDocumentDiff } from './documents';
+export { type BelowThresholdItem, type ScoreDropItem, type FreshnessTransitionItem, type QualityFlagNotification, type CoverageAlertNotification, type CertificationWarning, type QualityBriefingData, formatQualityBriefing } from './briefing';
