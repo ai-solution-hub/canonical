@@ -1,7 +1,8 @@
 /**
- * Quality, coverage, and audit formatters for MCP tool responses.
+ * Quality, coverage, audit, and quality actions formatters for MCP tool responses.
  */
 import { formatContentType } from '@/lib/format';
+import type { QualityAction, QualityActionsResult } from '@/lib/quality-actions';
 
 // ---------------------------------------------------------------------------
 // Quality summary
@@ -206,6 +207,57 @@ export function formatDuplicatePairs(data: DuplicatePairsResult): string {
     lines.push(
       `- **Item B:** ${p.item_b.title} (${p.item_b.content_type ?? 'unknown'}, ${p.item_b.domain ?? 'no domain'}) \`${p.item_b.id}\``,
     );
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Quality actions
+// ---------------------------------------------------------------------------
+
+export { type QualityAction, type QualityActionsResult } from '@/lib/quality-actions';
+
+export function formatQualityActions(data: QualityActionsResult): string {
+  const lines: string[] = [
+    '# Quality Actions',
+    '',
+    `**Total actions:** ${data.total_actions}`,
+    '',
+  ];
+
+  if (data.total_actions === 0) {
+    lines.push('No quality improvement actions needed. All items are above the quality threshold.');
+    return lines.join('\n');
+  }
+
+  // Priority breakdown
+  lines.push('## By Priority', '');
+  const priorityOrder = ['critical', 'high', 'medium', 'low'];
+  for (const p of priorityOrder) {
+    const count = data.by_priority[p] ?? 0;
+    if (count > 0) {
+      lines.push(`- **${p}:** ${count}`);
+    }
+  }
+  lines.push('');
+
+  // Individual actions
+  for (let i = 0; i < data.actions.length; i++) {
+    const a = data.actions[i];
+    const priorityLabel = a.priority.charAt(0).toUpperCase() + a.priority.slice(1);
+    const scoreText = a.currentScore !== null ? `Score: ${a.currentScore}` : 'Score: unscored';
+    lines.push(`## ${i + 1}. "${a.itemTitle}" — ${scoreText} (${priorityLabel})`);
+    if (a.domain) {
+      lines.push(`**Domain:** ${a.domain}`);
+    }
+    lines.push(`**Category:** ${a.category}`);
+    lines.push(`**Action:** ${a.action}`);
+    if (a.estimatedScoreImpact > 0) {
+      lines.push(`**Estimated score improvement:** +${a.estimatedScoreImpact} points`);
+    }
+    lines.push(`**Item ID:** ${a.itemId}`);
     lines.push('');
   }
 

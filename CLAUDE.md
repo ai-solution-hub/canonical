@@ -211,6 +211,42 @@ Historical planning documents (project plan, feasibility study, ADS v1.0, Phase
 6-7 specs, tool evaluations) are in `.planning/` — consult for decision context
 when needed.
 
+## Implementation Workflow (Spec-to-Code)
+
+When implementing from specs, follow this methodical phased approach:
+
+### 1. Spec Review (pre-implementation)
+- Deploy parallel subagents to review each spec against the actual codebase
+- Verify: file references exist, API signatures match, DB schema correct,
+  effort estimates realistic, dependencies satisfied
+- Fix ALL findings (must-fix AND should-fix) in specs before implementation
+- Assess parallel vs sequential based on file overlap matrix
+
+### 2. Phased Implementation with Verification Gates
+- **Max 2-4 hours of work per agent** — never let one agent do an entire
+  multi-phase spec without verification
+- Use **git worktrees** (`isolation: "worktree"`) for parallel implementation
+- After each phase completes, deploy a **separate verification agent** that:
+  - Reads the spec requirements for that phase
+  - Reads the implementation code
+  - Checks spec compliance, code quality, test quality, regressions
+  - Runs the tests
+  - Returns PASS / PASS WITH NOTES / FAIL
+- **Fix ALL verification findings** (including minor/low) before merging —
+  deploy a fix agent for any notes, no matter the severity
+- Only merge after verification passes clean
+
+### 3. Merge and Regression Check
+- Merge verified worktrees sequentially (not all at once)
+- Run full test suite after each merge to catch conflicts
+- Push after confirming green suite
+- Continue to next phase only after current phase is merged and clean
+
+### 4. Wave Structure
+- **Wave 1:** Specs with no shared file dependencies (parallel worktrees)
+- **Wave 2:** Specs that depend on Wave 1 outputs (after Wave 1 merges)
+- Within each wave, phases run in steps: implement → verify → fix → merge
+
 ## Gotchas
 
 - **No raw Tailwind colours in components:** Never use `text-green-600`,
