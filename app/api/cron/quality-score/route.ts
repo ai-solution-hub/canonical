@@ -21,8 +21,8 @@ export const maxDuration = 50;
 /** Process items in batches to avoid memory pressure */
 const BATCH_SIZE = 100;
 
-/** Stop processing if approaching timeout (45s safety buffer) */
-const TIMEOUT_BUFFER_MS = 45_000;
+/** Stop processing if approaching timeout (40s cutoff -> 10s buffer for writes) */
+const TIMEOUT_BUFFER_MS = 40_000;
 
 /** Default quality threshold when no governance_config row exists for a domain */
 const DEFAULT_THRESHOLD = 40;
