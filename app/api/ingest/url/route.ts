@@ -17,8 +17,8 @@ export async function POST(request: NextRequest) {
     const { user, supabase } = auth;
 
     // 2. Rate limit: 10 req/min
-    const { allowed } = checkRateLimit(`ingest:url:${user.id}`, 10, 60_000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`ingest:url:${user.id}`, 10, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     // 3. Parse and validate request body
     const raw = await request.json();

@@ -84,9 +84,16 @@ export function forbiddenResponse() {
 }
 
 /** Standard 429 response for rate-limited requests */
-export function rateLimitResponse() {
+export function rateLimitResponse(resetAt?: number) {
+  const headers: Record<string, string> = {};
+  if (resetAt) {
+    const retryAfterSecs = Math.ceil((resetAt - Date.now()) / 1000);
+    if (retryAfterSecs > 0) {
+      headers['Retry-After'] = String(retryAfterSecs);
+    }
+  }
   return NextResponse.json(
-    { error: 'Rate limit exceeded. Try again shortly.' },
-    { status: 429 },
+    { error: 'Rate limit exceeded. Please try again shortly.' },
+    { status: 429, headers },
   );
 }

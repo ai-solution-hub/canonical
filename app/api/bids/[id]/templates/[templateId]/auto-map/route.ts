@@ -32,12 +32,8 @@ export async function POST(
       );
     }
 
-    const { allowed } = checkRateLimit(
-      `template-automap:${user.id}`,
-      10,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`template-automap:${user.id}`, 10, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const body = await request.json().catch(() => ({}));
     const parsed = AutoMapBodySchema.safeParse(body);

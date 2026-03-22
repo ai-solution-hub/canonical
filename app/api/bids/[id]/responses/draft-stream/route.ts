@@ -53,8 +53,8 @@ export async function POST(
       );
     }
 
-    const { allowed } = checkRateLimit(`draft-stream:${user.id}`, 3, 60_000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`draft-stream:${user.id}`, 5, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
     const parsed = parseBody(ResponseDraftStreamBodySchema, raw);

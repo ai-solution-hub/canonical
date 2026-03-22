@@ -93,7 +93,7 @@ export async function POST(
     }
 
     const rl = checkRateLimit(`guide-sections-create:${user.id}`, 50, 60_000);
-    if (!rl.allowed) return rateLimitResponse();
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const guide = await resolveGuideId(supabase, slug);
     if (!guide) {
@@ -152,7 +152,7 @@ export async function PUT(
     }
 
     const rl = checkRateLimit(`guide-sections-reorder:${user.id}`, 20, 60_000);
-    if (!rl.allowed) return rateLimitResponse();
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const guide = await resolveGuideId(supabase, slug);
     if (!guide) {
