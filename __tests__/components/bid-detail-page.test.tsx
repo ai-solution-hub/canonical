@@ -545,7 +545,8 @@ describe('BidDetailPage', () => {
 
   it('shows Open Session button linking to session page', () => {
     render(<BidDetailPage params={mockParams} />);
-    const sessionLink = screen.getByText('Open Session').closest('a');
+    const sessionLinks = screen.getAllByText('Open Session');
+    const sessionLink = sessionLinks[0].closest('a');
     expect(sessionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
   });
 });

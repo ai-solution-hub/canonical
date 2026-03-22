@@ -10,6 +10,7 @@ import { GuideSection } from '@/components/guide/guide-section';
 import { GuideProgressBar } from '@/components/guide/guide-progress-bar';
 import { GuideResearchFeed } from '@/components/guide/guide-research-feed';
 import { useUserRole } from '@/hooks/use-user-role';
+import { cn } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -76,6 +77,74 @@ const GUIDE_TYPE_LABELS: Record<string, string> = {
   research: 'Research Guide',
   custom: 'Guide',
 };
+
+// ---------------------------------------------------------------------------
+// Shared sidebar content — rendered in both mobile accordion and desktop aside
+// ---------------------------------------------------------------------------
+
+function GuideSidebarContent({
+  guide,
+  sections,
+  relatedGuides,
+}: {
+  guide: GuideMetadata;
+  sections: Section[];
+  relatedGuides: RelatedGuide[];
+}) {
+  return (
+    <>
+      {relatedGuides.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Related Guides
+          </h3>
+          <ul className="mt-3 space-y-2">
+            {relatedGuides.map((related) => (
+              <li key={related.id}>
+                <Link
+                  href={`/guide/${related.slug}`}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  <BookOpen className="size-3.5 shrink-0" aria-hidden="true" />
+                  {related.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className={cn(relatedGuides.length > 0 && 'mt-4', 'rounded-lg border border-border bg-card p-4')}>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Guide Info
+        </h3>
+        <dl className="mt-3 space-y-2 text-sm">
+          <div>
+            <dt className="text-xs text-muted-foreground">Type</dt>
+            <dd className="font-medium text-foreground">
+              {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
+            </dd>
+          </div>
+          {guide.domain_filter && (
+            <div>
+              <dt className="text-xs text-muted-foreground">Domain</dt>
+              <dd><DomainBadge domain={guide.domain_filter} /></dd>
+            </div>
+          )}
+          <div>
+            <dt className="text-xs text-muted-foreground">Sections</dt>
+            <dd className="font-medium text-foreground">{sections.length}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Published</dt>
+            <dd className="font-medium text-foreground">
+              {guide.is_published ? 'Yes' : 'No'}
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -215,6 +284,22 @@ export function GuideContent({ slug }: { slug: string }) {
         </div>
       )}
 
+      {/* Mobile sidebar accordion — visible below lg only */}
+      <div className="mt-4 lg:hidden">
+        <details className="rounded-lg border border-border bg-card">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">
+            Guide details & related guides
+          </summary>
+          <div className="space-y-4 px-4 pb-4">
+            <GuideSidebarContent
+              guide={guide}
+              sections={sections}
+              relatedGuides={relatedGuides}
+            />
+          </div>
+        </details>
+      </div>
+
       {/* Main content + Sidebar */}
       <div className="mt-6 flex gap-4 lg:gap-8">
         {/* Main content */}
@@ -249,62 +334,13 @@ export function GuideContent({ slug }: { slug: string }) {
           )}
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar — desktop only */}
         <aside className="hidden w-64 shrink-0 lg:block">
-          {/* Related guides */}
-          {relatedGuides.length > 0 && (
-            <div className="rounded-lg border border-border bg-card p-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Related Guides
-              </h3>
-              <ul className="mt-3 space-y-2">
-                {relatedGuides.map((related) => (
-                  <li key={related.id}>
-                    <Link
-                      href={`/guide/${related.slug}`}
-                      className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      <BookOpen className="size-3.5 shrink-0" aria-hidden="true" />
-                      {related.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Guide info */}
-          <div className="mt-4 rounded-lg border border-border bg-card p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Guide Info
-            </h3>
-            <dl className="mt-3 space-y-2 text-sm">
-              <div>
-                <dt className="text-xs text-muted-foreground">Type</dt>
-                <dd className="font-medium text-foreground">
-                  {GUIDE_TYPE_LABELS[guide.guide_type] ?? guide.guide_type}
-                </dd>
-              </div>
-              {guide.domain_filter && (
-                <div>
-                  <dt className="text-xs text-muted-foreground">Domain</dt>
-                  <dd>
-                    <DomainBadge domain={guide.domain_filter} />
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-xs text-muted-foreground">Sections</dt>
-                <dd className="font-medium text-foreground">{sections.length}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">Published</dt>
-                <dd className="font-medium text-foreground">
-                  {guide.is_published ? 'Yes' : 'No'}
-                </dd>
-              </div>
-            </dl>
-          </div>
+          <GuideSidebarContent
+            guide={guide}
+            sections={sections}
+            relatedGuides={relatedGuides}
+          />
         </aside>
       </div>
     </section>

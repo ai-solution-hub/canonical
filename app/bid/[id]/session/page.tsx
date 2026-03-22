@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, useMemo, use } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   AlertCircle,
   Library,
@@ -19,6 +21,13 @@ import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator'
 import { ContentLibraryDrawer } from '@/components/content-library-drawer';
 import { ResponseVersionHistory } from '@/components/response-version-history';
 import { BidContextProvider, useBidContext } from '@/components/bid-context-provider';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import { BidCopilotActions } from '@/components/bid-copilot-actions';
 import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
 import { BidCopilotPageContext } from '@/components/bid-copilot-page-context';
@@ -49,6 +58,70 @@ function BidContextSync({
   return null;
 }
 
+function CompactQuestionBar({
+  currentIndex,
+  totalQuestions,
+  questionText,
+  onPrev,
+  onNext,
+  onOpenAll,
+}: {
+  currentIndex: number;
+  totalQuestions: number;
+  questionText: string;
+  onPrev: () => void;
+  onNext: () => void;
+  onOpenAll: () => void;
+}) {
+  return (
+    <div
+      className="sticky top-0 z-10 flex items-center gap-2 rounded-lg border bg-card px-3 py-2"
+      role="navigation"
+      aria-label="Question navigation"
+    >
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onPrev}
+        disabled={currentIndex <= 0}
+        aria-label="Previous question"
+        type="button"
+      >
+        <ChevronLeft className="size-4" />
+      </Button>
+
+      <span className="shrink-0 text-sm font-medium tabular-nums">
+        Q{currentIndex + 1}/{totalQuestions}
+      </span>
+
+      <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+        {questionText}
+      </span>
+
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={onNext}
+        disabled={currentIndex >= totalQuestions - 1}
+        aria-label="Next question"
+        type="button"
+      >
+        <ChevronRight className="size-4" />
+      </Button>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onOpenAll}
+        className="shrink-0"
+        type="button"
+      >
+        All
+      </Button>
+    </div>
+  );
+}
+
 export default function BidSessionPage({
   params,
 }: {
@@ -65,6 +138,9 @@ export default function BidSessionPage({
 
   // Version history panel
   const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Mobile question navigator Sheet
+  const [questionSheetOpen, setQuestionSheetOpen] = useState(false);
 
   // Tiptap editor instance — stored as state so BidContextSync re-renders on change
   const editorInstanceRef = useRef<Editor | null>(null);
@@ -199,11 +275,41 @@ export default function BidSessionPage({
         </div>
       </div>
 
+      {/* Mobile compact question bar */}
+      {questions.length > 0 && (
+        <div className="mt-4 lg:hidden">
+          <CompactQuestionBar
+            currentIndex={currentIndex}
+            totalQuestions={questions.length}
+            questionText={currentQuestion?.question_text ?? ''}
+            onPrev={() => handleNavigate(currentIndex - 1)}
+            onNext={() => handleNavigate(currentIndex + 1)}
+            onOpenAll={() => setQuestionSheetOpen(true)}
+          />
+
+          <Sheet open={questionSheetOpen} onOpenChange={setQuestionSheetOpen}>
+            <SheetContent side="left" className="w-80 overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Questions</SheetTitle>
+                <SheetDescription>Navigate bid questions</SheetDescription>
+              </SheetHeader>
+              <div className="mt-4">
+                <QuestionNavigator
+                  questions={navigatorQuestions}
+                  currentIndex={currentIndex}
+                  onNavigate={(i) => { handleNavigate(i); setQuestionSheetOpen(false); }}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      )}
+
       {/* Split panel layout */}
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:gap-6">
-        {/* Left panel: Question navigator */}
+        {/* Left panel: Question navigator — hidden on mobile (compact bar above) */}
         <aside
-          className="w-full shrink-0 lg:w-72 xl:w-80"
+          className="hidden w-full shrink-0 lg:block lg:w-72 xl:w-80"
           aria-label="Question navigation"
         >
           <h2 className="sr-only">Question Navigation</h2>
