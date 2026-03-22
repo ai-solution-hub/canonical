@@ -8,7 +8,7 @@
 export { CHARACTER_LIMIT, truncate, truncateResponse, formatDeadline, formatProgress } from './shared';
 export { type SearchResult, formatSearchResults, formatQASearchResults, type SimilarItem, type SimilarItemsResult, formatSimilarItems } from './search';
 export { type ContentItemDetail, formatContentItem, type CreatedItem, formatCreatedItem, type UpdatedItemResult, formatUpdatedItem, type BatchContentItemsResult, formatBatchContentItems } from './content';
-export { formatDashboardSummary, formatActiveBids, type FreshnessReport, formatFreshnessReport, formatReorientation } from './dashboard';
+export { formatDashboardSummary, formatActiveBids, type FreshnessReport, formatFreshnessReport, formatReorientation, type ExpiringContentItem, type ExpiringEntityMention, type ExpiringContentData, formatExpiringContent } from './dashboard';
 export { type BidQuestionSummary, type BidSection, type BidDetail, formatBidDetail, type BidQuestionDetail, formatBidQuestion, type CitationResult, formatCitation, type ContentEffectiveness, formatContentEffectiveness } from './bids';
 export { type QualitySummary, formatQualitySummary, type CoverageGapResult, formatCoverageGaps, type AuditItem, type AuditResult, formatAuditResult, type DuplicatePair, type DuplicatePairsResult, formatDuplicatePairs, type QualityAction, type QualityActionsResult, formatQualityActions } from './quality';
 export { type EntitySummaryResult, type EntityRelationship, type EntityOverview, formatEntitySummary, formatEntityOverview, type CertificationReportEntry, type CertificationReportData, formatCertificationReport } from './entities';

@@ -4,6 +4,34 @@
 import type { ActiveBidSummary, DashboardData, GroupedActivityItem } from '@/lib/dashboard';
 import type { ReorientData } from '@/types/reorient';
 import { formatDeadline, formatProgress } from './shared';
+import { formatDateUK } from '@/lib/format';
+
+// ---------------------------------------------------------------------------
+// Expiring content types
+// ---------------------------------------------------------------------------
+
+export interface ExpiringContentItem {
+  id: string;
+  title: string;
+  expiry_date: string;
+  days_remaining: number;
+  domain: string | null;
+  lifecycle_type: string | null;
+}
+
+export interface ExpiringEntityMention {
+  canonical_name: string;
+  entity_type: string;
+  expiry_date: string;
+  days_remaining: number;
+  expiry_status: string;
+}
+
+export interface ExpiringContentData {
+  content_items: ExpiringContentItem[];
+  entity_mentions: ExpiringEntityMention[];
+  days_ahead: number;
+}
 
 // ---------------------------------------------------------------------------
 // Dashboard summary
@@ -232,6 +260,86 @@ export function formatReorientation(data: ReorientData): string {
     for (const item of countItems) {
       lines.push(`- ${item}`);
     }
+  }
+
+  return lines.join('\n');
+}
+
+// ---------------------------------------------------------------------------
+// Expiring content
+// ---------------------------------------------------------------------------
+
+/**
+ * Urgency indicator for expiring items.
+ * - OVERDUE for items past their expiry date
+ * - URGENT for items expiring within 7 days
+ * - SOON for items expiring within 30 days
+ * - UPCOMING for items expiring further out
+ */
+function urgencyIndicator(daysRemaining: number): string {
+  if (daysRemaining < 0) return 'OVERDUE';
+  if (daysRemaining <= 7) return 'URGENT';
+  if (daysRemaining <= 30) return 'SOON';
+  return 'UPCOMING';
+}
+
+/**
+ * Format expiring content items and entity mentions into readable markdown.
+ *
+ * Produces two sections:
+ *   1. Expiring Content Items — KB items with approaching expiry dates
+ *   2. Expiring Certifications/Registrations — entity-level expiry from
+ *      entity_mentions metadata
+ *
+ * Each entry includes an urgency indicator and days remaining.
+ */
+export function formatExpiringContent(data: ExpiringContentData): string {
+  const lines: string[] = [
+    '# Expiring Content',
+    '',
+    `Looking ahead **${data.days_ahead} days** from today.`,
+    '',
+  ];
+
+  // Section 1: Content items
+  if (data.content_items.length > 0) {
+    lines.push(`## Expiring Content Items (${data.content_items.length})`, '');
+    lines.push('| Item | Domain | Expiry Date | Days Remaining | Urgency |');
+    lines.push('| ---- | ------ | ----------- | -------------- | ------- |');
+
+    for (const item of data.content_items) {
+      const urgency = urgencyIndicator(item.days_remaining);
+      const domain = item.domain ?? 'Unclassified';
+      const dateStr = formatDateUK(item.expiry_date);
+      const daysStr = item.days_remaining < 0
+        ? `${Math.abs(item.days_remaining)} overdue`
+        : `${item.days_remaining}`;
+      lines.push(`| ${item.title} | ${domain} | ${dateStr} | ${daysStr} | ${urgency} |`);
+    }
+    lines.push('');
+  } else {
+    lines.push('## Expiring Content Items', '');
+    lines.push('No content items expiring within this period.', '');
+  }
+
+  // Section 2: Entity mentions (certifications/registrations)
+  if (data.entity_mentions.length > 0) {
+    lines.push(`## Expiring Certifications/Registrations (${data.entity_mentions.length})`, '');
+    lines.push('| Name | Type | Expiry Date | Days Remaining | Status |');
+    lines.push('| ---- | ---- | ----------- | -------------- | ------ |');
+
+    for (const entity of data.entity_mentions) {
+      const urgency = urgencyIndicator(entity.days_remaining);
+      const dateStr = formatDateUK(entity.expiry_date);
+      const daysStr = entity.days_remaining < 0
+        ? `${Math.abs(entity.days_remaining)} overdue`
+        : `${entity.days_remaining}`;
+      lines.push(`| ${entity.canonical_name} | ${entity.entity_type} | ${dateStr} | ${daysStr} | ${urgency} |`);
+    }
+    lines.push('');
+  } else {
+    lines.push('## Expiring Certifications/Registrations', '');
+    lines.push('No certifications or registrations expiring within this period.', '');
   }
 
   return lines.join('\n');

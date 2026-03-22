@@ -1,18 +1,26 @@
 /**
- * Dashboard tool registrations (3 tools):
+ * Dashboard tool registrations (4 tools):
  *   2. get_dashboard_summary
  *   5. get_reorientation
  *   9. get_freshness_report
+ *  38. get_expiring_content
  */
+import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { createMcpClient, getMcpUserId, getMcpUserRole } from '@/lib/mcp/auth';
 import {
   formatDashboardSummary,
   formatReorientation,
   formatFreshnessReport,
+  formatExpiringContent,
   truncateResponse,
 } from '@/lib/mcp/formatters';
-import type { FreshnessReport } from '@/lib/mcp/formatters';
+import type {
+  FreshnessReport,
+  ExpiringContentItem,
+  ExpiringEntityMention,
+  ExpiringContentData,
+} from '@/lib/mcp/formatters';
 import {
   type ToolExtra,
   toStructuredContent,
@@ -206,6 +214,166 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         const message = err instanceof Error ? err.message : 'Unknown error';
         return {
           content: [{ type: 'text' as const, text: `Freshness query failed: ${message}. The database function may be temporarily unavailable.` }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // 38. get_expiring_content
+  // -------------------------------------------------------------------------
+  server.registerTool(
+    'get_expiring_content',
+    {
+      title: 'Expiring Content',
+      description:
+        'Get a list of content items and certifications/registrations approaching their expiry date. Shows items grouped by urgency (overdue, urgent, soon, upcoming). Use this to plan renewals and keep the knowledge base current.',
+      inputSchema: {
+        days_ahead: z
+          .number()
+          .optional()
+          .describe('How many days ahead to look for expiring content (default: 30, max: 365)'),
+        domain: z
+          .string()
+          .optional()
+          .describe('Filter content items by domain (e.g. "Information Governance")'),
+        include_entities: z
+          .boolean()
+          .optional()
+          .describe('Include entity mention expiry dates such as certifications and registrations (default: true)'),
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    async (args, extra: ToolExtra) => {
+      try {
+        const supabase = createMcpClient(extra.authInfo);
+        const daysAhead = Math.min(Math.max(args.days_ahead ?? 30, 1), 365);
+        const includeEntities = args.include_entities ?? true;
+
+        const now = new Date();
+        const cutoffDate = new Date(now);
+        cutoffDate.setDate(cutoffDate.getDate() + daysAhead);
+
+        // Query 1: Content items with expiry_date within the window
+        let contentQuery = supabase
+          .from('content_items')
+          .select('id, title, expiry_date, domain, lifecycle_type')
+          .is('archived_at', null)
+          .not('expiry_date', 'is', null)
+          .lte('expiry_date', cutoffDate.toISOString())
+          .order('expiry_date', { ascending: true });
+
+        if (args.domain) {
+          contentQuery = contentQuery.eq('domain', args.domain);
+        }
+
+        const { data: contentRows, error: contentError } = await contentQuery;
+
+        if (contentError) {
+          return {
+            content: [{ type: 'text' as const, text: `Expiring content query failed: ${contentError.message}` }],
+            isError: true,
+          };
+        }
+
+        const contentItems: ExpiringContentItem[] = ((contentRows ?? []) as Array<{
+          id: string;
+          title: string;
+          expiry_date: string;
+          domain: string | null;
+          lifecycle_type: string | null;
+        }>).map((row) => {
+          const expiryDate = new Date(row.expiry_date);
+          const diffMs = expiryDate.getTime() - now.getTime();
+          const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          return {
+            id: row.id,
+            title: row.title,
+            expiry_date: row.expiry_date,
+            days_remaining: daysRemaining,
+            domain: row.domain,
+            lifecycle_type: row.lifecycle_type,
+          };
+        });
+
+        // Query 2: Entity mentions with expiry_date in metadata (if requested)
+        let entityMentions: ExpiringEntityMention[] = [];
+
+        if (includeEntities) {
+          const { deriveExpiryStatus } = await import('@/lib/certification-status');
+
+          const { data: entityRows, error: entityError } = await supabase
+            .from('entity_mentions')
+            .select('canonical_name, entity_type, metadata')
+            .not('metadata', 'is', null);
+
+          if (entityError) {
+            // Non-critical — entity mentions are supplementary
+            // Log but continue with content items only
+          } else {
+            // Filter and deduplicate by canonical_name (keep nearest expiry)
+            const entityMap = new Map<string, ExpiringEntityMention>();
+
+            for (const row of (entityRows ?? []) as Array<{
+              canonical_name: string;
+              entity_type: string;
+              metadata: Record<string, unknown> | null;
+            }>) {
+              const meta = row.metadata;
+              if (!meta) continue;
+              const expiryDateStr = meta.expiry_date as string | undefined;
+              if (!expiryDateStr) continue;
+
+              const expiryDate = new Date(expiryDateStr);
+              if (isNaN(expiryDate.getTime())) continue;
+
+              // Only include if within the lookahead window
+              if (expiryDate.getTime() > cutoffDate.getTime()) continue;
+
+              const diffMs = expiryDate.getTime() - now.getTime();
+              const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+              const status = deriveExpiryStatus(expiryDateStr);
+
+              const existing = entityMap.get(row.canonical_name);
+              // Keep the entry with the nearest (most urgent) expiry date
+              if (!existing || daysRemaining < existing.days_remaining) {
+                entityMap.set(row.canonical_name, {
+                  canonical_name: row.canonical_name,
+                  entity_type: row.entity_type,
+                  expiry_date: expiryDateStr,
+                  days_remaining: daysRemaining,
+                  expiry_status: status,
+                });
+              }
+            }
+
+            entityMentions = Array.from(entityMap.values()).sort(
+              (a, b) => a.days_remaining - b.days_remaining,
+            );
+          }
+        }
+
+        const reportData: ExpiringContentData = {
+          content_items: contentItems,
+          entity_mentions: entityMentions,
+          days_ahead: daysAhead,
+        };
+
+        const markdown = truncateResponse(formatExpiringContent(reportData));
+
+        return {
+          content: [{ type: 'text' as const, text: markdown }],
+          structuredContent: toStructuredContent(reportData),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        return {
+          content: [{ type: 'text' as const, text: `Expiring content query failed: ${message}. The database function may be temporarily unavailable.` }],
           isError: true,
         };
       }
