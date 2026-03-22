@@ -204,6 +204,44 @@ export async function POST(request: NextRequest) {
       // Non-fatal — item is still usable without a layer suggestion
     }
 
+    // Quality score — calculate and store after AI processing
+    try {
+      const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+      const { createServiceClient } = await import('@/lib/supabase/server');
+      const serviceClient = createServiceClient();
+
+      // Fetch the latest item state (classification may have updated fields)
+      const { data: latestItem } = await serviceClient
+        .from('content_items')
+        .select('freshness, classification_confidence, brief, detail, reference, ai_summary, metadata')
+        .eq('id', newItem.id)
+        .single();
+
+      if (latestItem) {
+        const meta = latestItem.metadata as Record<string, unknown> | null;
+        const score = calculateAndRoundQualityScore({
+          freshness: latestItem.freshness,
+          classification_confidence: latestItem.classification_confidence,
+          brief: latestItem.brief,
+          detail: latestItem.detail,
+          reference: latestItem.reference,
+          ai_summary: latestItem.ai_summary,
+          citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+        });
+
+        await serviceClient
+          .from('content_items')
+          .update({
+            quality_score: score,
+            quality_score_updated_at: new Date().toISOString(),
+          })
+          .eq('id', newItem.id);
+      }
+    } catch (qualityErr) {
+      console.error('Quality score calculation failed:', qualityErr);
+      // Non-fatal — item is still usable without a stored quality score
+    }
+
     // Topic suggestion — after layer inference (uses layer for matching)
     let topicSuggestion: { topicId: string; reason: string } | undefined;
     try {

@@ -105,6 +105,16 @@ function labelForScore(
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Convenience wrapper that returns only the integer score (0–100).
+ * Used by API routes and cron jobs when storing the score in the database.
+ */
+export function calculateAndRoundQualityScore(
+  input: QualityScoreInput,
+): number {
+  return calculateQualityScore(input).score;
+}
+
 export function calculateQualityScore(
   input: QualityScoreInput,
 ): QualityScoreResult {
