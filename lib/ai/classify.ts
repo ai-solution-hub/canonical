@@ -51,6 +51,16 @@ export interface ExtractedRelationship {
   target: string;
 }
 
+/** AI-extracted temporal reference from content classification. */
+export interface ClassificationTemporalReference {
+  /** ISO 8601 date string */
+  date: string;
+  /** What this date refers to (e.g. "ICO registration expiry") */
+  context: string;
+  /** Classification of the date's purpose */
+  context_type: 'expiry' | 'effective' | 'historical' | 'unknown';
+}
+
 export interface ClassificationResult {
   primary_domain: string;
   primary_subtopic: string;
@@ -63,6 +73,8 @@ export interface ClassificationResult {
   classification_reasoning: string;
   entities?: ExtractedEntity[];
   relationships?: ExtractedRelationship[];
+  /** AI-extracted temporal references — optional, returned when Claude detects dates */
+  temporal_references?: ClassificationTemporalReference[];
   cached?: boolean;
 }
 
@@ -90,7 +102,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
   const { data: item, error: fetchError } = await supabase
     .from('content_items')
     .select(
-      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, ai_summary, suggested_title, classification_confidence, classification_reasoning',
+      'id, title, content, content_type, classified_at, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, ai_keywords, ai_summary, suggested_title, classification_confidence, classification_reasoning, metadata',
     )
     .eq('id', itemId)
     .single();
@@ -244,6 +256,32 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                 required: ['source', 'relationship', 'target'],
               },
             },
+            temporal_references: {
+              type: 'array',
+              description:
+                'Dates and temporal references found in the content (expiry dates, renewal dates, effective dates, etc.)',
+              items: {
+                type: 'object',
+                properties: {
+                  date: {
+                    type: 'string',
+                    description: 'ISO 8601 date string (YYYY-MM-DD)',
+                  },
+                  context: {
+                    type: 'string',
+                    description:
+                      'What this date refers to (e.g. "ICO registration expiry")',
+                  },
+                  context_type: {
+                    type: 'string',
+                    enum: ['expiry', 'effective', 'historical', 'unknown'],
+                    description:
+                      'Classification: expiry (when something becomes invalid), effective (when something started), historical (background context), unknown',
+                  },
+                },
+                required: ['date', 'context', 'context_type'],
+              },
+            },
           },
           required: [
             'primary_domain',
@@ -335,6 +373,19 @@ Only include entities and relationships that are clearly stated or strongly impl
     console.error('Embedding regeneration during classification failed:', embedErr);
   }
 
+  // Store AI-extracted temporal references in item metadata (non-blocking)
+  if (result.temporal_references?.length) {
+    try {
+      const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
+      updateData.metadata = {
+        ...existingMetadata,
+        ai_temporal_references: result.temporal_references,
+      };
+    } catch (temporalErr) {
+      console.error('Failed to merge temporal references into metadata:', temporalErr);
+    }
+  }
+
   const { error: updateError } = await supabase
     .from('content_items')
     .update(updateData)
@@ -413,5 +464,6 @@ Only include entities and relationships that are clearly stated or strongly impl
     classification_reasoning: result.classification_reasoning,
     entities: result.entities,
     relationships: result.relationships,
+    temporal_references: result.temporal_references,
   };
 }
