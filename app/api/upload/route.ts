@@ -205,6 +205,8 @@ export async function POST(request: NextRequest) {
     const contentTypeOverride = formData.get('content_type') as string | null;
     const authorOverride = formData.get('author') as string | null;
     const workspaceId = formData.get('workspace_id') as string | null;
+    const draftMode = formData.get('draft') as string | null;
+    const createAsDraft = draftMode === 'true';
 
     const filename = file.name;
     const title = titleOverride || titleFromFilename(filename);
@@ -302,6 +304,7 @@ export async function POST(request: NextRequest) {
           mime_type: mimeType,
           ingestion_source: 'upload',
         },
+        ...(createAsDraft ? { governance_review_status: 'draft' } : {}),
         ...(authorOverride ? { author_name: authorOverride } : {}),
         created_by: user.id,
       })
@@ -874,14 +877,48 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Fetch enriched item data for the review UI (classification, summary, quality score)
+    let classificationData: { domain: string; subtopic: string; confidence: number | null } | undefined;
+    let aiSummary: string | undefined;
+    let qualityScore: number | undefined;
+    if (extractedText) {
+      try {
+        const { data: processedItem } = await serviceClient
+          .from('content_items')
+          .select('primary_domain, primary_subtopic, ai_summary, classification_confidence, quality_score, content_type')
+          .eq('id', itemId)
+          .single();
+
+        if (processedItem) {
+          if (processedItem.primary_domain || processedItem.primary_subtopic) {
+            classificationData = {
+              domain: processedItem.primary_domain || '',
+              subtopic: processedItem.primary_subtopic || '',
+              confidence: processedItem.classification_confidence,
+            };
+          }
+          aiSummary = processedItem.ai_summary ?? undefined;
+          qualityScore = processedItem.quality_score ?? undefined;
+        }
+      } catch (enrichErr) {
+        console.error('Failed to fetch enriched item data:', enrichErr);
+        // Non-fatal — response will just lack enrichment data
+      }
+    }
+
     return NextResponse.json({
       id: itemId,
       title,
+      content_type: contentType,
       file_path: storagePath,
       content_length: extractedText.length,
       warnings,
       duplicate_matches,
       pipeline_run_id: pipelineRunId,
+      governance_review_status: createAsDraft ? 'draft' : null,
+      ...(classificationData && { classification: classificationData }),
+      ...(aiSummary !== undefined && { ai_summary: aiSummary }),
+      ...(qualityScore !== undefined && { quality_score: qualityScore }),
       ...(sourceDocumentId && { source_document_id: sourceDocumentId }),
       ...(reuploadInfo && {
         reupload_detection: {
