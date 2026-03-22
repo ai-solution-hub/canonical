@@ -98,7 +98,7 @@ export function GuideSection({ section, sectionNumber, domainFilter, guideName }
   const hasContent = section.content_items.length > 0;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div id={section.section_id} className="rounded-lg border border-border bg-card p-4">
       {/* Section header */}
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="text-base font-semibold text-foreground">
