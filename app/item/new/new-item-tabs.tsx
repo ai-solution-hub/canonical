@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { PenLine, Globe } from 'lucide-react';
+import { PenLine, Globe, FileUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateContentClient } from './create-content-client';
 import { UrlIngestForm } from '@/components/url-ingest-form';
+import { UploadTabContent } from '@/components/upload-tab-content';
 import { FileUploadDialog } from '@/components/file-upload-dialog';
 
 /**
@@ -13,7 +14,9 @@ import { FileUploadDialog } from '@/components/file-upload-dialog';
  * Three methods available:
  * - "Write content" — the existing manual create form
  * - "Import from URL" — fetch and extract from a web page
- * - File upload dialog — accessible via links within the other tabs
+ * - "Upload file" — drag-and-drop file upload with review step
+ *
+ * The FileUploadDialog remains available for quick-upload from the Browse page.
  */
 export function NewItemTabs() {
   const [activeTab, setActiveTab] = useState('write');
@@ -31,6 +34,10 @@ export function NewItemTabs() {
             <Globe className="size-4" aria-hidden="true" />
             Import from URL
           </TabsTrigger>
+          <TabsTrigger value="upload" className="gap-1.5">
+            <FileUp className="size-4" aria-hidden="true" />
+            Upload file
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="write">
@@ -42,7 +49,7 @@ export function NewItemTabs() {
                 Have a file instead?{' '}
                 <button
                   type="button"
-                  onClick={() => setShowUploadDialog(true)}
+                  onClick={() => setActiveTab('upload')}
                   className="rounded-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                 >
                   Upload it
@@ -68,8 +75,15 @@ export function NewItemTabs() {
             </div>
           </section>
         </TabsContent>
+
+        <TabsContent value="upload">
+          <section aria-label="Upload documents">
+            <UploadTabContent onSwitchTab={setActiveTab} />
+          </section>
+        </TabsContent>
       </Tabs>
 
+      {/* Dialog still available for Browse page quick-upload */}
       <FileUploadDialog open={showUploadDialog} onOpenChange={setShowUploadDialog} />
     </>
   );
