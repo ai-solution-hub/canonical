@@ -139,7 +139,7 @@ class TestExtractEntitiesByKeyword:
     def test_multiple_entity_types(self):
         """Multiple entity types are extracted from a single text."""
         text = (
-            "example-client holds ISO 27001 and Cyber Essentials Plus certifications. "
+            "The ICO confirmed our ISO 27001 and Cyber Essentials Plus certifications. "
             "Our GDPR compliance is audited annually. We use Azure and Active Directory. "
             "We follow ITIL practices for our public sector clients."
         )

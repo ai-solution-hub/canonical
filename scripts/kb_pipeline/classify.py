@@ -322,7 +322,6 @@ VALID_ENTITY_TYPES = frozenset([
 # Patterns are compiled as case-insensitive regex.
 KNOWN_ENTITIES = [
     # Organisations
-    (r"\bexample-client\b", "example-client", "organisation", "example-client"),
     (r"\bICO\b", "ICO", "organisation", "ICO"),
     (r"\bInformation Commissioner(?:'s)? Office\b", "Information Commissioner's Office", "organisation", "ICO"),
     (r"\bNCSC\b", "NCSC", "organisation", "NCSC"),
