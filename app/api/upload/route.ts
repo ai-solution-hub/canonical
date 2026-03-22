@@ -685,6 +685,8 @@ export async function POST(request: NextRequest) {
 
     // Topic suggestion — after layer inference
     let topicSuggestion: { topicId: string; reason: string } | undefined;
+    let classifiedDomain = '';
+    let classifiedSubtopic = '';
     if (extractedText) {
       try {
         const { suggestTopic } = await import('@/lib/topic-inference');
@@ -696,13 +698,13 @@ export async function POST(request: NextRequest) {
           .eq('id', itemId)
           .single();
 
-        const effectiveDomain = classified?.primary_domain || '';
-        const effectiveSubtopic = classified?.primary_subtopic || '';
+        classifiedDomain = classified?.primary_domain || '';
+        classifiedSubtopic = classified?.primary_subtopic || '';
 
-        if (effectiveDomain && effectiveSubtopic) {
+        if (classifiedDomain && classifiedSubtopic) {
           const suggestion = await suggestTopic(serviceClient, {
-            primaryDomain: effectiveDomain,
-            primarySubtopic: effectiveSubtopic,
+            primaryDomain: classifiedDomain,
+            primarySubtopic: classifiedSubtopic,
             title,
             suggestedLayer: suggestedLayer?.suggestedLayer || '',
           });
@@ -718,6 +720,26 @@ export async function POST(request: NextRequest) {
       } catch (topicErr) {
         console.error('Topic suggestion failed:', topicErr);
         // Non-fatal — item is still usable without a topic suggestion
+      }
+    }
+
+    // Guide section suggestion — after topic suggestion
+    let guideSectionSuggestions: import('@/lib/guide-section-mapping').GuideSectionMatch[] | undefined;
+    if (extractedText && classifiedDomain) {
+      try {
+        const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+        const matches = await suggestGuideSections(serviceClient, {
+          primaryDomain: classifiedDomain,
+          primarySubtopic: classifiedSubtopic,
+          layer: suggestedLayer?.suggestedLayer,
+          contentType,
+        });
+        if (matches.length > 0) {
+          guideSectionSuggestions = matches;
+        }
+      } catch (guideErr) {
+        console.error('Guide section suggestion failed:', guideErr);
+        // Non-fatal — item is still usable without guide section suggestions
       }
     }
 
@@ -839,6 +861,7 @@ export async function POST(request: NextRequest) {
       }),
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
+      ...(guideSectionSuggestions && { guide_section_suggestions: guideSectionSuggestions }),
       ...(diffAvailable && { diff_available: true }),
       message: extractedText
         ? 'File uploaded, text extracted, and AI processing complete.'

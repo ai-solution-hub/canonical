@@ -254,16 +254,46 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           }
         }
 
+        // Guide section suggestion — fetch classified item then match
+        let guideSectionSuggestions: { guideId: string; guideName: string; guideSlug: string; sectionId: string; sectionName: string; sectionOrder: number; isRequired: boolean; matchStrength: string; matchReason: string }[] = [];
+        if (!isDraft) {
+          try {
+            const { data: classifiedItem } = await supabase
+              .from('content_items')
+              .select('primary_domain, primary_subtopic, content_type, metadata')
+              .eq('id', item.id)
+              .single();
+
+            if (classifiedItem?.primary_domain) {
+              const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+              const meta = classifiedItem.metadata as Record<string, unknown> | null;
+              const matches = await suggestGuideSections(supabase, {
+                primaryDomain: classifiedItem.primary_domain,
+                primarySubtopic: classifiedItem.primary_subtopic || '',
+                layer: (typeof meta?.layer === 'string' ? meta.layer : suggestedLayerKey) || undefined,
+                contentType: classifiedItem.content_type || args.content_type,
+              });
+              guideSectionSuggestions = matches;
+            }
+          } catch (guideErr) {
+            console.error('MCP guide section suggestion failed:', guideErr);
+            // Non-fatal — item is still usable without guide section suggestions
+          }
+        }
+
         const draftNote = isDraft
           ? '\n\n**Status:** Draft — excluded from search. Use `update_governance_status` to publish when ready.'
           : '';
         const layerNote = suggestedLayerKey
           ? `\n\n**Layer:** ${suggestedLayerKey} (auto-assigned)`
           : '';
+        const guideNote = guideSectionSuggestions.length > 0
+          ? `\n\n**Guide sections:** ${guideSectionSuggestions.map(gs => `${gs.guideName} > ${gs.sectionName}`).join(', ')}`
+          : '';
         const warningNote = warnings.length > 0
           ? `\n\n**Warnings:**\n${warnings.map(w => `- ${w}`).join('\n')}`
           : '';
-        const markdown = formatCreatedItem(created) + draftNote + layerNote + warningNote;
+        const markdown = formatCreatedItem(created) + draftNote + layerNote + guideNote + warningNote;
         return {
           content: [{ type: 'text' as const, text: markdown }],
           structuredContent: toStructuredContent({
@@ -272,6 +302,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             batch_tag: args.batch_tag ?? null,
             source_document: args.source_document ?? null,
             suggested_layer: suggestedLayerKey ?? null,
+            guide_sections: guideSectionSuggestions.length > 0 ? guideSectionSuggestions : undefined,
             warnings: warnings.length > 0 ? warnings : undefined,
           }),
         };

@@ -274,6 +274,32 @@ export async function POST(request: NextRequest) {
       // Non-fatal — item is still usable without a topic suggestion
     }
 
+    // Guide section suggestion — after topic suggestion
+    let guideSectionSuggestions: import('@/lib/guide-section-mapping').GuideSectionMatch[] | undefined;
+    {
+      const effectiveDomain = primary_domain || '';
+      const effectiveSubtopic = primary_subtopic || '';
+      if (effectiveDomain) {
+        try {
+          const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+          const { createServiceClient } = await import('@/lib/supabase/server');
+          const serviceClient = createServiceClient();
+          const matches = await suggestGuideSections(serviceClient, {
+            primaryDomain: effectiveDomain,
+            primarySubtopic: effectiveSubtopic,
+            layer: suggestedLayer?.suggestedLayer,
+            contentType: content_type,
+          });
+          if (matches.length > 0) {
+            guideSectionSuggestions = matches;
+          }
+        } catch (guideErr) {
+          console.error('Guide section suggestion failed:', guideErr);
+          // Non-fatal — item is still usable without guide section suggestions
+        }
+      }
+    }
+
     return NextResponse.json(
       {
         id: newItem.id,
@@ -284,6 +310,7 @@ export async function POST(request: NextRequest) {
         ...(dedupMatches.length > 0 && { duplicate_matches: dedupMatches }),
         ...(suggestedLayer && { suggested_layer: suggestedLayer }),
         ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
+        ...(guideSectionSuggestions && { guide_section_suggestions: guideSectionSuggestions }),
       },
       { status: 201 },
     );

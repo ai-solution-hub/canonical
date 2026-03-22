@@ -188,6 +188,8 @@ export async function POST(request: NextRequest) {
 
     // 17. Topic suggestion — after layer inference
     let topicSuggestion: { topicId: string; reason: string } | undefined;
+    let classifiedDomain = '';
+    let classifiedSubtopic = '';
     try {
       const { suggestTopic } = await import('@/lib/topic-inference');
       const { createServiceClient } = await import('@/lib/supabase/server');
@@ -200,13 +202,13 @@ export async function POST(request: NextRequest) {
         .eq('id', newItem.id)
         .single();
 
-      const effectiveDomain = classified?.primary_domain || '';
-      const effectiveSubtopic = classified?.primary_subtopic || '';
+      classifiedDomain = classified?.primary_domain || '';
+      classifiedSubtopic = classified?.primary_subtopic || '';
 
-      if (effectiveDomain && effectiveSubtopic) {
+      if (classifiedDomain && classifiedSubtopic) {
         const suggestion = await suggestTopic(serviceClient, {
-          primaryDomain: effectiveDomain,
-          primarySubtopic: effectiveSubtopic,
+          primaryDomain: classifiedDomain,
+          primarySubtopic: classifiedSubtopic,
           title: extracted.title || '',
           suggestedLayer: suggestedLayer?.suggestedLayer || '',
           embeddingArray,
@@ -223,6 +225,28 @@ export async function POST(request: NextRequest) {
     } catch (topicErr) {
       console.error('Topic suggestion failed:', topicErr);
       // Non-fatal — item is still usable without a topic suggestion
+    }
+
+    // 17b. Guide section suggestion — after topic suggestion
+    let guideSectionSuggestions: import('@/lib/guide-section-mapping').GuideSectionMatch[] | undefined;
+    if (classifiedDomain) {
+      try {
+        const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
+        const { createServiceClient } = await import('@/lib/supabase/server');
+        const serviceClient = createServiceClient();
+        const matches = await suggestGuideSections(serviceClient, {
+          primaryDomain: classifiedDomain,
+          primarySubtopic: classifiedSubtopic,
+          layer: suggestedLayer?.suggestedLayer,
+          contentType,
+        });
+        if (matches.length > 0) {
+          guideSectionSuggestions = matches;
+        }
+      } catch (guideErr) {
+        console.error('Guide section suggestion failed:', guideErr);
+        // Non-fatal — item is still usable without guide section suggestions
+      }
     }
 
     // 18. Fetch final item state (post-classify)
@@ -245,6 +269,7 @@ export async function POST(request: NextRequest) {
       duplicate_matches: dedupMatches,
       ...(suggestedLayer && { suggested_layer: suggestedLayer }),
       ...(topicSuggestion && { topic_suggestion: topicSuggestion }),
+      ...(guideSectionSuggestions && { guide_section_suggestions: guideSectionSuggestions }),
     });
   } catch (err) {
     return NextResponse.json(
