@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     const { user, supabase } = auth;
 
     const rl = checkRateLimit(`guides-create:${user.id}`, 20, 60_000);
-    if (!rl.allowed) return rateLimitResponse();
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
     const parsed = parseBody(guideCreateSchema, raw);

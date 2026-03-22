@@ -21,8 +21,8 @@ export const POST = async (req: NextRequest) => {
     // CopilotKit fires parallel suggestion requests on every navigation —
     // the tight limit acts as server-side burst protection, reducing API costs
     // by ~90% while keeping the feature functional.
-    const { allowed } = checkRateLimit(`copilotkit:${auth.user.id}`, 10, 60_000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`copilotkit:${auth.user.id}`, 10, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     // Use Haiku for CopilotKit — suggestions generate ~130 output tokens
     // and don't need Opus quality. Override with AI_COPILOTKIT_MODEL env var.

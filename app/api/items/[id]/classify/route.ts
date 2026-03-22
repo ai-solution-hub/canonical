@@ -26,8 +26,8 @@ export async function POST(
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`classify:${user.id}`, 10, 60 * 1000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`classify:${user.id}`, 20, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const { id } = await params;
 

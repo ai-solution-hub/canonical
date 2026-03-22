@@ -31,12 +31,8 @@ export async function POST(
       );
     }
 
-    const { allowed } = checkRateLimit(
-      `template-fill:${user.id}`,
-      5,
-      60_000,
-    );
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`template-fill:${user.id}`, 5, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const body = await request.json().catch(() => ({}));
     const parsed = TemplateFillBodySchema.safeParse(body);

@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase } = auth;
 
-    const { allowed } = checkRateLimit(`digest:${user.id}`, 3, 5 * 60 * 1000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`digest:${user.id}`, 5, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
     const validated = parseBody(DigestGenerateBodySchema, raw);

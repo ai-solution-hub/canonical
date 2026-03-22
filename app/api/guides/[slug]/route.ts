@@ -144,7 +144,7 @@ export async function PATCH(
     }
 
     const rl = checkRateLimit(`guides-update:${user.id}`, 30, 60_000);
-    if (!rl.allowed) return rateLimitResponse();
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
     const parsed = parseBody(guideUpdateSchema, raw);

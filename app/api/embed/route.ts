@@ -20,8 +20,8 @@ export async function POST(request: NextRequest) {
     const { user } = auth;
 
     // Rate limit: 30 requests per minute
-    const { allowed } = checkRateLimit(`embed:${user.id}`, 30, 60 * 1000);
-    if (!allowed) return rateLimitResponse();
+    const rl = checkRateLimit(`embed:${user.id}`, 30, 60_000);
+    if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const raw = await request.json();
     const parsed = parseBody(EmbedBodySchema, raw);
