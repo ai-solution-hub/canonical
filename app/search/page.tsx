@@ -169,7 +169,7 @@ function SearchResults() {
                       tabIndex={0}
                       className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      Hybrid search
+                      Smart search
                       <Info className="size-3" aria-hidden="true" />
                     </span>
                   </TooltipTrigger>

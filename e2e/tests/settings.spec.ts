@@ -34,12 +34,12 @@ test.describe('Settings page', () => {
     await expect(settingsNav.getByText('Integrations')).toBeVisible();
 
     // Content Management group (admin only)
-    await expect(settingsNav.getByText('Taxonomy')).toBeVisible();
+    await expect(settingsNav.getByText('Domain Coverage')).toBeVisible();
     await expect(settingsNav.getByText('Tags')).toBeVisible();
 
     // System group (admin only)
     await expect(settingsNav.getByText('Team')).toBeVisible();
-    await expect(settingsNav.getByText('Governance')).toBeVisible();
+    await expect(settingsNav.getByText('Quality Review')).toBeVisible();
     await expect(settingsNav.getByText('Activity')).toBeVisible();
   });
 
@@ -62,14 +62,14 @@ test.describe('Settings page', () => {
     ).toHaveAttribute('aria-current', 'page');
   });
 
-  test('can navigate to Taxonomy section', async ({ authenticatedPage: page }) => {
-    await navigateToSettingsSection(page, 'Taxonomy');
+  test('can navigate to Domain Coverage section', async ({ authenticatedPage: page }) => {
+    await navigateToSettingsSection(page, 'Domain Coverage');
 
     await expect(page).toHaveURL(/section=taxonomy/);
 
     const settingsNav = await getSettingsNav(page);
     await expect(
-      settingsNav.getByText('Taxonomy'),
+      settingsNav.getByText('Domain Coverage'),
     ).toHaveAttribute('aria-current', 'page');
   });
 
@@ -95,14 +95,14 @@ test.describe('Settings page', () => {
     ).toHaveAttribute('aria-current', 'page');
   });
 
-  test('can navigate to Governance section', async ({ authenticatedPage: page }) => {
-    await navigateToSettingsSection(page, 'Governance');
+  test('can navigate to Quality Review section', async ({ authenticatedPage: page }) => {
+    await navigateToSettingsSection(page, 'Quality Review');
 
     await expect(page).toHaveURL(/section=governance/);
 
     const settingsNav = await getSettingsNav(page);
     await expect(
-      settingsNav.getByText('Governance'),
+      settingsNav.getByText('Quality Review'),
     ).toHaveAttribute('aria-current', 'page');
   });
 

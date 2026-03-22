@@ -36,11 +36,11 @@ export function ProgressiveDepthFieldset({
   return (
     <fieldset className="space-y-4 rounded-lg border border-border p-4">
       <legend className="px-2 text-sm font-semibold text-muted-foreground">
-        Progressive Depth (optional)
+        Content depth (optional)
       </legend>
 
       <div className="space-y-2">
-        <Label htmlFor="brief">Brief (executive summary)</Label>
+        <Label htmlFor="brief">Summary (executive summary)</Label>
         <Textarea
           id="brief"
           value={brief}
@@ -63,7 +63,7 @@ export function ProgressiveDepthFieldset({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="detail">Detail (expanded explanation)</Label>
+        <Label htmlFor="detail">In Depth (expanded explanation)</Label>
         <Textarea
           id="detail"
           value={detail}
@@ -87,7 +87,7 @@ export function ProgressiveDepthFieldset({
 
       <div className="space-y-2">
         <Label htmlFor="reference">
-          Reference (technical/source detail)
+          Supporting Detail (technical/source detail)
         </Label>
         <Textarea
           id="reference"

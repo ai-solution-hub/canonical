@@ -38,9 +38,9 @@ describe('ProgressiveDepthFieldset', () => {
 
   it('renders brief, detail, and reference textareas', () => {
     render(<ProgressiveDepthFieldset {...createDefaultProps()} />);
-    expect(screen.getByLabelText('Brief (executive summary)')).toBeInTheDocument();
-    expect(screen.getByLabelText('Detail (expanded explanation)')).toBeInTheDocument();
-    expect(screen.getByLabelText('Reference (technical/source detail)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Summary (executive summary)')).toBeInTheDocument();
+    expect(screen.getByLabelText('In Depth (expanded explanation)')).toBeInTheDocument();
+    expect(screen.getByLabelText('Supporting Detail (technical/source detail)')).toBeInTheDocument();
   });
 
   it('shows character counts for each textarea', () => {
@@ -60,16 +60,16 @@ describe('ProgressiveDepthFieldset', () => {
 
   it('textareas have correct maxLength attributes', () => {
     render(<ProgressiveDepthFieldset {...createDefaultProps()} />);
-    expect(screen.getByLabelText('Brief (executive summary)')).toHaveAttribute('maxlength', '5000');
-    expect(screen.getByLabelText('Detail (expanded explanation)')).toHaveAttribute('maxlength', '50000');
-    expect(screen.getByLabelText('Reference (technical/source detail)')).toHaveAttribute('maxlength', '50000');
+    expect(screen.getByLabelText('Summary (executive summary)')).toHaveAttribute('maxlength', '5000');
+    expect(screen.getByLabelText('In Depth (expanded explanation)')).toHaveAttribute('maxlength', '50000');
+    expect(screen.getByLabelText('Supporting Detail (technical/source detail)')).toHaveAttribute('maxlength', '50000');
   });
 
   it('onChange calls correct setter', async () => {
     const setBrief = vi.fn();
     const user = userEvent.setup();
     render(<ProgressiveDepthFieldset {...createDefaultProps({ setBrief })} />);
-    const briefInput = screen.getByLabelText('Brief (executive summary)');
+    const briefInput = screen.getByLabelText('Summary (executive summary)');
     await user.type(briefInput, 'A');
     expect(setBrief).toHaveBeenCalled();
   });
@@ -77,13 +77,13 @@ describe('ProgressiveDepthFieldset', () => {
   it('labels match htmlFor attributes', () => {
     render(<ProgressiveDepthFieldset {...createDefaultProps()} />);
     // Check that clicking the label focuses the corresponding textarea
-    const briefLabel = screen.getByText(/Brief \(executive summary\)/i);
+    const briefLabel = screen.getByText(/Summary \(executive summary\)/i);
     expect(briefLabel).toHaveAttribute('for', 'brief');
 
-    const detailLabel = screen.getByText(/Detail \(expanded explanation\)/i);
+    const detailLabel = screen.getByText(/In Depth \(expanded explanation\)/i);
     expect(detailLabel).toHaveAttribute('for', 'detail');
 
-    const refLabel = screen.getByText(/Reference \(technical\/source detail\)/i);
+    const refLabel = screen.getByText(/Supporting Detail \(technical\/source detail\)/i);
     expect(refLabel).toHaveAttribute('for', 'reference');
   });
 });

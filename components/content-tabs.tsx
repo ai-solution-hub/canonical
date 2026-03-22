@@ -420,7 +420,7 @@ export function ContentTabs({
           )}
           {hasDetail && (
             <TabsTrigger value="detail" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
-              Detailed
+              In Depth
             </TabsTrigger>
           )}
           {hasTakeaways && (
@@ -440,7 +440,7 @@ export function ContentTabs({
           )}
           {hasReference && (
             <TabsTrigger value="reference" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
-              Technical
+              Supporting Detail
             </TabsTrigger>
           )}
           {/* Fallback: no content yet — show disabled placeholders */}
@@ -450,7 +450,7 @@ export function ContentTabs({
                 Summary
               </TabsTrigger>
               <TabsTrigger value="detail" className="px-6 text-sm" disabled>
-                Detailed
+                In Depth
               </TabsTrigger>
             </>
           )}
