@@ -18,6 +18,8 @@ import {
   Sparkles,
   MoreHorizontal,
   AlertCircle,
+  Sheet,
+  Printer,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -25,6 +27,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -193,76 +199,102 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
 
         {/* Actions */}
         {canEdit && (
-          <div className="flex items-center gap-2">
-            {regularTransitions.filter(t => t !== 'withdrawn').length > 0 && (
-              <div className="flex items-center gap-1">
-                {regularTransitions.filter(t => t !== 'withdrawn').map((transition) => (
-                  <Button
-                    key={transition}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleStatusTransition(transition)}
-                    disabled={transitioning}
-                    aria-label={BID_STATE_LABELS[transition]}
-                  >
-                    {transitioning ? (
-                      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {BID_STATE_LABELS[transition]}
-                  </Button>
-                ))}
-              </div>
-            )}
-            {isSubmitted && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowOutcomeDialog(true)}
-              >
-                Record Outcome
+          <>
+            {/* Desktop actions — hidden on mobile */}
+            <div className="hidden items-center gap-2 sm:flex">
+              {regularTransitions.filter(t => t !== 'withdrawn').length > 0 && (
+                <div className="flex items-center gap-1">
+                  {regularTransitions.filter(t => t !== 'withdrawn').map((transition) => (
+                    <Button
+                      key={transition}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleStatusTransition(transition)}
+                      disabled={transitioning}
+                      aria-label={BID_STATE_LABELS[transition]}
+                    >
+                      {transitioning ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+                      ) : null}
+                      {BID_STATE_LABELS[transition]}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              {isSubmitted && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowOutcomeDialog(true)}
+                >
+                  Record Outcome
+                </Button>
+              )}
+              <BidExportMenu
+                bidId={id}
+                bidName={bid.name}
+                hasQuestions={totalQuestions > 0}
+              />
+              <Button asChild variant="default" size="sm">
+                <Link href={`/bid/${id}/session`}>
+                  <FileText className="mr-1.5 size-4" aria-hidden="true" />
+                  Open Session
+                </Link>
               </Button>
-            )}
-            <BidExportMenu
-              bidId={id}
-              bidName={bid.name}
-              hasQuestions={totalQuestions > 0}
-            />
-            <Button asChild variant="default" size="sm">
-              <Link href={`/bid/${id}/session`}>
-                <FileText className="mr-1.5 size-4" aria-hidden="true" />
-                Open Session
-              </Link>
-            </Button>
-            {role === 'admin' && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    title="More actions"
-                  >
-                    <MoreHorizontal
-                      className="size-4"
-                      aria-hidden="true"
-                    />
-                    <span className="sr-only">More actions</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2
-                      className="mr-2 size-4"
-                      aria-hidden="true"
-                    />
-                    Delete bid
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+              {role === 'admin' && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      title="More actions"
+                    >
+                      <MoreHorizontal
+                        className="size-4"
+                        aria-hidden="true"
+                      />
+                      <span className="sr-only">More actions</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={handleDelete}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2
+                        className="mr-2 size-4"
+                        aria-hidden="true"
+                      />
+                      Delete bid
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+
+            {/* Mobile actions — visible on mobile only */}
+            <div className="flex items-center gap-2 sm:hidden">
+              <Button asChild variant="default" size="sm">
+                <Link href={`/bid/${id}/session`}>
+                  <FileText className="mr-1.5 size-4" aria-hidden="true" />
+                  Open Session
+                </Link>
+              </Button>
+
+              <MobileActionMenu
+                regularTransitions={regularTransitions}
+                transitioning={transitioning}
+                isSubmitted={isSubmitted}
+                totalQuestions={totalQuestions}
+                role={role}
+                bidId={id}
+                bidName={bid.name}
+                onStatusTransition={handleStatusTransition}
+                onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
+                onDelete={handleDelete}
+              />
+            </div>
+          </>
         )}
       </div>
 
@@ -462,6 +494,181 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function MobileActionMenu({
+  regularTransitions,
+  transitioning,
+  isSubmitted,
+  totalQuestions,
+  role,
+  bidId,
+  bidName,
+  onStatusTransition,
+  onShowOutcomeDialog,
+  onDelete,
+}: {
+  regularTransitions: BidState[];
+  transitioning: boolean;
+  isSubmitted: boolean;
+  totalQuestions: number;
+  role: string | null;
+  bidId: string;
+  bidName: string;
+  onStatusTransition: (state: BidState) => void;
+  onShowOutcomeDialog: () => void;
+  onDelete: () => void;
+}) {
+  const [exporting, setExporting] = useState<'docx' | 'xlsx' | null>(null);
+  const isExporting = exporting !== null;
+
+  async function handleExport(format: 'docx' | 'xlsx') {
+    setExporting(format);
+    try {
+      const response = await fetch(`/api/bids/${bidId}/export/${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || `Export failed (${response.status})`,
+        );
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      const safeName = bidName
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .slice(0, 50);
+
+      link.href = url;
+      link.download = `${safeName}-responses.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      const formatLabel = format === 'docx' ? 'Word' : 'Excel';
+      toast.success(`${formatLabel} export downloaded`);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Export failed';
+      toast.error(message);
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  const filteredTransitions = regularTransitions.filter(t => t !== 'withdrawn');
+  const hasTransitions = filteredTransitions.length > 0;
+  const hasExport = totalQuestions > 0;
+  const hasAnyItems = hasTransitions || isSubmitted || hasExport || role === 'admin';
+
+  if (!hasAnyItems) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-1.5">
+          <MoreHorizontal className="size-4" aria-hidden="true" />
+          Actions
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        {/* Status transitions */}
+        {filteredTransitions.map((transition) => (
+          <DropdownMenuItem
+            key={transition}
+            onClick={() => onStatusTransition(transition)}
+            disabled={transitioning}
+          >
+            {transitioning && (
+              <Loader2 className="mr-2 size-3.5 animate-spin" aria-hidden="true" />
+            )}
+            {BID_STATE_LABELS[transition]}
+          </DropdownMenuItem>
+        ))}
+
+        {/* Record Outcome */}
+        {isSubmitted && (
+          <DropdownMenuItem onClick={onShowOutcomeDialog}>
+            Record Outcome
+          </DropdownMenuItem>
+        )}
+
+        {/* Export sub-menu */}
+        {hasExport && (
+          <>
+            {(hasTransitions || isSubmitted) && <DropdownMenuSeparator />}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger disabled={isExporting}>
+                {isExporting ? (
+                  <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="mr-2 size-4" aria-hidden="true" />
+                )}
+                Export
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuItem
+                  onClick={() => handleExport('docx')}
+                  disabled={isExporting}
+                >
+                  {exporting === 'docx' ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <FileText className="size-4" aria-hidden="true" />
+                  )}
+                  Word (.docx)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleExport('xlsx')}
+                  disabled={isExporting}
+                >
+                  {exporting === 'xlsx' ? (
+                    <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Sheet className="size-4" aria-hidden="true" />
+                  )}
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handlePrint} disabled={isExporting}>
+                  <Printer className="size-4" aria-hidden="true" />
+                  Print / Save as PDF
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        )}
+
+        {/* Delete — admin only, separated */}
+        {role === 'admin' && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 size-4" aria-hidden="true" />
+              Delete bid
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
