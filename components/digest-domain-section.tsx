@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { DomainBadge } from '@/components/domain-badge';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { Badge } from '@/components/ui/badge';
@@ -90,6 +91,17 @@ export function DigestDomainSection({
           </ul>
         </div>
       )}
+
+      {/* Review link */}
+      <div className="mt-4 border-t border-border/50 pt-3">
+        <Link
+          href={`/review?domain=${encodeURIComponent(domainSummary.domain)}`}
+          className="group inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          Review these items
+          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      </div>
     </article>
   );
 }
