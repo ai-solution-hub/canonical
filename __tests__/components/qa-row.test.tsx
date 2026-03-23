@@ -179,4 +179,119 @@ describe('QARow', () => {
     await user.click(toggleBtn);
     expect(screen.getByText('No answer recorded yet.')).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Collapsed copy button (Item 1)
+  // -------------------------------------------------------------------------
+
+  it('shows copy button on collapsed row when answer exists', () => {
+    const item = createQAItem({
+      answer_standard: 'We follow ISO 27001.',
+    });
+    render(<QARow item={item} />);
+    expect(
+      screen.getByRole('button', {
+        name: `Copy answer for "${item.title}"`,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('does not show collapsed copy button when no answer or content', () => {
+    const item = createQAItem({
+      answer_standard: null,
+      answer_advanced: null,
+      content: null,
+    });
+    render(<QARow item={item} />);
+    expect(
+      screen.queryByRole('button', {
+        name: `Copy answer for "${item.title}"`,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('copies standard answer from collapsed copy button', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+    const item = createQAItem({
+      answer_standard: 'We follow ISO 27001.',
+      answer_advanced: 'Detailed compliance info.',
+    });
+    render(<QARow item={item} />);
+
+    const copyBtn = screen.getByRole('button', {
+      name: `Copy answer for "${item.title}"`,
+    });
+    await user.click(copyBtn);
+
+    expect(writeText).toHaveBeenCalledWith('We follow ISO 27001.');
+    expect(mockToast.success).toHaveBeenCalledWith('Answer copied');
+  });
+
+  it('copies advanced answer when no standard answer exists', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+    const item = createQAItem({
+      answer_standard: null,
+      answer_advanced: 'Detailed only.',
+    });
+    render(<QARow item={item} />);
+
+    const copyBtn = screen.getByRole('button', {
+      name: `Copy answer for "${item.title}"`,
+    });
+    await user.click(copyBtn);
+
+    expect(writeText).toHaveBeenCalledWith('Detailed only.');
+  });
+
+  it('copies content as fallback when no standard or advanced answer', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+
+    const item = createQAItem({
+      answer_standard: null,
+      answer_advanced: null,
+      content: 'Fallback content.',
+    });
+    render(<QARow item={item} />);
+
+    const copyBtn = screen.getByRole('button', {
+      name: `Copy answer for "${item.title}"`,
+    });
+    await user.click(copyBtn);
+
+    expect(writeText).toHaveBeenCalledWith('Fallback content.');
+  });
+
+  it('hides collapsed copy button when row is expanded', async () => {
+    const user = userEvent.setup();
+    const item = createQAItem({
+      answer_standard: 'Some answer.',
+    });
+    render(<QARow item={item} />);
+
+    // Button is visible when collapsed
+    expect(
+      screen.getByRole('button', {
+        name: `Copy answer for "${item.title}"`,
+      }),
+    ).toBeInTheDocument();
+
+    // Expand the row
+    const toggleBtn = screen.getByRole('button', { expanded: false });
+    await user.click(toggleBtn);
+
+    // Collapsed copy button should be hidden
+    expect(
+      screen.queryByRole('button', {
+        name: `Copy answer for "${item.title}"`,
+      }),
+    ).not.toBeInTheDocument();
+  });
 });

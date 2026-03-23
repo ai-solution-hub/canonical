@@ -125,6 +125,27 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
           </div>
         </div>
         </button>
+        {/* Quick copy button — visible on collapsed rows */}
+        {!expanded && (hasStandard || hasAdvanced || item.content) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 h-7 w-7 p-0 min-h-[44px] min-w-[44px] -m-2 text-muted-foreground hover:text-foreground"
+            aria-label={`Copy answer for "${item.title}"`}
+            data-copy-answer=""
+            onClick={(e) => {
+              e.stopPropagation();
+              const text = item.answer_standard || item.answer_advanced || item.content || '';
+              handleCopy(text, 'Answer');
+            }}
+          >
+            {copiedField === 'Answer' ? (
+              <Check className="size-3.5" />
+            ) : (
+              <Copy className="size-3.5" />
+            )}
+          </Button>
+        )}
         <Link
           href={`/item/${item.id}`}
           className="shrink-0 rounded p-1 text-muted-foreground hover:text-foreground"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import {
@@ -11,6 +12,7 @@ import {
   FolderPlus,
   SlidersHorizontal,
   BookOpen,
+  ArrowRight,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -230,16 +232,15 @@ export function LibraryContent() {
     [items, groupBy],
   );
 
-  // Count of active secondary filters (source, variant, verified, grouping)
+  // Count of active secondary filters (source, variant, grouping)
   const secondaryFilterCount = useMemo(
     () =>
       [
         filters.source_file,
         filters.variant,
-        filters.verified,
         groupBy !== 'none' ? groupBy : undefined,
       ].filter(Boolean).length,
-    [filters.source_file, filters.variant, filters.verified, groupBy],
+    [filters.source_file, filters.variant, groupBy],
   );
 
   return (
@@ -319,6 +320,22 @@ export function LibraryContent() {
             </SelectContent>
           </Select>
 
+          <Select
+            value={filters.verified ?? 'all'}
+            onValueChange={(v) =>
+              setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
+            }
+          >
+            <SelectTrigger className="h-9 w-[130px] text-xs" aria-label="Filter by verified status">
+              <SelectValue placeholder="All status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All status</SelectItem>
+              <SelectItem value="verified">Verified</SelectItem>
+              <SelectItem value="unverified">Unverified</SelectItem>
+            </SelectContent>
+          </Select>
+
           {/* Secondary filters popover */}
           <Popover>
             <PopoverTrigger asChild>
@@ -378,25 +395,6 @@ export function LibraryContent() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">Verified status</span>
-                  <Select
-                    value={filters.verified ?? 'all'}
-                    onValueChange={(v) =>
-                      setFilters({ verified: v === 'all' ? undefined : (v as LibraryFilters['verified']) })
-                    }
-                  >
-                    <SelectTrigger className="h-9 w-full text-xs" aria-label="Filter by verified status">
-                      <SelectValue placeholder="All status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All status</SelectItem>
-                      <SelectItem value="verified">Verified</SelectItem>
-                      <SelectItem value="unverified">Unverified</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-1.5">
                   <span className="text-xs font-medium text-muted-foreground">Grouping</span>
                   <Select
                     value={groupBy}
@@ -420,7 +418,7 @@ export function LibraryContent() {
                   size="sm"
                   className="h-8 w-full text-xs"
                   onClick={() => {
-                    setFilters({ source_file: undefined, variant: undefined, verified: undefined });
+                    setFilters({ source_file: undefined, variant: undefined });
                     setGroupBy('none');
                   }}
                 >
@@ -548,9 +546,20 @@ export function LibraryContent() {
                 : 'Import Q&A pairs from client documents to build your library.'}
             </p>
             {activeCount > 0 && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                Clear filters
-              </Button>
+              <div className="flex flex-col items-center gap-2">
+                <Button variant="outline" size="sm" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+                {filters.search && (
+                  <Link
+                    href={`/search?q=${encodeURIComponent(filters.search)}`}
+                    className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Try searching the full knowledge base
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         ) : groupedItems ? (
