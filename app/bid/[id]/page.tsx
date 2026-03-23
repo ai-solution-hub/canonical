@@ -748,7 +748,7 @@ function OverviewTab({
               onClick={onMatchQuestions}
             >
               <RefreshCw className="size-3.5" aria-hidden="true" />
-              Match {stats.unmatched_count} unmatched questions
+              Find answers for {stats.unmatched_count} questions
             </Button>
           )}
         </div>
