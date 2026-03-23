@@ -241,7 +241,7 @@ export default function LoginPage() {
             ref={emailInputRef}
             id="email"
             type="email"
-            placeholder="you@company.co.uk"
+            placeholder="sarah@company.co.uk"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);

@@ -1,0 +1,114 @@
+/**
+ * WorkspaceCard Component Tests
+ *
+ * Tests the workspace card component: item count pill styling,
+ * card structure, and accessibility.
+ */
+import { describe, it, expect, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
+import { render, screen } from '@testing-library/react';
+
+vi.mock('@/lib/format', () => ({
+  formatRelativeDate: (date: string) => date,
+}));
+
+import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace-card';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeWorkspace(overrides: Partial<WorkspaceWithCounts> = {}): WorkspaceWithCounts {
+  return {
+    id: 'ws-1',
+    name: 'Test Workspace',
+    description: 'A test workspace',
+    type: 'bid',
+    status: 'active',
+    icon: 'folder',
+    color: '#3b82f6',
+    is_archived: false,
+    domain_metadata: null,
+    created_at: '2026-01-01T00:00:00Z',
+    created_by: 'user-1',
+    updated_at: '2026-01-01T00:00:00Z',
+    updated_by: null,
+    item_count: 5,
+    last_activity: '2026-01-15T10:00:00Z',
+    ...overrides,
+  };
+}
+
+function renderCard(overrides: Partial<WorkspaceWithCounts> = {}, readOnly = false) {
+  const workspace = makeWorkspace(overrides);
+  return render(
+    <WorkspaceCard
+      workspace={workspace}
+      onEdit={vi.fn()}
+      onArchiveToggle={vi.fn()}
+      readOnly={readOnly}
+    />,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('WorkspaceCard', () => {
+  describe('item count pill', () => {
+    it('renders item count as a link', () => {
+      renderCard({ item_count: 12 });
+      const link = screen.getByText('12 items');
+      expect(link).toBeInTheDocument();
+      expect(link.tagName).toBe('A');
+    });
+
+    it('uses warm primary styling on item count pill', () => {
+      renderCard({ item_count: 3 });
+      const pill = screen.getByText('3 items');
+      expect(pill.className).toContain('bg-primary/10');
+      expect(pill.className).toContain('text-primary');
+      expect(pill.className).toContain('font-medium');
+    });
+
+    it('shows singular "item" for count of 1', () => {
+      renderCard({ item_count: 1 });
+      expect(screen.getByText('1 item')).toBeInTheDocument();
+    });
+
+    it('shows plural "items" for count of 0', () => {
+      renderCard({ item_count: 0 });
+      expect(screen.getByText('0 items')).toBeInTheDocument();
+    });
+  });
+
+  describe('accessibility', () => {
+    it('has aria-label on the workspace open button', () => {
+      renderCard({ name: 'My Bid' });
+      expect(screen.getByLabelText('Open workspace: My Bid')).toBeInTheDocument();
+    });
+  });
+
+  describe('card structure', () => {
+    it('renders workspace name', () => {
+      renderCard({ name: 'Alpha Bid' });
+      expect(screen.getByText('Alpha Bid')).toBeInTheDocument();
+    });
+
+    it('renders workspace description', () => {
+      renderCard({ description: 'Bid for council contract' });
+      expect(screen.getByText('Bid for council contract')).toBeInTheDocument();
+    });
+
+    it('shows Bid badge for bid type workspaces', () => {
+      renderCard({ type: 'bid' });
+      expect(screen.getByText('Bid')).toBeInTheDocument();
+    });
+
+    it('shows KB Section badge for kb_section type workspaces', () => {
+      renderCard({ type: 'kb_section' });
+      expect(screen.getByText('KB Section')).toBeInTheDocument();
+    });
+  });
+});
