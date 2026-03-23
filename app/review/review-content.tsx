@@ -92,8 +92,8 @@ export function ReviewContent() {
   // Loading skeleton
   if (isLoading) {
     return (
-      <section aria-label="Content review" className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
-        <div role="status" aria-label="Loading">
+      <section aria-label="Review queue — loading" className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+        <div role="status" aria-label="Loading review queue">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <div className="h-7 w-40 animate-pulse rounded-md bg-accent" />
@@ -136,8 +136,12 @@ export function ReviewContent() {
 
     const allVerified = !hasFilters && progress.total > 0 && progress.verified >= progress.total;
 
+    const emptyAriaLabel = allVerified
+      ? 'Review queue — no items to review'
+      : 'Review queue — no items to review';
+
     return (
-      <section aria-label="Content review" className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
+      <section aria-label={emptyAriaLabel} className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
@@ -203,7 +207,7 @@ export function ReviewContent() {
   const isAtEnd = currentIndex >= queue.length;
   if (isAtEnd) {
     return (
-      <section aria-label="Content review" className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
+      <section aria-label="Review queue — no items to review" className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-[800px] flex-col px-4 py-8 sm:px-6">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
           <ReviewFilters
@@ -231,8 +235,9 @@ export function ReviewContent() {
   }
 
   // Main review content (shared between panel and non-panel layouts)
+  const mainAriaLabel = `Review queue — ${queue.length} ${queue.length === 1 ? 'item' : 'items'} pending review`;
   const reviewMainContent = (
-    <section aria-label="Content review" className="flex min-h-full flex-col px-4 py-8 sm:px-6">
+    <section aria-label={mainAriaLabel} className="flex min-h-full flex-col px-4 py-8 sm:px-6">
       {/* Screen reader announcements */}
       <div aria-live="polite" className="sr-only">{announcement}</div>
 
