@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // ---------------------------------------------------------------------------
@@ -86,6 +86,12 @@ vi.mock('@/lib/utils', () => ({
   isMacPlatform: () => false,
 }));
 
+vi.mock('@/components/ui/separator', () => ({
+  Separator: ({ orientation, className }: { orientation?: string; className?: string }) => (
+    <div data-slot="separator" data-orientation={orientation ?? 'horizontal'} className={className} />
+  ),
+}));
+
 // Stub child components to isolate session page tests
 vi.mock('@/components/question-navigator', () => ({
   QuestionNavigator: ({ questions, currentIndex, onNavigate }: { questions: unknown[]; currentIndex: number; onNavigate: (i: number) => void }) => (
@@ -110,7 +116,24 @@ vi.mock('@/components/quality-score', () => ({
 }));
 
 vi.mock('@/components/response-actions', () => ({
-  ResponseActions: () => <div data-testid="response-actions">Actions</div>,
+  ResponseActions: ({ nextUnansweredIndex, onNextUnanswered, hasDraft }: {
+    nextUnansweredIndex?: number;
+    onNextUnanswered?: () => void;
+    hasDraft?: boolean;
+  }) => (
+    <div
+      data-testid="response-actions"
+      data-next-unanswered-index={nextUnansweredIndex ?? -1}
+      data-has-draft={hasDraft ? 'true' : 'false'}
+    >
+      Actions
+      {onNextUnanswered && nextUnansweredIndex !== undefined && nextUnansweredIndex >= 0 && (
+        <button data-testid="next-unanswered-btn" onClick={onNextUnanswered}>
+          Next unanswered
+        </button>
+      )}
+    </div>
+  ),
 }));
 
 vi.mock('@/components/streaming-phase-indicator', () => ({
@@ -123,6 +146,10 @@ vi.mock('@/components/content-library-drawer', () => ({
 
 vi.mock('@/components/response-version-history', () => ({
   ResponseVersionHistory: () => <div data-testid="response-version-history">History</div>,
+}));
+
+vi.mock('@copilotkit/react-core', () => ({
+  useCopilotReadable: vi.fn(),
 }));
 
 vi.mock('@/components/bid-context-provider', () => ({
@@ -374,7 +401,7 @@ describe('Session Page Mobile Layout', () => {
       expect(currentQuestionSummary).toBeTruthy();
     });
 
-    it('shows section name, question text, and word limit when present', () => {
+    it('shows section name, question text, and word count with limit when present', () => {
       setupDefaults();
       render(<BidSessionPage params={mockParams} />);
 
@@ -386,8 +413,10 @@ describe('Session Page Mobile Layout', () => {
       expect(within(detailsContent).getByText('Management')).toBeInTheDocument();
       // Question text
       expect(within(detailsContent).getByText('Describe your approach to project management')).toBeInTheDocument();
-      // Word limit
-      expect(within(detailsContent).getByText('Word limit: 500')).toBeInTheDocument();
+      // Word count alongside word limit (now uses WordCountIndicator)
+      const wordStatus = within(detailsContent).getByRole('status');
+      expect(wordStatus).toBeInTheDocument();
+      expect(wordStatus.textContent).toContain('/ 500 words');
     });
 
     it('omits word limit when not present', () => {
@@ -561,6 +590,199 @@ describe('Session Page Mobile Layout', () => {
       const provider = screen.getByTestId('bid-context-provider');
       expect(provider).toBeInTheDocument();
       expect(provider).toHaveAttribute('data-bid-id', 'test-bid');
+    });
+  });
+
+  // ========================================================================
+  // Word count alongside word limit (C2-QW-Session-2)
+  // ========================================================================
+
+  describe('Word count alongside word limit', () => {
+    it('displays word count indicator in desktop question panel when word limit exists', () => {
+      setupDefaults({ editorContent: '<p>One two three four five</p>' });
+      render(<BidSessionPage params={mockParams} />);
+
+      // The desktop aside has a word count indicator (role="status")
+      const statuses = screen.getAllByRole('status');
+      // Should have at least one status element with word count format
+      const wordCountStatus = statuses.find((s) => s.textContent?.includes('/ 500 words'));
+      expect(wordCountStatus).toBeTruthy();
+    });
+
+    it('does not display word count indicator when word limit is null', () => {
+      setupDefaults({
+        currentIndex: 1,
+        currentQuestion: makeQuestion({ id: 'q-2', word_limit: null, question_text: 'No limit question' }),
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      // Word count indicators (role="status") should not appear in question panels
+      // (Note: the editor itself has its own word count, which is separate)
+      const statuses = screen.queryAllByRole('status');
+      const questionWordCount = statuses.find((s) => s.textContent?.includes('/ '));
+      // Should be from the editor, not the question panels
+      expect(questionWordCount).toBeFalsy();
+    });
+
+    it('shows word count in mobile collapsible question block', () => {
+      setupDefaults({ editorContent: '<p>One two three</p>' });
+      render(<BidSessionPage params={mockParams} />);
+
+      const detailsEl = document.querySelector('details');
+      expect(detailsEl).not.toBeNull();
+      // The details block should contain a word count status
+      const statusInDetails = within(detailsEl!).queryByRole('status');
+      expect(statusInDetails).not.toBeNull();
+      expect(statusInDetails!.textContent).toContain('/ 500 words');
+    });
+  });
+
+  // ========================================================================
+  // Next unanswered navigation (C2-PA9)
+  // ========================================================================
+
+  describe('Next unanswered navigation', () => {
+    it('passes nextUnansweredIndex to ResponseActions when unanswered questions exist', () => {
+      // q-1 is drafted, q-2 is drafted, q-3 is not_started
+      const questions = [
+        makeQuestion({ id: 'q-1', status: 'drafted', question_number: 1 }),
+        makeQuestion({ id: 'q-2', status: 'drafted', question_number: 2, word_limit: null }),
+        makeQuestion({ id: 'q-3', status: 'not_started', question_number: 3, word_limit: 300 }),
+      ];
+      setupDefaults({ questions, currentIndex: 0 });
+      render(<BidSessionPage params={mockParams} />);
+
+      const actions = screen.getByTestId('response-actions');
+      // q-3 (index 2) should be the next unanswered
+      expect(actions).toHaveAttribute('data-next-unanswered-index', '2');
+    });
+
+    it('passes -1 when no unanswered questions remain', () => {
+      const questions = [
+        makeQuestion({ id: 'q-1', status: 'complete', question_number: 1 }),
+        makeQuestion({ id: 'q-2', status: 'drafted', question_number: 2 }),
+      ];
+      setupDefaults({ questions, currentIndex: 0 });
+      render(<BidSessionPage params={mockParams} />);
+
+      const actions = screen.getByTestId('response-actions');
+      expect(actions).toHaveAttribute('data-next-unanswered-index', '-1');
+    });
+
+    it('wraps around to find unanswered questions before current index', () => {
+      const questions = [
+        makeQuestion({ id: 'q-1', status: 'not_started', question_number: 1 }),
+        makeQuestion({ id: 'q-2', status: 'drafted', question_number: 2 }),
+        makeQuestion({ id: 'q-3', status: 'drafted', question_number: 3 }),
+      ];
+      setupDefaults({ questions, currentIndex: 2 });
+      render(<BidSessionPage params={mockParams} />);
+
+      const actions = screen.getByTestId('response-actions');
+      // q-1 (index 0) is unanswered and is before current index (2), found via wrap-around
+      expect(actions).toHaveAttribute('data-next-unanswered-index', '0');
+    });
+
+    it('calls handleNavigate when next unanswered button is clicked', async () => {
+      const user = userEvent.setup();
+      const handleNavigate = vi.fn();
+      const questions = [
+        makeQuestion({ id: 'q-1', status: 'drafted', question_number: 1 }),
+        makeQuestion({ id: 'q-2', status: 'not_started', question_number: 2 }),
+      ];
+      setupDefaults({ questions, currentIndex: 0, handleNavigate });
+      render(<BidSessionPage params={mockParams} />);
+
+      const btn = screen.getByTestId('next-unanswered-btn');
+      await user.click(btn);
+      expect(handleNavigate).toHaveBeenCalledWith(1);
+    });
+  });
+
+  // ========================================================================
+  // Cmd+S / Ctrl+S page-level save shortcut (C2-QW-Session-1)
+  // ========================================================================
+
+  describe('Cmd+S / Ctrl+S save shortcut', () => {
+    it('calls handleAction with "save" on Ctrl+S when response exists and has content', () => {
+      const handleAction = vi.fn();
+      setupDefaults({
+        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Some text</p>' },
+        editorContent: '<p>Some content here</p>',
+        handleAction,
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+      expect(handleAction).toHaveBeenCalledWith('save');
+    });
+
+    it('calls handleAction with "save" on Cmd+S (metaKey)', () => {
+      const handleAction = vi.fn();
+      setupDefaults({
+        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Text</p>' },
+        editorContent: '<p>Some content here</p>',
+        handleAction,
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      fireEvent.keyDown(document, { key: 's', metaKey: true });
+      expect(handleAction).toHaveBeenCalledWith('save');
+    });
+
+    it('does not call handleAction on Ctrl+S when no response exists', () => {
+      const handleAction = vi.fn();
+      setupDefaults({
+        response: null,
+        editorContent: '<p>Some content</p>',
+        handleAction,
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+      expect(handleAction).not.toHaveBeenCalled();
+    });
+
+    it('does not call handleAction on Ctrl+S when editor content is too short', () => {
+      const handleAction = vi.fn();
+      setupDefaults({
+        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '' },
+        editorContent: '<p></p>',
+        handleAction,
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+      expect(handleAction).not.toHaveBeenCalled();
+    });
+
+    it('does not call handleAction on Ctrl+S when user cannot edit', () => {
+      mockUseUserRole.canEdit = false;
+      const handleAction = vi.fn();
+      setupDefaults({
+        response: { id: 'resp-1', review_status: 'draft', version: 1, response_text: '<p>Text</p>' },
+        editorContent: '<p>Some content here</p>',
+        handleAction,
+      });
+      render(<BidSessionPage params={mockParams} />);
+
+      fireEvent.keyDown(document, { key: 's', ctrlKey: true });
+      expect(handleAction).not.toHaveBeenCalled();
+    });
+  });
+
+  // ========================================================================
+  // Action bar separators (C2-PA8)
+  // ========================================================================
+
+  describe('Action bar with separators', () => {
+    it('renders separator between ResponseActions and Tools group', () => {
+      setupDefaults();
+      render(<BidSessionPage params={mockParams} />);
+
+      // The session page renders a Separator between the action bar and tools group
+      const separators = document.querySelectorAll('[data-slot="separator"]');
+      expect(separators.length).toBeGreaterThanOrEqual(1);
     });
   });
 });
