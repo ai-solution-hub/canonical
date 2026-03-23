@@ -16,7 +16,7 @@ export function GuideProgressBar({ populated, total, className }: GuideProgressB
     <div className={cn('rounded-lg border border-border bg-card p-3', className)}>
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">
-          Progress: {populated}/{total} required sections populated
+          Coverage: {populated}/{total} required sections populated
         </span>
         <span
           className={cn(
@@ -33,7 +33,7 @@ export function GuideProgressBar({ populated, total, className }: GuideProgressB
         aria-valuenow={populated}
         aria-valuemin={0}
         aria-valuemax={total}
-        aria-label={`Guide completion: ${populated} of ${total} required sections populated`}
+        aria-label={`Guide coverage: ${populated} of ${total} required sections populated`}
       >
         <div
           className={cn(

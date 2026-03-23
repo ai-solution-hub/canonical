@@ -9,6 +9,7 @@ import { DomainBadge } from '@/components/domain-badge';
 import { GuideSection } from '@/components/guide/guide-section';
 import { GuideProgressBar } from '@/components/guide/guide-progress-bar';
 import { GuideResearchFeed } from '@/components/guide/guide-research-feed';
+import { GuideTableOfContents } from '@/components/guide/guide-table-of-contents';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 
@@ -274,12 +275,26 @@ export function GuideContent({ slug }: { slug: string }) {
         )}
       </div>
 
-      {/* Progress bar */}
+      {/* Coverage bar */}
       {requiredSections.length > 0 && (
         <div className="mt-4">
           <GuideProgressBar
             populated={populatedRequired.length}
             total={requiredSections.length}
+          />
+        </div>
+      )}
+
+      {/* Table of contents — jump-links to sections */}
+      {sections.length > 0 && (
+        <div className="mt-4">
+          <GuideTableOfContents
+            sections={sections.map((s) => ({
+              section_id: s.section_id,
+              section_name: s.section_name,
+              is_required: s.is_required,
+              has_content: s.content_items.length > 0,
+            }))}
           />
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { BookOpen, Loader2, FileText, Layers } from 'lucide-react';
+import { BookOpen, Loader2, FileText, Layers, Clock, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DomainBadge } from '@/components/domain-badge';
 
@@ -46,6 +46,21 @@ const GUIDE_TYPE_LABELS: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// Reading time estimate
+// ---------------------------------------------------------------------------
+
+/**
+ * Estimate reading time based on populated sections.
+ * Each populated section averages ~2 content items at ~400 words each,
+ * at ~200 words/minute = ~4 min per section. We round to nearest minute.
+ * Minimum 1 min if any content exists.
+ */
+function estimateReadingTime(populatedSections: number): number | null {
+  if (populatedSections <= 0) return null;
+  return Math.max(1, Math.round(populatedSections * 4));
+}
+
+// ---------------------------------------------------------------------------
 // Guide card
 // ---------------------------------------------------------------------------
 
@@ -56,6 +71,7 @@ function GuideCard({ guide }: { guide: Guide }) {
     ? Math.round((stats.populated_sections / stats.total_sections) * 100)
     : 0;
   const isComplete = hasStats && stats.populated_sections >= stats.total_sections;
+  const readingTime = hasStats ? estimateReadingTime(stats.populated_sections) : null;
 
   return (
     <Link
@@ -67,9 +83,17 @@ function GuideCard({ guide }: { guide: Guide }) {
           <BookOpen className="size-5 text-muted-foreground" aria-hidden="true" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-foreground group-hover:underline">
-            {guide.name}
-          </h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold text-foreground group-hover:underline">
+              {guide.name}
+            </h3>
+            {readingTime !== null && (
+              <span className="inline-flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground" aria-label={`Estimated reading time: ${readingTime} minutes`}>
+                <Clock className="size-3" aria-hidden="true" />
+                {readingTime} min read
+              </span>
+            )}
+          </div>
           {guide.description && (
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground line-clamp-2">
               {guide.description}
@@ -78,7 +102,7 @@ function GuideCard({ guide }: { guide: Guide }) {
         </div>
       </div>
 
-      {/* Section progress */}
+      {/* Section coverage */}
       {hasStats && (
         <div className="mt-3">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -138,6 +162,15 @@ function EmptyState() {
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Guides provide a curated reading experience over your knowledge base content.
+      </p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        <Link
+          href="/browse"
+          className="inline-flex items-center gap-1 text-foreground/70 underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        >
+          <Search className="size-3" aria-hidden="true" />
+          Try searching for specific content
+        </Link>
       </p>
     </div>
   );
