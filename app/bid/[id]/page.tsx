@@ -5,10 +5,13 @@ import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import Link from 'next/link';
 import {
   ArrowLeft,
+  ArrowRight,
+  Award,
   Building2,
   Calendar,
   ClipboardList,
   Download,
+  Eye,
   Hash,
   FileText,
   Upload,
@@ -357,6 +360,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <OverviewTab
             bid={bid}
             bidId={id}
+            bidStatus={bidStatus}
             stats={stats}
             progressPercent={progressPercent}
             completedCount={completedCount}
@@ -368,6 +372,8 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
             draftingAll={draftingAll}
             onDraftAll={handleDraftAll}
             onSwitchTab={setActiveTab}
+            onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
+            onShowKBReview={() => setShowKBReview(true)}
           />
         )}
         {activeTab === 'questions' && (
@@ -630,6 +636,7 @@ function MobileActionMenu({
 function OverviewTab({
   bid,
   bidId,
+  bidStatus,
   stats,
   progressPercent,
   completedCount,
@@ -641,9 +648,12 @@ function OverviewTab({
   draftingAll,
   onDraftAll,
   onSwitchTab,
+  onShowOutcomeDialog,
+  onShowKBReview,
 }: {
   bid: Bid;
   bidId: string;
+  bidStatus: BidState;
   stats: BidQuestionStats | null;
   progressPercent: number;
   completedCount: number;
@@ -655,6 +665,8 @@ function OverviewTab({
   draftingAll: boolean;
   onDraftAll: () => void;
   onSwitchTab: (tab: 'overview' | 'questions' | 'responses' | 'documents') => void;
+  onShowOutcomeDialog: () => void;
+  onShowKBReview: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const overviewStatus = (bid.status ?? metadata.status) as BidState;
@@ -667,6 +679,15 @@ function OverviewTab({
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      {/* Next action prompt — full width */}
+      <NextActionCard
+        bidStatus={bidStatus}
+        bidId={bidId}
+        canEdit={canEdit}
+        onShowOutcomeDialog={onShowOutcomeDialog}
+        onShowKBReview={onShowKBReview}
+      />
+
       {/* Progress */}
       <div className="rounded-lg border bg-card p-4">
         <h2 className="text-sm font-medium text-foreground">Progress</h2>
@@ -849,6 +870,104 @@ function OverviewTab({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** State-aware next-action prompt for the Overview tab */
+function NextActionCard({
+  bidStatus,
+  bidId,
+  canEdit,
+  onShowOutcomeDialog,
+  onShowKBReview,
+}: {
+  bidStatus: BidState;
+  bidId: string;
+  canEdit: boolean;
+  onShowOutcomeDialog: () => void;
+  onShowKBReview: () => void;
+}) {
+  type NextAction = {
+    title: string;
+    description: string;
+    action: { type: 'link'; href: string; label: string } | { type: 'button'; onClick: () => void; label: string };
+    icon: React.ReactNode;
+  };
+
+  function getNextAction(): NextAction | null {
+    switch (bidStatus) {
+      case 'draft':
+      case 'questions_extracted':
+      case 'matching':
+      case 'drafting':
+        return {
+          title: 'Start answering questions',
+          description: 'Open the drafting session to work through your bid responses using the knowledge base.',
+          action: { type: 'link', href: `/bid/${bidId}/session`, label: 'Open Session' },
+          icon: <PenLine className="size-5 text-primary" aria-hidden="true" />,
+        };
+      case 'in_review':
+      case 'ready_for_export':
+        return {
+          title: 'Review responses before submission',
+          description: 'Check your drafted responses for quality and completeness before exporting or submitting.',
+          action: { type: 'link', href: `/bid/${bidId}/session`, label: 'Review Responses' },
+          icon: <Eye className="size-5 text-primary" aria-hidden="true" />,
+        };
+      case 'submitted':
+        return {
+          title: 'Record the outcome when you hear back',
+          description: 'Once you receive a decision, record whether the bid was won or lost to track your success rate.',
+          action: { type: 'button', onClick: onShowOutcomeDialog, label: 'Record Outcome' },
+          icon: <ClipboardList className="size-5 text-primary" aria-hidden="true" />,
+        };
+      case 'won':
+      case 'lost':
+        return {
+          title: 'Review responses for your knowledge base',
+          description: 'Identify strong responses worth adding to your knowledge base for future bids.',
+          action: { type: 'button', onClick: onShowKBReview, label: 'Review for KB' },
+          icon: <Award className="size-5 text-primary" aria-hidden="true" />,
+        };
+      default:
+        return null;
+    }
+  }
+
+  const nextAction = getNextAction();
+
+  if (!nextAction || !canEdit) return null;
+
+  return (
+    <div className="lg:col-span-2 rounded-lg border-2 border-primary/20 bg-primary/5 p-4">
+      <div className="flex items-start gap-4">
+        <div className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+          {nextAction.icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-sm font-semibold text-foreground">{nextAction.title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{nextAction.description}</p>
+          {nextAction.action.type === 'link' ? (
+            <Button asChild variant="default" size="sm" className="mt-3 gap-1.5">
+              <Link href={nextAction.action.href}>
+                {nextAction.action.label}
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="default"
+              size="sm"
+              className="mt-3 gap-1.5"
+              onClick={nextAction.action.onClick}
+            >
+              {nextAction.action.label}
+              <ArrowRight className="size-3.5" aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

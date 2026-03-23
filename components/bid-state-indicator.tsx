@@ -4,6 +4,7 @@ import { Check, Circle, Clock, Ban } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   BID_STATE_LABELS,
+  BID_STATE_SHORT_LABELS,
   BID_STATE_PROGRESSION,
   isTerminal,
   type BidState,
@@ -142,6 +143,17 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
                   <Circle className="size-2 fill-current" aria-hidden="true" />
                 ) : null}
               </div>
+              {/* Abbreviated label on mobile */}
+              <span
+                className={cn(
+                  'block text-[9px] leading-tight sm:hidden',
+                  isCurrent ? 'font-medium text-foreground' : 'text-muted-foreground',
+                )}
+                aria-hidden="true"
+              >
+                {BID_STATE_SHORT_LABELS[step]}
+              </span>
+              {/* Full label on desktop */}
               <span
                 className={cn(
                   'hidden text-[11px] leading-tight sm:block',
@@ -177,6 +189,11 @@ export function BidStateStepper({ state, className }: BidStateIndicatorProps) {
                 <Clock className="size-3" aria-hidden="true" />
               )}
             </div>
+            {/* Abbreviated label on mobile */}
+            <span className="block text-[9px] font-medium leading-tight sm:hidden" aria-hidden="true">
+              {BID_STATE_SHORT_LABELS[state]}
+            </span>
+            {/* Full label on desktop */}
             <span className="hidden text-[11px] font-medium leading-tight sm:block">
               {BID_STATE_LABELS[state]}
             </span>

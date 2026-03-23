@@ -21,6 +21,7 @@ const {
   mockFormatDateUK,
   mockGetDeadlineProximity,
   mockBidStateLabels,
+  mockBidStateShortLabels,
 } = vi.hoisted(() => ({
   mockRouter: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
   mockUseUserRole: { role: 'editor' as string | null, canEdit: true, canAdmin: false, loading: false },
@@ -35,6 +36,18 @@ const {
     in_review: 'In Review',
     ready_for_export: 'Ready for Export',
     submitted: 'Submitted',
+    won: 'Won',
+    lost: 'Lost',
+    withdrawn: 'Withdrawn',
+  } as Record<string, string>,
+  mockBidStateShortLabels: {
+    draft: 'Draft',
+    questions_extracted: 'Extract',
+    matching: 'Match',
+    drafting: 'Draft',
+    in_review: 'Review',
+    ready_for_export: 'Export',
+    submitted: 'Submit',
     won: 'Won',
     lost: 'Lost',
     withdrawn: 'Withdrawn',
@@ -75,6 +88,7 @@ vi.mock('@/lib/bid-helpers', () => ({
 
 vi.mock('@/lib/bid-state-machine', () => ({
   BID_STATE_LABELS: mockBidStateLabels,
+  BID_STATE_SHORT_LABELS: mockBidStateShortLabels,
 }));
 
 vi.mock('@/lib/utils', () => ({
@@ -521,7 +535,9 @@ describe('BidDetailPage', () => {
       bidStatus: 'submitted',
     }));
     render(<BidDetailPage params={mockParams} />);
-    expect(screen.getByRole('button', { name: 'Record Outcome' })).toBeInTheDocument();
+    // Header actions + NextActionCard both show Record Outcome
+    const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
+    expect(outcomeButtons.length).toBeGreaterThanOrEqual(1);
   });
 
   // ---- Extracted metadata prompt ----
@@ -548,5 +564,89 @@ describe('BidDetailPage', () => {
     const sessionLinks = screen.getAllByText('Open Session');
     const sessionLink = sessionLinks[0].closest('a');
     expect(sessionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
+  });
+
+  // ---- Next action prompt ----
+
+  describe('NextActionCard on Overview tab', () => {
+    it('shows "Start answering questions" for draft bids', () => {
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'draft',
+        activeTab: 'overview',
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.getByText('Start answering questions')).toBeInTheDocument();
+      // Action link should point to session page (multiple Open Session links exist — header + card)
+      const actionLinks = screen.getAllByRole('link', { name: /Open Session/ });
+      expect(actionLinks.some(link => link.getAttribute('href') === '/bid/test-bid-1/session')).toBe(true);
+    });
+
+    it('shows "Start answering questions" for drafting bids', () => {
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'drafting',
+        activeTab: 'overview',
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.getByText('Start answering questions')).toBeInTheDocument();
+    });
+
+    it('shows "Review responses before submission" for in_review bids', () => {
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'in_review',
+        activeTab: 'overview',
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.getByText('Review responses before submission')).toBeInTheDocument();
+      const actionLink = screen.getByRole('link', { name: /Review Responses/ });
+      expect(actionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
+    });
+
+    it('shows "Record the outcome" for submitted bids', () => {
+      const mockSetShowOutcome = vi.fn();
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'submitted',
+        activeTab: 'overview',
+        isSubmitted: true,
+        setShowOutcomeDialog: mockSetShowOutcome,
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.getByText('Record the outcome when you hear back')).toBeInTheDocument();
+      // Multiple Record Outcome buttons exist (header + card)
+      const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
+      expect(outcomeButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('shows "Review responses for your knowledge base" for won bids', () => {
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'won',
+        activeTab: 'overview',
+        regularTransitions: [],
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.getByText('Review responses for your knowledge base')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Review for KB/ })).toBeInTheDocument();
+    });
+
+    it('does not show next action card for viewers', () => {
+      mockUseUserRole.canEdit = false;
+      mockUseUserRole.role = 'viewer';
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'drafting',
+        activeTab: 'overview',
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
+    });
+
+    it('does not show next action card for withdrawn bids', () => {
+      mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
+        bidStatus: 'withdrawn',
+        activeTab: 'overview',
+        regularTransitions: [],
+      }));
+      render(<BidDetailPage params={mockParams} />);
+      expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
+      expect(screen.queryByText('Review responses')).not.toBeInTheDocument();
+    });
   });
 });
