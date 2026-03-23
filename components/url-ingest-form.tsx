@@ -364,11 +364,11 @@ export function UrlIngestForm({ onSuggestManual }: UrlIngestFormProps = {}) {
                 >
                   pasting the content manually
                 </button>
-                , or let Claude extract it:
+                , or use automatic extraction:
               </p>
               <ClaudePromptButton
                 prompt={generateIngestDocumentPrompt().prompt}
-                label="Let Claude extract it"
+                label="Use automatic extraction"
                 size="sm"
               />
             </div>

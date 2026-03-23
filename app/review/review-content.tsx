@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, Sparkles } from 'lucide-react';
+import { PanelRight, CheckCircle2, BookOpen } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -161,7 +161,7 @@ export function ReviewContent() {
 
         <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-16 text-center">
           <div className="mb-4 text-muted-foreground" aria-hidden="true">
-            {allVerified ? <CheckCircle2 className="size-10" /> : <Sparkles className="size-10" />}
+            {allVerified ? <CheckCircle2 className="size-10" /> : <BookOpen className="size-10" />}
           </div>
           {allVerified ? (
             <>

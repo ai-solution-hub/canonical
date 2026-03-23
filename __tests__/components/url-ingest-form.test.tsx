@@ -120,7 +120,7 @@ vi.mock('@/components/claude-prompt-button', () => ({
 
 vi.mock('@/lib/claude-prompts', () => ({
   generateIngestDocumentPrompt: () => ({
-    label: 'Let Claude handle it',
+    label: 'Use automatic extraction',
     prompt: 'test prompt',
     description: 'test',
     category: 'ingestion',

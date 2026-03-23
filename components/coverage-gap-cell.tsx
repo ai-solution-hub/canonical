@@ -53,7 +53,7 @@ export function CoverageGapCell({
         </Link>
         <ClaudePromptButton
           prompt={claudePrompt.prompt}
-          label="Ask Claude"
+          label="Suggest content"
           size="sm"
           className="h-auto px-1.5 py-0.5"
         />

@@ -91,7 +91,7 @@ export function generateBidPrompt(bid: ActiveBidSummary): ClaudePrompt {
     : `Show me the current status of the "${bid.name}" bid${deadlineText}. Summarise the progress and suggest what needs attention.`;
 
   return {
-    label: 'Ask Claude about this bid',
+    label: 'Analyse this bid',
     prompt,
     description: remainingQ > 0
       ? `${remainingQ} questions remaining${deadlineText}`
@@ -125,7 +125,7 @@ export function generateCoverageGapPrompt(
   const formattedSubtopic = subtopic.replace(/-/g, ' ');
 
   return {
-    label: 'Ask Claude to fill gap',
+    label: 'Fill this gap',
     prompt: `We have a content gap in ${formattedDomain} / ${formattedSubtopic}. Search the KB for any related content, then help me draft a new article to fill this gap.`,
     description: `No content for ${formattedSubtopic}`,
     category: 'coverage',
