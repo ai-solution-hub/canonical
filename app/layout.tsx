@@ -9,11 +9,6 @@ import { ReadMarksProvider } from '@/contexts/read-marks-context';
 import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
-import { CopilotPageContextProvider } from '@/contexts/copilot-page-context';
-import { CopilotKitProvider } from '@/components/copilotkit-provider';
-import { GlobalCopilotSidebar } from '@/components/global-copilot-sidebar';
-import { GlobalCopilotReadable } from '@/components/global-copilot-readable';
-import { SharedCopilotActions } from '@/components/shared-copilot-actions';
 import { AuthAwareChrome } from '@/components/auth-aware-chrome';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
@@ -50,18 +45,12 @@ export default async function RootLayout({
           <LayerVocabularyProvider>
           <ReadMarksProvider>
             <TooltipProvider>
-              <CopilotKitProvider>
-                <CopilotPageContextProvider>
-                  <GlobalCopilotReadable />
-                  <SharedCopilotActions />
                   <a href="#main-content" className="skip-link">
                     Skip to main content
                   </a>
-                  <GlobalCopilotSidebar>
-                    <AuthAwareChrome>
-                      <main id="main-content">{children}</main>
-                    </AuthAwareChrome>
-                  </GlobalCopilotSidebar>
+                  <AuthAwareChrome>
+                    <main id="main-content">{children}</main>
+                  </AuthAwareChrome>
                   <CommandPalette />
                   <KeyboardShortcutsProvider />
                   <Toaster
@@ -70,8 +59,6 @@ export default async function RootLayout({
                       className: 'font-sans',
                     }}
                   />
-                </CopilotPageContextProvider>
-              </CopilotKitProvider>
             </TooltipProvider>
           </ReadMarksProvider>
           </LayerVocabularyProvider>

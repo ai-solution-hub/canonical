@@ -19,7 +19,7 @@ export interface LayerInferenceInput {
   /** Plain text length in characters */
   contentLength: number;
   /** How the item was created */
-  ingestionSource: 'manual' | 'url_import' | 'upload' | 'copilotkit' | 'bid_library';
+  ingestionSource: 'manual' | 'url_import' | 'upload' | 'bid_library';
   /** Whether progressive depth fields are populated */
   hasBrief: boolean;
   hasDetail: boolean;

@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       const { inferLayer } = await import('@/lib/layer-inference');
       const plainTextForLayer = htmlToPlainText(content);
       const effectiveSource = (ingestion_source ?? 'manual') as
-        'manual' | 'url_import' | 'upload' | 'copilotkit' | 'bid_library';
+        'manual' | 'url_import' | 'upload' | 'bid_library';
       const suggestion = inferLayer({
         contentType: content_type,
         contentLength: plainTextForLayer.length,
