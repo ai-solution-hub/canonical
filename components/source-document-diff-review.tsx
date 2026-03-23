@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { ChevronRight, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
 
@@ -397,7 +398,8 @@ function CompletionBanner({
       role="status"
       aria-label="Review complete"
     >
-      <h2 className="text-sm font-semibold text-quality-good">
+      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-quality-good">
+        <CheckCircle2 className="size-4" aria-hidden="true" />
         All changes reviewed
       </h2>
       <p className="mt-1 text-sm text-foreground">
@@ -449,7 +451,7 @@ function DiffEntryCard({
       : entry.old_question;
 
   return (
-    <article
+    <div
       className="rounded-lg border border-border bg-card p-4 shadow-sm"
       aria-label={`${entry.diff_type} entry: ${question ?? 'No question'}`}
     >
@@ -555,7 +557,7 @@ function DiffEntryCard({
           onNoteChange={onNoteChange}
         />
       )}
-    </article>
+    </div>
   );
 }
 
@@ -700,14 +702,36 @@ export function SourceDocumentDiffReview({
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      {/* Back link — navigates to the new document's detail page */}
-      <Link
-        href={`/documents/${newDocument.id}`}
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-        aria-label={`Back to ${newDocument.filename}`}
-      >
-        &larr; Back to {newDocument.filename}
-      </Link>
+      {/* Breadcrumb navigation */}
+      <nav aria-label="Breadcrumb">
+        <ol className="flex items-center gap-1 text-sm text-muted-foreground">
+          <li>
+            <Link
+              href="/documents"
+              className="hover:text-foreground transition-colors"
+            >
+              Source Documents
+            </Link>
+          </li>
+          <li aria-hidden="true">
+            <ChevronRight className="size-3.5" />
+          </li>
+          <li>
+            <Link
+              href={`/documents/${newDocument.id}`}
+              className="hover:text-foreground transition-colors"
+            >
+              {newDocument.filename}
+            </Link>
+          </li>
+          <li aria-hidden="true">
+            <ChevronRight className="size-3.5" />
+          </li>
+          <li className="text-foreground" aria-current="page">
+            Diff Review
+          </li>
+        </ol>
+      </nav>
 
       {/* Page header */}
       <header>
@@ -817,6 +841,19 @@ export function SourceDocumentDiffReview({
         )}
       </div>
 
+      {/* Progress indicator */}
+      {(() => {
+        const actionable = localEntries.filter((e) => e.diff_type !== 'unchanged');
+        const reviewed = actionable.filter((e) => e.status !== 'pending_review').length;
+        const total = actionable.length;
+        if (total === 0) return null;
+        return (
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            Reviewed {reviewed} of {total}
+          </p>
+        );
+      })()}
+
       {/* Bulk actions toolbar */}
       <BulkActionToolbar
         entries={localEntries}
@@ -858,16 +895,25 @@ export function SourceDocumentDiffReview({
             </p>
           </div>
         ) : (
-          filteredEntries.map((entry) => (
-            <DiffEntryCard
-              key={entry.id}
-              entry={entry}
-              onStatusChange={handleSingleStatusChange}
-              onNoteChange={handleNoteChange}
-              isLoading={loadingIds.has(entry.id)}
-              viewMode={viewMode}
-            />
-          ))
+          <div role="feed" aria-label="Diff review entries">
+            {filteredEntries.map((entry, index) => (
+              <div
+                key={entry.id}
+                className={index > 0 ? 'mt-4' : undefined}
+                role="article"
+                aria-setsize={filteredEntries.length}
+                aria-posinset={index + 1}
+              >
+                <DiffEntryCard
+                  entry={entry}
+                  onStatusChange={handleSingleStatusChange}
+                  onNoteChange={handleNoteChange}
+                  isLoading={loadingIds.has(entry.id)}
+                  viewMode={viewMode}
+                />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
