@@ -199,7 +199,7 @@ describe('DigestPage', () => {
     });
 
     expect(
-      screen.getByText(/AI-generated summary of your recent content/),
+      screen.getByText(/summary of your recent content/),
     ).toBeInTheDocument();
   });
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
+import { Lightbulb, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { useClaudeConnected } from '@/hooks/use-claude-connected';
@@ -39,13 +39,13 @@ export function ClaudeActionsSection({ actions }: ClaudeActionsSectionProps) {
 
   return (
     <section
-      aria-label="Suggested actions for Claude"
+      aria-label="Suggested actions"
       className="rounded-lg border border-border bg-card p-4"
     >
       <div className="flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-          <Sparkles className="size-4" aria-hidden="true" />
-          Take Action with Claude
+          <Lightbulb className="size-4" aria-hidden="true" />
+          Suggested Actions
         </h2>
         <div className="flex items-center gap-1">
           <Button
@@ -72,7 +72,7 @@ export function ClaudeActionsSection({ actions }: ClaudeActionsSectionProps) {
               localStorage.setItem(COLLAPSE_KEY, String(next));
               return next;
             })}
-            aria-label={collapsed ? 'Expand Claude actions' : 'Collapse Claude actions'}
+            aria-label={collapsed ? 'Show suggested actions' : 'Hide suggested actions'}
             aria-expanded={!collapsed}
           >
             {collapsed ? (
@@ -88,7 +88,7 @@ export function ClaudeActionsSection({ actions }: ClaudeActionsSectionProps) {
         <>
           {claudeConnected === false && (
             <p className="mt-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              Connect Knowledge Hub to Claude first —{' '}
+              Connect Knowledge Hub first —{' '}
               <a href="/settings?section=integrations" className="font-medium text-foreground underline underline-offset-2 hover:text-primary">
                 go to Settings
               </a>{' '}
@@ -96,7 +96,7 @@ export function ClaudeActionsSection({ actions }: ClaudeActionsSectionProps) {
             </p>
           )}
           <p className="mt-1 text-xs text-muted-foreground">
-            Based on what needs attention, try these prompts in Claude:
+            Based on what needs attention, here are some suggested prompts:
           </p>
 
           <div className="mt-3 space-y-2">

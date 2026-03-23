@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { handleTablistKeyDown } from '@/lib/tablist-keyboard';
 import {
   Loader2,
-  Sparkles,
+  FileText,
   RefreshCw,
   Calendar,
   BookCheck,
@@ -122,7 +122,7 @@ function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
             : 'text-muted-foreground hover:text-foreground'
         }`}
       >
-        <Sparkles className="inline-block size-3.5 sm:mr-1.5" />
+        <Calendar className="inline-block size-3.5 sm:mr-1.5" />
         <span className="sm:hidden">1d</span>
         <span className="hidden sm:inline">Daily</span>
       </button>
@@ -240,9 +240,9 @@ function GenerateControls({
             ) : (
               <>
                 {mode === 'daily' ? (
-                  <Sparkles className="size-4" />
+                  <RefreshCw className="size-4" />
                 ) : variant === 'hero' ? (
-                  <Sparkles className="size-4" />
+                  <RefreshCw className="size-4" />
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
@@ -393,7 +393,7 @@ function GenerateControls({
                 </>
               ) : (
                 <>
-                  <Sparkles className="size-4" />
+                  <RefreshCw className="size-4" />
                   Generate Custom Digest
                 </>
               )}
@@ -645,14 +645,14 @@ export default function DigestPage() {
       <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-primary/10 p-4">
-            <Sparkles className="size-8 text-primary" />
+            <FileText className="size-8 text-primary" />
           </div>
           <h1 className="mt-6 text-fluid-2xl font-bold tracking-tight">
             Content Digest
           </h1>
           <p className="mt-2 max-w-md text-muted-foreground">
-            Get an AI-generated summary of your recent content, grouped by
-            domain with cross-cutting themes identified.
+            Get a summary of your recent content, grouped by domain with
+            cross-cutting themes identified.
           </p>
 
           <div className="mt-8 w-full max-w-2xl">

@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, CheckCircle2, Loader2, Pencil, Bot } from 'lucide-react';
+import { FileText, RefreshCw, CheckCircle2, Loader2, Pencil } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/format';
 import { toast } from 'sonner';
@@ -92,20 +91,7 @@ function estimateReadingTime(text: string): number {
   return Math.ceil(wordCount / 200);
 }
 
-/** Small badge to indicate AI-generated content */
-function AiBadge() {
-  return (
-    <Badge
-      variant="outline"
-      className="gap-1 border-primary/20 bg-primary/5 text-[10px] text-primary/80"
-    >
-      <Bot className="size-2.5" aria-hidden="true" />
-      AI-generated
-    </Badge>
-  );
-}
-
-/** Dual-content toggle (human vs AI) within a tab */
+/** Dual-content toggle (original vs auto-summary) within a tab */
 function ContentSourceToggle({
   viewMode,
   onToggle,
@@ -126,7 +112,7 @@ function ContentSourceToggle({
         )}
         aria-pressed={viewMode === 'human'}
       >
-        Human-authored
+        Original
       </button>
       <button
         type="button"
@@ -139,7 +125,7 @@ function ContentSourceToggle({
         )}
         aria-pressed={viewMode === 'ai'}
       >
-        AI version
+        Auto-summary
       </button>
     </div>
   );
@@ -480,12 +466,12 @@ export function ContentTabs({
                 ) : hasBriefAI && (briefViewMode === 'ai' || !hasBriefHuman) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
-                      <AiBadge />
+                      <span className="text-xs text-muted-foreground" />
                       <EditButton field="brief" label="Write Summary" />
                     </div>
                     {!hasBriefHuman && (
                       <p className="mb-3 text-xs text-muted-foreground">
-                        AI-generated — author a Summary to replace
+                        Auto-generated — write a Summary to replace
                       </p>
                     )}
                     <p className="text-base leading-relaxed text-foreground">
@@ -495,7 +481,7 @@ export function ContentTabs({
                 ) : (
                   // Empty state
                   <div className="flex flex-col items-center gap-3 py-8 text-center">
-                    <Sparkles className="size-6 text-muted-foreground/50" aria-hidden="true" />
+                    <FileText className="size-6 text-muted-foreground/50" aria-hidden="true" />
                     <p className="text-sm text-muted-foreground">
                       No summary yet for this item.
                     </p>
@@ -506,8 +492,8 @@ export function ContentTabs({
                         onClick={handleGenerate}
                         className="gap-1.5"
                       >
-                        <Sparkles className="size-3.5" aria-hidden="true" />
-                        Generate AI summary
+                        <RefreshCw className="size-3.5" aria-hidden="true" />
+                        Generate summary
                       </Button>
                     )}
                   </div>
@@ -541,12 +527,12 @@ export function ContentTabs({
                 ) : hasDetailAI && (detailViewMode === 'ai' || !hasDetailHuman) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
-                      <AiBadge />
+                      <span className="text-xs text-muted-foreground" />
                       <EditButton field="detail" label="Write Detailed" />
                     </div>
                     {!hasDetailHuman && (
                       <p className="mb-3 text-xs text-muted-foreground">
-                        AI-generated — author Detailed content to replace
+                        Auto-generated — write In Depth content to replace
                       </p>
                     )}
                     <ContentRenderer content={summaryData!.detailed} />
@@ -560,9 +546,6 @@ export function ContentTabs({
         {/* --- Takeaways tab --- */}
         {hasTakeaways && (
           <TabsContent value="takeaways" className="p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <AiBadge />
-            </div>
             <ul className="space-y-2.5">
               {summaryData!.takeaways.map((takeaway, i) => (
                 <li
@@ -619,11 +602,11 @@ export function ContentTabs({
         )}
       </Tabs>
 
-      {/* Footer: AI model info + generate button */}
+      {/* Footer: summary date + generate button */}
       <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
         {summaryData ? (
           <p className="text-xs text-muted-foreground">
-            Generated by {summaryData.model} on {formatDate(summaryData.generated_at)}
+            Last updated {formatDate(summaryData.generated_at)}
           </p>
         ) : (
           <span />
@@ -635,8 +618,8 @@ export function ContentTabs({
             size="sm"
             className="gap-1.5 text-xs"
           >
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            Generate AI summary
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            Generate summary
           </Button>
         )}
       </div>

@@ -159,7 +159,7 @@ describe('SummaryTabs', () => {
       <SummaryTabs {...defaultProps} summaryData={null} content="Some content to summarise" />,
     );
 
-    expect(screen.getByRole('button', { name: /Generate AI summary/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate summary/ })).toBeInTheDocument();
   });
 
   it('shows empty state when no summaryData and no content', () => {
@@ -219,7 +219,7 @@ describe('SummaryTabs', () => {
       <SummaryTabs {...defaultProps} summaryData={null} content="Content to summarise" />,
     );
 
-    const generateBtn = screen.getByRole('button', { name: /Generate AI summary/ });
+    const generateBtn = screen.getByRole('button', { name: /Generate summary/ });
     await user.click(generateBtn);
 
     await waitFor(() => {
