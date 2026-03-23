@@ -1,9 +1,82 @@
+import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import {
   SourceDocumentDiffReview,
   type DiffReviewEntry,
 } from '@/components/source-document-diff-review';
+
+// ---------------------------------------------------------------------------
+// Dynamic page title (Item 3: C5-QW-Diff-1)
+// ---------------------------------------------------------------------------
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id: documentId } = await params;
+  const supabase = await createClient();
+
+  const { data: doc } = await supabase
+    .from('source_documents')
+    .select('id, filename, version, parent_id')
+    .eq('id', documentId)
+    .single();
+
+  if (!doc) {
+    return { title: 'Diff Review' };
+  }
+
+  // Determine old/new versions
+  let oldVersion = doc.version;
+  let newVersion = doc.version;
+  const filename = doc.filename;
+
+  // Check if this document is the old side of a diff
+  const { data: diffAsOld } = await supabase
+    .from('source_document_diffs')
+    .select('new_document_id')
+    .eq('old_document_id', documentId)
+    .limit(1);
+
+  if (diffAsOld && diffAsOld.length > 0) {
+    const { data: child } = await supabase
+      .from('source_documents')
+      .select('version')
+      .eq('id', diffAsOld[0].new_document_id)
+      .single();
+
+    if (child) {
+      oldVersion = doc.version;
+      newVersion = child.version;
+    }
+  } else {
+    // Check if this document is the new side of a diff
+    const { data: diffAsNew } = await supabase
+      .from('source_document_diffs')
+      .select('old_document_id')
+      .eq('new_document_id', documentId)
+      .limit(1);
+
+    if (diffAsNew && diffAsNew.length > 0) {
+      const { data: parent } = await supabase
+        .from('source_documents')
+        .select('version')
+        .eq('id', diffAsNew[0].old_document_id)
+        .single();
+
+      if (parent) {
+        oldVersion = parent.version;
+        newVersion = doc.version;
+      }
+    }
+  }
+
+  return {
+    title: `Diff Review: ${filename} v${oldVersion} vs v${newVersion}`,
+  };
+}
 
 export default async function DocumentDiffPage({
   params,

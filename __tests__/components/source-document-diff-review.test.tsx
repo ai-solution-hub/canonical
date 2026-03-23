@@ -36,6 +36,16 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+// Mock lucide-react icons
+vi.mock('lucide-react', () => ({
+  ChevronRight: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="chevron-right" className={className as string} {...props} />
+  ),
+  CheckCircle2: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="check-circle" className={className as string} {...props} />
+  ),
+}));
+
 import {
   SourceDocumentDiffReview,
   type SourceDocumentDiffReviewProps,
@@ -525,13 +535,31 @@ describe('SourceDocumentDiffReview', () => {
   // -------------------------------------------------------------------------
 
   describe('accessibility', () => {
-    it('has a back link pointing to the new document', () => {
+    it('has breadcrumb navigation with correct links', () => {
       renderComponent();
-      const backLink = screen.getByRole('link', {
-        name: /back to policy-v2\.docx/i,
-      });
-      expect(backLink).toBeInTheDocument();
-      expect(backLink).toHaveAttribute('href', '/documents/doc-new-id');
+      const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+      expect(breadcrumb).toBeInTheDocument();
+
+      const sourceDocsLink = within(breadcrumb).getByRole('link', { name: 'Source Documents' });
+      expect(sourceDocsLink).toHaveAttribute('href', '/documents');
+
+      const filenameLink = within(breadcrumb).getByRole('link', { name: 'policy-v2.docx' });
+      expect(filenameLink).toHaveAttribute('href', '/documents/doc-new-id');
+
+      expect(within(breadcrumb).getByText('Diff Review')).toBeInTheDocument();
+    });
+
+    it('breadcrumb has aria-current on the current page', () => {
+      renderComponent();
+      const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+      const currentItem = within(breadcrumb).getByText('Diff Review');
+      expect(currentItem.closest('li')).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('has ChevronRight separators in breadcrumb', () => {
+      renderComponent();
+      const chevrons = screen.getAllByTestId('chevron-right');
+      expect(chevrons.length).toBe(2);
     });
 
     it('has a tablist for filter buttons', () => {
@@ -547,13 +575,21 @@ describe('SourceDocumentDiffReview', () => {
       expect(panel).toHaveAttribute('aria-live', 'polite');
     });
 
-    it('each diff entry card has an aria-label', () => {
+    it('entries container has role="feed"', () => {
       renderComponent({ entries: [MODIFIED_ENTRY] });
       expect(
-        screen.getByRole('article', {
-          name: /modified entry: what is your data protection policy/i,
-        }),
+        screen.getByRole('feed', { name: 'Diff review entries' }),
       ).toBeInTheDocument();
+    });
+
+    it('each diff entry has role="article" with aria-setsize and aria-posinset', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY, ADDED_ENTRY] });
+      const articles = screen.getAllByRole('article');
+      expect(articles).toHaveLength(2);
+      expect(articles[0]).toHaveAttribute('aria-setsize', '2');
+      expect(articles[0]).toHaveAttribute('aria-posinset', '1');
+      expect(articles[1]).toHaveAttribute('aria-setsize', '2');
+      expect(articles[1]).toHaveAttribute('aria-posinset', '2');
     });
 
     it('diff type badges have aria-labels', () => {
@@ -922,6 +958,67 @@ describe('SourceDocumentDiffReview', () => {
       expect(
         screen.queryByRole('status', { name: 'Review complete' }),
       ).not.toBeInTheDocument();
+    });
+
+    it('shows check icon in completion banner', () => {
+      const allReviewed = [
+        makeEntry({ id: 'e1', diff_type: 'modified', status: 'applied', old_content: 'a', new_content: 'b' }),
+      ];
+      renderComponent({
+        entries: allReviewed,
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      expect(within(banner).getByTestId('check-circle')).toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Progress indicator
+  // -------------------------------------------------------------------------
+
+  describe('progress indicator', () => {
+    it('shows "Reviewed X of Y" for actionable entries', () => {
+      renderComponent();
+      // 1 dismissed (REMOVED_ENTRY) out of 3 actionable (MODIFIED + ADDED + REMOVED)
+      expect(screen.getByText('Reviewed 1 of 3')).toBeInTheDocument();
+    });
+
+    it('updates count after status change', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          updated: [{ id: 'diff-1', status: 'applied' }],
+          summary: { pending_review: 1, applied: 1, dismissed: 1 },
+        }),
+      });
+
+      renderComponent();
+      expect(screen.getByText('Reviewed 1 of 3')).toBeInTheDocument();
+
+      // Apply the first entry
+      const applyButtons = screen.getAllByRole('button', { name: 'Apply this change' });
+      await user.click(applyButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByText('Reviewed 2 of 3')).toBeInTheDocument();
+      });
+    });
+
+    it('does not show when no actionable entries exist', () => {
+      renderComponent({
+        entries: [UNCHANGED_ENTRY],
+        summary: { added: 0, removed: 0, modified: 0, unchanged: 1 },
+      });
+      expect(screen.queryByText(/Reviewed \d+ of \d+/)).not.toBeInTheDocument();
+    });
+
+    it('has aria-live for screen reader updates', () => {
+      renderComponent();
+      const progress = screen.getByText('Reviewed 1 of 3');
+      expect(progress).toHaveAttribute('aria-live', 'polite');
     });
   });
 
