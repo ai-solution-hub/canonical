@@ -225,7 +225,7 @@ export function CommandPalette() {
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Taxonomy
+                        Settings &rsaquo; Domain Coverage
                       </Command.Item>
                       <Command.Item
                         value="Settings team users members"
@@ -241,7 +241,7 @@ export function CommandPalette() {
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Governance
+                        Settings &rsaquo; Quality Review
                       </Command.Item>
                       <Command.Item
                         value="Settings activity log"
