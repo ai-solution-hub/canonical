@@ -157,9 +157,14 @@ describe('CreateContentClient', () => {
       expect(screen.getByTestId('breadcrumb')).toHaveTextContent('New Item');
     });
 
-    it('renders "More details" toggle', () => {
+    it('renders details toggle with descriptive label', () => {
       renderForm();
-      expect(screen.getByText('More details')).toBeInTheDocument();
+      expect(screen.getByText('Classification, tags, and source info')).toBeInTheDocument();
+    });
+
+    it('renders character count on title input', () => {
+      renderForm();
+      expect(screen.getByText('0 / 500')).toBeInTheDocument();
     });
 
     it('form has noValidate to use custom validation instead of browser defaults', () => {
@@ -209,7 +214,7 @@ describe('CreateContentClient', () => {
       await waitFor(() => {
         const titleErrorEl = screen.getByText('Title is required');
         expect(titleErrorEl).toHaveAttribute('id', 'title-error');
-        expect(titleInput).toHaveAttribute('aria-describedby', 'title-error');
+        expect(titleInput).toHaveAttribute('aria-describedby', 'title-error title-char-count');
       });
     });
 
@@ -322,7 +327,7 @@ describe('CreateContentClient', () => {
       const user = userEvent.setup();
       renderForm();
 
-      const toggle = screen.getByText('More details');
+      const toggle = screen.getByText('Classification, tags, and source info');
       await user.click(toggle);
 
       // Fieldset legends should appear
@@ -335,7 +340,7 @@ describe('CreateContentClient', () => {
       const user = userEvent.setup();
       renderForm();
 
-      const toggle = screen.getByText('More details');
+      const toggle = screen.getByText('Classification, tags, and source info');
       expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
       await user.click(toggle);

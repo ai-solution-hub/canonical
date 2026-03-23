@@ -85,7 +85,7 @@ export function ItemActionBar({
           {isEditing ? 'Cancel edit' : 'Edit'}
         </Button>
       )}
-      {isQAPair && (
+      {isQAPair ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="gap-1.5">
@@ -110,6 +110,17 @@ export function ItemActionBar({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => handleCopyAnswer()}
+          aria-label="Copy content to clipboard"
+        >
+          <Copy className="size-3.5" />
+          Copy content
+        </Button>
       )}
       <StarButton
         itemId={item.id}

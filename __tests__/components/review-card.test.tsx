@@ -113,7 +113,7 @@ describe('ReviewCard', () => {
       />,
     );
     // Confidence appears in context summary and/or classification section
-    expect(screen.getAllByText('High (85%)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('High').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows low confidence warning', () => {
@@ -124,7 +124,7 @@ describe('ReviewCard', () => {
         total={1}
       />,
     );
-    expect(screen.getAllByText('Low (30%)').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Low').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows secondary domain when present', () => {
