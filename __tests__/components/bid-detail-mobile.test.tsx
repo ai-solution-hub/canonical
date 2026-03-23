@@ -25,6 +25,7 @@ const {
   mockFormatDateUK,
   mockGetDeadlineProximity,
   mockBidStateLabels,
+  mockBidStateShortLabels,
   mockToast,
 } = vi.hoisted(() => ({
   mockRouter: {
@@ -52,6 +53,18 @@ const {
     in_review: 'In Review',
     ready_for_export: 'Ready for Export',
     submitted: 'Submitted',
+    won: 'Won',
+    lost: 'Lost',
+    withdrawn: 'Withdrawn',
+  } as Record<string, string>,
+  mockBidStateShortLabels: {
+    draft: 'Draft',
+    questions_extracted: 'Extract',
+    matching: 'Match',
+    drafting: 'Draft',
+    in_review: 'Review',
+    ready_for_export: 'Export',
+    submitted: 'Submit',
     won: 'Won',
     lost: 'Lost',
     withdrawn: 'Withdrawn',
@@ -100,6 +113,7 @@ vi.mock('@/lib/bid-helpers', () => ({
 
 vi.mock('@/lib/bid-state-machine', () => ({
   BID_STATE_LABELS: mockBidStateLabels,
+  BID_STATE_SHORT_LABELS: mockBidStateShortLabels,
 }));
 
 vi.mock('@/lib/utils', () => ({

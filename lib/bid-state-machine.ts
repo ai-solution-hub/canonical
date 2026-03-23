@@ -17,6 +17,20 @@ export const BID_STATE_LABELS: Record<BidState, string> = {
   withdrawn: 'Withdrawn',
 };
 
+/** Abbreviated labels for mobile stepper display */
+export const BID_STATE_SHORT_LABELS: Record<BidState, string> = {
+  draft: 'Draft',
+  questions_extracted: 'Extract',
+  matching: 'Match',
+  drafting: 'Draft',
+  in_review: 'Review',
+  ready_for_export: 'Export',
+  submitted: 'Submit',
+  won: 'Won',
+  lost: 'Lost',
+  withdrawn: 'Withdrawn',
+};
+
 // Semantic token prefixes for bid state colours (map to --color-bid-* CSS tokens)
 export const BID_STATE_COLOURS: Record<BidState, string> = {
   draft: 'bid-draft',
