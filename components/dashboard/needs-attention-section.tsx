@@ -14,6 +14,8 @@ interface NeedsAttentionSectionProps {
   stale_content_count: number | null;
   expired_content_count: number | null;
   expiringCertCount?: number;
+  /** Count of content items with approaching expiry dates (client-side) */
+  expiringContentCount?: number;
   userRole?: string;
 }
 
@@ -24,18 +26,20 @@ export function NeedsAttentionSection({
   stale_content_count,
   expired_content_count,
   expiringCertCount,
+  expiringContentCount,
   userRole = 'viewer',
 }: NeedsAttentionSectionProps) {
   const isViewer = userRole === 'viewer';
 
   const totalAttention = isViewer
-    ? (stale_content_count ?? 0) + (expired_content_count ?? 0) + (expiringCertCount ?? 0)
+    ? (stale_content_count ?? 0) + (expired_content_count ?? 0) + (expiringCertCount ?? 0) + (expiringContentCount ?? 0)
     : (governance_review_count ?? 0) +
       (unverified_count ?? 0) +
       (quality_flag_count ?? 0) +
       (stale_content_count ?? 0) +
       (expired_content_count ?? 0) +
-      (expiringCertCount ?? 0);
+      (expiringCertCount ?? 0) +
+      (expiringContentCount ?? 0);
 
   const staleTotal = (stale_content_count ?? 0) + (expired_content_count ?? 0);
 
@@ -124,6 +128,18 @@ export function NeedsAttentionSection({
             claudePrompt={
               expiringCertCount && expiringCertCount > 0
                 ? `Review the ${expiringCertCount} certification${expiringCertCount === 1 ? '' : 's'} expiring within the next 30 days. For each one, check whether renewal is underway and whether any bid responses reference the expiring certification. Provide a prioritised action plan.`
+                : undefined
+            }
+          />
+          <AttentionCard
+            icon={Clock}
+            count={expiringContentCount ?? null}
+            label={`content ${(expiringContentCount ?? 0) === 1 ? 'item has' : 'items have'} expiry dates approaching`}
+            href="#expiring-content"
+            actionLabel="View expiring"
+            claudePrompt={
+              expiringContentCount && expiringContentCount > 0
+                ? `Review the ${expiringContentCount} content item${expiringContentCount === 1 ? '' : 's'} with expiry dates in the next 30 days. For each one, check whether the content is still accurate and whether any bid responses depend on the expiring information. Suggest which items to update first.`
                 : undefined
             }
           />

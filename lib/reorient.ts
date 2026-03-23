@@ -130,12 +130,11 @@ export async function fetchReorientData(
             .eq('governance_review_status', 'pending'),
 
       // 4: Quality flags count (admin only)
+      // Uses the same RPC as fetchDashboardData() so counts are consistent —
+      // returns distinct content_item_ids with unresolved flags, not raw log entries
       isAdmin
-        ? supabase
-            .from('ingestion_quality_log')
-            .select('*', { count: 'exact', head: true })
-            .eq('resolved', false)
-        : Promise.resolve({ count: 0, error: null }),
+        ? supabase.rpc('get_items_with_quality_flags')
+        : Promise.resolve({ data: [], error: null }),
 
       // 5: Unread notifications
       supabase
@@ -350,12 +349,12 @@ export async function fetchReorientData(
     }
   }
 
-  // --- Extract quality flags count ---
+  // --- Extract quality flags count (distinct items with unresolved flags) ---
   let qualityFlags = 0;
   if (results[4].status === 'fulfilled') {
-    const r = results[4].value as { count?: number | null; error?: unknown };
+    const r = results[4].value as { data?: unknown[] | null; error?: unknown };
     if (!r.error) {
-      qualityFlags = r.count ?? 0;
+      qualityFlags = Array.isArray(r.data) ? r.data.length : 0;
     }
   }
 

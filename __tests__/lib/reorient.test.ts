@@ -93,7 +93,7 @@ const TEST_USER_ID = 'user-abc-123';
  *         [1] from('content_history') — recent work
  *         [2] rpc('get_freshness_breakdown')
  *         [3] from('content_items') or Promise.resolve — governance reviews
- *         [4] from('ingestion_quality_log') or Promise.resolve — quality flags
+ *         [4] rpc('get_items_with_quality_flags') or Promise.resolve — quality flags
  *         [5] from('notifications') — unread notifications
  *         [6] from('bid_response_history') — bid response team changes
  *         [7] from('bid_response_history') — bid response recent work
@@ -160,12 +160,8 @@ function setupDefaultMock(overrides: {
     count: overrides.governanceCount ?? 0,
   });
 
-  // [4] quality flags — from('ingestion_quality_log')
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.qualityFlagsCount ?? 0,
-  });
+  // [4] quality flags — now uses rpc('get_items_with_quality_flags'), NOT from()
+  // Handled in the rpc mock below, not in fromCalls
 
   // [5] notifications — from('notifications')
   fromCalls.push({
@@ -246,11 +242,21 @@ function setupDefaultMock(overrides: {
     return c;
   });
 
-  // Configure RPC — only freshness breakdown is called directly now
+  // Configure RPC — freshness breakdown and quality flags (for admin)
   // (batch stats is handled by the mocked fetchActiveBidsWithStats)
-  mock.rpc.mockResolvedValue({
-    data: overrides.freshnessData ?? [],
-    error: null,
+  const qualityFlagUuids = Array.from(
+    { length: overrides.qualityFlagsCount ?? 0 },
+    (_, i) => `quality-flag-uuid-${i}`,
+  );
+  mock.rpc.mockImplementation((name: string) => {
+    if (name === 'get_items_with_quality_flags') {
+      return Promise.resolve({ data: qualityFlagUuids, error: null });
+    }
+    // get_freshness_breakdown
+    return Promise.resolve({
+      data: overrides.freshnessData ?? [],
+      error: null,
+    });
   });
 
   // Configure the mocked fetchActiveBidsWithStats result
