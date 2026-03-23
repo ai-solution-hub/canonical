@@ -175,7 +175,7 @@ export function CoveragePageTabs() {
         <TabsList>
           <TabsTrigger value="taxonomy" className="gap-1.5">
             <BarChart3 className="size-3.5" aria-hidden="true" />
-            Domains
+            Domain Coverage
           </TabsTrigger>
           <TabsTrigger value="templates" className="gap-1.5">
             <FileText className="size-3.5" aria-hidden="true" />

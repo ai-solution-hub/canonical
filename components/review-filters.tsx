@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import type { ReviewFilters as ReviewFiltersType, ReviewStatsResponse } from '@/types/review';
 
 interface ReviewFiltersProps {
@@ -152,9 +153,7 @@ export function ReviewFilters({
                         key={value}
                         onClick={() => handleDomainToggle(value)}
                         aria-pressed={isSelected}
-                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                          isSelected ? 'bg-accent font-medium' : ''
-                        }`}
+                        className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', isSelected && 'bg-accent font-medium')}
                       >
                         <span className="truncate">{label}</span>
                         <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -181,9 +180,7 @@ export function ReviewFilters({
                         key={value}
                         onClick={() => handleContentTypeToggle(value)}
                         aria-pressed={isSelected}
-                        className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                          isSelected ? 'bg-accent font-medium' : ''
-                        }`}
+                        className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', isSelected && 'bg-accent font-medium')}
                       >
                         <span className="truncate">{label}</span>
                         <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -205,9 +202,7 @@ export function ReviewFilters({
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => handleSourceFileChange(undefined)}
-                    className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                      !filters.source_file ? 'bg-accent font-medium' : ''
-                    }`}
+                    className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', !filters.source_file && 'bg-accent font-medium')}
                   >
                     <span>All files</span>
                     <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -218,9 +213,7 @@ export function ReviewFilters({
                     <button
                       key={value}
                       onClick={() => handleSourceFileChange(value)}
-                      className={`flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 ${
-                        filters.source_file === value ? 'bg-accent font-medium' : ''
-                      }`}
+                      className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', filters.source_file === value && 'bg-accent font-medium')}
                     >
                       <span className="truncate">{label}</span>
                       <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">

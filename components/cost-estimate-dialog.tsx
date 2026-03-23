@@ -110,8 +110,8 @@ export function CostEstimateDialog({
             Cost Estimate
           </DialogTitle>
           <DialogDescription>
-            Estimated API cost for drafting all eligible questions through the
-            three-pass AI pipeline (analysis, drafting, quality check).
+            Estimated API cost for drafting all eligible questions using
+            knowledge-based response generation.
           </DialogDescription>
         </DialogHeader>
 

@@ -74,7 +74,7 @@ describe('CoveragePageTabs', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders with Taxonomy tab active by default', async () => {
+  it('renders with Domain Coverage tab active by default', async () => {
     render(<CoveragePageTabs />);
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
     expect(screen.getByText('Coverage Dashboard')).toBeInTheDocument();

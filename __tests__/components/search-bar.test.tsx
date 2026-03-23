@@ -25,7 +25,7 @@ describe('SearchBar', () => {
 
   it('renders with default placeholder', () => {
     render(<SearchBar />);
-    expect(screen.getByPlaceholderText('Search items...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
   });
 
   it('shows item count in placeholder when totalCount provided', () => {

@@ -222,6 +222,7 @@ export function LibraryContent() {
   // Stats
   const standardCount = items.filter((i) => i.answer_standard).length;
   const advancedCount = items.filter((i) => i.answer_advanced).length;
+  const verifiedCount = items.filter((i) => i.verified_at).length;
 
   // Memoised grouped items (avoids recomputing on every render)
   const groupedItems = useMemo(
@@ -242,7 +243,7 @@ export function LibraryContent() {
   );
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section aria-label="Q&A Library" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -258,6 +259,9 @@ export function LibraryContent() {
                 )}
                 {advancedCount > 0 && (
                   <span><span aria-hidden="true"> · </span>{advancedCount} advanced</span>
+                )}
+                {verifiedCount > 0 && (
+                  <span><span aria-hidden="true"> · </span>{verifiedCount} verified</span>
                 )}
               </>
             )}
@@ -661,6 +665,6 @@ export function LibraryContent() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }

@@ -15,7 +15,7 @@ import {
   RefreshCw,
   Trash2,
   Loader2,
-  Sparkles,
+  PenLine,
   MoreHorizontal,
   AlertCircle,
   Sheet,
@@ -393,7 +393,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                     onClick={handleMatchQuestions}
                   >
                     <RefreshCw className="size-3.5" aria-hidden="true" />
-                    Match {stats.unmatched_count} Unmatched
+                    Find answers for {stats.unmatched_count} questions
                   </Button>
                 )}
                 {['drafting', 'in_review'].includes(bidStatus) && (
@@ -407,7 +407,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                     {draftingAll ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
                     ) : (
-                      <Sparkles className="size-3.5" aria-hidden="true" />
+                      <PenLine className="size-3.5" aria-hidden="true" />
                     )}
                     {draftingAll ? 'Drafting...' : 'Draft All'}
                   </Button>
@@ -432,7 +432,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
             <FileText className="size-8 text-muted-foreground/50" aria-hidden="true" />
             <p className="mt-3 text-sm text-muted-foreground">
-              Draft and review responses in the AI-powered workspace.
+              Draft and review responses in the drafting workspace.
             </p>
             <Button asChild className="mt-4">
               <Link href={`/bid/${id}/session`}>
@@ -704,10 +704,9 @@ function OverviewTab({
       {/* Draft All Responses action */}
       {canEdit && totalQuestions > 0 && ['drafting', 'in_review'].includes(overviewStatus) && (
         <div className="rounded-lg border bg-card p-4">
-          <h2 className="text-sm font-medium text-foreground">AI Drafting</h2>
+          <h2 className="text-sm font-medium text-foreground">Knowledge-based Drafting</h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Draft all eligible questions using the three-pass AI pipeline
-            (analysis, drafting, quality check).
+            Draft responses for all eligible questions using your knowledge base.
           </p>
           <Button
             variant="default"
@@ -719,7 +718,7 @@ function OverviewTab({
             {draftingAll ? (
               <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
             ) : (
-              <Sparkles className="size-3.5" aria-hidden="true" />
+              <PenLine className="size-3.5" aria-hidden="true" />
             )}
             {draftingAll ? 'Drafting...' : 'Draft All Responses'}
           </Button>

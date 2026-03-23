@@ -455,7 +455,7 @@ describe('BidDetailPage', () => {
       bidStatus: 'drafting',
     }));
     render(<BidDetailPage params={mockParams} />);
-    expect(screen.getByText(/Match 3 Unmatched/)).toBeInTheDocument();
+    expect(screen.getByText(/Find answers for 3 questions/)).toBeInTheDocument();
   });
 
   it('shows Draft All button when bidStatus is drafting', () => {

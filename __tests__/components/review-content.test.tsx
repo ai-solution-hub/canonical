@@ -564,7 +564,7 @@ describe('ReviewContent', () => {
   // 20. Review Queue heading visible in main view
   it('renders "Review Queue" heading in main review view', () => {
     render(<ReviewContent />);
-    expect(screen.getByRole('heading', { name: 'Review Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Review Queue/ })).toBeInTheDocument();
   });
 
   // 21. Action bar handlers are wired correctly

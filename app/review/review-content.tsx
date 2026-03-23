@@ -240,7 +240,14 @@ export function ReviewContent() {
       <div className="mx-auto w-full max-w-[800px]">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-foreground">Review Queue</h1>
+            <h1 className="text-xl font-semibold text-foreground">
+              Review Queue
+              {progress.flagged > 0 && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                  {progress.flagged} flagged
+                </span>
+              )}
+            </h1>
             {/* Queue panel toggle */}
             <Button
               variant="ghost"
