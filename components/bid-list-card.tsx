@@ -33,7 +33,7 @@ const STATUS_BORDER_CLASS: Record<BidState, string> = {
 interface BidListCardProps {
   bid: Bid;
   className?: string;
-  /** Optional Claude prompt to show an "Ask Claude" button */
+  /** Optional Claude prompt to show a "Take action" button */
   claudePrompt?: string;
 }
 

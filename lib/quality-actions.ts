@@ -177,7 +177,7 @@ export function suggestQualityActions(
       actions.push({
         itemId: item.id,
         itemTitle,
-        action: 'Generate AI summary — missing summary reduces quality score by ~15 points',
+        action: 'Generate summary — missing summary reduces quality score by ~15 points',
         category: 'summary',
         priority: 'high',
         estimatedScoreImpact: 15,

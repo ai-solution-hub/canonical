@@ -47,7 +47,7 @@ const CLAUDE_NEW_CHAT_URL = 'https://claude.ai/new';
  */
 export function ClaudePromptButton({
   prompt,
-  label = 'Ask Claude',
+  label = 'Take action',
   size = 'sm',
   className,
   openClaude = true,

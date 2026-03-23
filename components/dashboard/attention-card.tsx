@@ -9,7 +9,7 @@ interface AttentionCardProps {
   label: string;
   href: string;
   actionLabel: string;
-  /** Optional Claude prompt — when provided, shows an "Ask Claude" button */
+  /** Optional Claude prompt — when provided, shows a "Take action" button */
   claudePrompt?: string;
 }
 

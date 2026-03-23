@@ -178,7 +178,7 @@ export function TemplateCoverageRequirement({
           </Tooltip>
           <ClaudePromptButton
             prompt={`We need content to meet this requirement: "${requirementText}".${description ? ` Context: ${description}.` : ''} This is a ${TYPE_LABELS[requirementType].toLowerCase()} requirement. Search the KB for any related content, then help me draft material to fill this gap.`}
-            label="Ask Claude"
+            label="Suggest content"
             size="sm"
           />
         </div>

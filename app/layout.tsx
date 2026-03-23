@@ -27,7 +27,7 @@ const instrumentSans = Instrument_Sans({
 
 export const metadata: Metadata = {
   title: 'Knowledge Hub',
-  description: 'Knowledge base platform for AI-powered bid management',
+  description: 'Knowledge base platform for bid management',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
