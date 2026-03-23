@@ -128,7 +128,9 @@ export async function GET() {
     if (Array.isArray(sourceDocItems)) {
       // Collect unique source_document_ids
       const docIds = [...new Set(
-        sourceDocItems.map((r: { source_document_id: string }) => r.source_document_id),
+        sourceDocItems
+          .map((r: { source_document_id: string | null }) => r.source_document_id)
+          .filter((id): id is string => id !== null),
       )];
 
       // Fetch source document names
