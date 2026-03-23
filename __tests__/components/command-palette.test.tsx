@@ -118,7 +118,7 @@ describe('CommandPalette', () => {
     });
 
     // Admin-only entries should not be visible
-    expect(screen.queryByText('Settings › Domain Coverage')).not.toBeInTheDocument();
+    expect(screen.queryByText('Settings › Categories')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings › Team')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings › Quality Review')).not.toBeInTheDocument();
     expect(screen.queryByText('Settings › Activity')).not.toBeInTheDocument();
@@ -138,7 +138,7 @@ describe('CommandPalette', () => {
     // Admin-only entries should be visible (using HTML entity › = \u203A)
     // The component uses &rsaquo; which renders as ›
     const allText = document.body.textContent ?? '';
-    expect(allText).toContain('Domain Coverage');
+    expect(allText).toContain('Categories');
     expect(allText).toContain('Team');
     expect(allText).toContain('Quality Review');
     expect(allText).toContain('Activity');

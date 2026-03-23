@@ -39,11 +39,11 @@ interface SectionDef {
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
   { id: 'integrations', label: 'Integrations', icon: Plug, group: 'personal' },
-  { id: 'taxonomy', label: 'Domain Coverage', icon: FolderTree, group: 'content' },
+  { id: 'taxonomy', label: 'Categories', icon: FolderTree, group: 'content' },
   { id: 'tags', label: 'Tags', icon: Tags, group: 'content' },
   { id: 'entities', label: 'Organisations & People', icon: Network, group: 'content' },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
-  { id: 'layers', label: 'Content Depth', icon: Layers, group: 'content' },
+  { id: 'layers', label: 'Depth Levels', icon: Layers, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Quality Review', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },

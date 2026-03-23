@@ -1,9 +1,15 @@
 'use client';
 
-import { Loader2, Plus, Tags } from 'lucide-react';
+import { Loader2, Plus, Tags, Info } from 'lucide-react';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import { useTaxonomyAdmin } from '@/hooks/use-taxonomy-admin';
 import { DomainCard } from '@/components/settings/domain-card';
 import { TaxonomyDialogs } from '@/components/settings/taxonomy-dialogs';
@@ -32,10 +38,31 @@ export function TaxonomySection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold">Taxonomy Configuration</h3>
+          <h3 className="flex items-center gap-1.5 text-base font-semibold">
+            Categories
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                    aria-label="More information about categories"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  Domains are the top-level groups (e.g. &ldquo;Health &amp; Safety&rdquo;,
+                  &ldquo;Technology &amp; Systems&rdquo;). Subtopics sit underneath domains for
+                  finer classification. Every knowledge item gets one domain and one
+                  subtopic. Most teams configure this once during setup.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </h3>
           <p className="text-sm text-muted-foreground">
-            Manage knowledge base domains and subtopics. Deactivated items are
-            hidden from filters but existing content retains its classification.
+            Categories are how your knowledge is sorted into domains and
+            subtopics — like folders in a filing cabinet.
           </p>
         </div>
         <Button size="sm" onClick={t.openAddDomain}>

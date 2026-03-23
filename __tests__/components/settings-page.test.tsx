@@ -84,7 +84,7 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
     return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
-    const allSections = ['profile', 'integrations', 'taxonomy', 'tags', 'entities', 'guides', 'team', 'governance', 'activity'];
+    const allSections = ['profile', 'integrations', 'taxonomy', 'tags', 'entities', 'guides', 'layers', 'team', 'governance', 'activity'];
     const personalSections = ['profile', 'integrations'];
     const visible = isAdmin ? allSections : personalSections;
     if (param && visible.includes(param)) return param;

@@ -59,7 +59,7 @@ describe('SettingsSidebar', () => {
     // All 9 section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Integrations')).toBeInTheDocument();
-    expect(within(nav).getByText('Domain Coverage')).toBeInTheDocument();
+    expect(within(nav).getByText('Categories')).toBeInTheDocument();
     expect(within(nav).getByText('Tags')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();

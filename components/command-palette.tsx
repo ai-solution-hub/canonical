@@ -225,7 +225,7 @@ export function CommandPalette() {
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                       >
                         <Settings className="size-4 text-muted-foreground" />
-                        Settings &rsaquo; Domain Coverage
+                        Settings &rsaquo; Categories
                       </Command.Item>
                       <Command.Item
                         value="Settings team users members"
