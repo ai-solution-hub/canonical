@@ -10,6 +10,7 @@ import {
   Layers,
   Eye,
   EyeOff,
+  Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useLayerAdmin, type AdminLayer } from '@/hooks/use-layer-admin';
 
@@ -291,9 +298,32 @@ export function LayersSection() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Content Layers</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
+            Depth Levels
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                    aria-label="More information about depth levels"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  Examples: &ldquo;Summary&rdquo; for a one-paragraph overview,
+                  &ldquo;Standard&rdquo; for a typical article,
+                  &ldquo;Technical Detail&rdquo; for in-depth specifications.
+                  Depth levels help users find the right level of detail for
+                  their needs. Items can only have one depth level.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage the content depth layers used across the knowledge base.
+            Depth levels describe how detailed an item is, from a quick summary
+            to full technical specification.
           </p>
         </div>
         <Button

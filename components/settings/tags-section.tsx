@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   Scissors,
   BarChart3,
+  Info,
 } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,12 @@ import {
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import { DuplicateReview } from './duplicate-review';
 import type { DuplicateGroup } from './duplicate-review';
 import { TagDomainView } from './tag-domain-view';
@@ -396,9 +403,37 @@ export function TagsSection() {
     <div className="space-y-6">
       {/* ─── Summary Header ─── */}
       <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <Tags className="size-5 text-muted-foreground" aria-hidden="true" />
-          <h3 className="text-lg font-semibold">Tag Health</h3>
+        <div>
+          <div className="flex items-center gap-3">
+            <Tags className="size-5 text-muted-foreground" aria-hidden="true" />
+            <h3 className="flex items-center gap-1.5 text-lg font-semibold">
+              Tag Health
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                      aria-label="More information about tags"
+                    >
+                      <Info className="size-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs">
+                    Tags are generated automatically when content is ingested.
+                    The Duplicates tab flags similar tags that could be merged.
+                    The By Domain tab shows which tags appear in which knowledge
+                    areas. Use Bulk Actions to clean up large numbers of tags at
+                    once.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </h3>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tags are keywords attached to individual items, created automatically
+            during ingestion or added manually.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

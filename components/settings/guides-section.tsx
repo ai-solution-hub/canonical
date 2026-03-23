@@ -1,9 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, Plus, BookOpen } from 'lucide-react';
+import { Loader2, Plus, BookOpen, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 import { type Guide } from './guide-types';
 import { GuideFormDialog } from './guide-form-dialog';
 import { GuideRow } from './guide-row';
@@ -80,9 +86,32 @@ export function GuidesSection() {
     <div>
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Guides</h2>
+          <h2 className="flex items-center gap-1.5 text-lg font-semibold text-foreground">
+            Guides
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                    aria-label="More information about guides"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  A guide is a curated reading experience — a sequence of
+                  sections that pulls in relevant knowledge items. For example, a
+                  &ldquo;Health &amp; Safety Overview&rdquo; guide might have
+                  sections for policies, certifications, and risk assessments.
+                  Guides can be published or kept as drafts.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage curated reading experiences over your knowledge base.
+            Curated reading paths through your knowledge base, designed for
+            specific audiences or topics.
           </p>
         </div>
         <Button

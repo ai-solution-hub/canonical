@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/card';
@@ -26,6 +26,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -197,8 +203,29 @@ export function GovernanceSection() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 id="governance-config-heading" className="text-base font-semibold">
-            Governance Configuration
+          <h3 id="governance-config-heading" className="flex items-center gap-1.5 text-base font-semibold">
+            Quality Review Rules
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                    aria-label="More information about quality review rules"
+                  >
+                    <Info className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="max-w-xs">
+                  &ldquo;Open&rdquo; posture means anyone can edit without
+                  review. &ldquo;Review on Change&rdquo; means edits are flagged
+                  for a reviewer before being accepted. The timeout sets how many
+                  days a review can sit before it auto-approves. Freshness
+                  recalculation checks whether content has gone stale based on
+                  its type (e.g. policies expire faster than case studies).
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {isDialogDirty && (
               <span
                 className="ml-2 inline-block size-2 rounded-full bg-primary"
@@ -207,8 +234,8 @@ export function GovernanceSection() {
             )}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Set review posture per domain. &quot;Open&quot; allows changes freely.
-            &quot;Review on Change&quot; requires review after edits.
+            Rules that determine when content changes need a second pair of eyes,
+            plus freshness monitoring.
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Info } from 'lucide-react';
 import {
   ActivityFeed,
   type ActivityEventFilter,
@@ -13,6 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  TooltipProvider,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from '@/components/ui/tooltip';
 
 export function ActivitySection() {
   const [eventFilter, setEventFilter] = useState<ActivityEventFilter>('all');
@@ -21,9 +28,29 @@ export function ActivitySection() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h3 className="text-base font-semibold">Activity Log</h3>
+        <h3 className="flex items-center gap-1.5 text-base font-semibold">
+          Activity Log
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                  aria-label="More information about activity log"
+                >
+                  <Info className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                Shows content edits, governance events (reviews, approvals), bid
+                actions, and system events. Filter by type or date range to find
+                specific changes. Activity is read-only — it is an audit trail.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </h3>
         <p className="text-sm text-muted-foreground">
-          Recent edits, rollbacks, and quality events across the knowledge base.
+          A log of recent changes — who edited what, when, and why.
         </p>
       </div>
 
