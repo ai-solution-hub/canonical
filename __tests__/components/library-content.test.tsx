@@ -90,6 +90,12 @@ function createChainableQuery() {
   return builder;
 }
 
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+  ),
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/library',
@@ -366,5 +372,50 @@ describe('LibraryContent', () => {
 
     await user.click(screen.getByText('Clear all'));
     expect(mockClearFilters).toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Item 2: Semantic search fallback in empty state
+  // -------------------------------------------------------------------------
+
+  it('shows "Try searching the full knowledge base" link when search filter returns no results', async () => {
+    mockActiveCount.value = 1;
+    mockFilters.value = { ...mockFilters.value, search: 'cyber security' };
+    mockSupabaseQuery.data = [];
+
+    render(<LibraryContent />);
+    await waitFor(() => {
+      const link = screen.getByText('Try searching the full knowledge base');
+      expect(link).toBeInTheDocument();
+      expect(link.closest('a')).toHaveAttribute(
+        'href',
+        '/search?q=cyber%20security',
+      );
+    });
+  });
+
+  it('does not show semantic search link when no search term', async () => {
+    mockActiveCount.value = 1;
+    mockFilters.value = { ...mockFilters.value, domain: 'Technical', search: undefined };
+    mockSupabaseQuery.data = [];
+
+    render(<LibraryContent />);
+    await waitFor(() => {
+      expect(screen.getByText('No matching Q&A pairs')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Try searching the full knowledge base')).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Item 3: Verified filter in primary filter bar
+  // -------------------------------------------------------------------------
+
+  it('renders verified status filter in primary filter bar', async () => {
+    render(<LibraryContent />);
+    await waitFor(() => {
+      // The verified filter should be in the primary bar (not just in the popover)
+      const verifiedSelect = screen.getByLabelText('Filter by verified status');
+      expect(verifiedSelect).toBeInTheDocument();
+    });
   });
 });
