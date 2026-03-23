@@ -288,8 +288,8 @@ describe('ReviewContent', () => {
     setHookReturn({ isLoading: true });
     render(<ReviewContent />);
 
-    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Content review' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading review queue' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Review queue — loading/ })).toBeInTheDocument();
   });
 
   // 2. Empty queue — no filters (default "all caught up")
@@ -576,5 +576,68 @@ describe('ReviewContent', () => {
 
     await user.click(screen.getByRole('button', { name: 'Verify' }));
     expect(mockVerify).toHaveBeenCalled();
+  });
+
+  // -- ARIA label consistency tests --
+
+  // 22. Empty state uses descriptive ARIA label
+  it('uses "Review queue — no items to review" aria-label for empty state', () => {
+    setHookReturn({
+      queue: [],
+      currentItem: null,
+      progress: { verified: 10, flagged: 2, skipped: 0, total: 50, sessionReviewed: 0 },
+      filters: { status: 'unverified' },
+    });
+    render(<ReviewContent />);
+
+    expect(screen.getByRole('region', { name: /Review queue — no items to review/ })).toBeInTheDocument();
+  });
+
+  // 23. Batch complete state uses descriptive ARIA label
+  it('uses "Review queue — no items to review" aria-label for batch complete state', () => {
+    const item = {
+      id: 'item-1',
+      title: 'Item',
+      governance_review_status: null,
+      content: 'body',
+      source_url: null,
+      verified_at: null,
+      verified_by: null,
+      secondary_domain: null,
+      secondary_subtopic: null,
+    };
+    setHookReturn({
+      queue: [item],
+      currentIndex: 1,
+      currentItem: item,
+    });
+
+    render(<ReviewContent />);
+
+    expect(screen.getByRole('region', { name: /Review queue — no items to review/ })).toBeInTheDocument();
+  });
+
+  // 24. Main view uses item count in ARIA label
+  it('uses "Review queue — N items pending review" aria-label for main view', () => {
+    render(<ReviewContent />);
+
+    expect(screen.getByRole('region', { name: /Review queue — 1 item pending review/ })).toBeInTheDocument();
+  });
+
+  // 25. Main view pluralises correctly for multiple items
+  it('pluralises "items" in aria-label when queue has multiple items', () => {
+    const items = [
+      { id: 'item-1', title: 'Item 1', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
+      { id: 'item-2', title: 'Item 2', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
+      { id: 'item-3', title: 'Item 3', governance_review_status: null, content: 'body', source_url: null, verified_at: null, verified_by: null, secondary_domain: null, secondary_subtopic: null },
+    ];
+    setHookReturn({
+      queue: items,
+      currentItem: items[0],
+      sortedQueue: items,
+    });
+    render(<ReviewContent />);
+
+    expect(screen.getByRole('region', { name: /Review queue — 3 items pending review/ })).toBeInTheDocument();
   });
 });
