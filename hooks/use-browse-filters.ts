@@ -34,6 +34,8 @@ export function useBrowseFilters() {
 
     const ownerRaw = searchParams.get('owner') ?? undefined;
 
+    const reviewStatusRaw = searchParams.get('review_status') ?? undefined;
+
     const qualityIssues = searchParams.get('quality_issues') === 'true' || undefined;
     const includeQaExplicit = searchParams.get('include_qa') === 'true' || undefined;
     // When quality_issues is active, automatically include Q&A pairs so the
@@ -62,6 +64,7 @@ export function useBrowseFilters() {
       include_drafts: searchParams.get('include_drafts') === 'true' || undefined,
       include_qa: includeQa,
       owner: ownerRaw,
+      review_status: reviewStatusRaw,
       sort:
         (searchParams.get('sort') as BrowseFilters['sort']) ?? 'captured_date',
       order: (searchParams.get('order') as BrowseFilters['order']) ?? 'desc',
@@ -89,6 +92,7 @@ export function useBrowseFilters() {
     if (filters.include_drafts) count++;
     if (filters.include_qa) count++;
     if (filters.owner) count++;
+    if (filters.review_status) count++;
     return count;
   }, [filters]);
 
@@ -198,6 +202,10 @@ export function useBrowseFilters() {
       if ('owner' in newFilters) {
         if (newFilters.owner) params.set('owner', newFilters.owner);
         else params.delete('owner');
+      }
+      if ('review_status' in newFilters) {
+        if (newFilters.review_status) params.set('review_status', newFilters.review_status);
+        else params.delete('review_status');
       }
       if ('sort' in newFilters) {
         if (newFilters.sort && newFilters.sort !== 'captured_date')

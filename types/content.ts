@@ -37,6 +37,10 @@ export interface ContentListItem {
   answer_advanced?: string | null;
   /** UUID of the content owner */
   content_owner_id?: string | null;
+  /** Computed quality score (0-100) */
+  quality_score?: number | null;
+  /** Source document UUID for provenance tracking */
+  source_document_id?: string | null;
 }
 
 /** Content list item with read state */
@@ -189,7 +193,8 @@ export interface BrowseFilters {
   include_drafts?: boolean; // include draft items (excluded by default)
   include_qa?: boolean; // include Q&A pairs (excluded by default — they live in /library)
   owner?: string; // 'me' | 'unowned' | UUID — filter by content owner
-  sort?: 'captured_date' | 'classification_confidence' | 'primary_domain';
+  review_status?: string; // verified | unverified | flagged — governance review status filter
+  sort?: 'captured_date' | 'classification_confidence' | 'primary_domain' | 'freshness' | 'quality_score';
   order?: 'asc' | 'desc';
 }
 
@@ -201,7 +206,8 @@ export const CONTENT_LIST_COLUMNS = `
   ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,
   verified_at, source_document, brief, content,
   answer_standard, answer_advanced,
-  content_owner_id
+  content_owner_id, quality_score,
+  source_document_id
 ` as const;
 
 /** Columns selected for detail view */

@@ -116,6 +116,51 @@ export async function GET() {
       }
     }
 
+    // Source document breakdown — items linked via source_document_id FK
+    const by_source_document: Record<string, { total: number; verified: number; name: string }> = {};
+    const { data: sourceDocItems } = await supabase
+      .from('content_items')
+      .select('source_document_id, verified_at')
+      .not('source_document_id', 'is', null)
+      .or('governance_review_status.is.null,governance_review_status.neq.draft')
+      .limit(10000);
+
+    if (Array.isArray(sourceDocItems)) {
+      // Collect unique source_document_ids
+      const docIds = [...new Set(
+        sourceDocItems.map((r: { source_document_id: string }) => r.source_document_id),
+      )];
+
+      // Fetch source document names
+      let docNameMap: Record<string, string> = {};
+      if (docIds.length > 0) {
+        const { data: docRows } = await supabase
+          .from('source_documents')
+          .select('id, filename')
+          .in('id', docIds);
+        if (Array.isArray(docRows)) {
+          docNameMap = Object.fromEntries(
+            docRows.map((r: { id: string; filename: string }) => [r.id, r.filename]),
+          );
+        }
+      }
+
+      for (const item of sourceDocItems) {
+        const docId = (item as { source_document_id: string }).source_document_id;
+        if (!by_source_document[docId]) {
+          by_source_document[docId] = {
+            total: 0,
+            verified: 0,
+            name: docNameMap[docId] ?? docId.slice(0, 8),
+          };
+        }
+        by_source_document[docId].total++;
+        if ((item as { verified_at: string | null }).verified_at) {
+          by_source_document[docId].verified++;
+        }
+      }
+    }
+
     const response: ReviewStatsResponse = {
       total,
       verified,
@@ -125,6 +170,7 @@ export async function GET() {
       by_domain,
       by_content_type,
       by_source_file,
+      by_source_document,
     };
 
     return NextResponse.json(response);

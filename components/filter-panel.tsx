@@ -67,6 +67,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
     handleEntityChange,
     handleEntityTypeChange,
     handleOwnerChange,
+    handleReviewStatusChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,
@@ -411,6 +412,39 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
               })}
             </div>
           </FilterSection>
+
+          {/* Review Status — collapsed by default */}
+          <FilterSection title="Review Status" defaultOpen={false}>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: 'verified', label: 'Verified' },
+                { value: 'unverified', label: 'Unverified' },
+                { value: 'flagged', label: 'Flagged' },
+              ].map((opt) => {
+                const isActive = draft.review_status === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleReviewStatusChange(opt.value)}
+                    aria-pressed={isActive}
+                    className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                      isActive
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-muted text-foreground hover:bg-accent'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Filter by verification status
+            </p>
+          </FilterSection>
+
+          <Separator className="my-3" />
 
           {/* Content Owner — collapsed by default */}
           <FilterSection title="Owner" defaultOpen={false}>

@@ -199,6 +199,20 @@ export function FilterBadges() {
     });
   }
 
+  if (filters.review_status) {
+    const reviewStatusLabels: Record<string, string> = {
+      verified: 'Verified',
+      unverified: 'Unverified',
+      flagged: 'Flagged',
+    };
+    badges.push({
+      id: 'review-status',
+      label: 'Review',
+      value: reviewStatusLabels[filters.review_status] ?? filters.review_status,
+      onRemove: () => removeFilter('review_status'),
+    });
+  }
+
   if (filters.owner) {
     const ownerLabels: Record<string, string> = {
       me: 'My content',

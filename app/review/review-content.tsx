@@ -132,7 +132,8 @@ export function ReviewContent() {
       (filters.status && filters.status !== 'unverified') ||
       filters.domain?.length ||
       filters.content_type?.length ||
-      filters.source_file;
+      filters.source_file ||
+      filters.source_document_id;
 
     const allVerified = !hasFilters && progress.total > 0 && progress.verified >= progress.total;
 

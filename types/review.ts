@@ -18,6 +18,7 @@ export interface ReviewFilters {
   domain?: string[];
   content_type?: string[];
   source_file?: string;
+  source_document_id?: string;
 }
 
 // -- Action payload --
@@ -77,4 +78,5 @@ export interface ReviewStatsResponse {
   by_domain: Record<string, { total: number; verified: number }>;
   by_content_type: Record<string, { total: number; verified: number }>;
   by_source_file: Record<string, { total: number; verified: number }>;
+  by_source_document: Record<string, { total: number; verified: number; name: string }>;
 }
