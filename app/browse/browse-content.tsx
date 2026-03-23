@@ -52,6 +52,7 @@ export function BrowseContent() {
     isLoadingMore,
     hasMore,
     qualityFlaggedIds,
+    freshnessCounts,
     sentinelCallbackRef,
     filters,
     activeFilterCount,
@@ -193,7 +194,7 @@ export function BrowseContent() {
   }, [hideThumbnails]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section aria-label="Browse content" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -208,6 +209,20 @@ export function BrowseContent() {
                 {totalCount !== null
                   ? `${totalCount.toLocaleString('en-GB')} item${totalCount !== 1 ? 's' : ''}`
                   : 'Loading...'}
+                {freshnessCounts && (
+                  <span className="text-muted-foreground">
+                    {' \u2014 '}
+                    <span className="text-freshness-fresh">{freshnessCounts.fresh} fresh</span>
+                    {', '}
+                    <span className="text-freshness-stale">{freshnessCounts.stale} stale</span>
+                    {freshnessCounts.expired > 0 && (
+                      <>
+                        {', '}
+                        <span className="text-freshness-expired">{freshnessCounts.expired} expired</span>
+                      </>
+                    )}
+                  </span>
+                )}
                 {activeFilterCount > 0 && (
                   <span className="text-muted-foreground"> (filtered)</span>
                 )}
@@ -329,6 +344,6 @@ export function BrowseContent() {
 
       <FilterPanel open={filterPanelOpen} onOpenChange={setFilterPanelOpen} />
       <FileUploadDialog open={showUpload} onOpenChange={setShowUpload} />
-    </div>
+    </section>
   );
 }

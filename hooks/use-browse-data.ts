@@ -15,6 +15,13 @@ function asContentListItems(data: unknown): ContentListItem[] {
   return data as ContentListItem[];
 }
 
+export interface FreshnessCounts {
+  fresh: number;
+  aging: number;
+  stale: number;
+  expired: number;
+}
+
 export interface UseBrowseDataReturn {
   items: ContentListItem[];
   totalCount: number | null;
@@ -22,6 +29,7 @@ export interface UseBrowseDataReturn {
   isLoadingMore: boolean;
   hasMore: boolean;
   qualityFlaggedIds: Set<string>;
+  freshnessCounts: FreshnessCounts | null;
   sentinelCallbackRef: RefCallback<HTMLDivElement>;
   /** Re-run the initial fetch (e.g. after an upload or mutation) */
   refreshData: () => void;
@@ -51,6 +59,30 @@ export function useBrowseData(): UseBrowseDataReturn {
       if (data) setQualityFlaggedIds(new Set(data as string[]));
     };
     fetchQualityFlags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
+  }, []);
+
+  // Freshness counts — lightweight query for the subtitle stats
+  const [freshnessCounts, setFreshnessCounts] = useState<FreshnessCounts | null>(null);
+  useEffect(() => {
+    const fetchFreshnessCounts = async () => {
+      const counts: FreshnessCounts = { fresh: 0, aging: 0, stale: 0, expired: 0 };
+      const states = ['fresh', 'aging', 'stale', 'expired'] as const;
+      const results = await Promise.all(
+        states.map((state) =>
+          supabase
+            .from('content_items')
+            .select('id', { count: 'exact', head: true })
+            .eq('freshness', state)
+            .neq('content_type', 'q_a_pair'),
+        ),
+      );
+      for (let i = 0; i < states.length; i++) {
+        counts[states[i]] = results[i].count ?? 0;
+      }
+      setFreshnessCounts(counts);
+    };
+    fetchFreshnessCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, []);
 
@@ -457,6 +489,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     isLoadingMore,
     hasMore,
     qualityFlaggedIds,
+    freshnessCounts,
     sentinelCallbackRef,
     refreshData,
     filters,

@@ -308,19 +308,19 @@ describe('formatSmartDate', () => {
 describe('getConfidenceDisplay', () => {
   it('should return High for >= 0.8', () => {
     const result = getConfidenceDisplay(0.82);
-    expect(result.label).toBe('High (82%)');
+    expect(result.label).toBe('High');
     expect(result.colourClass).toContain('success');
   });
 
   it('should return Medium for >= 0.5', () => {
     const result = getConfidenceDisplay(0.55);
-    expect(result.label).toBe('Medium (55%)');
+    expect(result.label).toBe('Medium');
     expect(result.colourClass).toContain('warning');
   });
 
   it('should return Low for < 0.5', () => {
     const result = getConfidenceDisplay(0.3);
-    expect(result.label).toBe('Low (30%)');
+    expect(result.label).toBe('Low');
     expect(result.colourClass).toContain('destructive');
   });
 
@@ -328,5 +328,14 @@ describe('getConfidenceDisplay', () => {
     const result = getConfidenceDisplay(null);
     expect(result.label).toBe('Unknown');
     expect(result.colourClass).toContain('muted');
+  });
+
+  it('should not include percentage in any label', () => {
+    const high = getConfidenceDisplay(0.95);
+    const medium = getConfidenceDisplay(0.6);
+    const low = getConfidenceDisplay(0.2);
+    expect(high.label).not.toContain('%');
+    expect(medium.label).not.toContain('%');
+    expect(low.label).not.toContain('%');
   });
 });

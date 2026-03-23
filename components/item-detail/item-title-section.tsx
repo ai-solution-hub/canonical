@@ -4,6 +4,8 @@ import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { VerificationBadge } from '@/components/verification-badge';
+import { FreshnessBadge } from '@/components/freshness-badge';
+import { formatSmartDate } from '@/lib/format';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -56,17 +58,23 @@ export function ItemTitleSection({
         ) : (
           <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
         )}
-        {/* Inline badges */}
-        {(item.verified_at || item.source_document) && (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <VerificationBadge verified={!!item.verified_at} size="md" />
-            {item.source_document && (
-              <span className="text-xs text-muted-foreground">
-                Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
-              </span>
-            )}
-          </div>
-        )}
+        {/* Metadata strip — freshness, verification, and source at a glance */}
+        <div className="mt-2 flex flex-wrap items-center gap-3" role="status" aria-label="Content metadata">
+          {item.freshness && (
+            <FreshnessBadge freshness={item.freshness as string} />
+          )}
+          <VerificationBadge verified={!!item.verified_at} size="md" />
+          {item.updated_at && (
+            <span className="text-xs text-muted-foreground">
+              Updated {formatSmartDate(item.updated_at)}
+            </span>
+          )}
+          {item.source_document && (
+            <span className="text-xs text-muted-foreground">
+              Source: <span className="font-medium text-foreground/80">{item.source_document}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Editing banner */}

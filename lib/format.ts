@@ -106,20 +106,19 @@ export function getConfidenceDisplay(confidence: number | null): {
   if (confidence === null || confidence === undefined) {
     return { label: 'Unknown', colourClass: 'text-muted-foreground' };
   }
-  const percentage = Math.round(confidence * 100);
   if (confidence >= 0.8) {
     return {
-      label: `High (${percentage}%)`,
+      label: 'High',
       colourClass: 'text-success',
     };
   }
   if (confidence >= 0.5) {
     return {
-      label: `Medium (${percentage}%)`,
+      label: 'Medium',
       colourClass: 'text-status-warning',
     };
   }
-  return { label: `Low (${percentage}%)`, colourClass: 'text-destructive' };
+  return { label: 'Low', colourClass: 'text-destructive' };
 }
 
 /**

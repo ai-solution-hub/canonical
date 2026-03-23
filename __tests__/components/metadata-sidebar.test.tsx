@@ -220,7 +220,7 @@ describe('MetadataSidebar', () => {
     });
 
     expect(screen.getByText('Confidence')).toBeInTheDocument();
-    expect(screen.getByText('High (92%)')).toBeInTheDocument();
+    expect(screen.getByText('High')).toBeInTheDocument();
   });
 
   it('renders low confidence with correct label', async () => {
@@ -232,7 +232,7 @@ describe('MetadataSidebar', () => {
       expect(mockFrom).toHaveBeenCalledWith('ingestion_quality_log');
     });
 
-    expect(screen.getByText('Low (30%)')).toBeInTheDocument();
+    expect(screen.getByText('Low')).toBeInTheDocument();
   });
 
   it('shows quality flags when present', async () => {

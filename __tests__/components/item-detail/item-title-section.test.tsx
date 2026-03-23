@@ -21,6 +21,16 @@ vi.mock('@/components/verification-badge', () => ({
   ),
 }));
 
+vi.mock('@/components/freshness-badge', () => ({
+  FreshnessBadge: ({ freshness }: { freshness: string }) => (
+    <span data-testid="freshness-badge">{freshness}</span>
+  ),
+}));
+
+vi.mock('@/lib/format', () => ({
+  formatSmartDate: (date: string) => date ? 'Recently' : '',
+}));
+
 vi.mock('@/components/ui/button', () => ({
   Button: ({ children, onClick, ...props }: Record<string, unknown>) => (
     <button onClick={onClick as () => void} {...props}>{children as React.ReactNode}</button>
@@ -108,21 +118,44 @@ describe('ItemTitleSection', () => {
     expect(input).toBeInTheDocument();
   });
 
-  it('shows VerificationBadge when verified_at is set', () => {
+  it('always shows metadata strip with verification badge', () => {
+    render(<ItemTitleSection {...createDefaultProps()} />);
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveAttribute('data-verified', 'false');
+  });
+
+  it('shows VerificationBadge as verified when verified_at is set', () => {
     const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
     render(<ItemTitleSection {...createDefaultProps({ item })} />);
     const badge = screen.getByTestId('verification-badge');
     expect(badge).toHaveAttribute('data-verified', 'true');
   });
 
+  it('shows freshness badge when freshness is set', () => {
+    const item = createMockItem({ freshness: 'fresh' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    const badge = screen.getByTestId('freshness-badge');
+    expect(badge).toHaveTextContent('fresh');
+  });
+
+  it('shows updated date when updated_at is set', () => {
+    const item = createMockItem({ updated_at: '2026-03-20T10:00:00Z' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    expect(screen.getByText(/Updated/)).toBeInTheDocument();
+  });
+
   it('shows source document text', () => {
     const item = createMockItem({
       source_document: 'Annual Report 2025',
-      verified_at: '2026-01-01T00:00:00Z',
     });
     render(<ItemTitleSection {...createDefaultProps({ item })} />);
     expect(screen.getByText('Annual Report 2025')).toBeInTheDocument();
     expect(screen.getByText('Source:')).toBeInTheDocument();
+  });
+
+  it('metadata strip has appropriate ARIA label', () => {
+    render(<ItemTitleSection {...createDefaultProps()} />);
+    expect(screen.getByLabelText('Content metadata')).toBeInTheDocument();
   });
 
   it('shows editing banner with "unsaved changes" when editDirty is true', () => {

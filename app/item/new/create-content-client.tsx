@@ -341,16 +341,27 @@ export function CreateContentClient() {
               autoFocus
               maxLength={500}
               aria-invalid={!!errors.title || undefined}
-              aria-describedby={errors.title ? 'title-error' : undefined}
+              aria-describedby={[errors.title ? 'title-error' : '', 'title-char-count'].filter(Boolean).join(' ') || undefined}
               className={errors.title ? 'border-destructive' : ''}
             />
-            {errors.title && (
-              <p id="title-error" className="text-destructive text-sm" role="alert">
-                {isQAPair
-                  ? errors.title.message?.replace('Title', 'Question')
-                  : errors.title.message}
-              </p>
-            )}
+            <div className="flex items-center justify-between">
+              {errors.title ? (
+                <p id="title-error" className="text-destructive text-sm" role="alert">
+                  {isQAPair
+                    ? errors.title.message?.replace('Title', 'Question')
+                    : errors.title.message}
+                </p>
+              ) : (
+                <span />
+              )}
+              <span
+                id="title-char-count"
+                className={`text-xs ${title.length >= 450 ? 'text-status-warning' : 'text-muted-foreground'}`}
+                aria-live="polite"
+              >
+                {title.length} / 500
+              </span>
+            </div>
           </div>
 
           {/* Content Type */}
@@ -445,7 +456,7 @@ export function CreateContentClient() {
             ) : (
               <ChevronDown className="size-4" />
             )}
-            More details
+            Classification, tags, and source info
           </button>
 
           {showMoreDetails && (
