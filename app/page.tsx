@@ -1,7 +1,6 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { SearchBar } from '@/components/search-bar';
-import { NeedsAttentionSection } from '@/components/dashboard/needs-attention-section';
 import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
@@ -11,8 +10,7 @@ import { fetchReorientData } from '@/lib/reorient';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { ClaudeActionsSection } from '@/components/dashboard/claude-actions-section';
 import { ContentSuggestionsSection } from '@/components/dashboard/content-suggestions-section';
-import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
-import { ExpiringContentSection } from '@/components/dashboard/expiring-content-section';
+import { ClientAttentionBridge } from '@/components/dashboard/client-attention-bridge';
 import { generateSuggestedActions } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
@@ -121,9 +119,16 @@ async function DashboardContent() {
         </div>
       )}
 
-      {/* Two-column layout: Needs Attention + Active Bids */}
+      {/* Two-column layout: Needs Attention + Active Bids
+           ClientAttentionBridge wires client-side expiring counts
+           (certifications + content) into NeedsAttentionSection */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <NeedsAttentionSection {...data.needs_attention} userRole={data.user_role} />
+        <div>
+          <ClientAttentionBridge
+            needsAttention={data.needs_attention}
+            userRole={data.user_role}
+          />
+        </div>
         <ActiveBidsSection bids={data.active_bids} />
       </div>
 
@@ -134,16 +139,6 @@ async function DashboardContent() {
           activeBidCount={data.active_bids.length}
           unreadNotificationCount={data.unread_notification_count}
         />
-      </div>
-
-      {/* Compliance Status */}
-      <div className="mt-6">
-        <ComplianceStatusSection />
-      </div>
-
-      {/* Expiring Content — date-based reminders */}
-      <div className="mt-6">
-        <ExpiringContentSection />
       </div>
 
       {/* Content Suggestions */}
