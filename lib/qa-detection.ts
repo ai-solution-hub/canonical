@@ -263,7 +263,7 @@ function detectTableFormat(rawHeaders: string[]): TableFormat | null {
 
   const has = (name: string) => normalised.includes(name);
 
-  let hasQuestion = has('question');
+  const hasQuestion = has('question');
   let hasStandard = has('standard');
   let hasAdvanced = has('advanced');
   const hasSection = has('section');
