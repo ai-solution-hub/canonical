@@ -155,8 +155,6 @@ interface GenerateControlsProps {
   onGenerate: () => void;
   periodDays: string;
   onPeriodDaysChange: (value: string) => void;
-  currentDigest: Digest | null;
-  onMarkAllRead: () => void;
   customDateFrom: string;
   onCustomDateFromChange: (value: string) => void;
   customDateTo: string;
@@ -176,8 +174,6 @@ function GenerateControls({
   onGenerate,
   periodDays,
   onPeriodDaysChange,
-  currentDigest,
-  onMarkAllRead,
   customDateFrom,
   onCustomDateFromChange,
   customDateTo,
@@ -252,17 +248,6 @@ function GenerateControls({
           </Button>
         )}
 
-        {/* Mark all as read button (only in bar variant when digest exists) */}
-        {variant === 'bar' && currentDigest && (
-          <Button
-            variant="outline"
-            onClick={onMarkAllRead}
-            className="gap-2"
-          >
-            <BookCheck className="size-4" />
-            Mark all as read
-          </Button>
-        )}
         </div>
 
       {/* Custom filter panel */}
@@ -615,8 +600,6 @@ export default function DigestPage() {
     onGenerate: handleGenerate,
     periodDays,
     onPeriodDaysChange: setPeriodDays,
-    currentDigest,
-    onMarkAllRead: handleMarkAllRead,
     customDateFrom,
     onCustomDateFromChange: setCustomDateFrom,
     customDateTo,
@@ -689,7 +672,21 @@ export default function DigestPage() {
           <DigestSkeleton />
         </div>
       ) : (
-        <DigestView digest={currentDigest} />
+        <>
+          <DigestView digest={currentDigest} />
+
+          {/* Mark all as read — positioned after digest content */}
+          <div className="mt-8 flex justify-center">
+            <Button
+              variant="outline"
+              onClick={handleMarkAllRead}
+              className="gap-2"
+            >
+              <BookCheck className="size-4" />
+              Mark all as read
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Past digests */}

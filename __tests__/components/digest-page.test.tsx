@@ -676,4 +676,35 @@ describe('DigestPage', () => {
     const tabpanel = screen.getByRole('tabpanel');
     expect(tabpanel).toHaveAttribute('aria-labelledby', 'tab-preset');
   });
+
+  // 25. Mark all as read button is positioned after digest content, not in controls
+  it('renders mark all as read button after digest content, not in controls bar', async () => {
+    const digest = makeDigest();
+    setupFetch({ latest: digest, list: [] });
+    render(<DigestPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('digest-view')).toBeInTheDocument();
+    });
+
+    const markAllButton = screen.getByRole('button', { name: /Mark all as read/i });
+    expect(markAllButton).toBeInTheDocument();
+
+    // The button should be a sibling of the DigestView, not inside the controls
+    // Verify by checking its parent structure — it should not be inside a tabpanel
+    const tabpanel = screen.getByRole('tabpanel');
+    expect(within(tabpanel).queryByRole('button', { name: /Mark all as read/i })).not.toBeInTheDocument();
+  });
+
+  // 26. Mark all as read button is not shown when no digest exists
+  it('does not render mark all as read button in hero state', async () => {
+    setupFetch({ latest: null, list: [] });
+    render(<DigestPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole('button', { name: /Mark all as read/i })).not.toBeInTheDocument();
+  });
 });
