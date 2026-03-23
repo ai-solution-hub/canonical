@@ -25,6 +25,7 @@ export interface FilterDraft {
   include_drafts: boolean;
   include_qa: boolean;
   owner: string;
+  review_status: string;
 }
 
 interface UseFilterDraftParams {
@@ -58,6 +59,7 @@ function filtersTodraft(filters: BrowseFilters): FilterDraft {
     include_drafts: filters.include_drafts ?? false,
     include_qa: filters.include_qa ?? false,
     owner: filters.owner ?? '',
+    review_status: filters.review_status ?? '',
   };
 }
 
@@ -204,6 +206,13 @@ export function useFilterDraft({
     }));
   }, []);
 
+  const handleReviewStatusChange = useCallback((status: string) => {
+    setDraft((prev) => ({
+      ...prev,
+      review_status: prev.review_status === status ? '' : status,
+    }));
+  }, []);
+
   const handleUserTagToggle = useCallback((tag: string) => {
     setDraft((prev) => {
       const isSelected = prev.user_tags.includes(tag);
@@ -249,6 +258,7 @@ export function useFilterDraft({
       include_drafts: draft.include_drafts || undefined,
       include_qa: draft.include_qa || undefined,
       owner: draft.owner || undefined,
+      review_status: draft.review_status || undefined,
     });
     onClose();
   }, [draft, setFilters, onClose]);
@@ -275,6 +285,7 @@ export function useFilterDraft({
       include_drafts: false,
       include_qa: false,
       owner: '',
+      review_status: '',
     });
     onClearAuthorSearch?.();
     clearFilters();
@@ -302,6 +313,7 @@ export function useFilterDraft({
     draft.include_drafts,
     draft.include_qa,
     draft.owner,
+    draft.review_status,
   ].filter(Boolean).length;
 
   return {
@@ -321,6 +333,7 @@ export function useFilterDraft({
     handleEntityChange,
     handleEntityTypeChange,
     handleOwnerChange,
+    handleReviewStatusChange,
     handleUserTagToggle,
     handleApply,
     handleClearAll,

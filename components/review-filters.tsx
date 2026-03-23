@@ -40,6 +40,7 @@ export function ReviewFilters({
     filters.domain?.length ? 1 : 0,
     filters.content_type?.length ? 1 : 0,
     filters.source_file ? 1 : 0,
+    filters.source_document_id ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
 
   // Build domain options from stats
@@ -75,6 +76,18 @@ export function ReviewFilters({
         }))
     : [];
 
+  // Build source document options from stats
+  const sourceDocumentOptions = stats?.by_source_document
+    ? Object.entries(stats.by_source_document)
+        .sort(([, a], [, b]) => b.total - a.total)
+        .map(([docId, counts]) => ({
+          value: docId,
+          label: counts.name,
+          count: counts.total,
+          verified: counts.verified,
+        }))
+    : [];
+
   const handleStatusChange = (status: ReviewFiltersType['status']) => {
     onFiltersChange({ ...filters, status });
   };
@@ -97,6 +110,10 @@ export function ReviewFilters({
 
   const handleSourceFileChange = (file: string | undefined) => {
     onFiltersChange({ ...filters, source_file: file });
+  };
+
+  const handleSourceDocumentChange = (docId: string | undefined) => {
+    onFiltersChange({ ...filters, source_document_id: docId });
   };
 
   const handleClearAll = () => {
@@ -218,6 +235,38 @@ export function ReviewFilters({
                       <span className="truncate">{label}</span>
                       <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
                         {count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Source document filter */}
+            {sourceDocumentOptions.length > 0 && (
+              <div className="max-h-48 overflow-y-auto p-3">
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Source document
+                </h4>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={() => handleSourceDocumentChange(undefined)}
+                    className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', !filters.source_document_id && 'bg-accent font-medium')}
+                  >
+                    <span>All documents</span>
+                    <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {stats?.total ?? 0}
+                    </span>
+                  </button>
+                  {sourceDocumentOptions.map(({ value, label, count, verified }) => (
+                    <button
+                      key={value}
+                      onClick={() => handleSourceDocumentChange(value)}
+                      className={cn('flex items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1', filters.source_document_id === value && 'bg-accent font-medium')}
+                    >
+                      <span className="truncate">{label}</span>
+                      <span className="ml-2 shrink-0 text-xs tabular-nums text-muted-foreground">
+                        {verified}/{count}
                       </span>
                     </button>
                   ))}

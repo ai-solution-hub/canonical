@@ -253,6 +253,15 @@ export function useBrowseData(): UseBrowseDataReturn {
         query = query.or('governance_review_status.is.null,governance_review_status.neq.draft');
       }
 
+      // Review status filter (verified/unverified/flagged)
+      if (filters.review_status === 'verified') {
+        query = query.not('verified_at', 'is', null);
+      } else if (filters.review_status === 'unverified') {
+        query = query.is('verified_at', null);
+      } else if (filters.review_status === 'flagged') {
+        query = query.eq('governance_review_status', 'pending');
+      }
+
       if (filters.starred) {
         query = query.eq('metadata->>starred', 'true');
       }
@@ -331,6 +340,22 @@ export function useBrowseData(): UseBrowseDataReturn {
         if (cursorValue) {
           query = query.gt('captured_date', cursorValue);
         }
+      } else if (sort === 'freshness') {
+        // Freshness sort: stale/expired first (asc: expired < stale < aging < fresh)
+        // Uses a deterministic DB-level CASE ordering via RPC fallback not available,
+        // so we use client-side offset pagination (no cursor).
+        // The freshness values are: fresh, aging, stale, expired
+        // We sort by freshness ascending (expired first) then date descending
+        query = query
+          .order('freshness', { ascending: true, nullsFirst: false })
+          .order('captured_date', { ascending: false })
+          .order('id', { ascending: true });
+      } else if (sort === 'quality_score') {
+        // Quality score sort: lowest first for governance review
+        query = query
+          .order('quality_score', { ascending: true, nullsFirst: false })
+          .order('captured_date', { ascending: false })
+          .order('id', { ascending: true });
       }
 
       query = query.limit(PAGE_SIZE);

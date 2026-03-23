@@ -7,6 +7,8 @@ export function getSortOptionFromFilters(
 ): SortOption {
   if (sort === 'primary_domain') return 'domain';
   if (sort === 'classification_confidence') return 'confidence';
+  if (sort === 'freshness' && order === 'asc') return 'freshness-stale';
+  if (sort === 'quality_score' && order === 'asc') return 'quality-lowest';
   if (order === 'asc') return 'date-asc';
   return 'date-desc';
 }
@@ -33,6 +35,16 @@ export function getSortFiltersFromOption(option: SortOption) {
         sort: 'classification_confidence' as const,
         order: 'desc' as const,
       };
+    case 'freshness-stale':
+      return {
+        sort: 'freshness' as const,
+        order: 'asc' as const,
+      };
+    case 'quality-lowest':
+      return {
+        sort: 'quality_score' as const,
+        order: 'asc' as const,
+      };
   }
 }
 
@@ -49,6 +61,10 @@ export function getCursorFromItem(
     return item.primary_domain && item.captured_date
       ? `${item.primary_domain}|${item.captured_date}|${item.id}`
       : null;
+  }
+  // Freshness and quality_score use offset-based pagination (no cursor)
+  if (sort === 'freshness' || sort === 'quality_score') {
+    return null;
   }
   // Default: captured_date
   return item.captured_date ?? null;

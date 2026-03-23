@@ -52,6 +52,14 @@ describe('getSortOptionFromFilters', () => {
     );
   });
 
+  it('returns "freshness-stale" when sort is freshness and order is asc', () => {
+    expect(getSortOptionFromFilters('freshness', 'asc')).toBe('freshness-stale');
+  });
+
+  it('returns "quality-lowest" when sort is quality_score and order is asc', () => {
+    expect(getSortOptionFromFilters('quality_score', 'asc')).toBe('quality-lowest');
+  });
+
   it('returns "date-asc" when order is asc (and sort is not domain/confidence)', () => {
     expect(getSortOptionFromFilters(undefined, 'asc')).toBe('date-asc');
     expect(getSortOptionFromFilters('captured_date', 'asc')).toBe('date-asc');
@@ -94,6 +102,20 @@ describe('getSortFiltersFromOption', () => {
     expect(getSortFiltersFromOption('confidence')).toEqual({
       sort: 'classification_confidence',
       order: 'desc',
+    });
+  });
+
+  it('maps "freshness-stale" to freshness ascending', () => {
+    expect(getSortFiltersFromOption('freshness-stale')).toEqual({
+      sort: 'freshness',
+      order: 'asc',
+    });
+  });
+
+  it('maps "quality-lowest" to quality_score ascending', () => {
+    expect(getSortFiltersFromOption('quality-lowest')).toEqual({
+      sort: 'quality_score',
+      order: 'asc',
     });
   });
 });
@@ -146,5 +168,15 @@ describe('getCursorFromItem', () => {
   it('returns null for date cursor when captured_date is null', () => {
     const item = makeItem({ captured_date: null });
     expect(getCursorFromItem(item, 'captured_date')).toBeNull();
+  });
+
+  it('returns null for freshness sort (uses offset pagination)', () => {
+    const item = makeItem({ freshness: 'stale' });
+    expect(getCursorFromItem(item, 'freshness')).toBeNull();
+  });
+
+  it('returns null for quality_score sort (uses offset pagination)', () => {
+    const item = makeItem();
+    expect(getCursorFromItem(item, 'quality_score')).toBeNull();
   });
 });

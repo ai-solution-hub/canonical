@@ -85,6 +85,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     const domain = searchParams.getAll('domain').filter(Boolean);
     const content_type = searchParams.getAll('content_type').filter(Boolean);
     const source_file = searchParams.get('source_file');
+    const source_document_id = searchParams.get('source_document_id');
 
     return {
       status: (['unverified', 'verified', 'flagged', 'draft', 'all'].includes(status ?? '')
@@ -93,6 +94,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
       domain: domain.length > 0 ? domain : undefined,
       content_type: content_type.length > 0 ? content_type : undefined,
       source_file: source_file ?? undefined,
+      source_document_id: source_document_id ?? undefined,
     };
     // Only compute once on mount — searchParams changes are handled by setFilters
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -136,6 +138,9 @@ export function useReviewQueue(): UseReviewQueueReturn {
     }
     if (filters.source_file) {
       params.set('source_file', filters.source_file);
+    }
+    if (filters.source_document_id) {
+      params.set('source_document_id', filters.source_document_id);
     }
 
     const search = params.toString();
@@ -244,6 +249,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
       params.set('limit', String(BATCH_SIZE));
       if (filters.status) params.set('status', filters.status);
       if (filters.source_file) params.set('source_file', filters.source_file);
+      if (filters.source_document_id) params.set('source_document_id', filters.source_document_id);
       if (filters.domain?.length) {
         for (const d of filters.domain) {
           params.append('domain', d);

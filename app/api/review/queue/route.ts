@@ -41,13 +41,14 @@ export async function GET(request: NextRequest) {
     const domainParams = searchParams.getAll('domain').flatMap(v => v.split(',')).filter(Boolean);
     const contentTypeParams = searchParams.getAll('content_type').flatMap(v => v.split(',')).filter(Boolean);
     const sourceFileParam = searchParams.get('source_file');
+    const sourceDocumentIdParam = searchParams.get('source_document_id');
 
     // For flagged status, we need to find items with open review_needed flags.
     // This requires a two-step query: first find flagged IDs, then fetch items.
     if (status === 'flagged') {
       return await handleFlaggedQuery(
         supabase, limit, cursor,
-        domainParams, contentTypeParams, sourceFileParam,
+        domainParams, contentTypeParams, sourceFileParam, sourceDocumentIdParam,
       );
     }
 
@@ -83,6 +84,10 @@ export async function GET(request: NextRequest) {
     if (sourceFileParam) {
       // Filter by metadata->source_file using the JSONB text accessor
       query = query.eq('metadata->>source_file' as string, sourceFileParam);
+    }
+
+    if (sourceDocumentIdParam) {
+      query = query.eq('source_document_id', sourceDocumentIdParam);
     }
 
     // Cursor-based pagination using created_at
@@ -148,6 +153,7 @@ async function handleFlaggedQuery(
   domainParams: string[],
   contentTypeParams: string[],
   sourceFileParam: string | null,
+  sourceDocumentIdParam: string | null,
 ) {
   // First, get the content_item_ids that have open review_needed flags
   const { data: flaggedIds, error: flagError } = await supabase
@@ -195,6 +201,10 @@ async function handleFlaggedQuery(
 
   if (sourceFileParam) {
     query = query.eq('metadata->>source_file', sourceFileParam);
+  }
+
+  if (sourceDocumentIdParam) {
+    query = query.eq('source_document_id', sourceDocumentIdParam);
   }
 
   if (cursor) {

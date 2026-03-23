@@ -31,13 +31,15 @@ import {
 
 export type ViewMode = 'grid' | 'list';
 
-export type SortOption = 'date-desc' | 'date-asc' | 'domain' | 'confidence';
+export type SortOption = 'date-desc' | 'date-asc' | 'domain' | 'confidence' | 'freshness-stale' | 'quality-lowest';
 
 export const SORT_OPTIONS: { value: SortOption; label: string; shortLabel: string }[] = [
   { value: 'date-desc', label: 'Date (newest)', shortLabel: 'Newest' },
   { value: 'date-asc', label: 'Date (oldest)', shortLabel: 'Oldest' },
   { value: 'domain', label: 'Domain', shortLabel: 'Domain' },
   { value: 'confidence', label: 'Confidence', shortLabel: 'Conf.' },
+  { value: 'freshness-stale', label: 'Freshness (most stale)', shortLabel: 'Stale' },
+  { value: 'quality-lowest', label: 'Quality (lowest)', shortLabel: 'Quality' },
 ];
 
 interface FilterBarProps {
