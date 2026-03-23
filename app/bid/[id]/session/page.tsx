@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { QuestionNavigator } from '@/components/question-navigator';
 import { ResponseEditor } from '@/components/response-editor';
 import { CitationPanel } from '@/components/citation-panel';
@@ -36,7 +37,37 @@ import { useModifierKey } from '@/hooks/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
+import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/response-editor';
+
+/** Displays word count alongside word limit with colour-coded feedback */
+function WordCountIndicator({
+  wordCount,
+  wordLimit,
+}: {
+  wordCount: number;
+  wordLimit: number;
+}) {
+  const ratio = wordCount / wordLimit;
+  const isOver = ratio > 1;
+  const isNearLimit = ratio > 0.8 && ratio <= 1;
+
+  return (
+    <span
+      className={cn(
+        'text-xs tabular-nums',
+        isOver && 'font-semibold text-destructive',
+        isNearLimit && 'text-status-warning',
+        !isOver && !isNearLimit && 'text-muted-foreground',
+      )}
+      role="status"
+      aria-live="polite"
+    >
+      {wordCount} / {wordLimit} words
+      {isOver && ' — over limit'}
+    </span>
+  );
+}
 
 /** Syncs the active question and editor ref from useStreamCoordination into BidContext for CopilotKit */
 function BidContextSync({
@@ -188,6 +219,50 @@ export default function BidSessionPage({
 
   const bidName = bid?.name;
 
+  // ── Next unanswered question index ──
+  // A question is "unanswered" if it has no response (status is not_started)
+  const nextUnansweredIndex = useMemo(() => {
+    // Search forward from the current position first, then wrap around
+    for (let i = currentIndex + 1; i < questions.length; i++) {
+      if (questions[i].status === 'not_started') return i;
+    }
+    for (let i = 0; i < currentIndex; i++) {
+      if (questions[i].status === 'not_started') return i;
+    }
+    return -1;
+  }, [questions, currentIndex]);
+
+  const handleNextUnanswered = useCallback(() => {
+    if (nextUnansweredIndex >= 0) {
+      handleNavigate(nextUnansweredIndex);
+    }
+  }, [nextUnansweredIndex, handleNavigate]);
+
+  // ── Cmd+S / Ctrl+S — page-level save shortcut ──
+  useEffect(() => {
+    if (!canEdit) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (response?.id && editorContent.length > 7) {
+          handleAction('save');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [canEdit, response?.id, editorContent.length, handleAction]);
+
+  // ── Current word count from editor content ──
+  const currentWordCount = useMemo(() => {
+    // Strip HTML tags and count words
+    const text = editorContent.replace(/<[^>]+>/g, ' ').trim();
+    if (!text) return 0;
+    return text.split(/\s+/).filter(Boolean).length;
+  }, [editorContent]);
+
   // ── Loading state ──
   if (loading) {
     return (
@@ -302,11 +377,14 @@ export default function BidSessionPage({
                 <p className="mt-1 text-sm text-foreground">
                   {currentQuestion.question_text}
                 </p>
-                {currentQuestion.word_limit && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Word limit: {currentQuestion.word_limit}
-                  </p>
-                )}
+                {currentQuestion.word_limit ? (
+                  <div className="mt-1">
+                    <WordCountIndicator
+                      wordCount={currentWordCount}
+                      wordLimit={currentQuestion.word_limit}
+                    />
+                  </div>
+                ) : null}
               </div>
             </details>
           )}
@@ -338,11 +416,14 @@ export default function BidSessionPage({
                     <p className="mt-2 text-sm text-foreground">
                       {currentQuestion.question_text}
                     </p>
-                    {currentQuestion.word_limit && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Word limit: {currentQuestion.word_limit}
-                      </p>
-                    )}
+                    {currentQuestion.word_limit ? (
+                      <div className="mt-2">
+                        <WordCountIndicator
+                          wordCount={currentWordCount}
+                          wordLimit={currentQuestion.word_limit}
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -381,11 +462,14 @@ export default function BidSessionPage({
               <p className="mt-2 text-sm text-foreground">
                 {currentQuestion.question_text}
               </p>
-              {currentQuestion.word_limit && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Word limit: {currentQuestion.word_limit}
-                </p>
-              )}
+              {currentQuestion.word_limit ? (
+                <div className="mt-2">
+                  <WordCountIndicator
+                    wordCount={currentWordCount}
+                    wordLimit={currentQuestion.word_limit}
+                  />
+                </div>
+              ) : null}
             </div>
           )}
         </aside>
@@ -414,8 +498,13 @@ export default function BidSessionPage({
                       hasDraft={
                         !!response?.response_text || editorContent.length > 7
                       }
+                      nextUnansweredIndex={nextUnansweredIndex}
+                      onNextUnanswered={handleNextUnanswered}
                     />
                   </div>
+
+                  {/* ── Tools group: History / Library ── */}
+                  <Separator orientation="vertical" className="h-5" />
                   {response && (
                     <Button
                       variant="ghost"

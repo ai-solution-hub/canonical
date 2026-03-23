@@ -9,8 +9,10 @@ import {
   Flag,
   Loader2,
   MoreHorizontal,
+  SkipForward,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +41,10 @@ interface ResponseActionsProps {
   loadingAction?: ResponseAction | null;
   hasDraft?: boolean;
   className?: string;
+  /** Index of the next unanswered question, or -1 if none */
+  nextUnansweredIndex?: number;
+  /** Callback to navigate to the next unanswered question */
+  onNextUnanswered?: () => void;
 }
 
 export function ResponseActions({
@@ -48,6 +54,8 @@ export function ResponseActions({
   loadingAction = null,
   hasDraft = false,
   className,
+  nextUnansweredIndex = -1,
+  onNextUnanswered,
 }: ResponseActionsProps) {
   const [showRegenerateInput, setShowRegenerateInput] = useState(false);
   const [regenerateInstructions, setRegenerateInstructions] = useState('');
@@ -64,11 +72,18 @@ export function ResponseActions({
     setShowRegenerateInput(false);
   };
 
+  const hasWriteGroup = hasDraft && (!isApproved || true);
+  const hasNextUnanswered = nextUnansweredIndex >= 0 && onNextUnanswered;
+
   return (
     <TooltipProvider>
       <div className={cn('space-y-2', className)}>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Accept */}
+        <div
+          className="flex flex-wrap items-center gap-2"
+          role="toolbar"
+          aria-label="Response actions"
+        >
+          {/* ── Write group: Accept / Save ── */}
           {hasDraft && !isApproved && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -91,7 +106,6 @@ export function ResponseActions({
             </Tooltip>
           )}
 
-          {/* Save */}
           {hasDraft && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -114,7 +128,35 @@ export function ResponseActions({
             </Tooltip>
           )}
 
-          {/* Regenerate */}
+          {/* Next unanswered — appears after write actions */}
+          {hasNextUnanswered && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  onClick={onNextUnanswered}
+                  disabled={isLoading}
+                  size="sm"
+                  type="button"
+                  className="gap-1"
+                >
+                  <SkipForward className="size-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">Next unanswered</span>
+                  <span className="sm:hidden">Next</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Jump to question {nextUnansweredIndex + 1}
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* ── Separator between write and generate groups ── */}
+          {hasWriteGroup && (
+            <Separator orientation="vertical" className="mx-0.5 h-5" />
+          )}
+
+          {/* ── Generate group: Regenerate ── */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -135,7 +177,12 @@ export function ResponseActions({
             <TooltipContent>Re-draft with different instructions</TooltipContent>
           </Tooltip>
 
-          {/* More actions (Author Manually / Flag) */}
+          {/* ── Separator between generate and tools groups ── */}
+          {((!hasDraft) || (hasDraft && !isApproved)) && (
+            <Separator orientation="vertical" className="mx-0.5 h-5" />
+          )}
+
+          {/* ── Tools group: More (Author Manually / Flag) ── */}
           {((!hasDraft) || (hasDraft && !isApproved)) && (
             <DropdownMenu>
               <Tooltip>
