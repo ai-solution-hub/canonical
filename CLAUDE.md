@@ -44,6 +44,8 @@ development partner. All code is written through human-AI collaboration.
 | `/opt/homebrew/bin/supabase migration new <name>` | Create local migration file |
 | `/opt/homebrew/bin/supabase db push` | Push local migrations to remote |
 | `/opt/homebrew/bin/supabase gen types typescript --project-id rovrymhhffssilaftdwd --schema public > supabase/types/database.types.ts` | Regenerate TypeScript types from live schema |
+| `bun run stats` | Generate codebase statistics to `docs/generated/` (run end-of-session when file counts change) |
+| `bun run generate:mcp-inventory` | Generate MCP tool/resource/prompt inventory to `docs/generated/` (run when MCP registrations change) |
 
 ## Architecture
 
@@ -192,6 +194,9 @@ Consult these references when adding or modifying UI elements.
 | Post-MVP backlog | `.planning/post-mvp-backlog.md` | 86 items, P1-P5, 4 sprint groupings |
 | Session handoffs | `docs/continuation-prompts/` | Cross-session context transfer documents |
 | AI integration layers | `docs/reference/ai-integration-layers.md` | 5-layer architecture: how MCP, plugin, skills, CopilotKit interconnect |
+| Codebase statistics | `docs/generated/codebase-stats.md` | Auto-generated file/code counts — canonical source for volatile numbers |
+| MCP inventory | `docs/generated/mcp-inventory.md` | Auto-generated tool/resource/prompt catalogue |
+| Documentation inventory | `docs/reference/documentation-inventory.md` | Catalogue of all 557 docs with purpose, currency, and actions |
 
 ### Remaining Roadmap
 

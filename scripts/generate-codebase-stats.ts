@@ -570,7 +570,7 @@ export function checkStats(newOutput: object): boolean {
 
   const existing = JSON.parse(fs.readFileSync(JSON_OUTPUT, "utf-8"));
 
-  const keysToCompare = ["stats", "runtime_stats", "db_stats"];
+  const keysToCompare = ["stats", "code_stats", "runtime_stats", "db_stats"];
   const newObj = newOutput as Record<string, unknown>;
 
   for (const key of keysToCompare) {
@@ -644,6 +644,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     generated_at: generatedAt,
     generator: "scripts/generate-codebase-stats.ts",
     stats: fileStats,
+    code_stats: codeStats,
     runtime_stats: runtimeStats,
     db_stats: dbStats,
   };
