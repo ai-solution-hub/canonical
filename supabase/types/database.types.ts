@@ -372,9 +372,12 @@ export type Database = {
           parent_id: string | null
           platform: string | null
           previous_freshness: string | null
+          previous_quality_score: number | null
           primary_domain: string | null
           primary_subtopic: string | null
           priority: string | null
+          quality_score: number | null
+          quality_score_updated_at: string | null
           reference: string | null
           secondary_domain: string | null
           secondary_subtopic: string | null
@@ -428,9 +431,12 @@ export type Database = {
           parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
+          previous_quality_score?: number | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          quality_score?: number | null
+          quality_score_updated_at?: string | null
           reference?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
@@ -484,9 +490,12 @@ export type Database = {
           parent_id?: string | null
           platform?: string | null
           previous_freshness?: string | null
+          previous_quality_score?: number | null
           primary_domain?: string | null
           primary_subtopic?: string | null
           priority?: string | null
+          quality_score?: number | null
+          quality_score_updated_at?: string | null
           reference?: string | null
           secondary_domain?: string | null
           secondary_subtopic?: string | null
@@ -705,6 +714,7 @@ export type Database = {
           domain: string
           id: string
           posture: string
+          quality_score_threshold: number | null
           reviewer_id: string | null
           timeout_days: number | null
           updated_at: string | null
@@ -716,6 +726,7 @@ export type Database = {
           domain: string
           id?: string
           posture?: string
+          quality_score_threshold?: number | null
           reviewer_id?: string | null
           timeout_days?: number | null
           updated_at?: string | null
@@ -727,6 +738,7 @@ export type Database = {
           domain?: string
           id?: string
           posture?: string
+          quality_score_threshold?: number | null
           reviewer_id?: string | null
           timeout_days?: number | null
           updated_at?: string | null
@@ -1112,6 +1124,7 @@ export type Database = {
         Row: {
           affected_content_item_id: string | null
           created_at: string | null
+          created_by: string | null
           diff_type: string
           id: string
           new_content: string | null
@@ -1120,6 +1133,9 @@ export type Database = {
           old_content: string | null
           old_document_id: string
           old_question: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_note: string | null
           similarity_score: number | null
           status: string
           updated_at: string | null
@@ -1127,6 +1143,7 @@ export type Database = {
         Insert: {
           affected_content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           diff_type: string
           id?: string
           new_content?: string | null
@@ -1135,6 +1152,9 @@ export type Database = {
           old_content?: string | null
           old_document_id: string
           old_question?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_note?: string | null
           similarity_score?: number | null
           status?: string
           updated_at?: string | null
@@ -1142,6 +1162,7 @@ export type Database = {
         Update: {
           affected_content_item_id?: string | null
           created_at?: string | null
+          created_by?: string | null
           diff_type?: string
           id?: string
           new_content?: string | null
@@ -1150,6 +1171,9 @@ export type Database = {
           old_content?: string | null
           old_document_id?: string
           old_question?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_note?: string | null
           similarity_score?: number | null
           status?: string
           updated_at?: string | null

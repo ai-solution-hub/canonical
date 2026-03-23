@@ -262,14 +262,14 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         // Query 1: Content items with expiry_date within the window
         let contentQuery = supabase
           .from('content_items')
-          .select('id, title, expiry_date, domain, lifecycle_type')
+          .select('id, title, expiry_date, primary_domain, lifecycle_type')
           .is('archived_at', null)
           .not('expiry_date', 'is', null)
           .lte('expiry_date', cutoffDate.toISOString())
           .order('expiry_date', { ascending: true });
 
         if (args.domain) {
-          contentQuery = contentQuery.eq('domain', args.domain);
+          contentQuery = contentQuery.eq('primary_domain', args.domain);
         }
 
         const { data: contentRows, error: contentError } = await contentQuery;
@@ -281,11 +281,11 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
           };
         }
 
-        const contentItems: ExpiringContentItem[] = ((contentRows ?? []) as Array<{
+        const contentItems: ExpiringContentItem[] = ((contentRows ?? []) as unknown as Array<{
           id: string;
           title: string;
           expiry_date: string;
-          domain: string | null;
+          primary_domain: string | null;
           lifecycle_type: string | null;
         }>).map((row) => {
           const expiryDate = new Date(row.expiry_date);
@@ -296,7 +296,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
             title: row.title,
             expiry_date: row.expiry_date,
             days_remaining: daysRemaining,
-            domain: row.domain,
+            domain: row.primary_domain,
             lifecycle_type: row.lifecycle_type,
           };
         });

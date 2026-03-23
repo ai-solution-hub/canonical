@@ -7,6 +7,7 @@ import {
 import { parseBody } from '@/lib/validation';
 import { safeErrorMessage } from '@/lib/error';
 import crypto from 'crypto';
+import type { Database, Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 120;
 
@@ -146,7 +147,7 @@ export async function POST(request: NextRequest) {
 
       try {
         // Build the insert payload
-        const metadata: Record<string, unknown> = {
+        const metadata: Record<string, Json> = {
           ingestion_source: 'upload_autosplit',
           autosplit_batch_id: autosplitBatchId,
         };
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
           metadata.detection_confidence = item.confidence;
         }
 
-        const insertData: Record<string, unknown> = {
+        const insertData: Database['public']['Tables']['content_items']['Insert'] = {
           title: item.title,
           content: item.content,
           content_type: 'q_a_pair',
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
           const suggestion = inferLayer({
             contentType: 'q_a_pair',
             contentLength: plainText.length,
-            ingestionSource: 'upload_autosplit',
+            ingestionSource: 'upload',
             hasBrief: false,
             hasDetail: false,
             hasReference: false,
