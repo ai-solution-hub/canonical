@@ -58,7 +58,7 @@ export interface ClientConfig {
     content_layers: FeatureToggle;
     /** Draft status: lightweight draft workflow on governance */
     draft_status: FeatureToggle;
-    /** AI integration: CopilotKit, AI drafting, classification */
+    /** AI integration: AI drafting, classification, Claude bridge */
     ai_integration: FeatureToggle;
     /** Bid management: full bid workflow */
     bid_management: FeatureToggle;
@@ -110,7 +110,7 @@ export const CLIENT_CONFIG = {
     ai_integration: {
       enabled: true,
       label: 'AI Integration',
-      description: 'CopilotKit chat, AI classification, and summary generation',
+      description: 'AI classification, summary generation, and Claude bridge',
     },
     bid_management: {
       enabled: true,

@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 // vi.hoisted() — mocks referenced in vi.mock() factories
 // ---------------------------------------------------------------------------
 
-const { mockRouter, mockPathname, mockUserRole, mockToggleSidebar } = vi.hoisted(() => ({
+const { mockRouter, mockPathname, mockUserRole } = vi.hoisted(() => ({
   mockRouter: {
     push: vi.fn(),
     replace: vi.fn(),
@@ -24,7 +24,6 @@ const { mockRouter, mockPathname, mockUserRole, mockToggleSidebar } = vi.hoisted
   },
   mockPathname: { value: '/' },
   mockUserRole: { role: 'editor' as string | null, loading: false, canEdit: true, canAdmin: false },
-  mockToggleSidebar: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -39,10 +38,6 @@ vi.mock('next/link', () => ({
 
 vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => mockUserRole,
-}));
-
-vi.mock('@/hooks/use-copilot-sidebar', () => ({
-  useCopilotSidebar: () => ({ toggle: mockToggleSidebar }),
 }));
 
 // Stub complex child components to isolate SiteHeader logic
@@ -77,7 +72,6 @@ describe('SiteHeader', () => {
     mockUserRole.canEdit = true;
     mockUserRole.canAdmin = false;
     mockRouter.push.mockClear();
-    mockToggleSidebar.mockClear();
   });
 
   it('renders the site title as a link to home', () => {

@@ -15,7 +15,7 @@ baseTest.describe('Authentication — unauthenticated access', () => {
   // Override project storageState to get a fresh, unauthenticated context
   baseTest.use({ storageState: { cookies: [], origins: [] } });
 
-  // Hide CopilotKit overlays that block pointer events (401 banners on unauthenticated pages)
+  // Suppress dev overlays that may block pointer events on unauthenticated pages
   baseTest.beforeEach(async ({ page }) => {
     await hideDevOverlays(page);
   });

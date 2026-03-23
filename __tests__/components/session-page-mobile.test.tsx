@@ -129,23 +129,8 @@ vi.mock('@/components/bid-context-provider', () => ({
   BidContextProvider: ({ children, bidId }: { children: React.ReactNode; bidId: string }) => (
     <div data-testid="bid-context-provider" data-bid-id={bidId}>{children}</div>
   ),
-  useBidContext: () => ({
-    setActiveQuestionId: vi.fn(),
-    editorRef: { current: null },
-  }),
 }));
 
-vi.mock('@/components/bid-copilot-actions', () => ({
-  BidCopilotActions: () => null,
-}));
-
-vi.mock('@/components/bid-copilot-suggestions', () => ({
-  BidCopilotSuggestions: () => null,
-}));
-
-vi.mock('@/components/bid-copilot-page-context', () => ({
-  BidCopilotPageContext: () => null,
-}));
 
 // Import AFTER mocks
 import BidSessionPage from '@/app/bid/[id]/session/page';

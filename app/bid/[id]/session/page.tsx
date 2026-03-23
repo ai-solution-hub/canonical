@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo, use } from 'react';
+import { useState, useCallback, useRef, useMemo, use } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -20,7 +20,7 @@ import { ResponseActions } from '@/components/response-actions';
 import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
 import { ContentLibraryDrawer } from '@/components/content-library-drawer';
 import { ResponseVersionHistory } from '@/components/response-version-history';
-import { BidContextProvider, useBidContext } from '@/components/bid-context-provider';
+import { BidContextProvider } from '@/components/bid-context-provider';
 import {
   Sheet,
   SheetContent,
@@ -28,35 +28,12 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import { BidCopilotActions } from '@/components/bid-copilot-actions';
-import { BidCopilotSuggestions } from '@/components/bid-copilot-suggestions';
-import { BidCopilotPageContext } from '@/components/bid-copilot-page-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useModifierKey } from '@/hooks/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
 import type { Editor } from '@/components/response-editor';
-
-/** Syncs the active question and editor ref from useStreamCoordination into BidContext for CopilotKit */
-function BidContextSync({
-  questionId,
-  editorInstance,
-}: {
-  questionId: string | null;
-  editorInstance: import('@tiptap/react').Editor | null;
-}) {
-  const { setActiveQuestionId, editorRef } = useBidContext();
-  useEffect(() => {
-    setActiveQuestionId(questionId);
-  }, [questionId, setActiveQuestionId]);
-  useEffect(() => {
-    // Sync the editor instance into the BidContext ref whenever it changes.
-    // Uses a state-driven prop instead of polling a ref on an interval.
-    editorRef.current = editorInstance;
-  }, [editorInstance, editorRef]);
-  return null;
-}
 
 function CompactQuestionBar({
   currentIndex,
@@ -142,12 +119,10 @@ export default function BidSessionPage({
   // Mobile question navigator Sheet
   const [questionSheetOpen, setQuestionSheetOpen] = useState(false);
 
-  // Tiptap editor instance — stored as state so BidContextSync re-renders on change
+  // Tiptap editor instance ref — used by useStreamCoordination
   const editorInstanceRef = useRef<Editor | null>(null);
-  const [editorInstance, setEditorInstance] = useState<Editor | null>(null);
   const onEditorReady = useCallback((editor: Editor) => {
     editorInstanceRef.current = editor;
-    setEditorInstance(editor);
   }, []);
 
   // ── Stream coordination hook ──
@@ -507,10 +482,6 @@ export default function BidSessionPage({
 
   return (
     <BidContextProvider bidId={id}>
-      <BidCopilotPageContext />
-      <BidContextSync questionId={currentQuestion?.id ?? null} editorInstance={editorInstance} />
-      <BidCopilotActions />
-      <BidCopilotSuggestions />
       {sessionContent}
       <ContentLibraryDrawer
         open={contentLibrary.isOpen}

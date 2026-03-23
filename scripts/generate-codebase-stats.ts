@@ -145,9 +145,6 @@ export function collectFileStats(): Record<string, number> {
     ai_skill_files: countFiles("lib/ai/skills/*.md"),
     validation_files: countFiles("lib/validation/*.ts"),
     extraction_files: countFiles("lib/extraction/*.ts"),
-    copilotkit_files:
-      countFiles("lib/copilotkit/**/*.ts") +
-      countFiles("lib/copilotkit/**/*.tsx"),
     pipeline_modules: countFiles("scripts/kb_pipeline/*.py"),
     mcp_tool_category_files:
       countFiles("lib/mcp/tools/*.ts") -
@@ -406,7 +403,6 @@ Generated: ${ukDate}
 | Components (shadcn/ui) | ${fmt(stats.components_shadcn)} |
 | Hooks | ${fmt(stats.hooks)} |
 | Contexts | ${fmt(stats.contexts)} |
-| CopilotKit files | ${fmt(stats.copilotkit_files)} |
 
 ## Backend
 
@@ -516,7 +512,6 @@ function printSummary(
     ["AI skill files", stats.ai_skill_files],
     ["Validation files", stats.validation_files],
     ["Extraction files", stats.extraction_files],
-    ["CopilotKit files", stats.copilotkit_files],
     ["Pipeline modules", stats.pipeline_modules],
     ["Quality checks", stats.quality_checks],
     ["Cron routes", stats.cron_routes],
