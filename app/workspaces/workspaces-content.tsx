@@ -258,7 +258,7 @@ export function WorkspacesContent({
         <div>
           <h1 className="text-fluid-2xl font-bold tracking-tight">Workspaces</h1>
           <p className="mt-1 text-muted-foreground">
-            Manage your workspace collections.
+            Bids and content collections.
           </p>
         </div>
         {canEdit && (
@@ -358,19 +358,25 @@ export function WorkspacesContent({
         ) : activeWorkspaces.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-12 text-center">
             <FolderOpen className="mb-3 size-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              No workspaces yet. Create your first workspace to start organising
-              content.
-            </p>
-            {canEdit && (
-              <Button
-                variant="outline"
-                className="mt-4 gap-1.5"
-                onClick={() => setShowCreateDialog(true)}
-              >
-                <Plus className="size-4" />
-                Create Workspace
-              </Button>
+            {canEdit ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  No workspaces yet. Create your first workspace to start organising
+                  content.
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-4 gap-1.5"
+                  onClick={() => setShowCreateDialog(true)}
+                >
+                  <Plus className="size-4" />
+                  Create Workspace
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No workspaces available. Contact your admin to get access.
+              </p>
             )}
           </div>
         ) : (

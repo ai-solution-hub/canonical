@@ -96,7 +96,7 @@ export function WorkspaceCard({
       <div className="flex items-center justify-between gap-1 border-t px-3 py-2">
         <Link
           href={`/browse?workspace=${workspace.id}`}
-          className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {workspace.item_count} {workspace.item_count === 1 ? 'item' : 'items'}
         </Link>
