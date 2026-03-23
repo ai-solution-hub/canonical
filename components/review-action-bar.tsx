@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface ReviewActionBarProps {
   onVerify: () => void;
@@ -96,7 +97,7 @@ export function ReviewActionBar({
 
   return (
     <div
-      className={`sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border border-border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3 ${className}`}
+      className={cn('sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border border-border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3', className)}
       role="toolbar"
       aria-label="Review actions"
     >
@@ -107,7 +108,7 @@ export function ReviewActionBar({
           size="sm"
           onClick={handleAction('back')}
           disabled={!canGoBack || isActioning}
-          className={`min-h-[44px] gap-1.5 transition-colors ${flashAction === 'back' ? flashClass : ''}`}
+          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'back' && flashClass)}
           aria-label="Go back (keyboard shortcut: left arrow)"
         >
           <ArrowLeft className="size-4" aria-hidden="true" />
@@ -119,7 +120,7 @@ export function ReviewActionBar({
           size="sm"
           onClick={handleAction('skip')}
           disabled={isActioning}
-          className={`min-h-[44px] gap-1.5 transition-colors ${flashAction === 'skip' ? flashClass : ''}`}
+          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'skip' && flashClass)}
           aria-label="Next item (keyboard shortcut: right arrow)"
         >
           <ArrowRight className="size-4" aria-hidden="true" />
@@ -138,7 +139,7 @@ export function ReviewActionBar({
             size="default"
             onClick={handleAction('publish')}
             disabled={isActioning}
-            className={`min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-action-publish hover:bg-action-publish-hover text-primary-foreground ${flashAction === 'publish' ? flashClass : ''}`}
+            className={cn('min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors bg-action-publish hover:bg-action-publish-hover text-primary-foreground', flashAction === 'publish' && flashClass)}
             aria-label="Publish draft item (keyboard shortcut: Enter)"
           >
             <Send className="size-5" aria-hidden="true" />
@@ -150,7 +151,7 @@ export function ReviewActionBar({
             size="default"
             onClick={handleAction('verify')}
             disabled={isActioning}
-            className={`min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors ${flashAction === 'verify' ? flashClass : ''}`}
+            className={cn('min-h-[48px] min-w-[120px] gap-2 text-base font-semibold transition-colors', flashAction === 'verify' && flashClass)}
             aria-label="Verify (keyboard shortcut: Enter)"
           >
             <Check className="size-5" aria-hidden="true" />
@@ -162,7 +163,7 @@ export function ReviewActionBar({
           variant="outline"
           onClick={handleAction('flag')}
           disabled={isActioning}
-          className={`min-h-[44px] gap-1.5 text-muted-foreground border-border transition-colors hover:text-status-warning hover:border-status-warning/50 hover:bg-governance-pending-bg ${flashAction === 'flag' ? flashClass : ''}`}
+          className={cn('min-h-[44px] gap-1.5 text-muted-foreground border-border transition-colors hover:text-status-warning hover:border-status-warning/50 hover:bg-governance-pending-bg', flashAction === 'flag' && flashClass)}
           aria-label="Flag for review (keyboard shortcut: F)"
         >
           <Flag className="size-4" aria-hidden="true" />
@@ -182,7 +183,7 @@ export function ReviewActionBar({
             size="sm"
             onClick={handleAction('edit')}
             disabled={isActioning}
-            className={`min-h-[44px] gap-1.5 transition-colors ${flashAction === 'edit' ? flashClass : ''}`}
+            className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'edit' && flashClass)}
             aria-label="Edit in new tab (keyboard shortcut: E)"
           >
             <Pencil className="size-4" aria-hidden="true" />
@@ -194,7 +195,7 @@ export function ReviewActionBar({
           variant="ghost"
           size="sm"
           onClick={handleAction('exit')}
-          className={`min-h-[44px] gap-1.5 transition-colors ${flashAction === 'exit' ? flashClass : ''}`}
+          className={cn('min-h-[44px] gap-1.5 transition-colors', flashAction === 'exit' && flashClass)}
           aria-label="Exit review (keyboard shortcut: Escape)"
         >
           <X className="size-4" aria-hidden="true" />

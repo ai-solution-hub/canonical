@@ -457,7 +457,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4" aria-label="Sign in to Knowledge Hub">
       <div>
         {/* Brand mark — visible on all steps */}
         <div className="mb-8 text-center">

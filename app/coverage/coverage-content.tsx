@@ -293,7 +293,6 @@ export function CoverageContent() {
           <>
             {/* Summary cards */}
             <CoverageSummaryCards summary={data.summary} />
-            <p className="text-xs text-muted-foreground">Trend data coming soon</p>
 
             {/* Domain sections */}
             <div className="space-y-4">

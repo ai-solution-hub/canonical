@@ -258,7 +258,7 @@ export default function BidSessionPage({
 
   // ── Main session layout ──
   const sessionContent = (
-    <div className="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6">
+    <div className="mx-auto max-w-screen-2xl px-4 py-4 sm:px-6" aria-label="Bid drafting session">
       {/* Header */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">

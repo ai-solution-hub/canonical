@@ -128,7 +128,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
       <Card
         ref={ref}
         tabIndex={-1}
-        className={`mx-auto max-w-[800px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none ${className}`}
+        className={cn('mx-auto max-w-[800px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 outline-none', className)}
         role="article"
         aria-label={`Review item ${position} of ${total}: ${title}`}
       >

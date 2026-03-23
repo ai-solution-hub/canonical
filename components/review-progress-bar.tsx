@@ -1,6 +1,7 @@
 'use client';
 
 import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
 import type { ReviewProgress } from '@/types/review';
 
 interface ReviewProgressBarProps {
@@ -28,7 +29,7 @@ export function ReviewProgressBar({
       : 0;
 
     return (
-      <div className={`flex flex-col gap-1.5 ${className}`}>
+      <div className={cn('flex flex-col gap-1.5', className)}>
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
             Item{' '}
@@ -64,7 +65,7 @@ export function ReviewProgressBar({
     : 0;
 
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
+    <div className={cn('flex flex-col gap-1.5', className)}>
       <div className="flex items-center justify-between text-sm">
         <span className="text-muted-foreground">
           <span className="font-medium text-foreground">{progress.verified.toLocaleString('en-GB')}</span>
