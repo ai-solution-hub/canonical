@@ -98,6 +98,11 @@ export function IntegrationsSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Connected apps (OAuth grants) — user-facing, shown first */}
+      <ConnectedAppsSection />
+
+      <Separator />
+
       {/* Connect to Claude */}
       <Card>
         <CardHeader>
@@ -207,11 +212,6 @@ export function IntegrationsSection() {
           </ul>
         </CardContent>
       </Card>
-
-      {/* Connected apps (OAuth grants) */}
-      <ConnectedAppsSection />
-
-      <Separator />
 
       {/* Download plugin */}
       <Card>

@@ -122,9 +122,18 @@ async function DashboardContent() {
       )}
 
       {/* Two-column layout: Needs Attention + Active Bids */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
         <NeedsAttentionSection {...data.needs_attention} userRole={data.user_role} />
         <ActiveBidsSection bids={data.active_bids} />
+      </div>
+
+      {/* Content Health strip */}
+      <div className="mt-6">
+        <QuickStatsStrip
+          freshness={data.freshness_summary}
+          activeBidCount={data.active_bids.length}
+          unreadNotificationCount={data.unread_notification_count}
+        />
       </div>
 
       {/* Compliance Status */}
@@ -145,15 +154,6 @@ async function DashboardContent() {
       {/* Suggested Actions for Claude */}
       <div className="mt-6">
         <ClaudeActionsSection actions={generateSuggestedActions(data)} />
-      </div>
-
-      {/* Content Health strip */}
-      <div className="mt-6">
-        <QuickStatsStrip
-          freshness={data.freshness_summary}
-          activeBidCount={data.active_bids.length}
-          unreadNotificationCount={data.unread_notification_count}
-        />
       </div>
 
       {/* Recent Activity */}

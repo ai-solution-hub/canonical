@@ -434,6 +434,17 @@ export function LibraryContent() {
         </div>
       </div>
 
+      {/* Keyboard shortcut hints — directly below filters for discoverability */}
+      {!isLoading && items.length > 0 && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">C</kbd>{' '}
+          to copy answer ·{' '}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↑</kbd>{' '}
+          <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↓</kbd>{' '}
+          to navigate
+        </p>
+      )}
+
       {/* Q&A List */}
       <div
         className="mt-6 space-y-2"
@@ -571,16 +582,6 @@ export function LibraryContent() {
           />
         )}
 
-        {/* Keyboard shortcut hints */}
-        {!isLoading && items.length > 0 && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">C</kbd>{' '}
-            to copy answer ·{' '}
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↑</kbd>{' '}
-            <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px]">↓</kbd>{' '}
-            to navigate
-          </p>
-        )}
       </div>
 
       {/* Tag dialog */}
