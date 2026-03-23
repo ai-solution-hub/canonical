@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useMemo, use } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect, use } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
