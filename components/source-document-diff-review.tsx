@@ -169,23 +169,55 @@ function ContentBlock({
 // Reviewer note input
 // ---------------------------------------------------------------------------
 
+const REVIEWER_NOTE_MAX_LENGTH = 500;
+
 function ReviewerNoteInput({
   entryId,
   existingNote,
+  entryStatus,
   onNoteChange,
 }: {
   entryId: string;
   existingNote?: string;
+  entryStatus: string;
   onNoteChange: (id: string, note: string) => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(!!existingNote);
+  const isReviewed = entryStatus === 'applied' || entryStatus === 'dismissed';
+  // For reviewed entries with an existing note, start in read-only display mode.
+  // For pending entries with an existing note, start in editing mode.
+  // For entries without a note, start collapsed.
+  const [isEditing, setIsEditing] = useState(
+    existingNote ? !isReviewed : false,
+  );
   const [noteText, setNoteText] = useState(existingNote ?? '');
 
-  if (!isExpanded) {
+  // Display-only view for reviewed entries with a saved note
+  if (isReviewed && existingNote && !isEditing) {
+    return (
+      <div className="mt-3" aria-label="Saved reviewer note">
+        <p className="mb-1 text-xs font-medium text-muted-foreground">
+          Reviewer note
+        </p>
+        <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+          {existingNote}
+        </p>
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="mt-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+          aria-label="Edit reviewer note"
+        >
+          Edit note
+        </button>
+      </div>
+    );
+  }
+
+  if (!isEditing) {
     return (
       <button
         type="button"
-        onClick={() => setIsExpanded(true)}
+        onClick={() => setIsEditing(true)}
         className="mt-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         aria-label="Add a reviewer note"
       >
@@ -206,14 +238,24 @@ function ReviewerNoteInput({
         id={`reviewer-note-${entryId}`}
         value={noteText}
         onChange={(e) => {
-          setNoteText(e.target.value);
-          onNoteChange(entryId, e.target.value);
+          const value = e.target.value;
+          if (value.length <= REVIEWER_NOTE_MAX_LENGTH) {
+            setNoteText(value);
+            onNoteChange(entryId, value);
+          }
         }}
+        maxLength={REVIEWER_NOTE_MAX_LENGTH}
         placeholder="Add a note explaining your review decision..."
         rows={2}
         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         aria-label="Reviewer note"
       />
+      <p
+        className="mt-1 text-right text-xs text-muted-foreground"
+        aria-live="polite"
+      >
+        {noteText.length}/{REVIEWER_NOTE_MAX_LENGTH}
+      </p>
     </div>
   );
 }
@@ -644,6 +686,7 @@ function DiffEntryCard({
         <ReviewerNoteInput
           entryId={entry.id}
           existingNote={entry.reviewer_note}
+          entryStatus={entry.status}
           onNoteChange={onNoteChange}
         />
       )}

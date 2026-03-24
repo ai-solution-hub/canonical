@@ -1108,6 +1108,94 @@ describe('SourceDocumentDiffReview', () => {
         );
       });
     });
+
+    it('shows character count when note textarea is expanded', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+
+      expect(screen.getByText('0/500')).toBeInTheDocument();
+    });
+
+    it('updates character count as user types', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      const textarea = screen.getByLabelText('Reviewer note');
+      await user.type(textarea, 'Test note');
+
+      expect(screen.getByText('9/500')).toBeInTheDocument();
+    });
+
+    it('textarea has maxLength attribute of 500', async () => {
+      const user = userEvent.setup();
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+
+      await user.click(screen.getByRole('button', { name: 'Add a reviewer note' }));
+      const textarea = screen.getByLabelText('Reviewer note');
+
+      expect(textarea).toHaveAttribute('maxLength', '500');
+    });
+
+    it('displays saved note in read-only view for reviewed entries', () => {
+      const reviewedEntry = makeEntry({
+        id: 'diff-reviewed',
+        diff_type: 'modified',
+        old_content: 'old',
+        new_content: 'new',
+        status: 'applied',
+        reviewer_note: 'Verified by compliance team.',
+      });
+      renderComponent({ entries: [reviewedEntry] });
+
+      const noteRegion = screen.getByLabelText('Saved reviewer note');
+      expect(noteRegion).toBeInTheDocument();
+      expect(screen.getByText('Verified by compliance team.')).toBeInTheDocument();
+    });
+
+    it('shows "Edit note" button on reviewed entries with saved notes', () => {
+      const reviewedEntry = makeEntry({
+        id: 'diff-reviewed',
+        diff_type: 'modified',
+        old_content: 'old',
+        new_content: 'new',
+        status: 'applied',
+        reviewer_note: 'Verified by compliance team.',
+      });
+      renderComponent({ entries: [reviewedEntry] });
+
+      expect(
+        screen.getByRole('button', { name: 'Edit reviewer note' }),
+      ).toBeInTheDocument();
+    });
+
+    it('switches to editable textarea when "Edit note" is clicked on reviewed entry', async () => {
+      const user = userEvent.setup();
+      const reviewedEntry = makeEntry({
+        id: 'diff-reviewed',
+        diff_type: 'modified',
+        old_content: 'old',
+        new_content: 'new',
+        status: 'applied',
+        reviewer_note: 'Verified by compliance team.',
+      });
+      renderComponent({ entries: [reviewedEntry] });
+
+      await user.click(screen.getByRole('button', { name: 'Edit reviewer note' }));
+
+      const textarea = screen.getByLabelText('Reviewer note');
+      expect(textarea).toBeInTheDocument();
+      expect(textarea).toHaveValue('Verified by compliance team.');
+    });
+
+    it('shows "Add note" button on pending entries without existing note', () => {
+      renderComponent({ entries: [MODIFIED_ENTRY] });
+      expect(
+        screen.getByRole('button', { name: 'Add a reviewer note' }),
+      ).toBeInTheDocument();
+    });
   });
 
   // -------------------------------------------------------------------------

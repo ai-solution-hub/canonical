@@ -637,6 +637,53 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(updateCall.reviewed_by).toBeNull();
   });
 
+  it('returns 400 when note exceeds 500 characters', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const longNote = 'a'.repeat(501);
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied', note: longNote }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(400);
+
+    const body = await res.json();
+    expect(body.error).toContain('exceeds maximum length of 500');
+  });
+
+  it('accepts note at exactly 500 characters', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    const exactNote = 'a'.repeat(500);
+
+    // Verification query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ id: ENTRY_ID_1 }], error: null }),
+    );
+
+    // Update succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
+    );
+
+    // Summary query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [{ status: 'applied' }], error: null }),
+    );
+
+    const req = createTestRequest(`/api/source-documents/${OLD_DOC_ID}/diff`, {
+      method: 'PATCH',
+      body: { entries: [{ id: ENTRY_ID_1, status: 'applied', note: exactNote }] },
+    });
+    const params = createTestParams({ id: OLD_DOC_ID });
+    const res = await PATCH(req, { params });
+    expect(res.status).toBe(200);
+  });
+
   it('includes reviewer_note when note is provided in entry', async () => {
     configureRole(mockSupabase, 'editor');
 
