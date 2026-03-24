@@ -67,11 +67,11 @@ export function useItemDetailShortcuts({
         toggleRead(itemId);
         toast('Read state toggled', { duration: 1500 });
       }
-      if (e.key === 's' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (e.key === 's' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && canEdit) {
         e.preventDefault();
         handleStarToggle();
       }
-      if (e.key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (e.key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && canEdit) {
         e.preventDefault();
         handlePriorityCycle();
       }

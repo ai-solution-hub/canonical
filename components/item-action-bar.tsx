@@ -122,17 +122,21 @@ export function ItemActionBar({
           Copy content
         </Button>
       )}
-      <StarButton
-        itemId={item.id}
-        starred={item.metadata?.starred === true}
-        size="md"
-      />
-      <PrioritySelector
-        itemId={item.id}
-        priority={(item.priority as Priority) ?? null}
-        size="md"
-        onChanged={(p) => setItem((prev) => ({ ...prev, priority: p }))}
-      />
+      {canEdit && (
+        <StarButton
+          itemId={item.id}
+          starred={item.metadata?.starred === true}
+          size="md"
+        />
+      )}
+      {canEdit && (
+        <PrioritySelector
+          itemId={item.id}
+          priority={(item.priority as Priority) ?? null}
+          size="md"
+          onChanged={(p) => setItem((prev) => ({ ...prev, priority: p }))}
+        />
+      )}
 
       {/* Overflow menu */}
       <DropdownMenu>
@@ -167,7 +171,7 @@ export function ItemActionBar({
               View PDF
             </DropdownMenuItem>
           )}
-          {item.content_type === 'pdf' && (
+          {canEdit && item.content_type === 'pdf' && (
             <DropdownMenuItem onClick={handleVisionAnalysis} disabled={isAnalysing}>
               <Eye className="size-4" />
               {isAnalysing ? 'Analysing\u2026' : 'Visual Analysis'}

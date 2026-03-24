@@ -459,7 +459,9 @@ export function ItemDetailClient({
 
       {/* Screen reader: keyboard shortcut help */}
       <div className="sr-only" role="note" aria-label="Keyboard shortcuts">
-        Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel.
+        {canEdit
+          ? 'Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel.'
+          : 'Available shortcuts: M to toggle read, R to open reader panel.'}
       </div>
 
       {/* Breadcrumb navigation */}
@@ -469,14 +471,16 @@ export function ItemDetailClient({
         title={title}
       />
 
-      {/* Layer switcher — shows linked items sharing the same topic_id */}
-      <LayerSwitcherNav
-        currentItemId={item.id}
-        topicLayers={topicLayers}
-      />
+      {/* Layer switcher — shows linked items sharing the same topic_id (editors only) */}
+      {canEdit && (
+        <LayerSwitcherNav
+          currentItemId={item.id}
+          topicLayers={topicLayers}
+        />
+      )}
 
-      {/* Layer comparison — inline tabbed preview of sibling layer content */}
-      {isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
+      {/* Layer comparison — inline tabbed preview of sibling layer content (editors only) */}
+      {canEdit && isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
         <TopicLayerComparison
           currentItem={{
             id: item.id as string,
@@ -575,22 +579,24 @@ export function ItemDetailClient({
               <QARelatedPairs relatedQA={relatedQA} />
             )}
 
-            {/* OrganiseSection — replaces separate keywords/workspaces/tags */}
-            <OrganiseSection
-              itemId={item.id}
-              keywords={(item.ai_keywords as string[]) ?? []}
-              workspaces={[]}
-              tags={(item.user_tags as string[]) ?? []}
-              canEdit={canEdit}
-              onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
-              onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
-              onWorkspacesChanged={() => {}}
-              className="mb-6"
-            />
+            {/* OrganiseSection — replaces separate keywords/workspaces/tags (editors only) */}
+            {canEdit && (
+              <OrganiseSection
+                itemId={item.id}
+                keywords={(item.ai_keywords as string[]) ?? []}
+                workspaces={[]}
+                tags={(item.user_tags as string[]) ?? []}
+                canEdit={canEdit}
+                onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
+                onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
+                onWorkspacesChanged={() => {}}
+                className="mb-6"
+              />
+            )}
           </CollapsibleSection>
 
-          {/* Claude actions — contextual ingestion prompts */}
-          {(item.source_url || (item.content && item.content.length > 5000)) && (
+          {/* Claude actions — contextual ingestion prompts (editors only) */}
+          {canEdit && (item.source_url || (item.content && item.content.length > 5000)) && (
             <div className="mt-4 flex flex-wrap gap-2">
               {item.source_url && (
                 <ClaudePromptButton
