@@ -44,6 +44,9 @@ vi.mock('lucide-react', () => ({
   CheckCircle2: ({ className, ...props }: Record<string, unknown>) => (
     <span data-testid="check-circle" className={className as string} {...props} />
   ),
+  Loader2: ({ className, ...props }: Record<string, unknown>) => (
+    <span data-testid="loader" className={className as string} {...props} />
+  ),
 }));
 
 import {
@@ -1106,4 +1109,184 @@ describe('SourceDocumentDiffReview', () => {
       });
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Send to Review Queue
+  // -------------------------------------------------------------------------
+
+  describe('send to review queue', () => {
+    // Helper: entries where all actionable are reviewed + have affected items
+    const allReviewedWithAffected = [
+      makeEntry({
+        id: 'e1',
+        diff_type: 'modified',
+        status: 'applied',
+        old_content: 'old text',
+        new_content: 'new text',
+        affected_item: { id: 'item-1', title: 'Data Policy' },
+      }),
+      makeEntry({
+        id: 'e2',
+        diff_type: 'removed',
+        status: 'dismissed',
+        old_content: 'old removed',
+        affected_item: { id: 'item-2', title: 'Access Control' },
+      }),
+    ];
+
+    const allReviewedNoAffected = [
+      makeEntry({
+        id: 'e1',
+        diff_type: 'modified',
+        status: 'applied',
+        old_content: 'old',
+        new_content: 'new',
+      }),
+      makeEntry({
+        id: 'e2',
+        diff_type: 'added',
+        status: 'dismissed',
+        new_content: 'added content',
+      }),
+    ];
+
+    // 12. Send button visible when all reviewed + affected items exist
+    it('shows "Send to Review Queue" button when all entries reviewed and affected items exist', () => {
+      renderComponent({
+        entries: allReviewedWithAffected,
+        summary: { added: 0, removed: 1, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      expect(
+        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+      ).toBeInTheDocument();
+    });
+
+    // 13. Button not visible when no affected items
+    it('does not show send button when no affected items exist', () => {
+      renderComponent({
+        entries: allReviewedNoAffected,
+        summary: { added: 1, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      // Banner should be visible but no send button (the affected items section isn't rendered)
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      expect(banner).toBeInTheDocument();
+      expect(
+        within(banner).queryByRole('button', { name: /send.*to review queue/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    // 14. Loading state during API call
+    it('shows loading state during API call', async () => {
+      const user = userEvent.setup();
+      // Never resolve to keep loading state
+      mockFetch.mockReturnValueOnce(new Promise(() => {}));
+
+      renderComponent({
+        entries: allReviewedWithAffected,
+        summary: { added: 0, removed: 1, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      await user.click(
+        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+      );
+
+      await waitFor(() => {
+        expect(
+          within(banner).getByRole('button', { name: /sending items to review queue/i }),
+        ).toBeInTheDocument();
+        expect(within(banner).getByText('Sending...')).toBeInTheDocument();
+      });
+    });
+
+    // 15. Success state shows count + review queue link
+    it('shows success state with count and review queue link', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          sent: 2,
+          already_pending: 0,
+          skipped_draft: 0,
+          total_requested: 2,
+          sent_ids: ['item-1', 'item-2'],
+          review_url: '/review?status=all&source_document_id=test-doc-id',
+        }),
+      });
+
+      renderComponent({
+        entries: allReviewedWithAffected,
+        summary: { added: 0, removed: 1, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      await user.click(
+        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+      );
+
+      await waitFor(() => {
+        expect(within(banner).getByText(/2 items sent to review queue/)).toBeInTheDocument();
+        const reviewLink = within(banner).getByRole('link', { name: /view items in review queue/i });
+        expect(reviewLink).toHaveAttribute(
+          'href',
+          '/review?status=all&source_document_id=test-doc-id',
+        );
+      });
+    });
+
+    // 16. Error state shows retry
+    it('shows error state with retry option', async () => {
+      const user = userEvent.setup();
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      renderComponent({
+        entries: allReviewedWithAffected,
+        summary: { added: 0, removed: 1, modified: 1, unchanged: 0 },
+      });
+
+      const banner = screen.getByRole('status', { name: 'Review complete' });
+      await user.click(
+        within(banner).getByRole('button', { name: /send 2 affected items to review queue/i }),
+      );
+
+      await waitFor(() => {
+        expect(within(banner).getByText(/failed to send items to review queue/i)).toBeInTheDocument();
+        expect(
+          within(banner).getByRole('button', { name: /retry sending items to review queue/i }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    // 17. Secondary button visible in toolbar when affected items exist
+    it('shows secondary send button in toolbar when affected items exist', () => {
+      // Use entries with pending status (not all reviewed) but with affected items
+      const entriesWithAffected = [
+        makeEntry({
+          id: 'e1',
+          diff_type: 'modified',
+          status: 'pending_review',
+          old_content: 'old',
+          new_content: 'new',
+          affected_item: { id: 'item-1', title: 'Policy Doc' },
+        }),
+      ];
+
+      renderComponent({
+        entries: entriesWithAffected,
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      const toolbar = screen.getByRole('toolbar', { name: 'Bulk review actions' });
+      expect(
+        within(toolbar).getByRole('button', { name: /send affected items to review/i }),
+      ).toBeInTheDocument();
+    });
+  });
 });
+

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
 
@@ -276,10 +276,16 @@ function BulkActionToolbar({
   entries,
   onBulkStatusChange,
   isLoading,
+  hasAffectedItems,
+  onSendToReview,
+  sendToReviewState,
 }: {
   entries: DiffReviewEntry[];
   onBulkStatusChange: (ids: string[], status: string) => void;
   isLoading: boolean;
+  hasAffectedItems: boolean;
+  onSendToReview: () => void;
+  sendToReviewState: 'idle' | 'loading' | 'success' | 'error';
 }) {
   const actionable = entries.filter((e) => e.diff_type !== 'unchanged');
   const pendingIds = actionable
@@ -328,6 +334,16 @@ function BulkActionToolbar({
           Reset All
         </button>
       )}
+      {hasAffectedItems && sendToReviewState !== 'success' && (
+        <button
+          onClick={onSendToReview}
+          disabled={sendToReviewState === 'loading'}
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:opacity-50"
+          aria-label="Send affected items to review"
+        >
+          {sendToReviewState === 'loading' ? 'Sending...' : 'Send affected items to review'}
+        </button>
+      )}
       <span
         className="ml-auto text-xs text-muted-foreground"
         aria-live="polite"
@@ -372,8 +388,19 @@ function SideBySideContent({ entry }: { entry: DiffReviewEntry }) {
 
 function CompletionBanner({
   entries,
+  sendToReviewState,
+  sendToReviewResult,
+  onSendToReview,
 }: {
   entries: DiffReviewEntry[];
+  sendToReviewState: 'idle' | 'loading' | 'success' | 'error';
+  sendToReviewResult: {
+    sent: number;
+    already_pending: number;
+    skipped_draft: number;
+    review_url: string;
+  } | null;
+  onSendToReview: () => void;
 }) {
   const actionable = entries.filter((e) => e.diff_type !== 'unchanged');
   if (actionable.length === 0) return null;
@@ -422,6 +449,69 @@ function CompletionBanner({
               </li>
             ))}
           </ul>
+
+          {/* Send to Review Queue — separator + button */}
+          <div className="mt-3 border-t border-quality-good/20 pt-3">
+            {sendToReviewState === 'idle' && (
+              <button
+                onClick={onSendToReview}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                aria-label={`Send ${affectedItems.size} affected items to review queue`}
+              >
+                Send {affectedItems.size} affected item{affectedItems.size !== 1 ? 's' : ''} to Review Queue
+              </button>
+            )}
+
+            {sendToReviewState === 'loading' && (
+              <button
+                disabled
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground opacity-50"
+                aria-label="Sending items to review queue"
+              >
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                Sending...
+              </button>
+            )}
+
+            {sendToReviewState === 'success' && sendToReviewResult && (
+              <div className="text-sm text-foreground" aria-live="polite">
+                <p>
+                  {sendToReviewResult.sent} item{sendToReviewResult.sent !== 1 ? 's' : ''} sent to review queue.{' '}
+                  <Link
+                    href={sendToReviewResult.review_url}
+                    className="font-medium text-primary underline-offset-4 hover:underline"
+                    aria-label="View items in review queue"
+                  >
+                    View in Review Queue
+                  </Link>
+                </p>
+                {(sendToReviewResult.already_pending > 0 || sendToReviewResult.skipped_draft > 0) && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    ({sendToReviewResult.already_pending > 0
+                      ? `${sendToReviewResult.already_pending} already pending`
+                      : ''}
+                    {sendToReviewResult.already_pending > 0 && sendToReviewResult.skipped_draft > 0 ? ', ' : ''}
+                    {sendToReviewResult.skipped_draft > 0
+                      ? `${sendToReviewResult.skipped_draft} draft${sendToReviewResult.skipped_draft !== 1 ? 's' : ''} skipped`
+                      : ''})
+                  </p>
+                )}
+              </div>
+            )}
+
+            {sendToReviewState === 'error' && (
+              <div className="text-sm" role="alert">
+                <p className="text-destructive">Failed to send items to review queue.</p>
+                <button
+                  onClick={onSendToReview}
+                  className="mt-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  aria-label="Retry sending items to review queue"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -593,6 +683,17 @@ export function SourceDocumentDiffReview({
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [updateError, setUpdateError] = useState<string | null>(null);
 
+  // Send-to-review state
+  const [sendToReviewState, setSendToReviewState] = useState<
+    'idle' | 'loading' | 'success' | 'error'
+  >('idle');
+  const [sendToReviewResult, setSendToReviewResult] = useState<{
+    sent: number;
+    already_pending: number;
+    skipped_draft: number;
+    review_url: string;
+  } | null>(null);
+
   // Per-entry note state — tracks notes that have been typed but not yet saved
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
 
@@ -700,6 +801,37 @@ export function SourceDocumentDiffReview({
     handleStatusChange(ids, status);
   }
 
+  // Compute affected items for send-to-review
+  const affectedItemIds = [...new Set(
+    localEntries
+      .filter(e => e.diff_type !== 'unchanged' && e.affected_item)
+      .map(e => e.affected_item!.id),
+  )];
+
+  const hasAffectedItems = affectedItemIds.length > 0;
+
+  async function handleSendToReview() {
+    if (affectedItemIds.length === 0) return;
+
+    setSendToReviewState('loading');
+    try {
+      const res = await fetch(
+        `/api/source-documents/${documentId}/send-to-review`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item_ids: affectedItemIds }),
+        },
+      );
+      if (!res.ok) throw new Error('Failed to send to review');
+      const data = await res.json();
+      setSendToReviewResult(data);
+      setSendToReviewState('success');
+    } catch {
+      setSendToReviewState('error');
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Breadcrumb navigation */}
@@ -747,7 +879,12 @@ export function SourceDocumentDiffReview({
       </header>
 
       {/* Completion banner — shown when all actionable entries have been reviewed */}
-      <CompletionBanner entries={localEntries} />
+      <CompletionBanner
+        entries={localEntries}
+        sendToReviewState={sendToReviewState}
+        sendToReviewResult={sendToReviewResult}
+        onSendToReview={handleSendToReview}
+      />
 
       {/* Summary bar */}
       <div
@@ -859,6 +996,9 @@ export function SourceDocumentDiffReview({
         entries={localEntries}
         onBulkStatusChange={handleBulkStatusChange}
         isLoading={isAnyLoading}
+        hasAffectedItems={hasAffectedItems}
+        onSendToReview={handleSendToReview}
+        sendToReviewState={sendToReviewState}
       />
 
       {/* Error message */}
