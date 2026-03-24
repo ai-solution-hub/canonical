@@ -288,9 +288,6 @@ When implementing from specs, follow this methodical phased approach:
   destroy each other's untracked files and revert shared config. Never run
   test infrastructure work concurrently with feature work — use git worktrees
   or sequence the sessions.
-- **CopilotKit CSS selectors:** `CopilotSidebar` applies the user `className`
-  and its own `copilotKitSidebar` class to the SAME element. Use compound
-  selectors (`.my-class.copilotKitSidebar`, no space) not descendant selectors.
 - **pgvector search_path in Supabase functions:** PL/pgSQL functions don't
   inherit the session `search_path`, so `<=>` operators fail inside function
   bodies. Fix with `ALTER FUNCTION ... SET search_path = public, extensions`.
@@ -352,6 +349,16 @@ When implementing from specs, follow this methodical phased approach:
   tender extraction pathway handles Track Changes correctly — it includes
   inserted text and excludes deleted text. See
   `__tests__/lib/mammoth-track-changes.test.ts` for the regression test.
+- **Browser testing must use agent-browser skill:** Never use Playwright MCP
+  tools (`mcp__playwright__*`) for parallel browser testing — they share a
+  single browser instance and agents fight over navigation. Use the
+  `agent-browser` skill with `--session <name>` for isolated parallel sessions.
+  The main session must start `bun dev` first; sub-agents connect to the
+  existing server on `localhost:3000` rather than starting their own.
+- **CopilotKit fully removed (S109):** Zero `@copilotkit` imports remain.
+  CopilotKit Sidebar items in the product backlog are all N/A.
+  `ClaudePromptButton` bridge is preserved and functional. The
+  `ExpiringContentSection` uses Supabase client directly (not `/api/items`).
 - **GitHub-backed plugin marketplaces are shallow git clones:**
   `~/.claude/plugins/marketplaces/{name}/` is a git clone of the repo in
   `extraKnownMarketplaces`. After pushing new plugins to the remote, the

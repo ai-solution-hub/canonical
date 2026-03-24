@@ -130,10 +130,10 @@ export function ExpiringContentSection({
         }
 
         const expiringItems: ExpiringItem[] = (data ?? [])
-          .filter((item) => item.expiry_date)
+          .filter((item): item is typeof item & { expiry_date: string } => !!item.expiry_date)
           .sort(
             (a, b) =>
-              new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime(),
+              new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime(),
           );
 
         if (!cancelled) {
