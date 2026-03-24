@@ -407,6 +407,7 @@ export async function PATCH(
 
     const { entries } = body;
     const VALID_STATUSES = ['applied', 'dismissed', 'pending_review'];
+    const MAX_NOTE_LENGTH = 500;
 
     // Validate entries array
     if (!Array.isArray(entries) || entries.length === 0) {
@@ -434,6 +435,12 @@ export async function PATCH(
       if (!entry.status || !VALID_STATUSES.includes(entry.status)) {
         return NextResponse.json(
           { error: `Invalid status value: ${entry.status ?? 'missing'}. Must be one of: ${VALID_STATUSES.join(', ')}` },
+          { status: 400 },
+        );
+      }
+      if (entry.note !== undefined && typeof entry.note === 'string' && entry.note.length > MAX_NOTE_LENGTH) {
+        return NextResponse.json(
+          { error: `Reviewer note exceeds maximum length of ${MAX_NOTE_LENGTH} characters` },
           { status: 400 },
         );
       }
