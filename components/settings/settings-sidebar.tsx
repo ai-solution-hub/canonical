@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Menu, Plug, Network, BookOpen } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Menu, Plug, Terminal, Network, BookOpen } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,13 +19,14 @@ import {
 
 export type SettingsSection =
   | 'profile'
-  | 'integrations'
+  | 'connections'
   | 'content-organisation'
   | 'entities'
   | 'guides'
   | 'team'
   | 'governance'
-  | 'activity';
+  | 'activity'
+  | 'developer-setup';
 
 interface SectionDef {
   id: SettingsSection;
@@ -36,13 +37,14 @@ interface SectionDef {
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
-  { id: 'integrations', label: 'Integrations', icon: Plug, group: 'personal' },
+  { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
   { id: 'content-organisation', label: 'Content Organisation', icon: FolderTree, group: 'content' },
   { id: 'entities', label: 'Organisations & People', icon: Network, group: 'content' },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Quality Review', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },
+  { id: 'developer-setup', label: 'Developer Setup', icon: Terminal, group: 'system' },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -62,11 +64,12 @@ function getVisibleSections(isAdmin: boolean): SectionDef[] {
   return ALL_SECTIONS.filter((s) => s.group === 'personal');
 }
 
-/** Legacy section IDs that map to content-organisation */
+/** Legacy section IDs that map to their new equivalents */
 const LEGACY_SECTION_MAP: Record<string, SettingsSection> = {
   taxonomy: 'content-organisation',
   tags: 'content-organisation',
   layers: 'content-organisation',
+  integrations: 'connections',
 };
 
 export function getValidSection(

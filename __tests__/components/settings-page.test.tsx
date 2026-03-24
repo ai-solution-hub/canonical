@@ -18,7 +18,7 @@ const {
   mockSearchParams,
   mockUseUserRole,
   mockProfileSection,
-  mockIntegrationsSection,
+  mockConnectionsSection,
   mockSettingsSidebar,
   mockSettingsMobileSidebar,
   mockTeamSection,
@@ -27,12 +27,13 @@ const {
   mockContentOrganisationSection,
   mockEntitiesSection,
   mockGuidesSection,
+  mockDeveloperSetupSection,
 } = vi.hoisted(() => ({
   mockRouter: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
   mockSearchParams: { value: new URLSearchParams() },
   mockUseUserRole: { loading: false, canAdmin: false, canEdit: false, role: 'viewer' as string | null },
   mockProfileSection: vi.fn(),
-  mockIntegrationsSection: vi.fn(),
+  mockConnectionsSection: vi.fn(),
   mockSettingsSidebar: vi.fn(),
   mockSettingsMobileSidebar: vi.fn(),
   mockTeamSection: vi.fn(),
@@ -41,6 +42,7 @@ const {
   mockContentOrganisationSection: vi.fn(),
   mockEntitiesSection: vi.fn(),
   mockGuidesSection: vi.fn(),
+  mockDeveloperSetupSection: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -60,10 +62,10 @@ vi.mock('@/components/settings/profile-section', () => ({
   },
 }));
 
-vi.mock('@/components/settings/integrations-section', () => ({
-  IntegrationsSection: () => {
-    mockIntegrationsSection();
-    return <div data-testid="integrations-section">IntegrationsSection</div>;
+vi.mock('@/components/settings/connections-section', () => ({
+  ConnectionsSection: () => {
+    mockConnectionsSection();
+    return <div data-testid="connections-section">ConnectionsSection</div>;
   },
 }));
 
@@ -82,10 +84,15 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
     return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
-    const legacyMap: Record<string, string> = { taxonomy: 'content-organisation', tags: 'content-organisation', layers: 'content-organisation' };
+    const legacyMap: Record<string, string> = {
+      taxonomy: 'content-organisation',
+      tags: 'content-organisation',
+      layers: 'content-organisation',
+      integrations: 'connections',
+    };
     const resolved = param && legacyMap[param] ? legacyMap[param] : param;
-    const allSections = ['profile', 'integrations', 'content-organisation', 'entities', 'guides', 'team', 'governance', 'activity'];
-    const personalSections = ['profile', 'integrations'];
+    const allSections = ['profile', 'connections', 'content-organisation', 'entities', 'guides', 'team', 'governance', 'activity', 'developer-setup'];
+    const personalSections = ['profile', 'connections'];
     const visible = isAdmin ? allSections : personalSections;
     if (resolved && visible.includes(resolved)) return resolved;
     return 'profile';
@@ -134,6 +141,13 @@ vi.mock('@/components/settings/guides-section', () => ({
   },
 }));
 
+vi.mock('@/components/settings/developer-setup-section', () => ({
+  DeveloperSetupSection: () => {
+    mockDeveloperSetupSection();
+    return <div data-testid="developer-setup-section">DeveloperSetupSection</div>;
+  },
+}));
+
 import SettingsPage from '@/app/settings/page';
 
 // ---------------------------------------------------------------------------
@@ -159,7 +173,6 @@ describe('SettingsPage', () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      // The spinner is an SVG with animate-spin class
       const spinners = document.querySelectorAll('.animate-spin');
       expect(spinners.length).toBeGreaterThan(0);
     });
@@ -174,7 +187,7 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Settings')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Manage your profile and integrations')).toBeInTheDocument();
+    expect(screen.getByText('Manage your profile and connections')).toBeInTheDocument();
     expect(screen.getByTestId('profile-section')).toBeInTheDocument();
   });
 
@@ -241,6 +254,17 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('content-organisation-section')).toBeInTheDocument();
+    });
+  });
+
+  it('maps legacy ?section=integrations to connections for admins', async () => {
+    mockSearchParams.value = new URLSearchParams('section=integrations');
+    mockUseUserRole.loading = false;
+    mockUseUserRole.canAdmin = true;
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('connections-section')).toBeInTheDocument();
     });
   });
 

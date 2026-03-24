@@ -94,12 +94,13 @@ export const selectors = {
   /** Settings page */
   settings: {
     profileSection: '[data-testid="profile-section"]',
-    integrationsSection: '[data-testid="integrations-section"]',
+    connectionsSection: '[data-testid="connections-section"]',
     taxonomySection: '[data-testid="taxonomy-section"]',
     tagsSection: '[data-testid="tags-section"]',
     teamSection: '[data-testid="team-section"]',
     governanceSection: '[data-testid="governance-section"]',
     activitySection: '[data-testid="activity-section"]',
+    developerSetupSection: '[data-testid="developer-setup-section"]',
   },
 
   /** Theme/appearance settings (site header dialog) */

@@ -56,15 +56,16 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
 
-    // All 8 section buttons should be present (taxonomy+tags+layers merged into Content Organisation)
+    // All 9 section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
-    expect(within(nav).getByText('Integrations')).toBeInTheDocument();
+    expect(within(nav).getByText('Connections')).toBeInTheDocument();
     expect(within(nav).getByText('Content Organisation')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
     expect(within(nav).getByText('Team')).toBeInTheDocument();
     expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
     expect(within(nav).getByText('Activity')).toBeInTheDocument();
+    expect(within(nav).getByText('Developer Setup')).toBeInTheDocument();
   });
 
   it('shows only Personal group for non-admin users', () => {
@@ -79,12 +80,13 @@ describe('SettingsSidebar', () => {
     const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(within(nav).getByText('Personal')).toBeInTheDocument();
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
-    expect(within(nav).getByText('Integrations')).toBeInTheDocument();
+    expect(within(nav).getByText('Connections')).toBeInTheDocument();
 
     // Admin-only groups should not be present
     expect(within(nav).queryByText('Content Management')).not.toBeInTheDocument();
     expect(within(nav).queryByText('System')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Team')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Developer Setup')).not.toBeInTheDocument();
   });
 
   it('highlights the active section with aria-current="page"', () => {
@@ -117,12 +119,29 @@ describe('SettingsSidebar', () => {
     expect(mockOnSectionChange).toHaveBeenCalledWith('governance');
   });
 
-  it('returns null when there is only one visible section or fewer', () => {
-    // This can't happen with current data (personal always has 2), but
-    // test the guard: we can test by checking the non-admin sidebar renders
-    // (it has 2 sections, so it renders). Instead test getValidSection.
+  it('falls back to profile for non-admin accessing admin section', () => {
     const result = getValidSection('team', false);
-    expect(result).toBe('profile'); // team is not visible for non-admin, falls back
+    expect(result).toBe('profile');
+  });
+
+  it('redirects legacy "integrations" param to "connections"', () => {
+    const result = getValidSection('integrations', false);
+    expect(result).toBe('connections');
+  });
+
+  it('redirects legacy "taxonomy" param to "content-organisation"', () => {
+    const result = getValidSection('taxonomy', true);
+    expect(result).toBe('content-organisation');
+  });
+
+  it('resolves "developer-setup" for admin users', () => {
+    const result = getValidSection('developer-setup', true);
+    expect(result).toBe('developer-setup');
+  });
+
+  it('falls back to profile for "developer-setup" when non-admin', () => {
+    const result = getValidSection('developer-setup', false);
+    expect(result).toBe('profile');
   });
 });
 
@@ -141,14 +160,11 @@ describe('SettingsMobileSidebar', () => {
       />,
     );
 
-    // The trigger button should show the active section label
     const triggerButton = screen.getByRole('button', { name: /Quality Review/i });
     expect(triggerButton).toBeInTheDocument();
 
-    // Click to open sheet
     await user.click(triggerButton);
 
-    // Sheet should show settings navigation
     const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(nav).toBeInTheDocument();
   });
