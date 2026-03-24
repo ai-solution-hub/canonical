@@ -112,7 +112,6 @@ async function DashboardContent() {
     ...unified.attention_sources,
     active_bids: unified.active_bids,
   });
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const roleItems = filterByRole(allItems, unified.user_role);
 
   // Build ReorientData from the unified data for ReorientSection
@@ -167,6 +166,22 @@ async function DashboardContent() {
         </div>
         <ActiveBidsSection bids={unified.active_bids} />
       </div>
+
+      {/* Subtle Claude prompt strip — replaces ClaudeActionsSection */}
+      {roleItems.length > 0 && (
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          {roleItems.length} {roleItems.length === 1 ? 'item needs' : 'items need'} attention
+          {' — '}
+          <a
+            href="https://claude.ai/new"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
+          >
+            ask Claude for help
+          </a>
+        </p>
+      )}
 
       {/* Workspaces quick link */}
       <div className="mt-6">
