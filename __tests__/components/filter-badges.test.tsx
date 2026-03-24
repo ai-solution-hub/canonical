@@ -16,26 +16,32 @@ import userEvent from '@testing-library/user-event';
 const {
   mockFilters,
   mockActiveFilterCount,
+  mockSearchQuery,
   mockRemoveFilter,
   mockRemoveFilterValue,
   mockClearFilters,
+  mockClearSearchQuery,
 } = vi.hoisted(() => ({
   mockFilters: {
     value: {} as Record<string, unknown>,
   },
   mockActiveFilterCount: { value: 0 },
+  mockSearchQuery: { value: undefined as string | undefined },
   mockRemoveFilter: vi.fn(),
   mockRemoveFilterValue: vi.fn(),
   mockClearFilters: vi.fn(),
+  mockClearSearchQuery: vi.fn(),
 }));
 
 vi.mock('@/hooks/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     filters: mockFilters.value,
     activeFilterCount: mockActiveFilterCount.value,
+    searchQuery: mockSearchQuery.value,
     removeFilter: mockRemoveFilter,
     removeFilterValue: mockRemoveFilterValue,
     clearFilters: mockClearFilters,
+    clearSearchQuery: mockClearSearchQuery,
   }),
 }));
 
@@ -64,6 +70,7 @@ describe('FilterBadges', () => {
     vi.clearAllMocks();
     mockFilters.value = {};
     mockActiveFilterCount.value = 0;
+    mockSearchQuery.value = undefined;
   });
 
   afterEach(() => {
@@ -129,5 +136,49 @@ describe('FilterBadges', () => {
     const clearBtn = screen.getByRole('button', { name: 'Clear all' });
     await user.click(clearBtn);
     expect(mockClearFilters).toHaveBeenCalledOnce();
+  });
+
+  // -------------------------------------------------------------------------
+  // Search query badge
+  // -------------------------------------------------------------------------
+
+  it('shows search query badge when searchQuery is set', () => {
+    mockActiveFilterCount.value = 1;
+    mockSearchQuery.value = 'infrastructure planning';
+    render(<FilterBadges />);
+    expect(screen.getByText('Search:')).toBeInTheDocument();
+    expect(screen.getByText('infrastructure planning')).toBeInTheDocument();
+  });
+
+  it('search query badge shows "Search: {query}" format', () => {
+    mockActiveFilterCount.value = 1;
+    mockSearchQuery.value = 'test query';
+    render(<FilterBadges />);
+    // The badge renders "Search:" as the label and the query as the value
+    const badge = screen.getByText('test query');
+    expect(badge).toBeInTheDocument();
+    // The label "Search:" should precede it
+    expect(screen.getByText('Search:')).toBeInTheDocument();
+  });
+
+  it('search query badge truncates at 40 characters', () => {
+    mockActiveFilterCount.value = 1;
+    // 50 character query — should be truncated to 37 + ellipsis
+    mockSearchQuery.value = 'This is a very long search query that exceeds fort';
+    render(<FilterBadges />);
+    // Should show first 37 chars + ellipsis character
+    expect(screen.getByText('This is a very long search query that\u2026')).toBeInTheDocument();
+    // Full text should not appear
+    expect(screen.queryByText(mockSearchQuery.value)).not.toBeInTheDocument();
+  });
+
+  it('search query badge remove button calls clearSearchQuery', async () => {
+    const user = userEvent.setup();
+    mockActiveFilterCount.value = 1;
+    mockSearchQuery.value = 'test query';
+    render(<FilterBadges />);
+    const removeBtn = screen.getByLabelText('Remove Search filter: test query');
+    await user.click(removeBtn);
+    expect(mockClearSearchQuery).toHaveBeenCalledOnce();
   });
 });

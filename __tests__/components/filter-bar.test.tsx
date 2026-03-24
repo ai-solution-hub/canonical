@@ -21,7 +21,7 @@ vi.mock('radix-ui', async (importOriginal) => {
 });
 
 // Import AFTER mocks
-import { FilterBar } from '@/components/filter-bar';
+import { FilterBar, getSortOptions } from '@/components/filter-bar';
 
 // ---------------------------------------------------------------------------
 // Factory
@@ -40,6 +40,7 @@ interface FilterBarTestProps {
   onToggleThumbnails?: () => void;
   activeFilterCount?: number;
   onOpenFilters?: () => void;
+  hasSearchQuery?: boolean;
 }
 
 function makeProps(overrides: FilterBarTestProps = {}) {
@@ -128,5 +129,45 @@ describe('FilterBar', () => {
   it('renders the More options overflow menu trigger', () => {
     render(<FilterBar {...makeProps()} />);
     expect(screen.getByRole('button', { name: 'More options' })).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Relevance sort option (search mode)
+  // -------------------------------------------------------------------------
+
+  it('getSortOptions includes Relevance when hasSearchQuery is true', () => {
+    const options = getSortOptions(true);
+    expect(options[0].value).toBe('relevance');
+    expect(options[0].label).toBe('Relevance');
+    // Base options should still be present after relevance
+    expect(options.length).toBe(7); // 1 relevance + 6 base
+  });
+
+  it('getSortOptions does NOT include Relevance when hasSearchQuery is false', () => {
+    const options = getSortOptions(false);
+    const relevanceOption = options.find((o) => o.value === 'relevance');
+    expect(relevanceOption).toBeUndefined();
+    expect(options.length).toBe(6); // 6 base options only
+  });
+
+  it('renders "Relevance" sort value when hasSearchQuery is true and sortOption is relevance', () => {
+    render(
+      <FilterBar
+        {...makeProps({ hasSearchQuery: true, sortOption: 'relevance' })}
+      />,
+    );
+    // "Relevance" appears in both the SelectValue and the mobile shortLabel span
+    const elements = screen.getAllByText('Relevance');
+    expect(elements.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not render "Relevance" short label when hasSearchQuery is false', () => {
+    render(
+      <FilterBar
+        {...makeProps({ hasSearchQuery: false, sortOption: 'date-desc' })}
+      />,
+    );
+    // "Relevance" should not appear anywhere since it is not in the sort options
+    expect(screen.queryByText('Relevance')).not.toBeInTheDocument();
   });
 });

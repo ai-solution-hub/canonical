@@ -5,7 +5,15 @@ import { renderHook, waitFor } from '@testing-library/react';
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom, mockFilters, mockSetFilters } = vi.hoisted(() => {
+const {
+  mockRpc,
+  mockFrom,
+  mockFilters,
+  mockSetFilters,
+  mockSearchQuery,
+  mockSetSearchQuery,
+  mockClearSearchQuery,
+} = vi.hoisted(() => {
   return {
     mockRpc: vi.fn(),
     mockFrom: vi.fn(),
@@ -14,6 +22,9 @@ const { mockRpc, mockFrom, mockFilters, mockSetFilters } = vi.hoisted(() => {
       order: 'desc' as const,
     } as Record<string, unknown>,
     mockSetFilters: vi.fn(),
+    mockSearchQuery: { value: undefined as string | undefined },
+    mockSetSearchQuery: vi.fn(),
+    mockClearSearchQuery: vi.fn(),
   };
 });
 
@@ -28,7 +39,10 @@ vi.mock('@/hooks/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     filters: mockFilters,
     activeFilterCount: 0,
+    searchQuery: mockSearchQuery.value,
     setFilters: mockSetFilters,
+    setSearchQuery: mockSetSearchQuery,
+    clearSearchQuery: mockClearSearchQuery,
   }),
 }));
 
@@ -112,11 +126,17 @@ describe('useBrowseData', () => {
     mockFilters.sort = 'captured_date';
     mockFilters.order = 'desc';
 
+    // Reset search query
+    mockSearchQuery.value = undefined;
+
     // Default: quality flags RPC returns empty
     mockRpc.mockResolvedValue({ data: [], error: null });
 
     // Default: from() returns a chain resolving to sample items
     mockFrom.mockReturnValue(createQueryChain(SAMPLE_ITEMS, 2));
+
+    // Reset global fetch mock
+    vi.restoreAllMocks();
   });
 
   // -----------------------------------------------------------------------
@@ -361,5 +381,277 @@ describe('useBrowseData', () => {
     // Items loaded — now verify initial state is correct
     expect(result.current.hasMore).toBe(true);
     expect(result.current.items).toHaveLength(48);
+  });
+
+  // -----------------------------------------------------------------------
+  // Search mode
+  // -----------------------------------------------------------------------
+
+  describe('search mode', () => {
+    const SEARCH_RESULTS = [
+      {
+        id: 'search-1',
+        title: 'Search Result 1',
+        captured_date: '2026-01-20',
+        primary_domain: 'Technology',
+        primary_subtopic: 'software',
+        content_type: 'article',
+        freshness: 'fresh',
+        similarity: 0.92,
+      },
+      {
+        id: 'search-2',
+        title: 'Search Result 2',
+        captured_date: '2026-01-18',
+        primary_domain: 'People',
+        primary_subtopic: 'training',
+        content_type: 'report',
+        freshness: 'aging',
+        similarity: 0.85,
+      },
+      {
+        id: 'search-3',
+        title: 'Search Result 3',
+        captured_date: '2026-01-16',
+        primary_domain: 'Technology',
+        primary_subtopic: 'hardware',
+        content_type: 'article',
+        freshness: 'stale',
+        similarity: 0.78,
+      },
+    ];
+
+    function mockFetchSuccess(results: unknown[] = SEARCH_RESULTS) {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: true,
+        json: async () => ({ results }),
+      } as Response);
+    }
+
+    it('calls fetch with /api/search when searchQuery is set', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFetchSuccess();
+
+      renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          '/api/search',
+          expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: 'test query',
+              threshold: 0.35,
+              limit: 50,
+            }),
+          }),
+        );
+      });
+    });
+
+    it('stores search results in items', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.items).toHaveLength(3);
+      expect(result.current.items[0].id).toBe('search-1');
+      expect(result.current.items[1].id).toBe('search-2');
+      expect(result.current.totalCount).toBe(3);
+    });
+
+    it('returns isSearchMode=true when searchQuery is set', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      expect(result.current.isSearchMode).toBe(true);
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.isSearchMode).toBe(true);
+    });
+
+    it('returns isSearchMode=false when searchQuery is not set', async () => {
+      mockSearchQuery.value = undefined;
+
+      const { result } = renderHook(() => useBrowseData());
+
+      expect(result.current.isSearchMode).toBe(false);
+    });
+
+    it('sets hasMore=false for search results (all returned at once)', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.hasMore).toBe(false);
+    });
+
+    it('sets searchError when fetch response is not ok', async () => {
+      mockSearchQuery.value = 'failing query';
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: 'Something went wrong' }),
+      } as Response);
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.searchError).toBe('Something went wrong');
+      expect(result.current.items).toEqual([]);
+    });
+
+    it('sets specific error message for EMBEDDING_FAILED code', async () => {
+      mockSearchQuery.value = 'failing query';
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+        ok: false,
+        json: async () => ({ code: 'EMBEDDING_FAILED', error: 'Embedding error' }),
+      } as Response);
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.searchError).toBe(
+        'Search is temporarily unavailable. Please try again shortly.',
+      );
+    });
+
+    it('sets searchError when fetch throws a network error', async () => {
+      mockSearchQuery.value = 'failing query';
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Network failure'));
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.searchError).toBe('Network failure');
+    });
+
+    it('does not call Supabase from() in search mode', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // mockFrom is called for freshness counts, but the main data fetch
+      // should go through fetch(), not through buildQuery/from()
+      // Freshness counts call from('content_items') 4 times (one per state)
+      // so we only expect those calls, not the main query call
+      const contentItemCalls = mockFrom.mock.calls.filter(
+        (call: unknown[]) => call[0] === 'content_items',
+      );
+      // Each freshness count calls .from('content_items') — 4 calls for fresh/aging/stale/expired
+      // The main data fetch should NOT add another .from('content_items') call
+      expect(contentItemCalls.length).toBe(4);
+    });
+
+    // -------------------------------------------------------------------
+    // applyPostFilters tests
+    // -------------------------------------------------------------------
+
+    it('filters search results by domain via applyPostFilters', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFilters.domain = ['Technology'];
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Only items with primary_domain 'Technology' should remain
+      expect(result.current.items).toHaveLength(2);
+      expect(result.current.items.every((i) => i.primary_domain === 'Technology')).toBe(true);
+    });
+
+    it('filters search results by content_type via applyPostFilters', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFilters.content_type = ['report'];
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      expect(result.current.items).toHaveLength(1);
+      expect(result.current.items[0].id).toBe('search-2');
+    });
+
+    it('filters search results by freshness via applyPostFilters', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFilters.freshness = ['fresh', 'aging'];
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Only 'fresh' and 'aging' items should pass
+      expect(result.current.items).toHaveLength(2);
+      const freshnesses = result.current.items.map((i) => i.freshness);
+      expect(freshnesses).toContain('fresh');
+      expect(freshnesses).toContain('aging');
+      expect(freshnesses).not.toContain('stale');
+    });
+
+    it('applies multiple post-filters simultaneously', async () => {
+      mockSearchQuery.value = 'test query';
+      mockFilters.domain = ['Technology'];
+      mockFilters.freshness = ['fresh'];
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false);
+      });
+
+      // Only Technology + fresh => search-1
+      expect(result.current.items).toHaveLength(1);
+      expect(result.current.items[0].id).toBe('search-1');
+    });
+
+    it('exposes searchQuery, setSearchQuery, and clearSearchQuery', async () => {
+      mockSearchQuery.value = 'my query';
+      mockFetchSuccess();
+
+      const { result } = renderHook(() => useBrowseData());
+
+      expect(result.current.searchQuery).toBe('my query');
+      expect(result.current.setSearchQuery).toBe(mockSetSearchQuery);
+      expect(result.current.clearSearchQuery).toBe(mockClearSearchQuery);
+    });
   });
 });
