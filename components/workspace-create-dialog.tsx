@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -22,12 +22,16 @@ interface WorkspaceCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (workspace: Workspace) => void;
+  type?: 'bid' | 'kb_section';
+  onBidCreate?: () => void;
 }
 
 export function WorkspaceCreateDialog({
   open,
   onOpenChange,
   onCreated,
+  type = 'kb_section',
+  onBidCreate,
 }: WorkspaceCreateDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -35,6 +39,14 @@ export function WorkspaceCreateDialog({
   const [icon, setIcon] = useState('folder');
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
+
+  // When type is 'bid', close the dialog and delegate to BidCreationWizard
+  useEffect(() => {
+    if (open && type === 'bid') {
+      onOpenChange(false);
+      onBidCreate?.();
+    }
+  }, [open, type, onOpenChange, onBidCreate]);
 
   function resetForm() {
     setName('');
@@ -64,6 +76,7 @@ export function WorkspaceCreateDialog({
           description: description.trim() || undefined,
           color,
           icon,
+          type,
         }),
       });
 
@@ -101,9 +114,13 @@ export function WorkspaceCreateDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>New Workspace</DialogTitle>
+          <DialogTitle>
+            {type === 'bid' ? 'New Bid' : 'New KB Section'}
+          </DialogTitle>
           <DialogDescription>
-            Create a workspace to organise related content items.
+            {type === 'bid'
+              ? 'Create a new bid workspace.'
+              : 'Create a KB section to organise related content items.'}
           </DialogDescription>
         </DialogHeader>
 
