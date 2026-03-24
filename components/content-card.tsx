@@ -23,6 +23,8 @@ import { isFeatureEnabled } from '@/lib/client-config';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import { QuickAssignButton } from '@/components/quick-assign-button';
 
 // ---------------------------------------------------------------------------
 // Internal helpers and sub-components
@@ -94,8 +96,14 @@ function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) 
   );
 }
 
-/** Header row: content type icon, domain badge, layer badge, unread dot, star */
-function CardHeaderRow({ item, isRead }: { item: ContentListItem | SearchResult; isRead?: boolean }) {
+/** Header row: content type icon, domain badge, layer badge, unread dot, quick assign, star */
+function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: {
+  item: ContentListItem | SearchResult;
+  isRead?: boolean;
+  activeWorkspaces?: ActiveBidWorkspace[];
+  assignedWorkspaceIds?: Set<string>;
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+}) {
   return (
     <div className="flex items-center gap-1.5">
       <ContentTypeIcon contentType={item.content_type} size="size-5" />
@@ -103,6 +111,14 @@ function CardHeaderRow({ item, isRead }: { item: ContentListItem | SearchResult;
       <LayerBadge metadata={item.metadata} />
       <div className="ml-auto flex items-center gap-1">
         <UnreadDot isRead={isRead} />
+        {activeWorkspaces && assignedWorkspaceIds && (
+          <QuickAssignButton
+            itemId={item.id}
+            activeWorkspaces={activeWorkspaces}
+            assignedWorkspaceIds={assignedWorkspaceIds}
+            onAssignmentChange={onAssignmentChange}
+          />
+        )}
         <StarToggle itemId={item.id} metadata={item.metadata} />
       </div>
     </div>
@@ -242,9 +258,15 @@ interface ContentCardProps {
   hasQualityFlag?: boolean;
   hideThumbnail?: boolean;
   highlightQuery?: string;
+  /** Active bid workspaces for quick-assign (from parent context) */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Set of workspace IDs this item is assigned to */
+  assignedWorkspaceIds?: Set<string>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
-export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
@@ -275,7 +297,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     return (
       <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('180px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <CardHeaderRow item={item} isRead={isRead} />
+          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} />
           <CardTitle title={title} priority={item.priority} qaPrefix renderText={renderText} />
           {answerPreview && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -326,7 +348,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     return (
       <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('200px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <CardHeaderRow item={item} isRead={isRead} />
+          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} />
           <CardTitle title={title} priority={item.priority} renderText={renderText} />
           <SummaryPreview item={item} renderText={renderText} />
           <CardFooter item={item} hasQualityFlag={hasQualityFlag} />
@@ -343,12 +365,29 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           <Thumbnail src={item.thumbnail_url} alt={title} contentType={item.content_type} domain={item.primary_domain} placeholderAspect="compact" className="rounded-b-none" />
           <div className="absolute right-1 top-1 flex items-center gap-1">
             <UnreadDot isRead={isRead} />
+            {activeWorkspaces && assignedWorkspaceIds && (
+              <QuickAssignButton
+                itemId={item.id}
+                activeWorkspaces={activeWorkspaces}
+                assignedWorkspaceIds={assignedWorkspaceIds}
+                onAssignmentChange={onAssignmentChange}
+                className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
+              />
+            )}
             <StarToggle itemId={item.id} metadata={item.metadata} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />
           </div>
         </div>
       ) : (
         <div className="flex items-center justify-end gap-1 p-3 pb-0">
           <UnreadDot isRead={isRead} />
+          {activeWorkspaces && assignedWorkspaceIds && (
+            <QuickAssignButton
+              itemId={item.id}
+              activeWorkspaces={activeWorkspaces}
+              assignedWorkspaceIds={assignedWorkspaceIds}
+              onAssignmentChange={onAssignmentChange}
+            />
+          )}
           <StarToggle itemId={item.id} metadata={item.metadata} />
         </div>
       )}

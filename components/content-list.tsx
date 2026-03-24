@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 interface ContentListProps {
   items: (ContentListItem | SearchResult)[];
@@ -14,6 +15,12 @@ interface ContentListProps {
   selectedIds?: Set<string>;
   onToggleSelect?: (itemId: string) => void;
   highlightQuery?: string;
+  /** Active bid workspaces for quick-assign */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Map of item ID to set of assigned workspace IDs */
+  itemAssignments?: Map<string, Set<string>>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 export function ContentList({
@@ -25,6 +32,9 @@ export function ContentList({
   selectedIds,
   onToggleSelect,
   highlightQuery,
+  activeWorkspaces,
+  itemAssignments,
+  onAssignmentChange,
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +137,9 @@ export function ContentList({
                   isRead={readItemIds ? readItemIds.has(item.id) : undefined}
                   hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                   highlightQuery={highlightQuery}
+                  activeWorkspaces={activeWorkspaces}
+                  assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                  onAssignmentChange={onAssignmentChange}
                 />
               </div>
             </div>

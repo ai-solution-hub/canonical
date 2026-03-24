@@ -28,6 +28,7 @@ import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBrowseData } from '@/hooks/use-browse-data';
+import { useQuickAssign } from '@/hooks/use-quick-assign';
 import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
@@ -63,6 +64,20 @@ export function BrowseContent() {
     isSearchMode,
     searchError,
   } = useBrowseData();
+
+  // Quick-assign: fetch active workspaces + batch load assignments (editor/admin only)
+  const {
+    activeWorkspaces,
+    itemAssignments,
+    toggleAssignment,
+    loadAssignments,
+  } = useQuickAssign();
+
+  // Load workspace assignments when items change (only for editors)
+  useEffect(() => {
+    if (!canEdit || items.length === 0) return;
+    loadAssignments(items.map((item) => item.id));
+  }, [canEdit, items, loadAssignments]);
 
   // Trigger lazy loading of read marks counts for this page
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
@@ -383,6 +398,9 @@ export function BrowseContent() {
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectItem}
                 hideThumbnails={hideThumbnails}
+                activeWorkspaces={canEdit ? activeWorkspaces : undefined}
+                itemAssignments={canEdit ? itemAssignments : undefined}
+                onAssignmentChange={canEdit ? toggleAssignment : undefined}
               />
             ) : (
               <ContentList
@@ -393,6 +411,9 @@ export function BrowseContent() {
                 multiSelectMode={multiSelectMode}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectItem}
+                activeWorkspaces={canEdit ? activeWorkspaces : undefined}
+                itemAssignments={canEdit ? itemAssignments : undefined}
+                onAssignmentChange={canEdit ? toggleAssignment : undefined}
               />
             )}
           </div>

@@ -19,6 +19,8 @@ import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import { QuickAssignButton } from '@/components/quick-assign-button';
 
 interface ContentRowProps {
   item: ContentListItem | SearchResult;
@@ -26,6 +28,12 @@ interface ContentRowProps {
   isRead?: boolean;
   hasQualityFlag?: boolean;
   highlightQuery?: string;
+  /** Active bid workspaces for quick-assign (from parent context) */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Set of workspace IDs this item is assigned to */
+  assignedWorkspaceIds?: Set<string>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 function isSearchResult(
@@ -40,6 +48,9 @@ export const ContentRow = memo(function ContentRow({
   isRead,
   hasQualityFlag,
   highlightQuery,
+  activeWorkspaces,
+  assignedWorkspaceIds,
+  onAssignmentChange,
 }: ContentRowProps) {
   const { getDomainColourKey } = useTaxonomy();
   const { getLayerLabel } = useLayerVocabulary();
@@ -149,6 +160,15 @@ export const ContentRow = memo(function ContentRow({
         >
           {formatSmartDate(item.captured_date)}
         </time>
+        {activeWorkspaces && assignedWorkspaceIds && (
+          <QuickAssignButton
+            itemId={item.id}
+            activeWorkspaces={activeWorkspaces}
+            assignedWorkspaceIds={assignedWorkspaceIds}
+            onAssignmentChange={onAssignmentChange}
+            className="shrink-0"
+          />
+        )}
         {answerSnippet && (
           <button
             type="button"
@@ -265,6 +285,15 @@ export const ContentRow = memo(function ContentRow({
       >
         {formatDate(item.captured_date)}
       </time>
+      {activeWorkspaces && assignedWorkspaceIds && (
+        <QuickAssignButton
+          itemId={item.id}
+          activeWorkspaces={activeWorkspaces}
+          assignedWorkspaceIds={assignedWorkspaceIds}
+          onAssignmentChange={onAssignmentChange}
+          className="shrink-0"
+        />
+      )}
       <StarButton
         itemId={item.id}
         starred={item.metadata?.starred === true}

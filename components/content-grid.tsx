@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentCard } from '@/components/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 const MIN_CARD_WIDTH = 280;
 const ESTIMATED_ROW_HEIGHT = 380;
@@ -25,6 +26,12 @@ interface ContentGridProps {
   onToggleSelect?: (itemId: string) => void;
   hideThumbnails?: boolean;
   highlightQuery?: string;
+  /** Active bid workspaces for quick-assign */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Map of item ID to set of assigned workspace IDs */
+  itemAssignments?: Map<string, Set<string>>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 export function ContentGrid({
@@ -37,6 +44,9 @@ export function ContentGrid({
   onToggleSelect,
   hideThumbnails,
   highlightQuery,
+  activeWorkspaces,
+  itemAssignments,
+  onAssignmentChange,
 }: ContentGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
@@ -222,6 +232,9 @@ export function ContentGrid({
                 hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                 hideThumbnail={hideThumbnails}
                 highlightQuery={highlightQuery}
+                activeWorkspaces={activeWorkspaces}
+                assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                onAssignmentChange={onAssignmentChange}
               />
             </div>
           );
@@ -325,6 +338,9 @@ export function ContentGrid({
                       hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                       hideThumbnail={hideThumbnails}
                       highlightQuery={highlightQuery}
+                      activeWorkspaces={activeWorkspaces}
+                      assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                      onAssignmentChange={onAssignmentChange}
                     />
                   </div>
                   );
