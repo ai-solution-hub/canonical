@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
 
 interface ContentListProps {
   items: (ContentListItem | SearchResult)[];
@@ -14,6 +15,10 @@ interface ContentListProps {
   selectedIds?: Set<string>;
   onToggleSelect?: (itemId: string) => void;
   highlightQuery?: string;
+  /** Whether the current user can edit (editor/admin). Enables quick review actions. */
+  canEdit?: boolean;
+  /** Callback for optimistic item state updates (verify/flag actions) */
+  onQuickReviewUpdate?: OnOptimisticUpdate;
 }
 
 export function ContentList({
@@ -25,6 +30,8 @@ export function ContentList({
   selectedIds,
   onToggleSelect,
   highlightQuery,
+  canEdit,
+  onQuickReviewUpdate,
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -127,6 +134,8 @@ export function ContentList({
                   isRead={readItemIds ? readItemIds.has(item.id) : undefined}
                   hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                   highlightQuery={highlightQuery}
+                  canEdit={canEdit}
+                  onQuickReviewUpdate={onQuickReviewUpdate}
                 />
               </div>
             </div>
