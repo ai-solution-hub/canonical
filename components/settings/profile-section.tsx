@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Info, Loader2 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useUserRole } from '@/hooks/use-user-role';
@@ -112,8 +118,26 @@ export function ProfileSection() {
     <div className="flex flex-col gap-6">
       {/* Profile information */}
       <Card className="p-6">
-        <h3 className="mb-1 text-base font-semibold">
+        <h3 className="mb-1 flex items-center gap-1.5 text-base font-semibold">
           Profile Information
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                  aria-label="More information about profile"
+                >
+                  <Info className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                Your display name appears on content you create or edit. Your
+                role (viewer, editor, or admin) determines what you can change.
+                Password must be at least 8 characters.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {isDirty && (
             <span
               className="ml-2 inline-block size-2 rounded-full bg-primary"
@@ -122,8 +146,7 @@ export function ProfileSection() {
           )}
         </h3>
         <p className="mb-4 text-sm text-muted-foreground">
-          Your display name and role within the Knowledge Hub. Email is set at
-          account creation and cannot be changed here.
+          Your name, role, and sign-in credentials.
         </p>
         <form onSubmit={handleSaveProfile} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

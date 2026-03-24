@@ -12,6 +12,7 @@ import {
   BarChart3,
   Download,
   Terminal,
+  Info,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +20,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import {
   Accordion,
   AccordionContent,
@@ -98,6 +105,36 @@ export function IntegrationsSection() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div>
+        <h3 className="flex items-center gap-1.5 text-base font-semibold">
+          Integrations
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex items-center text-muted-foreground hover:text-foreground"
+                  aria-label="More information about integrations"
+                >
+                  <Info className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="max-w-xs">
+                Claude can search your knowledge base, check bid status, and
+                draft responses when connected via MCP. Copy the server URL and
+                paste it into Claude.ai Settings &gt; Connectors. Connected apps
+                show which Claude instances have access — you can revoke any
+                connection.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Connect your Knowledge Hub to Claude so you can search, draft, and get
+          briefings from any conversation.
+        </p>
+      </div>
+
       {/* Connected apps (OAuth grants) — user-facing, shown first */}
       <ConnectedAppsSection />
 

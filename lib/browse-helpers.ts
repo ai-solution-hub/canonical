@@ -1,6 +1,14 @@
 import type { SortOption } from '@/components/filter-bar';
 import type { ContentListItem } from '@/types/content';
 
+/** Sorts that use offset-based pagination instead of cursor-based. */
+const OFFSET_SORTS = new Set(['freshness', 'quality_score']);
+
+/** Returns true when the given sort key requires offset-based pagination. */
+export function isOffsetSort(sort: string): boolean {
+  return OFFSET_SORTS.has(sort);
+}
+
 export function getSortOptionFromFilters(
   sort?: string,
   order?: string,

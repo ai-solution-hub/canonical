@@ -244,6 +244,46 @@ export function CommandPalette() {
                         Settings &rsaquo; Quality Review
                       </Command.Item>
                       <Command.Item
+                        value="Settings tags keywords"
+                        onSelect={() => runCommand(() => router.push('/settings?section=tags'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Tags
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings layers depth levels"
+                        onSelect={() => runCommand(() => router.push('/settings?section=layers'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Depth Levels
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings entities organisations people"
+                        onSelect={() => runCommand(() => router.push('/settings?section=entities'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Organisations &amp; People
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings guides reading paths"
+                        onSelect={() => runCommand(() => router.push('/settings?section=guides'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Guides
+                      </Command.Item>
+                      <Command.Item
+                        value="Settings integrations connections claude mcp"
+                        onSelect={() => runCommand(() => router.push('/settings?section=integrations'))}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
+                      >
+                        <Settings className="size-4 text-muted-foreground" />
+                        Settings &rsaquo; Integrations
+                      </Command.Item>
+                      <Command.Item
                         value="Settings activity log"
                         onSelect={() => runCommand(() => router.push('/settings?section=activity'))}
                         className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"

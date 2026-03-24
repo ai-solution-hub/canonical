@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, type RefCallback } from 'react';
 import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { createClient } from '@/lib/supabase/client';
-import { getCursorFromItem } from '@/lib/browse-helpers';
+import { getCursorFromItem, isOffsetSort } from '@/lib/browse-helpers';
 import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
 
@@ -50,6 +50,8 @@ export function useBrowseData(): UseBrowseDataReturn {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [cursor, setCursor] = useState<string | null>(null);
+  // Offset-based pagination for sorts where cursor-based is not viable
+  const [offset, setOffset] = useState(0);
 
   // Quality flags
   const [qualityFlaggedIds, setQualityFlaggedIds] = useState<Set<string>>(new Set());
@@ -170,7 +172,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, [filters.entity, filters.entity_type]);
 
-  // Build the Supabase query with filters and cursor-based pagination
+  // Build the Supabase query with filters and cursor-based or offset-based pagination
   const buildQuery = useCallback(
     (
       cursorValue: string | null,
@@ -180,6 +182,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       qualityIssueIds?: string[] | null,
       entityMatchIds?: string[] | null,
       resolvedOwner?: string | null,
+      offsetValue?: number,
     ) => {
       let query = supabase
         .from('content_items')
@@ -342,23 +345,26 @@ export function useBrowseData(): UseBrowseDataReturn {
         }
       } else if (sort === 'freshness') {
         // Freshness sort: stale/expired first (asc: expired < stale < aging < fresh)
-        // Uses a deterministic DB-level CASE ordering via RPC fallback not available,
-        // so we use client-side offset pagination (no cursor).
-        // The freshness values are: fresh, aging, stale, expired
-        // We sort by freshness ascending (expired first) then date descending
+        // Uses offset-based pagination since freshness is non-unique and not orderable as a cursor.
         query = query
           .order('freshness', { ascending: true, nullsFirst: false })
           .order('captured_date', { ascending: false })
           .order('id', { ascending: true });
       } else if (sort === 'quality_score') {
         // Quality score sort: lowest first for governance review
+        // Uses offset-based pagination since quality_score is non-unique.
         query = query
           .order('quality_score', { ascending: true, nullsFirst: false })
           .order('captured_date', { ascending: false })
           .order('id', { ascending: true });
       }
 
-      query = query.limit(PAGE_SIZE);
+      // Offset-based sorts use .range(); cursor-based sorts use .limit()
+      if (isOffsetSort(sort) && offsetValue != null && offsetValue > 0) {
+        query = query.range(offsetValue, offsetValue + PAGE_SIZE - 1);
+      } else {
+        query = query.limit(PAGE_SIZE);
+      }
 
       return query;
     },
@@ -374,6 +380,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       setIsLoading(true);
       setItems([]);
       setCursor(null);
+      setOffset(0);
 
       // Resolve keyword + project + quality issue + entity + owner filters via server-side lookups
       const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] = await Promise.all([
@@ -414,10 +421,12 @@ export function useBrowseData(): UseBrowseDataReturn {
       setTotalCount(count);
       setHasMore(fetchedItems.length >= PAGE_SIZE);
 
-      // Set cursor from last item
-      if (fetchedItems.length > 0) {
+      // Set cursor or offset from last batch
+      const sort = filters.sort ?? 'captured_date';
+      if (isOffsetSort(sort)) {
+        setOffset(fetchedItems.length);
+      } else if (fetchedItems.length > 0) {
         const lastItem = fetchedItems[fetchedItems.length - 1];
-        const sort = filters.sort ?? 'captured_date';
         setCursor(getCursorFromItem(lastItem, sort));
       }
 
@@ -427,9 +436,14 @@ export function useBrowseData(): UseBrowseDataReturn {
     fetchData();
   }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, resolveOwnerFilter, filters.sort, refreshCounter]);
 
-  // Load more using cursor
+  // Load more using cursor-based or offset-based pagination
   const handleLoadMore = useCallback(async () => {
-    if (isLoadingMore || !hasMore || !cursor) return;
+    const sort = filters.sort ?? 'captured_date';
+    const usingOffset = isOffsetSort(sort);
+
+    // For cursor-based sorts we need a cursor; for offset-based sorts we need a non-zero offset
+    if (isLoadingMore || !hasMore) return;
+    if (!usingOffset && !cursor) return;
 
     setIsLoadingMore(true);
 
@@ -440,7 +454,16 @@ export function useBrowseData(): UseBrowseDataReturn {
       resolveEntityIds(),
       resolveOwnerFilter(),
     ]);
-    const { data, error } = await buildQuery(cursor, false, keywordIds, projectIds, qualityIds, entityIds, resolvedOwner);
+    const { data, error } = await buildQuery(
+      cursor,
+      false,
+      keywordIds,
+      projectIds,
+      qualityIds,
+      entityIds,
+      resolvedOwner,
+      usingOffset ? offset : undefined,
+    );
 
     if (error) {
       console.error('Failed to load more items:', error);
@@ -452,10 +475,11 @@ export function useBrowseData(): UseBrowseDataReturn {
     setItems((prev) => [...prev, ...newItems]);
     setHasMore(newItems.length >= PAGE_SIZE);
 
-    // Update cursor from last item of new batch
-    if (newItems.length > 0) {
+    // Update cursor or offset from last batch
+    if (usingOffset) {
+      setOffset((prev) => prev + newItems.length);
+    } else if (newItems.length > 0) {
       const lastItem = newItems[newItems.length - 1];
-      const sort = filters.sort ?? 'captured_date';
       setCursor(getCursorFromItem(lastItem, sort));
     }
 
@@ -464,6 +488,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     isLoadingMore,
     hasMore,
     cursor,
+    offset,
     buildQuery,
     resolveKeywordIds,
     resolveWorkspaceIds,
