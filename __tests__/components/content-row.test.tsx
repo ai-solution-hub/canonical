@@ -175,12 +175,17 @@ describe('ContentRow', () => {
     expect(screen.getByTestId('domain-badge')).toHaveTextContent('Technical');
   });
 
-  it('renders content type in metadata line for standard items', () => {
-    render(<ContentRow item={makeItem({ content_type: 'article' })} />);
+  it('renders content type in metadata line for standard items without summary', () => {
+    render(<ContentRow item={makeItem({ content_type: 'article', ai_summary: null, brief: null })} />);
     // formatContentType('article') returns 'Article'; parts are in separate spans with middot separators
     expect(screen.getByText('Article')).toBeInTheDocument();
     expect(screen.getByText('web')).toBeInTheDocument();
     expect(screen.getByText('John Smith')).toBeInTheDocument();
+  });
+
+  it('shows ai_summary as snippet when available for standard items', () => {
+    render(<ContentRow item={makeItem({ ai_summary: 'This is an AI-generated summary.' })} />);
+    expect(screen.getByText('This is an AI-generated summary.')).toBeInTheDocument();
   });
 
   it('shows date in correct format', () => {

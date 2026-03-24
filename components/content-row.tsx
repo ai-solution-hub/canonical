@@ -115,6 +115,9 @@ export const ContentRow = memo(function ContentRow({
               domain={item.primary_domain ?? ''}
               className="shrink-0"
             />
+            {isSearchResult(item) && (
+              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">Q&amp;A</Badge>
+            )}
             {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
               <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
                 {getLayerLabel(item.metadata.layer as string)}
@@ -278,6 +281,8 @@ export const ContentRow = memo(function ContentRow({
         >
           {isSearchResult(item) && item.snippet ? (
             renderText(`\u2026${item.snippet}\u2026`)
+          ) : item.brief || item.ai_summary ? (
+            renderText(item.brief || item.ai_summary || '')
           ) : (
             <span className="flex items-center gap-1">
               <ContentTypeIcon contentType={item.content_type} size="size-3" />

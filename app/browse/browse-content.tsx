@@ -276,7 +276,7 @@ export function BrowseContent() {
   );
 
   return (
-    <section aria-label="Browse content" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <section aria-label={isSearchMode ? 'Browse and search results' : 'Browse content'} className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -393,6 +393,13 @@ export function BrowseContent() {
           {searchError}
         </div>
       )}
+
+      {/* Screen reader announcement for search results */}
+      <div className="sr-only" aria-live="polite" role="status">
+        {isSearchMode && !isLoading && totalCount !== null
+          ? `${totalCount} result${totalCount !== 1 ? 's' : ''} for ${searchQuery}`
+          : ''}
+      </div>
 
       {/* Preset bar */}
       <div className="mt-4">

@@ -321,7 +321,26 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     return (
       <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('180px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} />
+          <div className="flex items-center gap-1.5">
+            <ContentTypeIcon contentType={item.content_type} size="size-5" />
+            <DomainBadge domain={item.primary_domain ?? ''} />
+            {isSearchResult(item) && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Q&amp;A</Badge>
+            )}
+            <LayerBadge metadata={item.metadata} />
+            <div className="ml-auto flex items-center gap-1">
+              <UnreadDot isRead={isRead} />
+              {activeWorkspaces && assignedWorkspaceIds && (
+                <QuickAssignButton
+                  itemId={item.id}
+                  activeWorkspaces={activeWorkspaces}
+                  assignedWorkspaceIds={assignedWorkspaceIds}
+                  onAssignmentChange={onAssignmentChange}
+                />
+              )}
+              <StarToggle itemId={item.id} metadata={item.metadata} />
+            </div>
+          </div>
           <CardTitle title={title} priority={item.priority} qaPrefix renderText={renderText} />
           {answerPreview && (
             <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
