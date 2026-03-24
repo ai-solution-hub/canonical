@@ -166,6 +166,13 @@ function SummaryPreview({ item, renderText }: {
       </p>
     );
   }
+  if (item.content) {
+    return (
+      <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+        {renderText(item.content.slice(0, 200))}
+      </p>
+    );
+  }
   return null;
 }
 

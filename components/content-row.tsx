@@ -283,6 +283,8 @@ export const ContentRow = memo(function ContentRow({
             renderText(`\u2026${item.snippet}\u2026`)
           ) : item.brief || item.ai_summary ? (
             renderText(item.brief || item.ai_summary || '')
+          ) : item.content ? (
+            <span className="truncate">{renderText(item.content.slice(0, 200))}</span>
           ) : (
             <span className="flex items-center gap-1">
               <ContentTypeIcon contentType={item.content_type} size="size-3" />
