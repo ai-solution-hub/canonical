@@ -35,6 +35,12 @@ function mapChangeTypeToAction(changeType: string): TeamChange['action'] | Recen
 // Main data fetching function
 // ---------------------------------------------------------------------------
 
+/**
+ * @deprecated Use `fetchUnifiedDashboardData()` from `lib/dashboard.ts` instead.
+ * This function runs queries that duplicate those in `fetchDashboardData()` —
+ * freshness breakdown, governance reviews, notifications, and active bids.
+ * The unified fetch in `lib/dashboard.ts` eliminates all 4 duplicate queries.
+ */
 export async function fetchReorientData(
   supabase: SupabaseClient<Database>,
   userId: string,
