@@ -1,134 +1,69 @@
 /**
  * WorkspacesContent Component Tests
  *
- * Tests the workspaces page content: subtitle text, viewer empty state,
- * editor empty state, and ARIA attributes.
+ * Tests the workspaces launcher content component after the S110 rewrite.
+ * The component now shows workspace type cards (Bids, Sales Proposals)
+ * instead of individual workspace items.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-// ---------------------------------------------------------------------------
-// vi.hoisted() — mocks referenced in vi.mock() factories
-// ---------------------------------------------------------------------------
-
-const { mockCanEdit, mockCanAdmin } = vi.hoisted(() => ({
-  mockCanEdit: { value: false },
-  mockCanAdmin: { value: false },
-}));
-
-vi.mock('@/hooks/use-user-role', () => ({
-  useUserRole: () => ({
-    role: mockCanAdmin.value ? 'admin' : mockCanEdit.value ? 'editor' : 'viewer',
-    loading: false,
-    canEdit: mockCanEdit.value,
-    canAdmin: mockCanAdmin.value,
-  }),
-}));
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: vi.fn(),
-    refresh: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
-  }),
-}));
-
-vi.mock('sonner', () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
-}));
-
-vi.mock('@/components/workspace-create-dialog', () => ({
-  WorkspaceCreateDialog: () => null,
-}));
-
-vi.mock('@/components/workspace-detail-sheet', () => ({
-  WorkspaceDetailSheet: () => null,
-}));
-
-vi.mock('@/lib/tablist-keyboard', () => ({
-  handleTablistKeyDown: vi.fn(),
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...props }: Record<string, unknown>) => (
+    <a href={href as string} {...props}>{children as React.ReactNode}</a>
+  ),
 }));
 
 import { WorkspacesContent } from '@/app/workspaces/workspaces-content';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function renderContent(
-  workspaces: Parameters<typeof WorkspacesContent>[0]['initialWorkspaces'] = [],
-  counts: Parameters<typeof WorkspacesContent>[0]['initialCounts'] = {},
-  loadError?: string,
-) {
-  return render(
-    <WorkspacesContent
-      initialWorkspaces={workspaces}
-      initialCounts={counts}
-      loadError={loadError}
-    />,
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe('WorkspacesContent', () => {
-  beforeEach(() => {
-    mockCanEdit.value = false;
-    mockCanAdmin.value = false;
+  it('renders page description', () => {
+    render(<WorkspacesContent counts={{}} />);
+    expect(
+      screen.getByText('Use your knowledge base to power different types of work.'),
+    ).toBeInTheDocument();
   });
 
-  describe('subtitle', () => {
-    it('displays "Bids and content collections." as subtitle', () => {
-      renderContent();
-      expect(screen.getByText('Bids and content collections.')).toBeInTheDocument();
-    });
-
-    it('does not display old subtitle text', () => {
-      renderContent();
-      expect(screen.queryByText('Manage your workspace collections.')).not.toBeInTheDocument();
-    });
+  it('renders Bids type card with count', () => {
+    render(<WorkspacesContent counts={{ bid: 3 }} />);
+    expect(screen.getByText('Bids')).toBeInTheDocument();
+    expect(screen.getByText('3 active bids')).toBeInTheDocument();
   });
 
-  describe('viewer empty state', () => {
-    it('shows viewer-appropriate message when no workspaces and user is viewer', () => {
-      mockCanEdit.value = false;
-      renderContent();
-      expect(
-        screen.getByText('No workspaces available. Contact your admin to get access.'),
-      ).toBeInTheDocument();
-    });
-
-    it('does not show "Create Workspace" button for viewers', () => {
-      mockCanEdit.value = false;
-      renderContent();
-      expect(screen.queryByText('Create Workspace')).not.toBeInTheDocument();
-    });
-
-    it('does not show "New Workspace" header button for viewers', () => {
-      mockCanEdit.value = false;
-      renderContent();
-      expect(screen.queryByText('New Workspace')).not.toBeInTheDocument();
-    });
+  it('renders Sales Proposals as coming soon', () => {
+    render(<WorkspacesContent counts={{}} />);
+    expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
+    expect(screen.getByText('Coming soon')).toBeInTheDocument();
   });
 
-  describe('editor empty state', () => {
-    it('shows editor-appropriate message with create button when user can edit', () => {
-      mockCanEdit.value = true;
-      renderContent();
-      expect(
-        screen.getByText(/No workspaces yet\. Create your first workspace/),
-      ).toBeInTheDocument();
-      expect(screen.getByText('Create Workspace')).toBeInTheDocument();
-    });
+  it('links Bids card to /bid', () => {
+    render(<WorkspacesContent counts={{ bid: 1 }} />);
+    const link = screen.getByRole('link', { name: /bids/i });
+    expect(link).toHaveAttribute('href', '/bid');
+  });
 
-    it('shows "New Workspace" header button for editors', () => {
-      mockCanEdit.value = true;
-      renderContent();
-      expect(screen.getByText('New Workspace')).toBeInTheDocument();
-    });
+  it('marks coming soon cards as aria-disabled', () => {
+    render(<WorkspacesContent counts={{}} />);
+    const proposalCard = screen.getByText('Sales Proposals').closest('[aria-disabled]');
+    expect(proposalCard).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('shows singular "bid" for count of 1', () => {
+    render(<WorkspacesContent counts={{ bid: 1 }} />);
+    expect(screen.getByText('1 active bid')).toBeInTheDocument();
+  });
+
+  it('hides count text when count is 0 but includes in aria-label', () => {
+    render(<WorkspacesContent counts={{ bid: 0 }} />);
+    // Count text is not rendered visually when 0
+    expect(screen.queryByText('0 active bids')).not.toBeInTheDocument();
+    // But is present in the aria-label for accessibility
+    const link = screen.getByRole('link', { name: /0 active bids/i });
+    expect(link).toBeInTheDocument();
   });
 });
