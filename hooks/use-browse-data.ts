@@ -5,9 +5,10 @@ import { useBrowseFilters } from '@/hooks/use-browse-filters';
 import { createClient } from '@/lib/supabase/client';
 import { getCursorFromItem, isOffsetSort } from '@/lib/browse-helpers';
 import { escapePostgrestValue } from '@/lib/supabase/escape';
-import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
+import { CONTENT_LIST_COLUMNS, type ContentListItem, type SearchResult } from '@/types/content';
 
 const PAGE_SIZE = 48;
+const SEARCH_RESULT_LIMIT = 50;
 
 /** Safely cast Supabase select results to ContentListItem[]. */
 function asContentListItems(data: unknown): ContentListItem[] {
@@ -37,11 +38,66 @@ export interface UseBrowseDataReturn {
   filters: ReturnType<typeof useBrowseFilters>['filters'];
   activeFilterCount: ReturnType<typeof useBrowseFilters>['activeFilterCount'];
   setFilters: ReturnType<typeof useBrowseFilters>['setFilters'];
+  /** Active search query from URL ?q= parameter */
+  searchQuery: string | undefined;
+  /** Set or clear the search query */
+  setSearchQuery: ReturnType<typeof useBrowseFilters>['setSearchQuery'];
+  clearSearchQuery: ReturnType<typeof useBrowseFilters>['clearSearchQuery'];
+  /** True when results are from search API rather than direct Supabase query */
+  isSearchMode: boolean;
+  /** Search error message, if any */
+  searchError: string | null;
+}
+
+/** Apply Browse filters as client-side post-filters on search results. */
+function applyPostFilters(
+  results: SearchResult[],
+  filters: ReturnType<typeof useBrowseFilters>['filters'],
+): ContentListItem[] {
+  let filtered = results as (SearchResult & ContentListItem)[];
+
+  if (filters.domain?.length) {
+    const domainSet = new Set(filters.domain);
+    filtered = filtered.filter((r) => r.primary_domain && domainSet.has(r.primary_domain));
+  }
+  if (filters.subtopic) {
+    filtered = filtered.filter((r) => r.primary_subtopic === filters.subtopic);
+  }
+  if (filters.content_type?.length) {
+    const typeSet = new Set(filters.content_type);
+    filtered = filtered.filter((r) => r.content_type && typeSet.has(r.content_type));
+  }
+  if (filters.platform?.length) {
+    const platformSet = new Set(filters.platform);
+    filtered = filtered.filter((r) => r.platform && platformSet.has(r.platform));
+  }
+  if (filters.author?.length) {
+    const authorSet = new Set(filters.author);
+    filtered = filtered.filter((r) => r.author_name && authorSet.has(r.author_name));
+  }
+  if (filters.freshness?.length) {
+    const freshnessSet = new Set(filters.freshness);
+    filtered = filtered.filter((r) => r.freshness && freshnessSet.has(r.freshness));
+  }
+  if (filters.priority?.length) {
+    const prioritySet = new Set(filters.priority);
+    filtered = filtered.filter((r) => r.priority && prioritySet.has(r.priority));
+  }
+  if (filters.layer) {
+    const layerValue = filters.layer;
+    filtered = filtered.filter((r) => {
+      const meta = r.metadata as Record<string, unknown> | null;
+      return meta && meta['layer'] === layerValue;
+    });
+  }
+
+  return filtered;
 }
 
 export function useBrowseData(): UseBrowseDataReturn {
   const supabase = createClient();
-  const { filters, activeFilterCount, setFilters } = useBrowseFilters();
+  const { filters, activeFilterCount, searchQuery, setFilters, setSearchQuery, clearSearchQuery } = useBrowseFilters();
+  const isSearchMode = Boolean(searchQuery);
 
   // Data state
   const [items, setItems] = useState<ContentListItem[]>([]);
@@ -87,6 +143,12 @@ export function useBrowseData(): UseBrowseDataReturn {
     fetchFreshnessCounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
   }, []);
+
+  // Search error state
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Abort controller for search API calls
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   // Track the current request to avoid stale responses
   const requestIdRef = useRef(0);
@@ -373,6 +435,7 @@ export function useBrowseData(): UseBrowseDataReturn {
   );
 
   // Fetch initial data when filters change — reset cursor
+  // In search mode, calls /api/search; otherwise uses direct Supabase query
   useEffect(() => {
     const currentRequestId = ++requestIdRef.current;
 
@@ -381,6 +444,61 @@ export function useBrowseData(): UseBrowseDataReturn {
       setItems([]);
       setCursor(null);
       setOffset(0);
+      setSearchError(null);
+
+      // --- SEARCH MODE: call /api/search ---
+      if (searchQuery) {
+        // Abort previous search request
+        searchAbortRef.current?.abort();
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+
+        try {
+          const response = await fetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              query: searchQuery,
+              threshold: 0.35,
+              limit: SEARCH_RESULT_LIMIT,
+            }),
+            signal: controller.signal,
+          });
+
+          if (currentRequestId !== requestIdRef.current) return;
+
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            const code = (errData as Record<string, unknown>).code;
+            if (code === 'EMBEDDING_FAILED') {
+              setSearchError('Search is temporarily unavailable. Please try again shortly.');
+            } else {
+              setSearchError((errData as Record<string, unknown>).error as string || 'Search failed');
+            }
+            setIsLoading(false);
+            return;
+          }
+
+          const data = await response.json();
+          const searchResults = (data.results ?? []) as SearchResult[];
+
+          // Apply browse filters as client-side post-filters
+          const postFiltered = applyPostFilters(searchResults, filters);
+
+          setItems(postFiltered);
+          setTotalCount(postFiltered.length);
+          setHasMore(false); // Search returns all results up to the limit
+          setIsLoading(false);
+        } catch (err) {
+          if (err instanceof Error && err.name === 'AbortError') return;
+          if (currentRequestId !== requestIdRef.current) return;
+          setSearchError(err instanceof Error ? err.message : 'Search failed');
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // --- FILTER MODE: direct Supabase query (existing behaviour) ---
 
       // Resolve keyword + project + quality issue + entity + owner filters via server-side lookups
       const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] = await Promise.all([
@@ -434,7 +552,12 @@ export function useBrowseData(): UseBrowseDataReturn {
     };
 
     fetchData();
-  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, resolveOwnerFilter, filters.sort, refreshCounter]);
+
+    // Cleanup: abort in-flight search on unmount or re-run
+    return () => {
+      searchAbortRef.current?.abort();
+    };
+  }, [buildQuery, resolveKeywordIds, resolveWorkspaceIds, resolveQualityIssueIds, resolveEntityIds, resolveOwnerFilter, filters, searchQuery, refreshCounter]);
 
   // Load more using cursor-based or offset-based pagination
   const handleLoadMore = useCallback(async () => {
@@ -545,5 +668,10 @@ export function useBrowseData(): UseBrowseDataReturn {
     filters,
     activeFilterCount,
     setFilters,
+    searchQuery,
+    setSearchQuery,
+    clearSearchQuery,
+    isSearchMode,
+    searchError,
   };
 }

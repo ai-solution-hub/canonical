@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { toast } from 'sonner';
-import { Upload, Plus, Loader2 } from 'lucide-react';
+import { Upload, Plus, Loader2, Search, AlertCircle } from 'lucide-react';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { ContentGrid } from '@/components/content-grid';
@@ -22,6 +22,7 @@ const FileUploadDialog = dynamic(
   { ssr: false },
 );
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
@@ -57,6 +58,10 @@ export function BrowseContent() {
     filters,
     activeFilterCount,
     setFilters,
+    searchQuery,
+    setSearchQuery,
+    isSearchMode,
+    searchError,
   } = useBrowseData();
 
   // Trigger lazy loading of read marks counts for this page
@@ -77,6 +82,28 @@ export function BrowseContent() {
     return false;
   });
 
+  // Browse search input
+  const browseSearchRef = useRef<HTMLInputElement>(null);
+  const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery ?? '');
+
+  // Sync local input when URL search query changes externally
+  useEffect(() => {
+    setLocalSearchQuery(searchQuery ?? '');
+  }, [searchQuery]);
+
+  const handleSearchSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      const trimmed = localSearchQuery.trim();
+      if (trimmed) {
+        setSearchQuery(trimmed);
+      } else {
+        setSearchQuery(undefined);
+      }
+    },
+    [localSearchQuery, setSearchQuery],
+  );
+
   // Reset activeIndex when items change (new filter/sort/data)
   useEffect(() => {
     setActiveIndex(-1);
@@ -84,6 +111,11 @@ export function BrowseContent() {
 
   // Keyboard shortcut callbacks
   const handleFocusSearch = useCallback(() => {
+    // Prefer the Browse page search input; fall back to header
+    if (browseSearchRef.current) {
+      browseSearchRef.current.focus();
+      return;
+    }
     const searchInput = document.querySelector<HTMLInputElement>(
       'header input[type="search"]',
     );
@@ -204,6 +236,12 @@ export function BrowseContent() {
           <p className="mt-0.5 text-sm text-muted-foreground">
             {isLoading ? (
               <span className="inline-block h-4 w-32 animate-pulse rounded bg-accent align-middle" />
+            ) : isSearchMode ? (
+              <>
+                {totalCount !== null
+                  ? `${totalCount.toLocaleString('en-GB')} result${totalCount !== 1 ? 's' : ''} for \u201c${searchQuery}\u201d`
+                  : 'Searching...'}
+              </>
             ) : (
               <>
                 {totalCount !== null
@@ -275,9 +313,36 @@ export function BrowseContent() {
             onToggleThumbnails={handleToggleThumbnails}
             activeFilterCount={activeFilterCount}
             onOpenFilters={() => setFilterPanelOpen(true)}
+            hasSearchQuery={isSearchMode}
           />
         </div>
       </div>
+
+      {/* Browse search bar */}
+      <div className="mt-4">
+        <form onSubmit={handleSearchSubmit} role="search" aria-label="Search content">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={browseSearchRef}
+              type="search"
+              placeholder="Search your knowledge..."
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+              className="h-10 bg-card pl-10 pr-4"
+              aria-label="Search the knowledge base"
+            />
+          </div>
+        </form>
+      </div>
+
+      {/* Search error */}
+      {searchError && (
+        <div className="mt-3 flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+          <AlertCircle className="size-4 shrink-0" />
+          {searchError}
+        </div>
+      )}
 
       <div className="mt-4"><FilterBadges /></div>
 
@@ -295,7 +360,17 @@ export function BrowseContent() {
             <LoadingSkeleton viewMode={viewMode} />
           </div>
         ) : displayItems.length === 0 ? (
-          <EmptyState hasFilters={activeFilterCount > 0 || showUnreadOnly} />
+          isSearchMode ? (
+            <div className="flex flex-col items-center gap-2 py-16 text-center">
+              <Search className="size-8 text-muted-foreground" />
+              <p className="text-lg font-medium text-foreground">No results found</p>
+              <p className="text-sm text-muted-foreground">
+                Try different search terms or adjust your filters.
+              </p>
+            </div>
+          ) : (
+            <EmptyState hasFilters={activeFilterCount > 0 || showUnreadOnly} />
+          )
         ) : (
           <div className="transition-opacity duration-150">
             {viewMode === 'grid' ? (
@@ -327,7 +402,7 @@ export function BrowseContent() {
       {/* Infinite scroll sentinel + status */}
       {!isLoading && items.length > 0 && (
         <div className="mt-8 flex flex-col items-center gap-2">
-          {hasMore && (
+          {hasMore && !isSearchMode && (
             <div ref={sentinelCallbackRef} aria-hidden="true" className="h-px w-full" />
           )}
           {isLoadingMore && (
@@ -337,7 +412,9 @@ export function BrowseContent() {
             </div>
           )}
           <p className="text-sm text-muted-foreground" role="status" aria-live="polite">
-            Showing {displayItems.length} of {totalCount?.toLocaleString('en-GB') ?? '...'} items
+            {isSearchMode
+              ? `Showing top ${displayItems.length} result${displayItems.length !== 1 ? 's' : ''}`
+              : `Showing ${displayItems.length} of ${totalCount?.toLocaleString('en-GB') ?? '...'} items`}
           </p>
         </div>
       )}

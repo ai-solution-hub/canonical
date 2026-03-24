@@ -19,6 +19,8 @@ export function FilterBadges() {
   const {
     filters,
     activeFilterCount,
+    searchQuery,
+    clearSearchQuery,
     removeFilter,
     removeFilterValue,
     clearFilters,
@@ -27,6 +29,16 @@ export function FilterBadges() {
   if (activeFilterCount === 0) return null;
 
   const badges: FilterBadgeItem[] = [];
+
+  // Search query badge (shown first, before other filters)
+  if (searchQuery) {
+    badges.push({
+      id: 'search-query',
+      label: 'Search',
+      value: searchQuery.length > 40 ? searchQuery.slice(0, 37) + '\u2026' : searchQuery,
+      onRemove: clearSearchQuery,
+    });
+  }
 
   // Individual badge per selected domain
   if (filters.domain?.length) {

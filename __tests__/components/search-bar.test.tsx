@@ -44,7 +44,7 @@ describe('SearchBar', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, 'knowledge base');
     await user.keyboard('{Enter}');
-    expect(mockPush).toHaveBeenCalledWith('/search?q=knowledge%20base');
+    expect(mockPush).toHaveBeenCalledWith('/browse?q=knowledge%20base');
   });
 
   it('does not navigate on empty query submit', async () => {
@@ -94,6 +94,6 @@ describe('SearchBar', () => {
     const input = screen.getByRole('combobox');
     await user.type(input, '  trimmed search  ');
     await user.keyboard('{Enter}');
-    expect(mockPush).toHaveBeenCalledWith('/search?q=trimmed%20search');
+    expect(mockPush).toHaveBeenCalledWith('/browse?q=trimmed%20search');
   });
 });

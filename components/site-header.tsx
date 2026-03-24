@@ -91,7 +91,7 @@ export function SiteHeader() {
             variant="ghost"
             size="icon"
             className="sm:hidden"
-            onClick={() => router.push('/search')}
+            onClick={() => router.push('/browse')}
             aria-label="Search"
           >
             <Search className="size-4" />

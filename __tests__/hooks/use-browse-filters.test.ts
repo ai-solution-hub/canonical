@@ -176,4 +176,62 @@ describe('useBrowseFilters', () => {
     // quality_issues = 1, include_qa (auto-derived) = 1
     expect(result.current.activeFilterCount).toBe(2);
   });
+
+  // --- Search query (?q=) ---
+
+  it('reads searchQuery from URL ?q= parameter', () => {
+    currentSearchParams = new URLSearchParams('q=test+search');
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.searchQuery).toBe('test search');
+  });
+
+  it('returns undefined searchQuery when ?q= is absent', () => {
+    currentSearchParams = new URLSearchParams();
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.searchQuery).toBeUndefined();
+  });
+
+  it('counts search query in activeFilterCount', () => {
+    currentSearchParams = new URLSearchParams('q=test');
+    const { result } = renderHook(() => useBrowseFilters());
+    expect(result.current.activeFilterCount).toBe(1);
+  });
+
+  it('counts search query alongside other filters', () => {
+    currentSearchParams = new URLSearchParams('q=test&domain=Corporate');
+    const { result } = renderHook(() => useBrowseFilters());
+    // 1 for search query + 1 for domain
+    expect(result.current.activeFilterCount).toBe(2);
+  });
+
+  it('setSearchQuery sets ?q= in URL', () => {
+    const { result } = renderHook(() => useBrowseFilters());
+    act(() => { result.current.setSearchQuery('semantic search'); });
+    expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('q=semantic+search'));
+  });
+
+  it('setSearchQuery clears ?q= when undefined', () => {
+    currentSearchParams = new URLSearchParams('q=test');
+    const { result } = renderHook(() => useBrowseFilters());
+    act(() => { result.current.setSearchQuery(undefined); });
+    const pushArg = mockPush.mock.calls[0][0] as string;
+    expect(pushArg).not.toContain('q=');
+  });
+
+  it('clearSearchQuery removes ?q= from URL', () => {
+    currentSearchParams = new URLSearchParams('q=test&domain=Corporate');
+    const { result } = renderHook(() => useBrowseFilters());
+    act(() => { result.current.clearSearchQuery(); });
+    const pushArg = mockPush.mock.calls[0][0] as string;
+    expect(pushArg).not.toContain('q=');
+    expect(pushArg).toContain('domain=Corporate');
+  });
+
+  it('setSearchQuery removes cursor param', () => {
+    currentSearchParams = new URLSearchParams('cursor=abc123');
+    const { result } = renderHook(() => useBrowseFilters());
+    act(() => { result.current.setSearchQuery('test'); });
+    const pushArg = mockPush.mock.calls[0][0] as string;
+    expect(pushArg).not.toContain('cursor=');
+  });
 });
