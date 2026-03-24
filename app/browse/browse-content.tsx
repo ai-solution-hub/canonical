@@ -15,6 +15,9 @@ import { FilterBadges } from '@/components/filter-badges';
 import { FilterBar, type SortOption } from '@/components/filter-bar';
 import { BulkActions } from '@/components/bulk-actions';
 import { LoadingSkeleton, EmptyState } from '@/components/browse-states';
+import { PresetBar } from '@/components/preset-bar';
+import { SavePresetDialog } from '@/components/save-preset-dialog';
+import { ManagePresetsDialog } from '@/components/manage-presets-dialog';
 import dynamic from 'next/dynamic';
 
 const FileUploadDialog = dynamic(
@@ -28,6 +31,7 @@ import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBrowseData } from '@/hooks/use-browse-data';
+import { useFilterPresets } from '@/hooks/use-filter-presets';
 import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
@@ -60,9 +64,23 @@ export function BrowseContent() {
     setFilters,
     searchQuery,
     setSearchQuery,
+    clearFilters,
     isSearchMode,
     searchError,
   } = useBrowseData();
+
+  // Filter presets
+  const {
+    presets,
+    activePreset,
+    applyPreset,
+    savePreset,
+    renamePreset,
+    deletePreset,
+    canSave: canSavePreset,
+  } = useFilterPresets();
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
 
   // Trigger lazy loading of read marks counts for this page
   useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
@@ -344,7 +362,20 @@ export function BrowseContent() {
         </div>
       )}
 
-      <div className="mt-4"><FilterBadges /></div>
+      {/* Preset bar */}
+      <div className="mt-4">
+        <PresetBar
+          presets={presets}
+          activePresetId={activePreset?.id ?? null}
+          onApplyPreset={applyPreset}
+          onClearFilters={clearFilters}
+          onSavePreset={() => setSaveDialogOpen(true)}
+          onManagePresets={() => setManageDialogOpen(true)}
+          canSave={canSavePreset && !activePreset}
+        />
+      </div>
+
+      <div className="mt-3"><FilterBadges /></div>
 
       {multiSelectMode && selectedIds.size > 0 && (
         <BulkActions
@@ -421,6 +452,19 @@ export function BrowseContent() {
 
       <FilterPanel open={filterPanelOpen} onOpenChange={setFilterPanelOpen} />
       <FileUploadDialog open={showUpload} onOpenChange={setShowUpload} />
+      <SavePresetDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        onSave={(name) => savePreset(name)}
+        activeFilterCount={activeFilterCount}
+      />
+      <ManagePresetsDialog
+        open={manageDialogOpen}
+        onOpenChange={setManageDialogOpen}
+        presets={presets}
+        onRename={renamePreset}
+        onDelete={deletePreset}
+      />
     </section>
   );
 }

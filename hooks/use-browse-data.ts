@@ -43,6 +43,8 @@ export interface UseBrowseDataReturn {
   /** Set or clear the search query */
   setSearchQuery: ReturnType<typeof useBrowseFilters>['setSearchQuery'];
   clearSearchQuery: ReturnType<typeof useBrowseFilters>['clearSearchQuery'];
+  /** Clear all filters, navigating back to the unfiltered browse page */
+  clearFilters: ReturnType<typeof useBrowseFilters>['clearFilters'];
   /** True when results are from search API rather than direct Supabase query */
   isSearchMode: boolean;
   /** Search error message, if any */
@@ -96,7 +98,7 @@ function applyPostFilters(
 
 export function useBrowseData(): UseBrowseDataReturn {
   const supabase = createClient();
-  const { filters, activeFilterCount, searchQuery, setFilters, setSearchQuery, clearSearchQuery } = useBrowseFilters();
+  const { filters, activeFilterCount, searchQuery, setFilters, setSearchQuery, clearSearchQuery, clearFilters } = useBrowseFilters();
   const isSearchMode = Boolean(searchQuery);
 
   // Data state
@@ -671,6 +673,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     searchQuery,
     setSearchQuery,
     clearSearchQuery,
+    clearFilters,
     isSearchMode,
     searchError,
   };
