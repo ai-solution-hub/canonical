@@ -458,8 +458,8 @@ export async function fetchUnifiedDashboardData(
         .select('*', { count: 'exact', head: true })
         .is('verified_at', null),
 
-      // 2: Distinct content items with unresolved quality flags (admin only)
-      isAdmin
+      // 2: Distinct content items with unresolved quality flags (editor + admin)
+      effectiveRole !== 'viewer'
         ? supabase.rpc('get_items_with_quality_flags')
         : Promise.resolve({ data: [], error: null }),
 

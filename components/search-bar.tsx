@@ -163,8 +163,8 @@ export function SearchBar({
   }, []);
 
   const placeholder = totalCount
-    ? `Search your ${totalCount.toLocaleString()} items...`
-    : 'Search your knowledge base...';
+    ? `Search ${totalCount.toLocaleString()} items...`
+    : 'Search your knowledge...';
 
   const activeDescendantId =
     activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;
