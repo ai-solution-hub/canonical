@@ -86,7 +86,7 @@ describe('WorkspaceCard', () => {
   describe('accessibility', () => {
     it('has aria-label on the workspace open button', () => {
       renderCard({ name: 'My Bid' });
-      expect(screen.getByLabelText('Open workspace: My Bid')).toBeInTheDocument();
+      expect(screen.getByLabelText('Open My Bid')).toBeInTheDocument();
     });
   });
 

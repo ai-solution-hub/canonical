@@ -112,7 +112,7 @@ export function WorkspaceDetailSheet({
           body: JSON.stringify(updates),
         });
         if (res.status === 409) {
-          toast.error('A workspace with that name already exists');
+          toast.error('That name already exists');
           // Revert name
           setName(workspace.name);
           return;
@@ -128,7 +128,7 @@ export function WorkspaceDetailSheet({
         });
       } catch (err) {
         console.error('Failed to update workspace:', err);
-        toast.error('Failed to update workspace');
+        toast.error('Failed to save changes');
       }
     },
     [workspace, onUpdated],
@@ -137,7 +137,7 @@ export function WorkspaceDetailSheet({
   const handleNameBlur = useCallback(() => {
     const trimmed = nameRef.current.trim();
     if (!trimmed) {
-      toast.error('Workspace name cannot be empty');
+      toast.error('Name cannot be empty');
       if (workspace) setName(workspace.name);
       return;
     }
@@ -186,7 +186,7 @@ export function WorkspaceDetailSheet({
       );
       if (res.status === 409) {
         toast.error(
-          'Cannot delete a workspace with assigned items. Remove all items first.',
+          'Cannot delete with assigned items. Remove all items first.',
         );
         return;
       }
@@ -197,7 +197,7 @@ export function WorkspaceDetailSheet({
       onDeleted(workspace.id);
     } catch (err) {
       console.error('Failed to delete workspace:', err);
-      toast.error('Failed to delete workspace');
+      toast.error('Failed to delete');
     } finally {
       setDeleting(false);
     }
@@ -213,9 +213,9 @@ export function WorkspaceDetailSheet({
           className="w-full overflow-y-auto sm:max-w-md"
         >
           <SheetHeader>
-            <SheetTitle>Edit Workspace</SheetTitle>
+            <SheetTitle>Edit Details</SheetTitle>
             <SheetDescription>
-              Update workspace details or manage items.
+              Update details or manage assigned items.
             </SheetDescription>
           </SheetHeader>
 
@@ -286,7 +286,7 @@ export function WorkspaceDetailSheet({
                 <p className="text-xs text-muted-foreground">Loading...</p>
               ) : items.length === 0 ? (
                 <p className="py-4 text-center text-xs text-muted-foreground">
-                  No content items assigned to this workspace yet. Add items from the Browse page.
+                  No content items assigned yet. Add items from the Browse page.
                 </p>
               ) : (
                 <ul className="space-y-1">
@@ -343,8 +343,8 @@ export function WorkspaceDetailSheet({
                   onClick={handleArchive}
                 >
                   {workspace.is_archived
-                    ? 'Unarchive Workspace'
-                    : 'Archive Workspace'}
+                    ? 'Unarchive'
+                    : 'Archive'}
                 </Button>
 
                 {isAdmin && (
@@ -358,13 +358,13 @@ export function WorkspaceDetailSheet({
                             disabled={workspace.item_count > 0}
                             onClick={() => setShowDeleteConfirm(true)}
                           >
-                            Delete Workspace
+                            Delete
                           </Button>
                         </span>
                       </TooltipTrigger>
                       {workspace.item_count > 0 && (
                         <TooltipContent>
-                          Remove all items from this workspace before deleting.
+                          Remove all items before deleting.
                         </TooltipContent>
                       )}
                     </Tooltip>
@@ -387,8 +387,7 @@ export function WorkspaceDetailSheet({
               Delete &ldquo;{workspace.name}&rdquo;?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. The workspace will be permanently
-              removed.
+              This action cannot be undone. It will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
