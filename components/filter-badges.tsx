@@ -128,7 +128,7 @@ export function FilterBadges() {
   if (filters.workspace) {
     badges.push({
       id: 'workspace',
-      label: 'Workspace',
+      label: 'Collection',
       value: filters.workspace.slice(0, 8) + '…',
       onRemove: () => removeFilter('workspace'),
     });

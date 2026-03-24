@@ -242,7 +242,7 @@ export function FilterPanel({ open, onOpenChange }: FilterPanelProps) {
           {/* Workspaces — collapsed by default */}
           {allWorkspaces.length > 0 && (
             <>
-              <FilterSection title="Workspaces" defaultOpen={false}>
+              <FilterSection title="Collections" defaultOpen={false}>
                 <div className="flex flex-wrap gap-2">
                   {allWorkspaces.map((workspace) => {
                     const isActive = draft.workspace === workspace.id;

@@ -19,10 +19,10 @@ export default function WorkspacesError({
     <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-24 text-center">
       <FolderOpen className="mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
       <h2 className="mb-2 text-lg font-semibold text-foreground">
-        Couldn&apos;t load workspaces
+        Couldn&apos;t load this page
       </h2>
       <p className="mb-6 text-sm text-muted-foreground">
-        Your workspaces are safe. Please try refreshing the page.
+        Your data is safe. Please try refreshing the page.
       </p>
       <Button onClick={reset} variant="outline">
         Try again
