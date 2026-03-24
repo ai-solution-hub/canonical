@@ -5,13 +5,12 @@ import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchDashboardData } from '@/lib/dashboard';
-import { fetchReorientData } from '@/lib/reorient';
+import { fetchUnifiedDashboardData } from '@/lib/dashboard';
+import { buildAttentionItems, filterByRole } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
-import { ClaudeActionsSection } from '@/components/dashboard/claude-actions-section';
-import { ContentSuggestionsSection } from '@/components/dashboard/content-suggestions-section';
-import { ClientAttentionBridge } from '@/components/dashboard/client-attention-bridge';
-import { generateSuggestedActions } from '@/lib/claude-prompts';
+import { NeedsAttentionSection } from '@/components/dashboard/needs-attention-section';
+import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
+import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -33,13 +32,8 @@ async function getDashboardData() {
   const isAdmin = roleData?.role === 'admin';
   const role = roleData?.role ?? 'viewer';
 
-  // Fetch dashboard and reorient data in parallel
-  const [dashboard, reorient] = await Promise.all([
-    fetchDashboardData(supabase, user.id, isAdmin, role),
-    fetchReorientData(supabase, user.id, isAdmin, role).catch(() => null),
-  ]);
-
-  return { dashboard, reorient };
+  const unified = await fetchUnifiedDashboardData(supabase, user.id, isAdmin, role);
+  return { unified };
 }
 
 // ---------------------------------------------------------------------------
@@ -108,47 +102,70 @@ async function DashboardContent() {
     );
   }
 
-  const { dashboard: data, reorient } = result;
+  const { unified } = result;
+
+  // Build attention items from unified source data.
+  // roleItems is ready for Wave 4 (UnifiedAttentionSection).
+  const allItems = buildAttentionItems(unified.attention_sources);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const roleItems = filterByRole(allItems, unified.user_role);
+
+  // Build ReorientData from the unified data for ReorientSection
+  const reorientData: ReorientData = {
+    last_active_at: unified.reorient.last_active_at,
+    last_active_relative: unified.reorient.last_active_relative,
+    urgent: [],  // Empty — urgent items are now in the attention model
+    team_changes: unified.reorient.team_changes,
+    my_recent_work: unified.reorient.my_recent_work,
+    bid_summary: unified.reorient.bid_summary,
+    counts: {
+      unread_notifications: unified.attention_sources.unread_notification_count,
+      pending_reviews: unified.attention_sources.governance_review_count,
+      stale_or_expired: unified.attention_sources.stale_content_count + unified.attention_sources.expired_content_count,
+      quality_flags: unified.attention_sources.quality_flag_count,
+    },
+    generated_at: new Date().toISOString(),
+    user_display_name: unified.reorient.user_display_name,
+    has_display_name: unified.reorient.has_display_name,
+    errors: unified.errors,
+  };
 
   return (
     <>
-      {/* Reorient Me — personalised briefing */}
-      {reorient && (
-        <div className="mt-6">
-          <ReorientSection data={reorient} />
-        </div>
-      )}
-
-      {/* Two-column layout: Needs Attention + Active Bids
-           ClientAttentionBridge wires client-side expiring counts
-           (certifications + content) into NeedsAttentionSection */}
-      <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div>
-          <ClientAttentionBridge
-            needsAttention={data.needs_attention}
-            userRole={data.user_role}
-          />
-        </div>
-        <ActiveBidsSection bids={data.active_bids} />
-      </div>
-
-      {/* Content Health strip */}
+      {/* QuickStatsStrip — content health at a glance */}
       <div className="mt-6">
         <QuickStatsStrip
-          freshness={data.freshness_summary}
-          activeBidCount={data.active_bids.length}
-          unreadNotificationCount={data.unread_notification_count}
+          freshness={unified.freshness_summary}
+          activeBidCount={unified.active_bids.length}
+          unreadNotificationCount={unified.attention_sources.unread_notification_count}
         />
       </div>
 
-      {/* Content Suggestions */}
+      {/* Reorient Me — personalised briefing */}
       <div className="mt-6">
-        <ContentSuggestionsSection limit={5} />
+        <ReorientSection data={reorientData} />
       </div>
 
-      {/* Suggested Actions */}
+      {/* Two-column layout: Needs Attention + Active Bids */}
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div>
+          <NeedsAttentionSection
+            governance_review_count={unified.attention_sources.governance_review_count}
+            unverified_count={unified.attention_sources.unverified_count}
+            quality_flag_count={unified.attention_sources.quality_flag_count}
+            stale_content_count={unified.attention_sources.stale_content_count}
+            expired_content_count={unified.attention_sources.expired_content_count}
+            expiringCertCount={unified.attention_sources.expiring_cert_count}
+            expiringContentCount={unified.attention_sources.expiring_content_date_count}
+            userRole={unified.user_role}
+          />
+        </div>
+        <ActiveBidsSection bids={unified.active_bids} />
+      </div>
+
+      {/* Compliance Status */}
       <div className="mt-6">
-        <ClaudeActionsSection actions={generateSuggestedActions(data)} />
+        <ComplianceStatusSection />
       </div>
 
       {/* Recent Activity */}
@@ -156,7 +173,7 @@ async function DashboardContent() {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           Recent Activity
         </h2>
-        <DashboardActivityFeed activities={data.recent_activity} />
+        <DashboardActivityFeed activities={unified.recent_activity} />
       </section>
     </>
   );
