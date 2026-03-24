@@ -80,8 +80,8 @@ describe('useItemDetailShortcuts', () => {
   // s — star toggle
   // -------------------------------------------------------------------------
 
-  it('calls handleStarToggle on "s" keypress', () => {
-    const params = createParams();
+  it('calls handleStarToggle on "s" keypress when canEdit is true', () => {
+    const params = createParams({ canEdit: true });
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 's' });
@@ -98,17 +98,35 @@ describe('useItemDetailShortcuts', () => {
     expect(params.handleStarToggle).not.toHaveBeenCalled();
   });
 
+  it('does not call handleStarToggle on "s" when canEdit is false (viewer)', () => {
+    const params = createParams({ canEdit: false });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 's' });
+
+    expect(params.handleStarToggle).not.toHaveBeenCalled();
+  });
+
   // -------------------------------------------------------------------------
   // p — priority cycle
   // -------------------------------------------------------------------------
 
-  it('calls handlePriorityCycle on "p" keypress', () => {
-    const params = createParams();
+  it('calls handlePriorityCycle on "p" keypress when canEdit is true', () => {
+    const params = createParams({ canEdit: true });
     renderHook(() => useItemDetailShortcuts(params));
 
     fireEvent.keyDown(window, { key: 'p' });
 
     expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
+  });
+
+  it('does not call handlePriorityCycle on "p" when canEdit is false (viewer)', () => {
+    const params = createParams({ canEdit: false });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'p' });
+
+    expect(params.handlePriorityCycle).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
