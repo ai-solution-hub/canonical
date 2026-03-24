@@ -155,7 +155,7 @@ export function generateGuideGapPrompt(
 export function generateIngestUrlPrompt(url: string): ClaudePrompt {
   return {
     label: 'Ingest this URL',
-    prompt: `Read the content at this URL: ${url}\n\nExtract the key information and use the create_content_item tool to add it to our Knowledge Base. Classify it with the appropriate domain, subtopic, and content type based on the content. Once created, confirm what was added and provide a link to the new item.`,
+    prompt: `Read the content at this URL: ${url}\n\nExtract the key information and add it to our Knowledge Base as a new content item. Classify it with the appropriate domain, subtopic, and content type based on the content. Once created, confirm what was added and provide a link to the new item.`,
     description: 'Ingest a web page into the Knowledge Base',
     category: 'ingestion',
   };
@@ -167,7 +167,7 @@ export function generateIngestDocumentPrompt(filename?: string): ClaudePrompt {
 
   return {
     label: 'Import document',
-    prompt: `I'd like to import ${fileRef} into the Knowledge Base. Please attach the document to this conversation.\n\nExtract the key content and create separate KB items for each distinct topic using the create_content_item tool. For each item, classify it with the appropriate domain, subtopic, and content type. Tag all items with the batch_tag "manual-ingest-${dateStamp}" so they can be tracked together.\n\nSummarise what was created when finished.`,
+    prompt: `I'd like to import ${fileRef} into the Knowledge Base. Please attach the document to this conversation.\n\nExtract the key content and create separate KB items for each distinct topic. For each item, classify it with the appropriate domain, subtopic, and content type. Tag all items with the batch_tag "manual-ingest-${dateStamp}" so they can be tracked together.\n\nSummarise what was created when finished.`,
     description: 'Import a document into the Knowledge Base',
     category: 'ingestion',
   };
@@ -183,7 +183,7 @@ export function generateSummariseAndIngestPrompt(
 
   return {
     label: 'Summarise and add to KB',
-    prompt: `Create a concise, well-structured Knowledge Base item for: "${title}"${snippetSection}\n\nUse the create_content_item tool to add it. Ensure it has a clear summary, appropriate classification (domain, subtopic, content type), and is well-structured for future retrieval.`,
+    prompt: `Create a concise, well-structured Knowledge Base item for: "${title}"${snippetSection}\n\nAdd it to our Knowledge Base. Ensure it has a clear summary, appropriate classification (domain, subtopic, content type), and is well-structured for future retrieval.`,
     description: `Add "${title}" to the Knowledge Base`,
     category: 'ingestion',
   };
@@ -195,7 +195,7 @@ export function generateBulkIngestPrompt(context?: string): ClaudePrompt {
 
   return {
     label: 'Add content to KB',
-    prompt: `Help me add content to the Knowledge Base. Use the create_content_item tool for each item.${contextSection}\n\nValid content types are: article, blog, case_study, guide, note, policy, process, product_description, q_a_pair, research, whitepaper.\n\nFor each item, classify it with the appropriate domain, subtopic, and content type. Tag all items with the batch_tag "manual-ingest-${dateStamp}" so they can be tracked together.\n\nLet me know what content you'd like to add, or I can describe what I have.`,
+    prompt: `Help me add content to the Knowledge Base. Create a new content item for each piece of content.${contextSection}\n\nValid content types are: article, blog, case_study, guide, note, policy, process, product_description, q_a_pair, research, whitepaper.\n\nFor each item, classify it with the appropriate domain, subtopic, and content type. Tag all items with the batch_tag "manual-ingest-${dateStamp}" so they can be tracked together.\n\nLet me know what content you'd like to add, or I can describe what I have.`,
     description: 'Add one or more items to the Knowledge Base',
     category: 'ingestion',
   };
@@ -251,7 +251,7 @@ export function generateDocumentDiffReviewPrompt(
 ): ClaudePrompt {
   return {
     label: 'Review document changes',
-    prompt: `An updated version of "${filename}" has been uploaded. There ${changedCount === 1 ? 'is' : 'are'} ${changedCount} ${changedCount === 1 ? 'change' : 'changes'} detected${affectedItemCount > 0 ? `, affecting ${affectedItemCount} KB ${affectedItemCount === 1 ? 'item' : 'items'}` : ''}. Please review the changes using the get_document_diff tool and advise which KB items need updating.`,
+    prompt: `An updated version of "${filename}" has been uploaded. There ${changedCount === 1 ? 'is' : 'are'} ${changedCount} ${changedCount === 1 ? 'change' : 'changes'} detected${affectedItemCount > 0 ? `, affecting ${affectedItemCount} KB ${affectedItemCount === 1 ? 'item' : 'items'}` : ''}. Please review the document changes and advise which KB items need updating.`,
     description: `${changedCount} changes, ${affectedItemCount} items affected`,
     category: 'general',
   };

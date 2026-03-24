@@ -18,9 +18,10 @@ describe('ingestion prompts', () => {
       expect(result.prompt).toContain('https://example.com/article');
     });
 
-    it('mentions create_content_item', () => {
+    it('describes adding to KB without exposing tool names', () => {
       const result = generateIngestUrlPrompt('https://example.com/article');
-      expect(result.prompt).toContain('create_content_item');
+      expect(result.prompt).toContain('add it to our Knowledge Base');
+      expect(result.prompt).not.toContain('create_content_item');
     });
 
     it('has category ingestion', () => {

@@ -317,7 +317,8 @@ describe('generateDocumentDiffReviewPrompt', () => {
     expect(prompt.prompt).toContain('"bid-library.docx"');
     expect(prompt.prompt).toContain('There are 5 changes detected');
     expect(prompt.prompt).toContain('affecting 3 KB items');
-    expect(prompt.prompt).toContain('get_document_diff');
+    expect(prompt.prompt).toContain('review the document changes');
+    expect(prompt.prompt).not.toContain('get_document_diff');
     expect(prompt.description).toBe('5 changes, 3 items affected');
     expect(prompt.category).toBe('general');
   });
