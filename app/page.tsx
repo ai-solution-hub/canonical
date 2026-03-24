@@ -4,14 +4,12 @@ import { SearchBar } from '@/components/search-bar';
 import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
+import { NeedsAttentionSection } from '@/components/dashboard/needs-attention-section';
+import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchDashboardData } from '@/lib/dashboard';
 import { fetchReorientData } from '@/lib/reorient';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
-import { ClaudeActionsSection } from '@/components/dashboard/claude-actions-section';
-import { ContentSuggestionsSection } from '@/components/dashboard/content-suggestions-section';
-import { ClientAttentionBridge } from '@/components/dashboard/client-attention-bridge';
-import { generateSuggestedActions } from '@/lib/claude-prompts';
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -119,15 +117,14 @@ async function DashboardContent() {
         </div>
       )}
 
-      {/* Two-column layout: Needs Attention + Active Bids
-           ClientAttentionBridge wires client-side expiring counts
-           (certifications + content) into NeedsAttentionSection */}
+      {/* Two-column layout: Needs Attention + Active Bids */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div>
-          <ClientAttentionBridge
-            needsAttention={data.needs_attention}
+        <div className="space-y-6">
+          <NeedsAttentionSection
+            {...data.needs_attention}
             userRole={data.user_role}
           />
+          <ComplianceStatusSection />
         </div>
         <ActiveBidsSection bids={data.active_bids} />
       </div>
@@ -139,16 +136,6 @@ async function DashboardContent() {
           activeBidCount={data.active_bids.length}
           unreadNotificationCount={data.unread_notification_count}
         />
-      </div>
-
-      {/* Content Suggestions */}
-      <div className="mt-6">
-        <ContentSuggestionsSection limit={5} />
-      </div>
-
-      {/* Suggested Actions */}
-      <div className="mt-6">
-        <ClaudeActionsSection actions={generateSuggestedActions(data)} />
       </div>
 
       {/* Recent Activity */}

@@ -4,32 +4,8 @@ import {
   generateBulkIngestPrompt,
   generateIngestDocumentPrompt,
   generateIngestUrlPrompt,
-  generateSuggestedActions,
   generateSummariseAndIngestPrompt,
 } from '@/lib/claude-prompts';
-import type { DashboardData } from '@/lib/dashboard';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function emptyDashboardData(): DashboardData {
-  return {
-    needs_attention: {
-      governance_review_count: 0,
-      unverified_count: 0,
-      quality_flag_count: 0,
-      stale_content_count: 0,
-      expired_content_count: 0,
-    },
-    active_bids: [],
-    freshness_summary: { fresh: 0, aging: 0, stale: 0, expired: 0 },
-    unread_notification_count: 0,
-    recent_activity: [],
-    user_role: 'admin',
-    errors: [],
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Ingestion prompts
@@ -104,14 +80,4 @@ describe('ingestion prompts', () => {
     });
   });
 
-  describe('generateSuggestedActions includes bulk ingest', () => {
-    it('includes bulk ingest when few other actions are present', () => {
-      const data = emptyDashboardData();
-      const actions = generateSuggestedActions(data);
-
-      const ingestAction = actions.find((a) => a.category === 'ingestion');
-      expect(ingestAction).toBeDefined();
-      expect(ingestAction!.label).toBe('Add content to KB');
-    });
-  });
 });

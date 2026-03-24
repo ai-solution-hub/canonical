@@ -415,13 +415,11 @@ describe('Freshness cron — date expiry reminders', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Section 3: Dashboard component tests
+// Section 3: Expiry date calculation logic
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('ExpiringContentSection component', () => {
-  // Since this is a React component that uses fetch, we test the helper logic
-  // directly rather than rendering the full component (which would need
-  // a test renderer and fetch mocking).
+describe('Expiry date calculation helpers', () => {
+  // Tests for the date calculation logic used by dashboard expiry displays.
 
   it('daysRemaining calculates correctly for future dates', () => {
     const tenDaysFromNow = new Date();
