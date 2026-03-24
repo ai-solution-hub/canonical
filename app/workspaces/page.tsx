@@ -1,61 +1,35 @@
-import { createClient } from '@/lib/supabase/server';
+import { getAuthenticatedClient } from '@/lib/auth';
+import { redirect } from 'next/navigation';
 import { WorkspacesContent } from './workspaces-content';
-import type { Workspace } from '@/types/content';
 
-interface WorkspaceItemCount {
-  workspace_id: string;
-  item_count: number;
-  last_activity: string | null;
-}
+async function getWorkspaceTypeCounts(): Promise<Record<string, number>> {
+  const auth = await getAuthenticatedClient();
+  if (!auth) redirect('/login');
 
-async function getWorkspaces(): Promise<{ workspaces: Workspace[]; error?: string }> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await auth.supabase
     .from('workspaces')
-    .select('id, name, description, type, status, icon, color, is_archived, domain_metadata, created_at, created_by, updated_at, updated_by')
-    .order('is_archived')
-    .order('name');
+    .select('type')
+    .eq('is_archived', false);
 
   if (error) {
-    console.error('Failed to fetch workspaces:', error.message);
-    return { workspaces: [], error: 'Failed to load workspaces. Please try refreshing the page.' };
-  }
-  return { workspaces: (data ?? []) as Workspace[] };
-}
-
-async function getWorkspaceItemCounts(): Promise<
-  Record<string, { item_count: number; last_activity: string | null }>
-> {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc('get_workspace_item_counts');
-
-  if (error) {
-    console.error('Failed to fetch workspace item counts:', error.message);
+    console.error('Failed to fetch workspace type counts:', error.message);
     return {};
   }
 
-  const counts: Record<
-    string,
-    { item_count: number; last_activity: string | null }
-  > = {};
-  for (const row of (data ?? []) as WorkspaceItemCount[]) {
-    counts[row.workspace_id] = {
-      item_count: Number(row.item_count),
-      last_activity: row.last_activity,
-    };
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const type = row.type ?? 'unknown';
+    counts[type] = (counts[type] ?? 0) + 1;
   }
   return counts;
 }
 
 export default async function WorkspacesPage() {
-  const [result, counts] = await Promise.all([
-    getWorkspaces(),
-    getWorkspaceItemCounts(),
-  ]);
+  const counts = await getWorkspaceTypeCounts();
 
   return (
-    <section aria-label="Workspaces page" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      <WorkspacesContent initialWorkspaces={result.workspaces} initialCounts={counts} loadError={result.error} />
+    <section aria-label="Workspaces" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <WorkspacesContent counts={counts} />
     </section>
   );
 }

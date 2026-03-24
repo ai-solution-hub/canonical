@@ -2,52 +2,65 @@
  * Workspaces Page Tests
  *
  * Tests the server-rendered workspaces page wrapper:
- * ARIA label on the outer section element.
+ * - ARIA label on the outer section element
+ * - Passes counts to WorkspacesContent
  */
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-// Mock the server-side createClient — WorkspacesPage calls getWorkspaces() and
-// getWorkspaceItemCounts() which both use createClient from lib/supabase/server.
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn().mockResolvedValue({
-    from: () => ({
-      select: () => ({
-        order: () => ({
-          order: () => Promise.resolve({ data: [], error: null }),
+// Mock auth — getAuthenticatedClient returns { supabase }
+const mockSelect = vi.fn();
+vi.mock('@/lib/auth', () => ({
+  getAuthenticatedClient: vi.fn().mockResolvedValue({
+    supabase: {
+      from: () => ({
+        select: () => ({
+          eq: () =>
+            Promise.resolve({
+              data: [{ type: 'bid' }, { type: 'bid' }, { type: 'bid' }],
+              error: null,
+            }),
         }),
       }),
-    }),
-    rpc: () => Promise.resolve({ data: [], error: null }),
+    },
   }),
 }));
 
-// WorkspacesContent is a complex client component — mock it to isolate page tests
+// Mock next/navigation redirect
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+}));
+
+// WorkspacesContent is a complex client component — mock to isolate page tests
 vi.mock('@/app/workspaces/workspaces-content', () => ({
-  WorkspacesContent: ({ initialWorkspaces }: { initialWorkspaces: unknown[] }) => (
-    <div data-testid="workspaces-content">
-      {Array.isArray(initialWorkspaces) ? initialWorkspaces.length : 0} workspaces
+  WorkspacesContent: ({ counts }: { counts: Record<string, number> }) => (
+    <div data-testid="workspaces-content" data-counts={JSON.stringify(counts)}>
+      Launcher
     </div>
   ),
 }));
 
 import WorkspacesPage from '@/app/workspaces/page';
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 describe('WorkspacesPage', () => {
-  it('renders a section with aria-label "Workspaces page"', async () => {
+  it('renders a section with aria-label "Workspaces"', async () => {
     const page = await WorkspacesPage();
     render(page);
-    expect(screen.getByLabelText('Workspaces page')).toBeInTheDocument();
+    expect(screen.getByLabelText('Workspaces')).toBeInTheDocument();
   });
 
   it('renders the WorkspacesContent component', async () => {
     const page = await WorkspacesPage();
     render(page);
     expect(screen.getByTestId('workspaces-content')).toBeInTheDocument();
+  });
+
+  it('passes workspace type counts to WorkspacesContent', async () => {
+    const page = await WorkspacesPage();
+    render(page);
+    const el = screen.getByTestId('workspaces-content');
+    const counts = JSON.parse(el.getAttribute('data-counts') ?? '{}');
+    expect(counts).toEqual({ bid: 3 });
   });
 });
