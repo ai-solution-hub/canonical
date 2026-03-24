@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
@@ -39,8 +39,12 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
   // Pending state: use ref for the map, state counter to force re-renders
   const pendingMapRef = useRef<Map<string, QuickReviewAction>>(new Map());
-  const [, setPendingCounter] = useState(0);
+  const [pendingCounter, setPendingCounter] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Derive a snapshot of pending items from the ref (avoids accessing ref during render)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pendingItems = useMemo(() => new Map(pendingMapRef.current), [pendingCounter]);
 
   const setPending = useCallback((itemId: string, action: QuickReviewAction) => {
     pendingMapRef.current.set(itemId, action);
@@ -204,7 +208,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
   return {
     error,
-    pendingItems: pendingMapRef.current,
+    pendingItems,
     quickVerify,
     quickUnverify,
     quickFlag,
