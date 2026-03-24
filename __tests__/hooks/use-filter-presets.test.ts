@@ -290,7 +290,7 @@ describe('useFilterPresets', () => {
     expect(result.current.presets).toHaveLength(4); // Only system presets
   });
 
-  // 19. Handles localStorage being unavailable
+  // 19. Handles corrupted localStorage gracefully
   it('handles localStorage with non-array value gracefully', () => {
     localStorage.setItem(STORAGE_KEY, '"just a string"');
     const { result } = renderHook(() => useFilterPresets());

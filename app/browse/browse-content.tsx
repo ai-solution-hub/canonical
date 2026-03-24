@@ -77,6 +77,7 @@ export function BrowseContent() {
     savePreset,
     renamePreset,
     deletePreset,
+    restorePreset,
     canSave: canSavePreset,
   } = useFilterPresets();
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -464,6 +465,7 @@ export function BrowseContent() {
         presets={presets}
         onRename={renamePreset}
         onDelete={deletePreset}
+        onRestore={restorePreset}
       />
     </section>
   );

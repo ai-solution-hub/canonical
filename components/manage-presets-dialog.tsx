@@ -21,6 +21,7 @@ interface ManagePresetsDialogProps {
   presets: FilterPreset[];
   onRename: (presetId: string, newName: string) => void;
   onDelete: (presetId: string) => void;
+  onRestore?: (preset: FilterPreset) => void;
 }
 
 export function ManagePresetsDialog({
@@ -29,6 +30,7 @@ export function ManagePresetsDialog({
   presets,
   onRename,
   onDelete,
+  onRestore,
 }: ManagePresetsDialogProps) {
   const userPresets = presets.filter((p) => !p.isSystem);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -70,19 +72,16 @@ export function ManagePresetsDialog({
 
   const handleDelete = useCallback(
     (preset: FilterPreset) => {
+      const deletedPreset = { ...preset };
       onDelete(preset.id);
       toast('Preset deleted', {
         action: {
           label: 'Undo',
-          onClick: () => {
-            // Undo is not supported after the preset is removed from state
-            // The parent component would need to re-add it. We surface the
-            // intent here; the integration in browse-content handles the rest.
-          },
+          onClick: () => onRestore?.(deletedPreset),
         },
       });
     },
-    [onDelete],
+    [onDelete, onRestore],
   );
 
   return (

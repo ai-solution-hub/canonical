@@ -104,6 +104,8 @@ export interface UseFilterPresetsReturn {
   renamePreset: (presetId: string, newName: string) => void;
   /** Delete a user preset. No-op for system presets. */
   deletePreset: (presetId: string) => void;
+  /** Restore a previously deleted preset (for undo). */
+  restorePreset: (preset: FilterPreset) => void;
   /** True when current URL has filters that could be saved (activeFilterCount > 0). */
   canSave: boolean;
 }
@@ -187,6 +189,17 @@ export function useFilterPresets(): UseFilterPresetsReturn {
     [userPresets],
   );
 
+  const restorePreset = useCallback(
+    (preset: FilterPreset) => {
+      setUserPresets((prev) => {
+        const updated = [...prev, preset];
+        saveUserPresets(updated);
+        return updated;
+      });
+    },
+    [],
+  );
+
   return {
     presets,
     activePreset,
@@ -194,6 +207,7 @@ export function useFilterPresets(): UseFilterPresetsReturn {
     savePreset,
     renamePreset,
     deletePreset,
+    restorePreset,
     canSave,
   };
 }
