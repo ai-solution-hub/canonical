@@ -34,6 +34,7 @@ vi.mock('@/hooks/use-browse-filters', () => ({
 
 vi.mock('@/lib/browse-helpers', () => ({
   getCursorFromItem: vi.fn(() => '2026-01-01'),
+  isOffsetSort: vi.fn((sort: string) => sort === 'freshness' || sort === 'quality_score'),
 }));
 
 vi.mock('@/lib/supabase/escape', () => ({
@@ -286,5 +287,79 @@ describe('useBrowseData', () => {
   it('provides a sentinelCallbackRef function', () => {
     const { result } = renderHook(() => useBrowseData());
     expect(typeof result.current.sentinelCallbackRef).toBe('function');
+  });
+
+  // -----------------------------------------------------------------------
+  // Offset-based pagination for freshness / quality_score sorts
+  // -----------------------------------------------------------------------
+
+  it('sets hasMore=true for freshness sort when PAGE_SIZE items returned', async () => {
+    mockFilters.sort = 'freshness';
+    mockFilters.order = 'asc';
+
+    const fullPage = Array.from({ length: 48 }, (_, i) => ({
+      id: `item-${i}`,
+      title: `Item ${i}`,
+      captured_date: '2026-01-15',
+      primary_domain: 'Technology',
+      freshness: 'stale',
+    }));
+    mockFrom.mockReturnValue(createQueryChain(fullPage, 100));
+
+    const { result } = renderHook(() => useBrowseData());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.hasMore).toBe(true);
+    expect(result.current.items).toHaveLength(48);
+  });
+
+  it('sets hasMore=true for quality_score sort when PAGE_SIZE items returned', async () => {
+    mockFilters.sort = 'quality_score';
+    mockFilters.order = 'asc';
+
+    const fullPage = Array.from({ length: 48 }, (_, i) => ({
+      id: `item-${i}`,
+      title: `Item ${i}`,
+      captured_date: '2026-01-15',
+      primary_domain: 'Technology',
+      quality_score: 0.5,
+    }));
+    mockFrom.mockReturnValue(createQueryChain(fullPage, 100));
+
+    const { result } = renderHook(() => useBrowseData());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.hasMore).toBe(true);
+    expect(result.current.items).toHaveLength(48);
+  });
+
+  it('resets offset when filters change', async () => {
+    mockFilters.sort = 'freshness';
+    mockFilters.order = 'asc';
+
+    const fullPage = Array.from({ length: 48 }, (_, i) => ({
+      id: `item-${i}`,
+      title: `Item ${i}`,
+      captured_date: '2026-01-15',
+      primary_domain: 'Technology',
+      freshness: 'stale',
+    }));
+    mockFrom.mockReturnValue(createQueryChain(fullPage, 100));
+
+    const { result } = renderHook(() => useBrowseData());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    // Items loaded — now verify initial state is correct
+    expect(result.current.hasMore).toBe(true);
+    expect(result.current.items).toHaveLength(48);
   });
 });

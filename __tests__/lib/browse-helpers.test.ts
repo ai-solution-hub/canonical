@@ -3,6 +3,7 @@ import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
   getCursorFromItem,
+  isOffsetSort,
 } from '@/lib/browse-helpers';
 import type { ContentListItem } from '@/types/content';
 
@@ -178,5 +179,31 @@ describe('getCursorFromItem', () => {
   it('returns null for quality_score sort (uses offset pagination)', () => {
     const item = makeItem();
     expect(getCursorFromItem(item, 'quality_score')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isOffsetSort
+// ---------------------------------------------------------------------------
+
+describe('isOffsetSort', () => {
+  it('returns true for freshness sort', () => {
+    expect(isOffsetSort('freshness')).toBe(true);
+  });
+
+  it('returns true for quality_score sort', () => {
+    expect(isOffsetSort('quality_score')).toBe(true);
+  });
+
+  it('returns false for captured_date sort', () => {
+    expect(isOffsetSort('captured_date')).toBe(false);
+  });
+
+  it('returns false for primary_domain sort', () => {
+    expect(isOffsetSort('primary_domain')).toBe(false);
+  });
+
+  it('returns false for classification_confidence sort', () => {
+    expect(isOffsetSort('classification_confidence')).toBe(false);
   });
 });
