@@ -389,7 +389,7 @@ describe('LibraryContent', () => {
       expect(link).toBeInTheDocument();
       expect(link.closest('a')).toHaveAttribute(
         'href',
-        '/search?q=cyber%20security',
+        '/browse?q=cyber%20security',
       );
     });
   });

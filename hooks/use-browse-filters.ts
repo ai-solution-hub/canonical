@@ -9,6 +9,9 @@ export function useBrowseFilters() {
   const router = useRouter();
   const pathname = usePathname();
 
+  // Search query from URL (?q=)
+  const searchQuery = useMemo(() => searchParams.get('q') ?? undefined, [searchParams]);
+
   const filters: BrowseFilters = useMemo(() => {
     const domainRaw = searchParams.get('domain')?.split(',').filter(Boolean);
     const typeRaw = searchParams.get('type')?.split(',').filter(Boolean);
@@ -73,6 +76,7 @@ export function useBrowseFilters() {
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
+    if (searchQuery) count++;
     if (filters.domain?.length) count += filters.domain.length;
     if (filters.subtopic) count++;
     if (filters.content_type?.length) count += filters.content_type.length;
@@ -94,7 +98,7 @@ export function useBrowseFilters() {
     if (filters.owner) count++;
     if (filters.review_status) count++;
     return count;
-  }, [filters]);
+  }, [filters, searchQuery]);
 
   const setFilters = useCallback(
     (newFilters: Partial<BrowseFilters>) => {
@@ -226,6 +230,25 @@ export function useBrowseFilters() {
     [searchParams, router, pathname],
   );
 
+  const setSearchQuery = useCallback(
+    (query: string | undefined) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (query) {
+        params.set('q', query);
+      } else {
+        params.delete('q');
+      }
+      params.delete('cursor');
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [searchParams, router, pathname],
+  );
+
+  const clearSearchQuery = useCallback(() => {
+    setSearchQuery(undefined);
+  }, [setSearchQuery]);
+
   const clearFilters = useCallback(() => {
     router.push(pathname);
   }, [router, pathname]);
@@ -259,7 +282,10 @@ export function useBrowseFilters() {
   return {
     filters,
     activeFilterCount,
+    searchQuery,
     setFilters,
+    setSearchQuery,
+    clearSearchQuery,
     clearFilters,
     removeFilter,
     removeFilterValue,

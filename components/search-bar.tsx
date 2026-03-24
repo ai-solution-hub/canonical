@@ -96,7 +96,7 @@ export function SearchBar({
       addRecentSearch(trimmed);
       setShowRecent(false);
       setActiveIndex(-1);
-      router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+      router.push(`/browse?q=${encodeURIComponent(trimmed)}`);
     }
   }
 
@@ -105,7 +105,7 @@ export function SearchBar({
     setShowRecent(false);
     setActiveIndex(-1);
     addRecentSearch(search);
-    router.push(`/search?q=${encodeURIComponent(search)}`);
+    router.push(`/browse?q=${encodeURIComponent(search)}`);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {

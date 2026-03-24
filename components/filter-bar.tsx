@@ -31,9 +31,10 @@ import {
 
 export type ViewMode = 'grid' | 'list';
 
-export type SortOption = 'date-desc' | 'date-asc' | 'domain' | 'confidence' | 'freshness-stale' | 'quality-lowest';
+export type SortOption = 'relevance' | 'date-desc' | 'date-asc' | 'domain' | 'confidence' | 'freshness-stale' | 'quality-lowest';
 
-export const SORT_OPTIONS: { value: SortOption; label: string; shortLabel: string }[] = [
+/** Base sort options always available */
+const BASE_SORT_OPTIONS: { value: SortOption; label: string; shortLabel: string }[] = [
   { value: 'date-desc', label: 'Date (newest)', shortLabel: 'Newest' },
   { value: 'date-asc', label: 'Date (oldest)', shortLabel: 'Oldest' },
   { value: 'domain', label: 'Domain', shortLabel: 'Domain' },
@@ -41,6 +42,20 @@ export const SORT_OPTIONS: { value: SortOption; label: string; shortLabel: strin
   { value: 'freshness-stale', label: 'Freshness (most stale)', shortLabel: 'Stale' },
   { value: 'quality-lowest', label: 'Quality (lowest)', shortLabel: 'Quality' },
 ];
+
+/** Relevance sort option — only shown when a search query is active */
+const RELEVANCE_SORT_OPTION: { value: SortOption; label: string; shortLabel: string } = {
+  value: 'relevance', label: 'Relevance', shortLabel: 'Relevance',
+};
+
+export const SORT_OPTIONS = BASE_SORT_OPTIONS;
+
+/** Returns sort options including Relevance when a search query is active */
+export function getSortOptions(hasSearchQuery: boolean) {
+  return hasSearchQuery
+    ? [RELEVANCE_SORT_OPTION, ...BASE_SORT_OPTIONS]
+    : BASE_SORT_OPTIONS;
+}
 
 interface FilterBarProps {
   showUnreadOnly: boolean;
@@ -55,6 +70,8 @@ interface FilterBarProps {
   onToggleThumbnails: () => void;
   activeFilterCount: number;
   onOpenFilters: () => void;
+  /** When true, includes "Relevance" in the sort options */
+  hasSearchQuery?: boolean;
 }
 
 export function FilterBar({
@@ -70,7 +87,9 @@ export function FilterBar({
   onToggleThumbnails,
   activeFilterCount,
   onOpenFilters,
+  hasSearchQuery = false,
 }: FilterBarProps) {
+  const sortOptions = getSortOptions(hasSearchQuery);
   return (
     <div className="flex items-center justify-between gap-2">
       {/* Left group: view controls */}
@@ -107,11 +126,11 @@ export function FilterBar({
               <SelectValue />
             </span>
             <span className="sm:hidden">
-              {SORT_OPTIONS.find((o) => o.value === sortOption)?.shortLabel}
+              {sortOptions.find((o) => o.value === sortOption)?.shortLabel}
             </span>
           </SelectTrigger>
           <SelectContent position="popper" align="end">
-            {SORT_OPTIONS.map((opt) => (
+            {sortOptions.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}
               </SelectItem>

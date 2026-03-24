@@ -2,7 +2,7 @@ import type { SortOption } from '@/components/filter-bar';
 import type { ContentListItem } from '@/types/content';
 
 /** Sorts that use offset-based pagination instead of cursor-based. */
-const OFFSET_SORTS = new Set(['freshness', 'quality_score']);
+const OFFSET_SORTS = new Set(['freshness', 'quality_score', 'relevance']);
 
 /** Returns true when the given sort key requires offset-based pagination. */
 export function isOffsetSort(sort: string): boolean {
@@ -13,6 +13,7 @@ export function getSortOptionFromFilters(
   sort?: string,
   order?: string,
 ): SortOption {
+  if (sort === 'relevance') return 'relevance';
   if (sort === 'primary_domain') return 'domain';
   if (sort === 'classification_confidence') return 'confidence';
   if (sort === 'freshness' && order === 'asc') return 'freshness-stale';
@@ -23,6 +24,11 @@ export function getSortOptionFromFilters(
 
 export function getSortFiltersFromOption(option: SortOption) {
   switch (option) {
+    case 'relevance':
+      return {
+        sort: 'relevance' as const,
+        order: 'desc' as const,
+      };
     case 'date-desc':
       return {
         sort: 'captured_date' as const,
@@ -70,8 +76,8 @@ export function getCursorFromItem(
       ? `${item.primary_domain}|${item.captured_date}|${item.id}`
       : null;
   }
-  // Freshness and quality_score use offset-based pagination (no cursor)
-  if (sort === 'freshness' || sort === 'quality_score') {
+  // Freshness, quality_score, and relevance use offset-based pagination (no cursor)
+  if (sort === 'freshness' || sort === 'quality_score' || sort === 'relevance') {
     return null;
   }
   // Default: captured_date

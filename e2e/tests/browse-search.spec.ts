@@ -133,12 +133,12 @@ test.describe('Search', () => {
     // Use the responsive helper — works on both mobile and desktop
     await searchFromHeader(page, 'IT support');
 
-    // Should navigate to search results
-    await expect(page).toHaveURL(/\/search/);
+    // Should navigate to browse with search query
+    await expect(page).toHaveURL(/\/browse\?q=/);
   });
 
-  test('search page loads and shows results for a query', async ({ authenticatedPage: page }) => {
-    await page.goto('/search?q=IT+support');
+  test('search via browse page loads and shows results for a query', async ({ authenticatedPage: page }) => {
+    await page.goto('/browse?q=IT+support');
 
     // Either search results appear or an empty/no-results message
     const hasResults = page.locator('a[href^="/item/"]').first();
@@ -147,8 +147,15 @@ test.describe('Search', () => {
     await expect(hasResults.or(emptyState)).toBeVisible({ timeout: 15000 });
   });
 
-  test('search results link to item detail pages', async ({ authenticatedPage: page }) => {
+  test('/search redirects to /browse preserving query', async ({ authenticatedPage: page }) => {
     await page.goto('/search?q=SLA');
+
+    // Should redirect to browse with query preserved
+    await expect(page).toHaveURL(/\/browse\?q=SLA/);
+  });
+
+  test('search results link to item detail pages', async ({ authenticatedPage: page }) => {
+    await page.goto('/browse?q=SLA');
 
     // Wait for results to load
     const firstResult = page.locator('a[href^="/item/"]').first();

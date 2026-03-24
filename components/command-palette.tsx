@@ -82,7 +82,7 @@ export function CommandPalette() {
   const handleSearchSubmit = useCallback(() => {
     if (search.trim()) {
       runCommand(() =>
-        router.push(`/search?q=${encodeURIComponent(search.trim())}`),
+        router.push(`/browse?q=${encodeURIComponent(search.trim())}`),
       );
     }
   }, [search, router, runCommand]);
@@ -171,7 +171,7 @@ export function CommandPalette() {
                   </Command.Item>
                   <Command.Item
                     value="Search knowledge base"
-                    onSelect={() => runCommand(() => router.push('/search'))}
+                    onSelect={() => runCommand(() => router.push('/browse'))}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <Search className="size-4 text-muted-foreground" />

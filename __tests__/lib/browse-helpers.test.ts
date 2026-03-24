@@ -66,6 +66,11 @@ describe('getSortOptionFromFilters', () => {
     expect(getSortOptionFromFilters('captured_date', 'asc')).toBe('date-asc');
   });
 
+  it('returns "relevance" when sort is relevance', () => {
+    expect(getSortOptionFromFilters('relevance')).toBe('relevance');
+    expect(getSortOptionFromFilters('relevance', 'desc')).toBe('relevance');
+  });
+
   it('returns "date-desc" as the default fallback', () => {
     expect(getSortOptionFromFilters()).toBe('date-desc');
     expect(getSortOptionFromFilters(undefined, undefined)).toBe('date-desc');
@@ -117,6 +122,13 @@ describe('getSortFiltersFromOption', () => {
     expect(getSortFiltersFromOption('quality-lowest')).toEqual({
       sort: 'quality_score',
       order: 'asc',
+    });
+  });
+
+  it('maps "relevance" to relevance descending', () => {
+    expect(getSortFiltersFromOption('relevance')).toEqual({
+      sort: 'relevance',
+      order: 'desc',
     });
   });
 });
@@ -180,6 +192,11 @@ describe('getCursorFromItem', () => {
     const item = makeItem();
     expect(getCursorFromItem(item, 'quality_score')).toBeNull();
   });
+
+  it('returns null for relevance sort (uses offset pagination)', () => {
+    const item = makeItem();
+    expect(getCursorFromItem(item, 'relevance')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -205,5 +222,9 @@ describe('isOffsetSort', () => {
 
   it('returns false for classification_confidence sort', () => {
     expect(isOffsetSort('classification_confidence')).toBe(false);
+  });
+
+  it('returns true for relevance sort', () => {
+    expect(isOffsetSort('relevance')).toBe(true);
   });
 });

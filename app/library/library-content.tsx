@@ -552,7 +552,7 @@ export function LibraryContent() {
                 </Button>
                 {filters.search && (
                   <Link
-                    href={`/search?q=${encodeURIComponent(filters.search)}`}
+                    href={`/browse?q=${encodeURIComponent(filters.search)}`}
                     className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Try searching the full knowledge base
