@@ -172,7 +172,7 @@ describe('CertificationSummaryCard', () => {
     expect(screen.getByText('Scope: SaaS development and hosting')).toBeInTheDocument();
   });
 
-  it('renders evidence count', () => {
+  it('renders linked items count', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert()]}
@@ -180,7 +180,7 @@ describe('CertificationSummaryCard', () => {
         registrations={[]}
       />,
     );
-    expect(screen.getByText('2 evidence')).toBeInTheDocument();
+    expect(screen.getByText('2 linked items')).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
@@ -252,7 +252,7 @@ describe('CertificationSummaryCard', () => {
     expect(badge.className).toContain('text-freshness-expired');
   });
 
-  it('shows Unknown badge with correct class', () => {
+  it('shows "No expiry date" badge with correct class', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert({ expiry_status: 'unknown' })]}
@@ -260,9 +260,9 @@ describe('CertificationSummaryCard', () => {
         registrations={[]}
       />,
     );
-    const badge = screen.getByLabelText('Expiry status: Unknown');
+    const badge = screen.getByLabelText('Expiry status: No expiry date');
     expect(badge).toBeInTheDocument();
-    expect(badge.textContent).toBe('Unknown');
+    expect(badge.textContent).toBe('No expiry date');
     expect(badge.className).toContain('text-muted-foreground');
   });
 
@@ -408,11 +408,26 @@ describe('CertificationSummaryCard', () => {
   // Edit callback
   // -------------------------------------------------------------------------
 
-  it('calls onEditEntity when certification name is clicked', () => {
-    const onEdit = vi.fn();
+  it('renders certification name as link when content items exist', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert()]}
+        supplierCertifications={[]}
+        registrations={[]}
+      />,
+    );
+
+    // When content_items exist, the cert name is a link to the first item
+    const certLink = screen.getByLabelText('View ISO 27001 details');
+    expect(certLink).toBeInTheDocument();
+    expect(certLink).toHaveAttribute('href', '/item/ci-1');
+  });
+
+  it('calls onEditEntity when certification has no content items', () => {
+    const onEdit = vi.fn();
+    render(
+      <CertificationSummaryCard
+        certifications={[makeCert({ content_items: [], content_item_count: 0 })]}
         supplierCertifications={[]}
         registrations={[]}
         onEditEntity={onEdit}
