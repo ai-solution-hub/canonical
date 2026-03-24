@@ -52,7 +52,7 @@ export function QuickReviewActions({
   const { canEdit: canEditFromHook } = useUserRole();
   const canEdit = canEditProp !== undefined ? canEditProp : canEditFromHook;
 
-  const { quickVerify, quickUnverify, quickFlag, quickUnflag, isPending } =
+  const { quickVerify, quickUnverify, quickFlag, quickUnflag, isPending, pendingItems } =
     useQuickReview({ onOptimisticUpdate });
 
   const [flagPopoverOpen, setFlagPopoverOpen] = useState(false);
@@ -63,10 +63,10 @@ export function QuickReviewActions({
 
   const isVerified = Boolean(verifiedAt);
   const isFlagged = Boolean(hasQualityFlag);
-  const verifyPending = isPending(itemId) && !isFlagged;
-  const flagPending = isPending(itemId) && isFlagged;
-  // More precise: check the pending map action type
-  const pendingAction = isPending(itemId);
+  const pendingAction = pendingItems.get(itemId);
+  const verifyPending = pendingAction === 'verify' || pendingAction === 'unverify';
+  const flagPending = pendingAction === 'flag' || pendingAction === 'unflag';
+  const anyPending = Boolean(pendingAction);
 
   const handleVerifyClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -121,11 +121,11 @@ export function QuickReviewActions({
       <button
         type="button"
         aria-label={isVerified ? 'Unverify' : 'Verify'}
-        disabled={pendingAction}
+        disabled={anyPending}
         className={actionButtonClass}
         onClick={handleVerifyClick}
       >
-        {pendingAction ? (
+        {verifyPending ? (
           <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
         ) : (
           <ShieldCheck
@@ -146,11 +146,11 @@ export function QuickReviewActions({
         <button
           type="button"
           aria-label="Resolve flag"
-          disabled={pendingAction}
+          disabled={anyPending}
           className={actionButtonClass}
           onClick={handleFlagClick}
         >
-          {pendingAction ? (
+          {flagPending ? (
             <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
           ) : (
             <Flag
@@ -166,7 +166,7 @@ export function QuickReviewActions({
             <button
               type="button"
               aria-label="Flag for review"
-              disabled={pendingAction}
+              disabled={anyPending}
               className={actionButtonClass}
               onClick={(e) => {
                 // Stop propagation to prevent Link navigation.
@@ -174,7 +174,7 @@ export function QuickReviewActions({
                 e.stopPropagation();
               }}
             >
-              {pendingAction ? (
+              {flagPending ? (
                 <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
               ) : (
                 <Flag

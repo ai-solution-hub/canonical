@@ -79,6 +79,33 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
     [],
   );
 
+  // --- quickUnverify ---
+  // Defined before quickVerify so it can be referenced in the undo callback
+  const quickUnverify = useCallback(
+    async (itemId: string, itemTitle: string) => {
+      setError(null);
+      setPending(itemId, 'unverify');
+
+      // Optimistic update
+      onOptimisticUpdate?.(itemId, { verified_at: null });
+
+      const ok = await callReviewAction(itemId, 'unverify');
+
+      clearPending(itemId);
+
+      if (!ok) {
+        // Rollback: restore verified state
+        onOptimisticUpdate?.(itemId, { verified_at: new Date().toISOString() });
+        setError('Action failed');
+        toast.error('Action failed. Check your connection and try again.');
+        return;
+      }
+
+      toast.success(`Unverified: ${itemTitle}`);
+    },
+    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
+  );
+
   // --- quickVerify ---
   const quickVerify = useCallback(
     async (itemId: string, itemTitle: string) => {
@@ -109,31 +136,32 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
+    [onOptimisticUpdate, setPending, clearPending, callReviewAction, quickUnverify],
   );
 
-  // --- quickUnverify ---
-  const quickUnverify = useCallback(
+  // --- quickUnflag ---
+  // Defined before quickFlag so it can be referenced in the undo callback
+  const quickUnflag = useCallback(
     async (itemId: string, itemTitle: string) => {
       setError(null);
-      setPending(itemId, 'unverify');
+      setPending(itemId, 'unflag');
 
       // Optimistic update
-      onOptimisticUpdate?.(itemId, { verified_at: null });
+      onOptimisticUpdate?.(itemId, { hasQualityFlag: false });
 
-      const ok = await callReviewAction(itemId, 'unverify');
+      const ok = await callReviewAction(itemId, 'unflag');
 
       clearPending(itemId);
 
       if (!ok) {
-        // Rollback: restore verified state
-        onOptimisticUpdate?.(itemId, { verified_at: new Date().toISOString() });
+        // Rollback
+        onOptimisticUpdate?.(itemId, { hasQualityFlag: true });
         setError('Action failed');
         toast.error('Action failed. Check your connection and try again.');
         return;
       }
 
-      toast.success(`Unverified: ${itemTitle}`);
+      toast.success(`Unflagged: ${itemTitle}`);
     },
     [onOptimisticUpdate, setPending, clearPending, callReviewAction],
   );
@@ -171,33 +199,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
-  );
-
-  // --- quickUnflag ---
-  const quickUnflag = useCallback(
-    async (itemId: string, itemTitle: string) => {
-      setError(null);
-      setPending(itemId, 'unflag');
-
-      // Optimistic update
-      onOptimisticUpdate?.(itemId, { hasQualityFlag: false });
-
-      const ok = await callReviewAction(itemId, 'unflag');
-
-      clearPending(itemId);
-
-      if (!ok) {
-        // Rollback
-        onOptimisticUpdate?.(itemId, { hasQualityFlag: true });
-        setError('Action failed');
-        toast.error('Action failed. Check your connection and try again.');
-        return;
-      }
-
-      toast.success(`Unflagged: ${itemTitle}`);
-    },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
+    [onOptimisticUpdate, setPending, clearPending, callReviewAction, quickUnflag],
   );
 
   return {
