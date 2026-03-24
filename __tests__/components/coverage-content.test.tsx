@@ -54,6 +54,14 @@ vi.mock('@/components/coverage-domain-section', () => ({
   ),
 }));
 
+vi.mock('@/components/coverage-heatmap-view', () => ({
+  CoverageHeatmapView: ({ matrix, orderedDomains }: { matrix: unknown[]; orderedDomains: string[] }) => (
+    <div data-testid="coverage-heatmap-view">
+      Heatmap: {matrix.length} cells, {orderedDomains.length} domains
+    </div>
+  ),
+}));
+
 vi.mock('@/components/coverage-layer-filter', () => ({
   CoverageLayerFilter: ({ value, onLayerChange }: { value: string | null; onLayerChange: (v: string | null) => void }) => (
     <select
@@ -110,14 +118,30 @@ function createCoverageResponse(overrides: Partial<{
 // ---------------------------------------------------------------------------
 
 describe('CoverageContent', () => {
+  const localStorageStore: Record<string, string> = {};
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockTaxonomy.value = mockTaxonomyContext();
     vi.stubGlobal('fetch', mockFetch);
+
+    // Clear localStorage store between tests
+    Object.keys(localStorageStore).forEach((k) => delete localStorageStore[k]);
+
+    // Mock localStorage
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(
+      (key: string) => localStorageStore[key] ?? null,
+    );
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(
+      (key: string, value: string) => {
+        localStorageStore[key] = value;
+      },
+    );
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it('shows loading skeleton while fetching data', () => {
@@ -258,6 +282,175 @@ describe('CoverageContent', () => {
 
       const technical = screen.getByTestId('domain-section-Technical');
       expect(technical).toHaveAttribute('data-expanded', 'false');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Heatmap view toggle (tests 29–35)
+  // -------------------------------------------------------------------------
+
+  describe('heatmap view toggle', () => {
+    it('renders toggle with Cards and Heatmap buttons', async () => {
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      expect(screen.getByRole('button', { name: /cards/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /heatmap/i })).toBeInTheDocument();
+    });
+
+    it('defaults to Cards view (domain sections visible, heatmap not)', async () => {
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      // Card view renders domain sections
+      expect(screen.getByTestId('domain-section-Corporate')).toBeInTheDocument();
+      expect(screen.getByTestId('domain-section-Technical')).toBeInTheDocument();
+
+      // Heatmap should not be rendered
+      expect(screen.queryByTestId('coverage-heatmap-view')).not.toBeInTheDocument();
+    });
+
+    it('switches to heatmap view when Heatmap button is clicked', async () => {
+      const user = userEvent.setup();
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /heatmap/i }));
+
+      // Heatmap should now be visible
+      expect(screen.getByTestId('coverage-heatmap-view')).toBeInTheDocument();
+
+      // Domain sections should no longer be visible
+      expect(screen.queryByTestId('domain-section-Corporate')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('domain-section-Technical')).not.toBeInTheDocument();
+    });
+
+    it('switches back to card view when Cards button is clicked', async () => {
+      const user = userEvent.setup();
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      // Switch to heatmap first
+      await user.click(screen.getByRole('button', { name: /heatmap/i }));
+      expect(screen.getByTestId('coverage-heatmap-view')).toBeInTheDocument();
+
+      // Switch back to cards
+      await user.click(screen.getByRole('button', { name: /cards/i }));
+
+      // Domain sections should be back
+      expect(screen.getByTestId('domain-section-Corporate')).toBeInTheDocument();
+      expect(screen.getByTestId('domain-section-Technical')).toBeInTheDocument();
+
+      // Heatmap should be gone
+      expect(screen.queryByTestId('coverage-heatmap-view')).not.toBeInTheDocument();
+    });
+
+    it('persists view mode to localStorage', async () => {
+      const user = userEvent.setup();
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      // Default persists 'cards'
+      expect(localStorageStore['coverage-view-mode']).toBe('cards');
+
+      // Switch to heatmap
+      await user.click(screen.getByRole('button', { name: /heatmap/i }));
+
+      expect(localStorageStore['coverage-view-mode']).toBe('heatmap');
+    });
+
+    it('reads view mode from localStorage on mount', async () => {
+      // Pre-set heatmap in localStorage before render
+      localStorageStore['coverage-view-mode'] = 'heatmap';
+
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      // Should render heatmap view, not card view
+      expect(screen.getByTestId('coverage-heatmap-view')).toBeInTheDocument();
+      expect(screen.queryByTestId('domain-section-Corporate')).not.toBeInTheDocument();
+    });
+
+    it('toggle buttons have correct aria-pressed attributes', async () => {
+      const user = userEvent.setup();
+      const data = createCoverageResponse();
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(data),
+      });
+
+      render(<CoverageContent />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('coverage-summary-cards')).toBeInTheDocument();
+      });
+
+      const cardsBtn = screen.getByRole('button', { name: /cards/i });
+      const heatmapBtn = screen.getByRole('button', { name: /heatmap/i });
+
+      // Default: Cards is pressed, Heatmap is not
+      expect(cardsBtn).toHaveAttribute('aria-pressed', 'true');
+      expect(heatmapBtn).toHaveAttribute('aria-pressed', 'false');
+
+      // Switch to heatmap
+      await user.click(heatmapBtn);
+
+      expect(cardsBtn).toHaveAttribute('aria-pressed', 'false');
+      expect(heatmapBtn).toHaveAttribute('aria-pressed', 'true');
     });
   });
 });
