@@ -135,15 +135,6 @@ async function DashboardContent() {
 
   return (
     <>
-      {/* QuickStatsStrip — content health at a glance */}
-      <div className="mt-6">
-        <QuickStatsStrip
-          freshness={unified.freshness_summary}
-          activeBidCount={unified.active_bids.length}
-          unreadNotificationCount={unified.attention_sources.unread_notification_count}
-        />
-      </div>
-
       {/* Reorient Me — personalised briefing */}
       <div className="mt-6">
         <ReorientSection data={reorientData} />
@@ -164,6 +155,15 @@ async function DashboardContent() {
           />
         </div>
         <ActiveBidsSection bids={unified.active_bids} />
+      </div>
+
+      {/* QuickStatsStrip — content health at a glance */}
+      <div className="mt-6">
+        <QuickStatsStrip
+          freshness={unified.freshness_summary}
+          activeBidCount={unified.active_bids.length}
+          unreadNotificationCount={unified.attention_sources.unread_notification_count}
+        />
       </div>
 
       {/* Compliance Status */}
