@@ -60,7 +60,7 @@ export function WorkspaceCreateDialog({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) {
-      setNameError('Workspace name is required');
+      setNameError('Name is required');
       return;
     }
 
@@ -97,7 +97,7 @@ export function WorkspaceCreateDialog({
       onCreated(workspace);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Failed to create workspace',
+        err instanceof Error ? err.message : 'Failed to create section',
       );
     } finally {
       setSubmitting(false);
@@ -135,7 +135,7 @@ export function WorkspaceCreateDialog({
                 setName(e.target.value);
                 if (nameError) setNameError('');
               }}
-              placeholder="Workspace name"
+              placeholder="Name"
               maxLength={200}
               autoFocus
             />
