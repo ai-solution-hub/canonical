@@ -469,7 +469,7 @@ export function ContentTabs({
                       <span className="text-xs text-muted-foreground" />
                       <EditButton field="brief" label="Write Summary" />
                     </div>
-                    {!hasBriefHuman && (
+                    {!hasBriefHuman && canEdit && (
                       <p className="mb-3 text-xs text-muted-foreground">
                         Auto-generated — write a Summary to replace
                       </p>
@@ -530,7 +530,7 @@ export function ContentTabs({
                       <span className="text-xs text-muted-foreground" />
                       <EditButton field="detail" label="Write Detailed" />
                     </div>
-                    {!hasDetailHuman && (
+                    {!hasDetailHuman && canEdit && (
                       <p className="mb-3 text-xs text-muted-foreground">
                         Auto-generated — write In Depth content to replace
                       </p>

@@ -67,6 +67,7 @@ export function FreshnessBadge({
         config.colourClass,
         className,
       )}
+      role="img"
       title={`Freshness: ${config.label}`}
       aria-label={`Freshness: ${config.label}`}
     >
