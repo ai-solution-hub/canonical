@@ -6,6 +6,7 @@ import { ContentCard } from '@/components/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 const MIN_CARD_WIDTH = 280;
 const ESTIMATED_ROW_HEIGHT = 380;
@@ -30,6 +31,12 @@ interface ContentGridProps {
   canEdit?: boolean;
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
+  /** Active bid workspaces for quick-assign */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Map of item ID to set of assigned workspace IDs */
+  itemAssignments?: Map<string, Set<string>>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 export function ContentGrid({
@@ -44,6 +51,9 @@ export function ContentGrid({
   highlightQuery,
   canEdit,
   onQuickReviewUpdate,
+  activeWorkspaces,
+  itemAssignments,
+  onAssignmentChange,
 }: ContentGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
@@ -231,6 +241,9 @@ export function ContentGrid({
                 highlightQuery={highlightQuery}
                 canEdit={canEdit}
                 onQuickReviewUpdate={onQuickReviewUpdate}
+                activeWorkspaces={activeWorkspaces}
+                assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                onAssignmentChange={onAssignmentChange}
               />
             </div>
           );
@@ -336,6 +349,9 @@ export function ContentGrid({
                       highlightQuery={highlightQuery}
                       canEdit={canEdit}
                       onQuickReviewUpdate={onQuickReviewUpdate}
+                      activeWorkspaces={activeWorkspaces}
+                      assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                      onAssignmentChange={onAssignmentChange}
                     />
                   </div>
                   );

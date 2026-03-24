@@ -21,6 +21,8 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
 import { QuickReviewActions } from '@/components/quick-review-actions';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
+import { QuickAssignButton } from '@/components/quick-assign-button';
 
 interface ContentRowProps {
   item: ContentListItem | SearchResult;
@@ -32,6 +34,12 @@ interface ContentRowProps {
   canEdit?: boolean;
   /** Callback for optimistic item state updates */
   onQuickReviewUpdate?: OnOptimisticUpdate;
+  /** Active bid workspaces for quick-assign (from parent context) */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Set of workspace IDs this item is assigned to */
+  assignedWorkspaceIds?: Set<string>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 function isSearchResult(
@@ -48,6 +56,9 @@ export const ContentRow = memo(function ContentRow({
   highlightQuery,
   canEdit,
   onQuickReviewUpdate,
+  activeWorkspaces,
+  assignedWorkspaceIds,
+  onAssignmentChange,
 }: ContentRowProps) {
   const { getDomainColourKey } = useTaxonomy();
   const { getLayerLabel } = useLayerVocabulary();
@@ -157,6 +168,15 @@ export const ContentRow = memo(function ContentRow({
         >
           {formatSmartDate(item.captured_date)}
         </time>
+        {activeWorkspaces && assignedWorkspaceIds && (
+          <QuickAssignButton
+            itemId={item.id}
+            activeWorkspaces={activeWorkspaces}
+            assignedWorkspaceIds={assignedWorkspaceIds}
+            onAssignmentChange={onAssignmentChange}
+            className="shrink-0"
+          />
+        )}
         {answerSnippet && (
           <button
             type="button"
@@ -285,6 +305,15 @@ export const ContentRow = memo(function ContentRow({
       >
         {formatDate(item.captured_date)}
       </time>
+      {activeWorkspaces && assignedWorkspaceIds && (
+        <QuickAssignButton
+          itemId={item.id}
+          activeWorkspaces={activeWorkspaces}
+          assignedWorkspaceIds={assignedWorkspaceIds}
+          onAssignmentChange={onAssignmentChange}
+          className="shrink-0"
+        />
+      )}
       {canEdit && (
         <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100">
           <QuickReviewActions

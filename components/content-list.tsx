@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
 import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 interface ContentListProps {
   items: (ContentListItem | SearchResult)[];
@@ -19,6 +20,12 @@ interface ContentListProps {
   canEdit?: boolean;
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
+  /** Active bid workspaces for quick-assign */
+  activeWorkspaces?: ActiveBidWorkspace[];
+  /** Map of item ID to set of assigned workspace IDs */
+  itemAssignments?: Map<string, Set<string>>;
+  /** Callback when workspace assignment changes */
+  onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
 export function ContentList({
@@ -32,6 +39,9 @@ export function ContentList({
   highlightQuery,
   canEdit,
   onQuickReviewUpdate,
+  activeWorkspaces,
+  itemAssignments,
+  onAssignmentChange,
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -136,6 +146,9 @@ export function ContentList({
                   highlightQuery={highlightQuery}
                   canEdit={canEdit}
                   onQuickReviewUpdate={onQuickReviewUpdate}
+                  activeWorkspaces={activeWorkspaces}
+                  assignedWorkspaceIds={itemAssignments?.get(item.id)}
+                  onAssignmentChange={onAssignmentChange}
                 />
               </div>
             </div>
