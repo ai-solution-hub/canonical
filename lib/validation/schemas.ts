@@ -244,6 +244,7 @@ export const WorkspaceCreateBodySchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, 'Invalid hex colour')
     .optional(),
   icon: z.string().max(50).optional(),
+  type: z.enum(['bid', 'kb_section']).optional(),
 });
 
 /** PATCH /api/workspaces/[id] */

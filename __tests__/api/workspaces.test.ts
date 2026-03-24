@@ -268,6 +268,60 @@ describe('POST /api/workspaces', () => {
     const json = await res.json();
     expect(json.error).toContain('already exists');
   });
+
+  it('defaults to kb_section when no type is provided', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        name: 'KB Section',
+        type: 'kb_section',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/workspaces', {
+      method: 'POST',
+      body: { name: 'KB Section' },
+    });
+    const res = await createWorkspace(req);
+
+    expect(res.status).toBe(201);
+    expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'KB Section',
+        type: 'kb_section',
+      }),
+    );
+  });
+
+  it('accepts and passes through type when provided', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        id: VALID_UUID,
+        name: 'My Bid',
+        type: 'bid',
+      },
+      error: null,
+    });
+
+    const req = createTestRequest('/api/workspaces', {
+      method: 'POST',
+      body: { name: 'My Bid', type: 'bid' },
+    });
+    const res = await createWorkspace(req);
+
+    expect(res.status).toBe(201);
+    expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'My Bid',
+        type: 'bid',
+      }),
+    );
+  });
 });
 
 // ===========================================================================

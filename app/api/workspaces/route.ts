@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(WorkspaceCreateBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { name, description, color, icon } = parsed.data;
+    const { name, description, color, icon, type } = parsed.data;
 
     const { data, error } = await supabase
       .from('workspaces')
@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
         description: description ?? null,
         color: color ?? '#6366f1',
         icon: icon ?? 'folder',
+        type: type ?? 'kb_section',
         created_by: user.id,
       })
       .select()
