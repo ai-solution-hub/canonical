@@ -166,6 +166,10 @@ export interface Workspace {
   color: string;
   icon: string;
   type: string;
+  status: string;
+  domain_metadata: Record<string, unknown> | null;
+  created_by: string | null;
+  updated_by: string | null;
   is_archived: boolean;
   created_at: string;
   updated_at: string;

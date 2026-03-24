@@ -32,28 +32,19 @@ vi.mock('@/components/user-tag-input', () => ({
 }));
 
 import { OrganiseSection } from '@/components/organise-section';
+import type { Workspace } from '@/types/content';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-interface Props {
-  itemId: string;
-  keywords: string[];
-  tags: string[];
-  workspaces: Array<{ id: string; name: string; description: string | null; color: string; icon: string; type: string; is_archived: boolean; created_at: string; updated_at: string }>;
-  canEdit: boolean;
-  onKeywordsChanged: ReturnType<typeof vi.fn>;
-  onTagsChanged: ReturnType<typeof vi.fn>;
-  onWorkspacesChanged: ReturnType<typeof vi.fn>;
-}
-
-function defaultProps(overrides: Partial<Props> = {}): Props {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function defaultProps(overrides: Record<string, any> = {}) {
   return {
     itemId: 'item-1',
-    keywords: [],
-    tags: [],
-    workspaces: [],
+    keywords: [] as string[],
+    tags: [] as string[],
+    workspaces: [] as Workspace[],
     canEdit: true,
     onKeywordsChanged: vi.fn(),
     onTagsChanged: vi.fn(),

@@ -98,6 +98,9 @@ export async function fetchReorientData(
     ? lastActiveAt
     : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+  // Current time for notification expiry filter (separate from sinceDate which is last-active lookback)
+  const nowIso = new Date().toISOString();
+
   // Run remaining queries in parallel (active bids via shared helper)
   const [results, activeBidsResult] = await Promise.all([
     Promise.allSettled([
@@ -136,12 +139,14 @@ export async function fetchReorientData(
         ? supabase.rpc('get_items_with_quality_flags')
         : Promise.resolve({ data: [], error: null }),
 
-      // 5: Unread notifications
+      // 5: Unread notifications (aligned with /api/notifications filters)
       supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .is('dismissed_at', null),
+        .is('dismissed_at', null)
+        .is('read_at', null)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
       // 6: Bid response changes by others (team changes)
       supabase
