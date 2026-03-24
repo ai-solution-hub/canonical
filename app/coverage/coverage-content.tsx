@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, LayoutGrid, Download } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Download, Grid3x3 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ import {
 } from '@/components/coverage-summary-cards';
 import { CoverageDomainSection } from '@/components/coverage-domain-section';
 import { CoverageLayerFilter } from '@/components/coverage-layer-filter';
+import { CoverageHeatmapView } from '@/components/coverage-heatmap-view';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { CoverageCellData } from '@/components/coverage-cell';
 
@@ -189,6 +190,18 @@ export function CoverageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [layerFilter, setLayerFilter] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'heatmap'>(() => {
+    if (typeof window === 'undefined') return 'cards';
+    return (
+      (localStorage.getItem('coverage-view-mode') as 'cards' | 'heatmap') ??
+      'cards'
+    );
+  });
+
+  // Persist view mode to localStorage
+  useEffect(() => {
+    localStorage.setItem('coverage-view-mode', viewMode);
+  }, [viewMode]);
 
   // Fetch coverage data
   const fetchCoverage = useCallback(async (layer: string | null) => {
@@ -252,6 +265,36 @@ export function CoverageContent() {
     <div>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="inline-flex items-center rounded-lg border border-border">
+          <button
+            type="button"
+            onClick={() => setViewMode('cards')}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-l-lg px-3 py-1.5 text-xs font-medium transition-colors',
+              viewMode === 'cards'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            aria-pressed={viewMode === 'cards'}
+          >
+            <LayoutGrid className="size-3.5" aria-hidden="true" />
+            Cards
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('heatmap')}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-r-lg px-3 py-1.5 text-xs font-medium transition-colors',
+              viewMode === 'heatmap'
+                ? 'bg-accent text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            aria-pressed={viewMode === 'heatmap'}
+          >
+            <Grid3x3 className="size-3.5" aria-hidden="true" />
+            Heatmap
+          </button>
+        </div>
         <CoverageLayerFilter
           value={layerFilter}
           onLayerChange={handleLayerChange}
@@ -294,34 +337,41 @@ export function CoverageContent() {
             {/* Summary cards */}
             <CoverageSummaryCards summary={data.summary} />
 
-            {/* Domain sections */}
-            <div className="space-y-4">
-              {orderedDomains.map((domainName, index) => {
-                const cells = groupedByDomain.get(domainName) ?? [];
-                const allSubtopics = getSubtopics(domainName);
-                const freshnessDist = computeDomainFreshness(cells);
-                const totalItems = cells.reduce((sum, c) => sum + c.item_count, 0);
+            {/* Domain sections / Heatmap */}
+            {viewMode === 'cards' ? (
+              <div className="space-y-4">
+                {orderedDomains.map((domainName, index) => {
+                  const cells = groupedByDomain.get(domainName) ?? [];
+                  const allSubtopics = getSubtopics(domainName);
+                  const freshnessDist = computeDomainFreshness(cells);
+                  const totalItems = cells.reduce((sum, c) => sum + c.item_count, 0);
 
-                return (
-                  <div key={domainName}>
-                    {totalItems > 0 && (
-                      <div className="mb-1 flex justify-end px-1">
-                        <FreshnessDistributionBar dist={freshnessDist} total={totalItems} />
-                      </div>
-                    )}
-                    <CoverageDomainSection
-                      domainName={domainName}
-                      displayName={formatDomainName(domainName)}
-                      colourKey={getDomainColourKey(domainName)}
-                      cells={cells}
-                      allSubtopics={allSubtopics}
-                      defaultExpanded={index === 0}
-                      formatSubtopic={formatSubtopic}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+                  return (
+                    <div key={domainName}>
+                      {totalItems > 0 && (
+                        <div className="mb-1 flex justify-end px-1">
+                          <FreshnessDistributionBar dist={freshnessDist} total={totalItems} />
+                        </div>
+                      )}
+                      <CoverageDomainSection
+                        domainName={domainName}
+                        displayName={formatDomainName(domainName)}
+                        colourKey={getDomainColourKey(domainName)}
+                        cells={cells}
+                        allSubtopics={allSubtopics}
+                        defaultExpanded={index === 0}
+                        formatSubtopic={formatSubtopic}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <CoverageHeatmapView
+                matrix={data.matrix}
+                orderedDomains={orderedDomains}
+              />
+            )}
           </>
         )}
       </div>
