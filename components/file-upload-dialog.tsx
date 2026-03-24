@@ -575,7 +575,7 @@ export function FileUploadDialog({ open, onOpenChange }: FileUploadDialogProps) 
           <div className="flex w-full items-center justify-center border-t pt-2">
             <ClaudePromptButton
               prompt={generateIngestDocumentPrompt().prompt}
-              label="Or let Claude handle complex documents"
+              label="Open in Claude for complex documents"
               size="sm"
             />
           </div>

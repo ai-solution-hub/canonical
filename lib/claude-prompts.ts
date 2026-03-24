@@ -246,7 +246,7 @@ export function generateGuideGapPrompt(
   sectionName: string,
 ): ClaudePrompt {
   return {
-    label: 'Create with Claude',
+    label: 'Create content',
     prompt: `We need content for the "${sectionName}" section in the "${guideName}" guide. Search the KB for any related content, then help me draft material to fill this section.`,
     description: `Create content for ${sectionName}`,
     category: 'coverage',

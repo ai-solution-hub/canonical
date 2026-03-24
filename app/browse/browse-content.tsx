@@ -257,7 +257,7 @@ export function BrowseContent() {
               </Button>
               <ClaudePromptButton
                 prompt={generateIngestDocumentPrompt().prompt}
-                label="Or let Claude handle it"
+                label="Open in Claude"
                 size="sm"
               />
             </>

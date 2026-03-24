@@ -62,7 +62,7 @@ export function ClaudePromptButton({
     try {
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
-      toast.success('Prompt copied — paste into Claude to take action');
+      toast.success('Prompt copied — paste into Claude');
 
       if (openClaude) {
         window.open(CLAUDE_NEW_CHAT_URL, '_blank', 'noopener,noreferrer');
@@ -105,7 +105,7 @@ export function ClaudePromptButton({
         <TooltipContent side="bottom" className="max-w-xs">
           <p className="text-xs">
             Copies a prompt to your clipboard and opens Claude.
-            Requires the Knowledge Hub connector in Claude for full functionality.
+            Works best with the Knowledge Hub connector.
           </p>
         </TooltipContent>
       </Tooltip>

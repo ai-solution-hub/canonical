@@ -141,7 +141,7 @@ describe('FileUploadDialog', () => {
 
     const claudeBtn = screen.getByTestId('claude-prompt-button');
     expect(claudeBtn).toBeInTheDocument();
-    expect(claudeBtn).toHaveTextContent('Or let Claude handle complex documents');
+    expect(claudeBtn).toHaveTextContent('Open in Claude for complex documents');
   });
 
   it('does not show progress section when no files are processing', () => {

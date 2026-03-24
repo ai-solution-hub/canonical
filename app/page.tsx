@@ -146,7 +146,7 @@ async function DashboardContent() {
         <ContentSuggestionsSection limit={5} />
       </div>
 
-      {/* Suggested Actions for Claude */}
+      {/* Suggested Actions */}
       <div className="mt-6">
         <ClaudeActionsSection actions={generateSuggestedActions(data)} />
       </div>

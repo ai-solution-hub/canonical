@@ -552,7 +552,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
         <div className="flex items-center justify-center">
           <ClaudePromptButton
             prompt={generateIngestDocumentPrompt().prompt}
-            label="Or let Claude handle complex documents"
+            label="Open in Claude for complex documents"
             size="sm"
           />
         </div>

@@ -148,10 +148,6 @@ vi.mock('@/components/response-version-history', () => ({
   ResponseVersionHistory: () => <div data-testid="response-version-history">History</div>,
 }));
 
-vi.mock('@copilotkit/react-core', () => ({
-  useCopilotReadable: vi.fn(),
-}));
-
 vi.mock('@/components/bid-context-provider', () => ({
   BidContextProvider: ({ children, bidId }: { children: React.ReactNode; bidId: string }) => (
     <div data-testid="bid-context-provider" data-bid-id={bidId}>{children}</div>
