@@ -119,8 +119,8 @@ export function WorkspaceCreateDialog({
           </DialogTitle>
           <DialogDescription>
             {type === 'bid'
-              ? 'Create a new bid workspace.'
-              : 'Create a KB section to organise related content items.'}
+              ? 'Create a new bid to manage tender responses.'
+              : 'Create a content section to organise related items.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +181,7 @@ export function WorkspaceCreateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating...' : 'Create Workspace'}
+              {submitting ? 'Creating...' : type === 'bid' ? 'Create Bid' : 'Create Section'}
             </Button>
           </DialogFooter>
         </form>

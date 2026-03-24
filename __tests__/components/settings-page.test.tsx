@@ -24,8 +24,7 @@ const {
   mockTeamSection,
   mockGovernanceSection,
   mockActivitySection,
-  mockTaxonomySection,
-  mockTagsSection,
+  mockContentOrganisationSection,
   mockEntitiesSection,
   mockGuidesSection,
 } = vi.hoisted(() => ({
@@ -39,8 +38,7 @@ const {
   mockTeamSection: vi.fn(),
   mockGovernanceSection: vi.fn(),
   mockActivitySection: vi.fn(),
-  mockTaxonomySection: vi.fn(),
-  mockTagsSection: vi.fn(),
+  mockContentOrganisationSection: vi.fn(),
   mockEntitiesSection: vi.fn(),
   mockGuidesSection: vi.fn(),
 }));
@@ -115,17 +113,10 @@ vi.mock('@/components/settings/activity-section', () => ({
   },
 }));
 
-vi.mock('@/components/settings/taxonomy-section', () => ({
-  TaxonomySection: () => {
-    mockTaxonomySection();
-    return <div data-testid="taxonomy-section">TaxonomySection</div>;
-  },
-}));
-
-vi.mock('@/components/settings/tags-section', () => ({
-  TagsSection: () => {
-    mockTagsSection();
-    return <div data-testid="tags-section">TagsSection</div>;
+vi.mock('@/components/settings/content-organisation-section', () => ({
+  ContentOrganisationSection: () => {
+    mockContentOrganisationSection();
+    return <div data-testid="content-organisation-section">ContentOrganisationSection</div>;
   },
 }));
 
@@ -228,6 +219,28 @@ describe('SettingsPage', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('governance-section')).toBeInTheDocument();
+    });
+  });
+
+  it('reads ?section=content-organisation and renders ContentOrganisationSection for admins', async () => {
+    mockSearchParams.value = new URLSearchParams('section=content-organisation');
+    mockUseUserRole.loading = false;
+    mockUseUserRole.canAdmin = true;
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-organisation-section')).toBeInTheDocument();
+    });
+  });
+
+  it('maps legacy ?section=taxonomy to content-organisation for admins', async () => {
+    mockSearchParams.value = new URLSearchParams('section=taxonomy');
+    mockUseUserRole.loading = false;
+    mockUseUserRole.canAdmin = true;
+    render(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('content-organisation-section')).toBeInTheDocument();
     });
   });
 

@@ -10,6 +10,8 @@ import { buildAttentionItems, filterByRole } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { NeedsAttentionSection } from '@/components/dashboard/needs-attention-section';
 import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
+import Link from 'next/link';
+import { Briefcase } from 'lucide-react';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -161,6 +163,17 @@ async function DashboardContent() {
           />
         </div>
         <ActiveBidsSection bids={unified.active_bids} />
+      </div>
+
+      {/* Workspaces quick link */}
+      <div className="mt-6">
+        <Link
+          href="/workspaces"
+          className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+        >
+          <Briefcase className="size-4 shrink-0" aria-hidden="true" />
+          <span>Workspaces — use your knowledge base to power bids, proposals, and more</span>
+        </Link>
       </div>
 
       {/* Compliance Status */}

@@ -53,7 +53,7 @@ describe('WorkspaceCreateDialog', () => {
 
       expect(screen.getByText('New KB Section')).toBeInTheDocument();
       expect(
-        screen.getByText('Create a KB section to organise related content items.'),
+        screen.getByText('Create a content section to organise related items.'),
       ).toBeInTheDocument();
     });
 
