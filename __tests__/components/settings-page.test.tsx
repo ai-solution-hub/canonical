@@ -84,10 +84,12 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
     return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
-    const allSections = ['profile', 'integrations', 'taxonomy', 'tags', 'entities', 'guides', 'layers', 'team', 'governance', 'activity'];
+    const legacyMap: Record<string, string> = { taxonomy: 'content-organisation', tags: 'content-organisation', layers: 'content-organisation' };
+    const resolved = param && legacyMap[param] ? legacyMap[param] : param;
+    const allSections = ['profile', 'integrations', 'content-organisation', 'entities', 'guides', 'team', 'governance', 'activity'];
     const personalSections = ['profile', 'integrations'];
     const visible = isAdmin ? allSections : personalSections;
-    if (param && visible.includes(param)) return param;
+    if (resolved && visible.includes(resolved)) return resolved;
     return 'profile';
   },
 }));

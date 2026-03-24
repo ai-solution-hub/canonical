@@ -1,6 +1,6 @@
 'use client';
 
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Settings, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -29,20 +29,14 @@ const LazyGovernanceSection = lazy(() =>
 const LazyActivitySection = lazy(() =>
   import('@/components/settings/activity-section').then((m) => ({ default: m.ActivitySection }))
 );
-const LazyTaxonomySection = lazy(() =>
-  import('@/components/settings/taxonomy-section').then((m) => ({ default: m.TaxonomySection }))
-);
-const LazyTagsSection = lazy(() =>
-  import('@/components/settings/tags-section').then((m) => ({ default: m.TagsSection }))
+const LazyContentOrganisationSection = lazy(() =>
+  import('@/components/settings/content-organisation-section').then((m) => ({ default: m.ContentOrganisationSection }))
 );
 const LazyEntitiesSection = lazy(() =>
   import('@/components/settings/entities-section').then((m) => ({ default: m.EntitiesSection }))
 );
 const LazyGuidesSection = lazy(() =>
   import('@/components/settings/guides-section').then((m) => ({ default: m.GuidesSection }))
-);
-const LazyLayersSection = lazy(() =>
-  import('@/components/settings/layers-section').then((m) => ({ default: m.LayersSection }))
 );
 
 // ---------------------------------------------------------------------------
@@ -73,16 +67,10 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return <ProfileSection />;
     case 'integrations':
       return <IntegrationsSection />;
-    case 'taxonomy':
+    case 'content-organisation':
       return (
         <Suspense fallback={<SectionSkeleton />}>
-          <LazyTaxonomySection />
-        </Suspense>
-      );
-    case 'tags':
-      return (
-        <Suspense fallback={<SectionSkeleton />}>
-          <LazyTagsSection />
+          <LazyContentOrganisationSection />
         </Suspense>
       );
     case 'entities':
@@ -95,12 +83,6 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyGuidesSection />
-        </Suspense>
-      );
-    case 'layers':
-      return (
-        <Suspense fallback={<SectionSkeleton />}>
-          <LazyLayersSection />
         </Suspense>
       );
     case 'team':
@@ -138,6 +120,24 @@ function SettingsContent() {
   // Support both ?section= and legacy ?tab= parameters
   const sectionParam = searchParams.get('section') ?? searchParams.get('tab');
   const activeSection = getValidSection(sectionParam, canAdmin);
+
+  // Redirect legacy section URLs to content-organisation with the correct tab
+  const legacyTabMap: Record<string, string> = {
+    taxonomy: 'categories',
+    tags: 'tags',
+    layers: 'depth-levels',
+  };
+
+  useEffect(() => {
+    if (sectionParam && legacyTabMap[sectionParam]) {
+      const newParams = new URLSearchParams(searchParams.toString());
+      newParams.delete('tab');
+      newParams.set('section', 'content-organisation');
+      newParams.set('tab', legacyTabMap[sectionParam]);
+      router.replace(`/settings?${newParams.toString()}`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionParam]);
 
   function handleSectionChange(section: SettingsSection) {
     const newParams = new URLSearchParams(searchParams.toString());
