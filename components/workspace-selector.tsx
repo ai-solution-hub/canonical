@@ -41,7 +41,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
         if (itemRes.ok) setItemWorkspaces(await itemRes.json());
       } catch (err) {
         console.error('Failed to load workspaces:', err);
-        toast.error('Failed to load workspaces');
+        toast.error('Failed to load options');
       } finally {
         setLoading(false);
       }
@@ -84,7 +84,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
         } else {
           setItemWorkspaces((prev) => prev.filter((p) => p.id !== workspace.id));
         }
-        toast.error(`Failed to ${action} workspace`);
+        toast.error(`Failed to ${action} item`);
       }
     },
     [itemId, isAssigned],
@@ -101,7 +101,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
       });
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to create workspace');
+        throw new Error(data.error || 'Failed to create');
       }
       const newWorkspace: Workspace = await res.json();
       setAllWorkspaces((prev) => [...prev, newWorkspace].sort((a, b) => a.name.localeCompare(b.name)));
@@ -109,7 +109,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
       setSearch('');
       toast(`Created and assigned "${newWorkspace.name}"`, { duration: 2000 });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create workspace');
+      toast.error(err instanceof Error ? err.message : 'Failed to create');
     } finally {
       setCreating(false);
     }
@@ -127,7 +127,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
   return (
     <div className={cn('flex flex-col gap-2', className)}>
       <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-        Workspaces
+        Assign to...
       </h2>
 
       {/* Assigned workspace badges */}
@@ -163,14 +163,14 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
             className="h-7 w-fit gap-1.5 border-dashed text-xs text-muted-foreground"
           >
             <FolderOpen className="size-3.5" />
-            {itemWorkspaces.length === 0 ? 'Add to workspace' : 'Manage workspaces'}
+            {itemWorkspaces.length === 0 ? 'Assign to...' : 'Manage assignments'}
             <ChevronsUpDown className="size-3 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-64 p-2">
           <Input
             ref={inputRef}
-            placeholder="Search or create workspace..."
+            placeholder="Search or create..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -226,7 +226,7 @@ export function WorkspaceSelector({ itemId, className }: WorkspaceSelectorProps)
                 )}
                 {filtered.length === 0 && !showCreateOption && (
                   <p className="px-2 py-3 text-center text-xs text-muted-foreground">
-                    No workspaces found. Try a different name.
+                    No matches found. Try a different name.
                   </p>
                 )}
               </>

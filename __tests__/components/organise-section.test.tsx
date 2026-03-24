@@ -84,7 +84,7 @@ describe('OrganiseSection', () => {
     render(<OrganiseSection {...defaultProps()} />);
     expect(screen.getByText('Organise')).toBeInTheDocument();
     expect(screen.getByText('Add keywords')).toBeInTheDocument();
-    expect(screen.getByText('Add to workspace')).toBeInTheDocument();
+    expect(screen.getByText('Assign to...')).toBeInTheDocument();
     expect(screen.getByText('Add tags')).toBeInTheDocument();
   });
 
@@ -155,7 +155,7 @@ describe('OrganiseSection', () => {
         {...defaultProps({ keywords: ['security'] })}
       />,
     );
-    expect(screen.getByText('Add to workspace')).toBeInTheDocument();
+    expect(screen.getByText('Assign to...')).toBeInTheDocument();
     expect(screen.getByText('Add tags')).toBeInTheDocument();
   });
 });

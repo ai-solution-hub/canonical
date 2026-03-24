@@ -61,10 +61,10 @@ describe('WorkspaceSelector', () => {
   beforeEach(() => { vi.clearAllMocks(); });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it('renders "Add to workspace" button when no workspaces assigned', () => {
+  it('renders "Assign to..." button when no workspaces assigned', () => {
     setupFetch();
     render(<WorkspaceSelector itemId="item-1" />);
-    expect(screen.getByRole('button', { name: /add to workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /assign to/i })).toBeInTheDocument();
   });
 
   it('renders assigned workspace badges after fetching', async () => {
@@ -73,7 +73,7 @@ describe('WorkspaceSelector', () => {
     render(<WorkspaceSelector itemId="item-1" />);
 
     // Open popover to trigger fetch
-    const trigger = screen.getByRole('button', { name: /manage workspaces|add to workspace/i });
+    const trigger = screen.getByRole('button', { name: /manage assignments|assign to/i });
     await user.click(trigger);
 
     await waitFor(() => {
@@ -92,9 +92,9 @@ describe('WorkspaceSelector', () => {
     setupFetch();
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/search or create workspace/i)).toBeInTheDocument();
+      expect(screen.getByPlaceholderText(/search or create/i)).toBeInTheDocument();
     });
   });
 
@@ -103,7 +103,7 @@ describe('WorkspaceSelector', () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise(() => {})));
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
     await waitFor(() => {
       expect(screen.getByText('Loading...')).toBeInTheDocument();
     });
@@ -113,7 +113,7 @@ describe('WorkspaceSelector', () => {
     setupFetch();
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe('WorkspaceSelector', () => {
     setupFetch();
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Bid Alpha')).toBeInTheDocument();
@@ -151,7 +151,7 @@ describe('WorkspaceSelector', () => {
     render(<WorkspaceSelector itemId="item-1" />);
 
     // Open popover to trigger workspace fetch
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
       expect(screen.getByLabelText('Remove from Bid Alpha')).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe('WorkspaceSelector', () => {
     const user = userEvent.setup();
     render(<WorkspaceSelector itemId="item-1" />);
 
-    await user.click(screen.getByRole('button', { name: /add to workspace/i }));
+    await user.click(screen.getByRole('button', { name: /assign to/i }));
 
     await waitFor(() => {
       expect(screen.getByText('Bid Alpha')).toBeInTheDocument();

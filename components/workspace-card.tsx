@@ -44,7 +44,7 @@ export function WorkspaceCard({
         type="button"
         onClick={() => onEdit(workspace)}
         className="flex flex-1 flex-col gap-2 p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset rounded-t-lg"
-        aria-label={`Open workspace: ${workspace.name}`}
+        aria-label={`Open ${workspace.name}`}
       >
         {/* Header row: icon + name + type badge */}
         <div className="flex items-start justify-between gap-2">

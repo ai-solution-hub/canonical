@@ -60,7 +60,7 @@ export function OrganiseSection({
     emptyCategories.push({ label: 'Add keywords', icon: <Hash className="size-3" />, key: 'keywords' });
   }
   if (!hasWorkspaces) {
-    emptyCategories.push({ label: 'Add to workspace', icon: <FolderOpen className="size-3" />, key: 'workspaces' });
+    emptyCategories.push({ label: 'Assign to...', icon: <FolderOpen className="size-3" />, key: 'workspaces' });
   }
   if (!hasTags) {
     emptyCategories.push({ label: 'Add tags', icon: <Tag className="size-3" />, key: 'tags' });
