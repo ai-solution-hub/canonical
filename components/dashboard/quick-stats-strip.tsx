@@ -39,7 +39,7 @@ export function QuickStatsStrip({
   return (
     <section
       aria-label="Content health"
-      className="rounded-lg border border-border bg-card px-4 py-3"
+      className="rounded-lg border border-border bg-muted/60 px-4 py-3"
     >
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Content Health
@@ -60,7 +60,7 @@ export function QuickStatsStrip({
           label={activeBidCount === 1 ? 'Active bid' : 'Active bids'}
           value={activeBidCount}
         />
-        <StatItem label="Unread" value={unreadNotificationCount} />
+        <StatItem label="Unread notifications" value={unreadNotificationCount} />
       </div>
     </section>
   );
