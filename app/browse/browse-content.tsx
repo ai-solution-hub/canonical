@@ -28,6 +28,7 @@ import { useViewMode } from '@/hooks/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBrowseData } from '@/hooks/use-browse-data';
+import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
 import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
@@ -62,6 +63,8 @@ export function BrowseContent() {
     setSearchQuery,
     isSearchMode,
     searchError,
+    updateItemLocally,
+    updateQualityFlag,
   } = useBrowseData();
 
   // Trigger lazy loading of read marks counts for this page
@@ -225,6 +228,19 @@ export function BrowseContent() {
     localStorage.setItem('kb-hide-thumbnails', String(next));
   }, [hideThumbnails]);
 
+  // Quick review: bridge optimistic updates to local browse data
+  const handleQuickReviewUpdate: OnOptimisticUpdate = useCallback(
+    (itemId, updates) => {
+      if ('verified_at' in updates) {
+        updateItemLocally(itemId, { verified_at: updates.verified_at });
+      }
+      if ('hasQualityFlag' in updates) {
+        updateQualityFlag(itemId, updates.hasQualityFlag ?? false);
+      }
+    },
+    [updateItemLocally, updateQualityFlag],
+  );
+
   return (
     <section aria-label="Browse content" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
@@ -383,6 +399,8 @@ export function BrowseContent() {
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectItem}
                 hideThumbnails={hideThumbnails}
+                canEdit={canEdit}
+                onQuickReviewUpdate={handleQuickReviewUpdate}
               />
             ) : (
               <ContentList
@@ -393,6 +411,8 @@ export function BrowseContent() {
                 multiSelectMode={multiSelectMode}
                 selectedIds={selectedIds}
                 onToggleSelect={toggleSelectItem}
+                canEdit={canEdit}
+                onQuickReviewUpdate={handleQuickReviewUpdate}
               />
             )}
           </div>

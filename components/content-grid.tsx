@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentCard } from '@/components/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
 
 const MIN_CARD_WIDTH = 280;
 const ESTIMATED_ROW_HEIGHT = 380;
@@ -25,6 +26,10 @@ interface ContentGridProps {
   onToggleSelect?: (itemId: string) => void;
   hideThumbnails?: boolean;
   highlightQuery?: string;
+  /** Whether the current user can edit (editor/admin). Enables quick review actions. */
+  canEdit?: boolean;
+  /** Callback for optimistic item state updates (verify/flag actions) */
+  onQuickReviewUpdate?: OnOptimisticUpdate;
 }
 
 export function ContentGrid({
@@ -37,6 +42,8 @@ export function ContentGrid({
   onToggleSelect,
   hideThumbnails,
   highlightQuery,
+  canEdit,
+  onQuickReviewUpdate,
 }: ContentGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
@@ -222,6 +229,8 @@ export function ContentGrid({
                 hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                 hideThumbnail={hideThumbnails}
                 highlightQuery={highlightQuery}
+                canEdit={canEdit}
+                onQuickReviewUpdate={onQuickReviewUpdate}
               />
             </div>
           );
@@ -325,6 +334,8 @@ export function ContentGrid({
                       hasQualityFlag={qualityFlaggedIds ? qualityFlaggedIds.has(item.id) : undefined}
                       hideThumbnail={hideThumbnails}
                       highlightQuery={highlightQuery}
+                      canEdit={canEdit}
+                      onQuickReviewUpdate={onQuickReviewUpdate}
                     />
                   </div>
                   );

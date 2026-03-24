@@ -47,6 +47,10 @@ export interface UseBrowseDataReturn {
   isSearchMode: boolean;
   /** Search error message, if any */
   searchError: string | null;
+  /** Optimistically update a single item's fields in local state */
+  updateItemLocally: (itemId: string, updates: Partial<ContentListItem>) => void;
+  /** Optimistically toggle a quality flag for an item */
+  updateQualityFlag: (itemId: string, flagged: boolean) => void;
 }
 
 /** Apply Browse filters as client-side post-filters on search results. */
@@ -655,6 +659,34 @@ export function useBrowseData(): UseBrowseDataReturn {
     isLoadingMore,
   ]);
 
+  /** Optimistically update a single item's fields in the local items array */
+  const updateItemLocally = useCallback(
+    (itemId: string, updates: Partial<ContentListItem>) => {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === itemId ? { ...item, ...updates } : item,
+        ),
+      );
+    },
+    [],
+  );
+
+  /** Optimistically toggle a quality flag for an item */
+  const updateQualityFlag = useCallback(
+    (itemId: string, flagged: boolean) => {
+      setQualityFlaggedIds((prev) => {
+        const next = new Set(prev);
+        if (flagged) {
+          next.add(itemId);
+        } else {
+          next.delete(itemId);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   return {
     items,
     totalCount,
@@ -673,5 +705,7 @@ export function useBrowseData(): UseBrowseDataReturn {
     clearSearchQuery,
     isSearchMode,
     searchError,
+    updateItemLocally,
+    updateQualityFlag,
   };
 }

@@ -23,6 +23,8 @@ import { isFeatureEnabled } from '@/lib/client-config';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import { QuickReviewActions } from '@/components/quick-review-actions';
 
 // ---------------------------------------------------------------------------
 // Internal helpers and sub-components
@@ -201,11 +203,12 @@ function CardStatusRow({ item, hasQualityFlag, children }: {
   );
 }
 
-/** Card footer: badges row, author, content type line, status row (shared by compact + standard) */
-function CardFooter({ item, hasQualityFlag, badgeSlot }: {
+/** Card footer: badges row, action bar, author, content type line, status row (shared by compact + standard) */
+function CardFooter({ item, hasQualityFlag, badgeSlot, actionSlot }: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
   badgeSlot?: React.ReactNode;
+  actionSlot?: React.ReactNode;
 }) {
   return (
     <div className="mt-auto flex flex-col gap-1.5 pt-1">
@@ -217,6 +220,11 @@ function CardFooter({ item, hasQualityFlag, badgeSlot }: {
           </span>
         )}
       </div>
+      {actionSlot && (
+        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+          {actionSlot}
+        </div>
+      )}
       {item.author_name && (
         <span className="truncate text-xs font-medium text-foreground">{item.author_name}</span>
       )}
@@ -242,9 +250,13 @@ interface ContentCardProps {
   hasQualityFlag?: boolean;
   hideThumbnail?: boolean;
   highlightQuery?: string;
+  /** Whether the current user can edit (editor/admin). Enables quick review actions. */
+  canEdit?: boolean;
+  /** Callback for optimistic item state updates (verify/flag actions) */
+  onQuickReviewUpdate?: OnOptimisticUpdate;
 }
 
-export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, onQuickReviewUpdate }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
@@ -270,6 +282,18 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     borderLeftColor: `var(--domain-${colourKey}-text)`,
   });
 
+  // Quick review action slot — only rendered for editors/admins
+  const actionSlot = canEdit ? (
+    <QuickReviewActions
+      itemId={item.id}
+      itemTitle={title}
+      verifiedAt={item.verified_at}
+      hasQualityFlag={hasQualityFlag}
+      onOptimisticUpdate={onQuickReviewUpdate}
+      canEdit={canEdit}
+    />
+  ) : null;
+
   // --- Q&A PAIR CARD ---
   if (isQAPair) {
     return (
@@ -291,6 +315,11 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           )}
           <div className="mt-auto flex flex-col gap-1.5 pt-1">
             <ContentTypeLine item={item} />
+            {actionSlot && (
+              <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                {actionSlot}
+              </div>
+            )}
             <CardStatusRow item={item} hasQualityFlag={hasQualityFlag}>
               {answerPreview && (
                 <button
@@ -329,7 +358,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           <CardHeaderRow item={item} isRead={isRead} />
           <CardTitle title={title} priority={item.priority} renderText={renderText} />
           <SummaryPreview item={item} renderText={renderText} />
-          <CardFooter item={item} hasQualityFlag={hasQualityFlag} />
+          <CardFooter item={item} hasQualityFlag={hasQualityFlag} actionSlot={actionSlot} />
         </div>
       </Link>
     );
@@ -359,6 +388,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           item={item}
           hasQualityFlag={hasQualityFlag}
           badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge metadata={item.metadata} /></>}
+          actionSlot={actionSlot}
         />
       </div>
     </Link>

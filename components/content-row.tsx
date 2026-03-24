@@ -19,6 +19,8 @@ import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import type { ContentListItem, SearchResult } from '@/types/content';
+import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import { QuickReviewActions } from '@/components/quick-review-actions';
 
 interface ContentRowProps {
   item: ContentListItem | SearchResult;
@@ -26,6 +28,10 @@ interface ContentRowProps {
   isRead?: boolean;
   hasQualityFlag?: boolean;
   highlightQuery?: string;
+  /** Whether the current user can edit. Enables quick review actions. */
+  canEdit?: boolean;
+  /** Callback for optimistic item state updates */
+  onQuickReviewUpdate?: OnOptimisticUpdate;
 }
 
 function isSearchResult(
@@ -40,6 +46,8 @@ export const ContentRow = memo(function ContentRow({
   isRead,
   hasQualityFlag,
   highlightQuery,
+  canEdit,
+  onQuickReviewUpdate,
 }: ContentRowProps) {
   const { getDomainColourKey } = useTaxonomy();
   const { getLayerLabel } = useLayerVocabulary();
@@ -166,6 +174,18 @@ export const ContentRow = memo(function ContentRow({
             <Copy className="size-3.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
           </button>
         )}
+        {canEdit && (
+          <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100">
+            <QuickReviewActions
+              itemId={item.id}
+              itemTitle={getDisplayTitle(item)}
+              verifiedAt={item.verified_at}
+              hasQualityFlag={hasQualityFlag}
+              onOptimisticUpdate={onQuickReviewUpdate}
+              canEdit={canEdit}
+            />
+          </span>
+        )}
         <StarButton
           itemId={item.id}
           starred={item.metadata?.starred === true}
@@ -265,6 +285,18 @@ export const ContentRow = memo(function ContentRow({
       >
         {formatDate(item.captured_date)}
       </time>
+      {canEdit && (
+        <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100">
+          <QuickReviewActions
+            itemId={item.id}
+            itemTitle={getDisplayTitle(item)}
+            verifiedAt={item.verified_at}
+            hasQualityFlag={hasQualityFlag}
+            onOptimisticUpdate={onQuickReviewUpdate}
+            canEdit={canEdit}
+          />
+        </span>
+      )}
       <StarButton
         itemId={item.id}
         starred={item.metadata?.starred === true}
