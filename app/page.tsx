@@ -108,7 +108,10 @@ async function DashboardContent() {
 
   // Build attention items from unified source data.
   // roleItems is ready for Wave 4 (UnifiedAttentionSection).
-  const allItems = buildAttentionItems(unified.attention_sources);
+  const allItems = buildAttentionItems({
+    ...unified.attention_sources,
+    active_bids: unified.active_bids,
+  });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const roleItems = filterByRole(allItems, unified.user_role);
 
