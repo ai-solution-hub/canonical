@@ -39,7 +39,7 @@ function buildBreakdown(components: QualityScoreResult['components']): string {
     `Completeness: ${components.completeness}/20`,
     `Summary: ${components.summary}/15`,
     `Citations: ${components.citations}/15`,
-  ].join(', ');
+  ].join('\n');
 }
 
 // ---------------------------------------------------------------------------

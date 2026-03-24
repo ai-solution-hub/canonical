@@ -343,11 +343,13 @@ export function BrowseContent() {
                 <Upload className="size-3.5" />
                 Upload
               </Button>
-              <ClaudePromptButton
-                prompt={generateIngestDocumentPrompt().prompt}
-                label="Open in Claude"
-                size="sm"
-              />
+              <span className="hidden md:inline-flex">
+                <ClaudePromptButton
+                  prompt={generateIngestDocumentPrompt().prompt}
+                  label="Open in Claude"
+                  size="sm"
+                />
+              </span>
             </>
           )}
           <FilterBar

@@ -111,11 +111,11 @@ describe('QualityBadge', () => {
       summary: 15,
       citations: 6,
     });
-    render(<QualityBadge score={score} />);
-    const badge = screen.getByLabelText(
-      'Quality score: 75 out of 100 — Good. Freshness: 30/30, Confidence: 16/20, Completeness: 13/20, Summary: 15/15, Citations: 6/15',
+    const { container } = render(<QualityBadge score={score} />);
+    const badge = container.firstElementChild!;
+    expect(badge.getAttribute('aria-label')).toBe(
+      'Quality score: 75 out of 100 — Good. Freshness: 30/30\nConfidence: 16/20\nCompleteness: 13/20\nSummary: 15/15\nCitations: 6/15',
     );
-    expect(badge).toBeInTheDocument();
   });
 
   it('has a title attribute with the component breakdown', () => {
@@ -129,7 +129,7 @@ describe('QualityBadge', () => {
     const { container } = render(<QualityBadge score={score} />);
     const badge = container.firstElementChild!;
     expect(badge.getAttribute('title')).toBe(
-      'Freshness: 18/30, Confidence: 10/20, Completeness: 7/20, Summary: 15/15, Citations: 0/15',
+      'Freshness: 18/30\nConfidence: 10/20\nCompleteness: 7/20\nSummary: 15/15\nCitations: 0/15',
     );
   });
 
