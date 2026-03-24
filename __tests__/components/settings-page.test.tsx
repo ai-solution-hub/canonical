@@ -18,7 +18,7 @@ const {
   mockSearchParams,
   mockUseUserRole,
   mockProfileSection,
-  mockIntegrationsSection,
+  mockConnectionsSection,
   mockSettingsSidebar,
   mockSettingsMobileSidebar,
   mockTeamSection,
@@ -28,12 +28,13 @@ const {
   mockTagsSection,
   mockEntitiesSection,
   mockGuidesSection,
+  mockDeveloperSetupSection,
 } = vi.hoisted(() => ({
   mockRouter: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn().mockResolvedValue(undefined) },
   mockSearchParams: { value: new URLSearchParams() },
   mockUseUserRole: { loading: false, canAdmin: false, canEdit: false, role: 'viewer' as string | null },
   mockProfileSection: vi.fn(),
-  mockIntegrationsSection: vi.fn(),
+  mockConnectionsSection: vi.fn(),
   mockSettingsSidebar: vi.fn(),
   mockSettingsMobileSidebar: vi.fn(),
   mockTeamSection: vi.fn(),
@@ -43,6 +44,7 @@ const {
   mockTagsSection: vi.fn(),
   mockEntitiesSection: vi.fn(),
   mockGuidesSection: vi.fn(),
+  mockDeveloperSetupSection: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -62,10 +64,10 @@ vi.mock('@/components/settings/profile-section', () => ({
   },
 }));
 
-vi.mock('@/components/settings/integrations-section', () => ({
-  IntegrationsSection: () => {
-    mockIntegrationsSection();
-    return <div data-testid="integrations-section">IntegrationsSection</div>;
+vi.mock('@/components/settings/connections-section', () => ({
+  ConnectionsSection: () => {
+    mockConnectionsSection();
+    return <div data-testid="connections-section">ConnectionsSection</div>;
   },
 }));
 
@@ -84,10 +86,12 @@ vi.mock('@/components/settings/settings-sidebar', () => ({
     return <div data-testid="mobile-sidebar" data-admin={isAdmin} data-active={activeSection} />;
   },
   getValidSection: (param: string | null, isAdmin: boolean) => {
-    const allSections = ['profile', 'integrations', 'taxonomy', 'tags', 'entities', 'guides', 'layers', 'team', 'governance', 'activity'];
-    const personalSections = ['profile', 'integrations'];
+    // Legacy redirect: integrations → connections
+    const resolvedParam = param === 'integrations' ? 'connections' : param;
+    const allSections = ['profile', 'connections', 'taxonomy', 'tags', 'entities', 'guides', 'layers', 'team', 'governance', 'activity', 'developer-setup'];
+    const personalSections = ['profile', 'connections'];
     const visible = isAdmin ? allSections : personalSections;
-    if (param && visible.includes(param)) return param;
+    if (resolvedParam && visible.includes(resolvedParam)) return resolvedParam;
     return 'profile';
   },
 }));
@@ -141,6 +145,13 @@ vi.mock('@/components/settings/guides-section', () => ({
   },
 }));
 
+vi.mock('@/components/settings/developer-setup-section', () => ({
+  DeveloperSetupSection: () => {
+    mockDeveloperSetupSection();
+    return <div data-testid="developer-setup-section">DeveloperSetupSection</div>;
+  },
+}));
+
 import SettingsPage from '@/app/settings/page';
 
 // ---------------------------------------------------------------------------
@@ -181,7 +192,7 @@ describe('SettingsPage', () => {
       expect(screen.getByText('Settings')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Manage your profile and integrations')).toBeInTheDocument();
+    expect(screen.getByText('Manage your profile and connections')).toBeInTheDocument();
     expect(screen.getByTestId('profile-section')).toBeInTheDocument();
   });
 

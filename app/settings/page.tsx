@@ -6,7 +6,7 @@ import { Settings, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useUserRole } from '@/hooks/use-user-role';
 import { ProfileSection } from '@/components/settings/profile-section';
-import { IntegrationsSection } from '@/components/settings/integrations-section';
+import { ConnectionsSection } from '@/components/settings/connections-section';
 import {
   SettingsSidebar,
   SettingsMobileSidebar,
@@ -44,6 +44,9 @@ const LazyGuidesSection = lazy(() =>
 const LazyLayersSection = lazy(() =>
   import('@/components/settings/layers-section').then((m) => ({ default: m.LayersSection }))
 );
+const LazyDeveloperSetupSection = lazy(() =>
+  import('@/components/settings/developer-setup-section').then((m) => ({ default: m.DeveloperSetupSection }))
+);
 
 // ---------------------------------------------------------------------------
 // Section loading skeleton — shown briefly while a lazy section chunk loads
@@ -71,8 +74,14 @@ function SectionContent({ section }: { section: SettingsSection }) {
   switch (section) {
     case 'profile':
       return <ProfileSection />;
-    case 'integrations':
-      return <IntegrationsSection />;
+    case 'connections':
+      return <ConnectionsSection />;
+    case 'developer-setup':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyDeveloperSetupSection />
+        </Suspense>
+      );
     case 'taxonomy':
       return (
         <Suspense fallback={<SectionSkeleton />}>
@@ -164,7 +173,7 @@ function SettingsContent() {
           <p className="text-sm text-muted-foreground">
             {canAdmin
               ? 'Manage your profile and system configuration'
-              : 'Manage your profile and integrations'}
+              : 'Manage your profile and connections'}
           </p>
         </div>
         <SettingsMobileSidebar

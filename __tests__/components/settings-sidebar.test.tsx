@@ -56,9 +56,9 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
 
-    // All 9 section buttons should be present
+    // All 11 section buttons should be present
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
-    expect(within(nav).getByText('Integrations')).toBeInTheDocument();
+    expect(within(nav).getByText('Connections')).toBeInTheDocument();
     expect(within(nav).getByText('Categories')).toBeInTheDocument();
     expect(within(nav).getByText('Tags')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
@@ -66,6 +66,7 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Team')).toBeInTheDocument();
     expect(within(nav).getByText('Quality Review')).toBeInTheDocument();
     expect(within(nav).getByText('Activity')).toBeInTheDocument();
+    expect(within(nav).getByText('Developer Setup')).toBeInTheDocument();
   });
 
   it('shows only Personal group for non-admin users', () => {
@@ -80,12 +81,13 @@ describe('SettingsSidebar', () => {
     const nav = screen.getAllByLabelText('Settings navigation')[0];
     expect(within(nav).getByText('Personal')).toBeInTheDocument();
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
-    expect(within(nav).getByText('Integrations')).toBeInTheDocument();
+    expect(within(nav).getByText('Connections')).toBeInTheDocument();
 
     // Admin-only groups should not be present
     expect(within(nav).queryByText('Content Management')).not.toBeInTheDocument();
     expect(within(nav).queryByText('System')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Team')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Developer Setup')).not.toBeInTheDocument();
   });
 
   it('highlights the active section with aria-current="page"', () => {
@@ -124,6 +126,21 @@ describe('SettingsSidebar', () => {
     // (it has 2 sections, so it renders). Instead test getValidSection.
     const result = getValidSection('team', false);
     expect(result).toBe('profile'); // team is not visible for non-admin, falls back
+  });
+
+  it('redirects legacy "integrations" param to "connections"', () => {
+    const result = getValidSection('integrations', false);
+    expect(result).toBe('connections');
+  });
+
+  it('resolves "developer-setup" for admin users', () => {
+    const result = getValidSection('developer-setup', true);
+    expect(result).toBe('developer-setup');
+  });
+
+  it('falls back to profile for "developer-setup" when non-admin', () => {
+    const result = getValidSection('developer-setup', false);
+    expect(result).toBe('profile');
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Tags, Menu, Plug, Network, BookOpen, Layers } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Tags, Menu, Plug, Terminal, Network, BookOpen, Layers } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
 
 export type SettingsSection =
   | 'profile'
-  | 'integrations'
+  | 'connections'
   | 'taxonomy'
   | 'tags'
   | 'entities'
@@ -27,7 +27,8 @@ export type SettingsSection =
   | 'layers'
   | 'team'
   | 'governance'
-  | 'activity';
+  | 'activity'
+  | 'developer-setup';
 
 interface SectionDef {
   id: SettingsSection;
@@ -38,7 +39,7 @@ interface SectionDef {
 
 const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
-  { id: 'integrations', label: 'Integrations', icon: Plug, group: 'personal' },
+  { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
   { id: 'taxonomy', label: 'Categories', icon: FolderTree, group: 'content' },
   { id: 'tags', label: 'Tags', icon: Tags, group: 'content' },
   { id: 'entities', label: 'Organisations & People', icon: Network, group: 'content' },
@@ -47,6 +48,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
   { id: 'governance', label: 'Quality Review', icon: ShieldCheck, group: 'system' },
   { id: 'activity', label: 'Activity', icon: Activity, group: 'system' },
+  { id: 'developer-setup', label: 'Developer Setup', icon: Terminal, group: 'system' },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -70,8 +72,10 @@ export function getValidSection(
   param: string | null,
   isAdmin: boolean,
 ): SettingsSection {
+  // Legacy redirect: integrations → connections
+  const resolvedParam = param === 'integrations' ? 'connections' : param;
   const visible = getVisibleSections(isAdmin);
-  const match = visible.find((s) => s.id === param);
+  const match = visible.find((s) => s.id === resolvedParam);
   return match?.id ?? 'profile';
 }
 
