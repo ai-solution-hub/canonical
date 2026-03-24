@@ -56,11 +56,10 @@ describe('SettingsSidebar', () => {
     expect(within(nav).getByText('Content Management')).toBeInTheDocument();
     expect(within(nav).getByText('System')).toBeInTheDocument();
 
-    // All 9 section buttons should be present
+    // All 8 section buttons should be present (taxonomy+tags+layers merged into Content Organisation)
     expect(within(nav).getByText('Profile')).toBeInTheDocument();
     expect(within(nav).getByText('Integrations')).toBeInTheDocument();
-    expect(within(nav).getByText('Categories')).toBeInTheDocument();
-    expect(within(nav).getByText('Tags')).toBeInTheDocument();
+    expect(within(nav).getByText('Content Organisation')).toBeInTheDocument();
     expect(within(nav).getByText('Organisations & People')).toBeInTheDocument();
     expect(within(nav).getByText('Guides')).toBeInTheDocument();
     expect(within(nav).getByText('Team')).toBeInTheDocument();
