@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,20 +115,25 @@ export function ExpiringContentSection({
           Date.now() + 30 * 24 * 60 * 60 * 1000,
         ).toISOString();
 
-        const response = await fetch(
-          `/api/items?expiry_before=${encodeURIComponent(thirtyDaysFromNow)}&has_expiry=true&archived=false&limit=20`,
-        );
+        const supabase = createClient();
+        const { data, error: queryError } = await supabase
+          .from('content_items')
+          .select('id, title, expiry_date, primary_domain')
+          .is('archived_at', null)
+          .not('expiry_date', 'is', null)
+          .lte('expiry_date', thirtyDaysFromNow)
+          .order('expiry_date', { ascending: true })
+          .limit(20);
 
-        if (!response.ok) {
+        if (queryError) {
           throw new Error('Failed to load expiring content data');
         }
 
-        const data = await response.json();
-        const expiringItems: ExpiringItem[] = (data.items ?? data ?? [])
-          .filter((item: ExpiringItem) => item.expiry_date)
+        const expiringItems: ExpiringItem[] = (data ?? [])
+          .filter((item) => item.expiry_date)
           .sort(
-            (a: ExpiringItem, b: ExpiringItem) =>
-              new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime(),
+            (a, b) =>
+              new Date(a.expiry_date!).getTime() - new Date(b.expiry_date!).getTime(),
           );
 
         if (!cancelled) {

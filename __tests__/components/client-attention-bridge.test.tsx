@@ -3,14 +3,38 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { ClientAttentionBridge } from '@/components/dashboard/client-attention-bridge';
 
 // ---------------------------------------------------------------------------
-// Mock fetch for client-side data loading
+// Mock fetch for ComplianceStatusSection + Supabase for ExpiringContentSection
 // ---------------------------------------------------------------------------
 
 const mockFetch = vi.fn();
+const mockSupabaseSelect = vi.fn();
+
+vi.mock('@/lib/supabase/client', () => ({
+  createClient: () => ({
+    from: () => ({
+      select: (...args: unknown[]) => {
+        const result = mockSupabaseSelect(...args);
+        return {
+          is: () => ({
+            not: () => ({
+              lte: () => ({
+                order: () => ({
+                  limit: () => Promise.resolve(result),
+                }),
+              }),
+            }),
+          }),
+        };
+      },
+    }),
+  }),
+}));
 
 beforeEach(() => {
   vi.restoreAllMocks();
   mockFetch.mockReset();
+  mockSupabaseSelect.mockReset();
+  mockSupabaseSelect.mockReturnValue({ data: [], error: null });
   global.fetch = mockFetch;
 });
 
@@ -105,34 +129,24 @@ describe('ClientAttentionBridge', () => {
   it('passes expiring content count from ExpiringContentSection to NeedsAttentionSection', async () => {
     const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
 
-    mockFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/certifications') {
-        return {
-          ok: true,
-          json: async () => ({
-            certifications: [],
-            frameworks: [],
-            registrations: [],
-            summary: {
-              total_certifications: 0,
-              valid: 0,
-              expiring_soon: 0,
-              expired: 0,
-              unknown: 0,
-            },
-          }),
-        };
-      }
-      // ExpiringContentSection fetches /api/items with expiry params
-      return {
-        ok: true,
-        json: async () => ({
-          items: [
-            { id: 'item-1', title: 'Test Item', expiry_date: futureDate, primary_domain: 'Security' },
-            { id: 'item-2', title: 'Test Item 2', expiry_date: futureDate, primary_domain: 'HR' },
-          ],
-        }),
-      };
+    // ComplianceStatusSection uses fetch
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        certifications: [],
+        frameworks: [],
+        registrations: [],
+        summary: { total_certifications: 0, valid: 0, expiring_soon: 0, expired: 0, unknown: 0 },
+      }),
+    });
+
+    // ExpiringContentSection now uses Supabase client directly
+    mockSupabaseSelect.mockReturnValue({
+      data: [
+        { id: 'item-1', title: 'Test Item', expiry_date: futureDate, primary_domain: 'Security' },
+        { id: 'item-2', title: 'Test Item 2', expiry_date: futureDate, primary_domain: 'HR' },
+      ],
+      error: null,
     });
 
     render(
@@ -151,32 +165,23 @@ describe('ClientAttentionBridge', () => {
   it('combines server-side and client-side counts in the total', async () => {
     const futureDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString();
 
-    mockFetch.mockImplementation(async (url: string) => {
-      if (url === '/api/certifications') {
-        return {
-          ok: true,
-          json: async () => ({
-            certifications: [],
-            frameworks: [],
-            registrations: [],
-            summary: {
-              total_certifications: 1,
-              valid: 0,
-              expiring_soon: 1,
-              expired: 0,
-              unknown: 0,
-            },
-          }),
-        };
-      }
-      return {
-        ok: true,
-        json: async () => ({
-          items: [
-            { id: 'item-1', title: 'Test Item', expiry_date: futureDate, primary_domain: null },
-          ],
-        }),
-      };
+    // ComplianceStatusSection uses fetch
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        certifications: [],
+        frameworks: [],
+        registrations: [],
+        summary: { total_certifications: 1, valid: 0, expiring_soon: 1, expired: 0, unknown: 0 },
+      }),
+    });
+
+    // ExpiringContentSection uses Supabase client directly
+    mockSupabaseSelect.mockReturnValue({
+      data: [
+        { id: 'item-1', title: 'Test Item', expiry_date: futureDate, primary_domain: null },
+      ],
+      error: null,
     });
 
     render(
