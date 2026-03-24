@@ -28,8 +28,8 @@ describe('SearchBar', () => {
     expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
   });
 
-  it('shows same placeholder regardless of totalCount', () => {
-    render(<SearchBar totalCount={192} />);
+  it('shows same placeholder for all variants', () => {
+    render(<SearchBar variant="hero" />);
     expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
   });
 

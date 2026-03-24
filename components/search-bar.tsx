@@ -31,7 +31,6 @@ function addRecentSearch(query: string) {
 interface SearchBarProps {
   variant?: 'hero' | 'compact';
   defaultValue?: string;
-  totalCount?: number;
   autoFocus?: boolean;
 }
 

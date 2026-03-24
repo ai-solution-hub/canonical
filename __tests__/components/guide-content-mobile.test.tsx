@@ -223,6 +223,9 @@ describe('GuideContent — mobile sidebar', () => {
   // -------------------------------------------------------------------------
 
   it('renders guide info with type, domain, sections count, and published status', async () => {
+    // Guide Info is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata({
       guide_type: 'product',
       domain_filter: 'Corporate',
@@ -265,6 +268,9 @@ describe('GuideContent — mobile sidebar', () => {
   });
 
   it('shows "No" for unpublished guides', async () => {
+    // Guide Info is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata({ is_published: false });
     const sections = [createSection()];
 
@@ -285,6 +291,9 @@ describe('GuideContent — mobile sidebar', () => {
   // -------------------------------------------------------------------------
 
   it('does not render Related Guides section when there are no related guides', async () => {
+    // Guide Info is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata();
     const sections = [createSection()];
 
@@ -315,6 +324,9 @@ describe('GuideContent — mobile sidebar', () => {
   // -------------------------------------------------------------------------
 
   it('wraps mobile sidebar in a div with lg:hidden class containing a <details> element', async () => {
+    // Mobile accordion is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata();
     const sections = [createSection()];
 
@@ -327,7 +339,7 @@ describe('GuideContent — mobile sidebar', () => {
     });
 
     // Find the <summary> element with the accordion text
-    const summary = screen.getByText('Guide details & related guides');
+    const summary = screen.getByText('Guide details');
     expect(summary.tagName).toBe('SUMMARY');
 
     // The <details> is the parent of <summary>
@@ -369,6 +381,9 @@ describe('GuideContent — mobile sidebar', () => {
   // -------------------------------------------------------------------------
 
   it('renders identical sidebar content in both mobile accordion and desktop aside', async () => {
+    // Mobile accordion and Guide Info are only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata({ guide_type: 'research', domain_filter: 'Technical' });
     const sections = [
       createSection({ section_id: 's1' }),
@@ -387,7 +402,7 @@ describe('GuideContent — mobile sidebar', () => {
     });
 
     // Locate mobile accordion content
-    const summary = screen.getByText('Guide details & related guides');
+    const summary = screen.getByText('Guide details');
     const details = summary.closest('details')!;
     const mobileContent = within(details);
 
@@ -451,6 +466,9 @@ describe('GuideContent — mobile sidebar', () => {
   });
 
   it('maps guide type labels correctly for all known types', async () => {
+    // Guide Info (which shows type label) is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata({ guide_type: 'company' });
     const sections = [createSection()];
 
@@ -468,6 +486,9 @@ describe('GuideContent — mobile sidebar', () => {
   });
 
   it('falls back to raw guide_type when type is not in label map', async () => {
+    // Guide Info (which shows type label) is only shown to editors
+    mockCanEdit.value = true;
+
     const guide = createGuideMetadata({ guide_type: 'unknown_type' });
     const sections = [createSection()];
 
