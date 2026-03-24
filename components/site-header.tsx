@@ -24,7 +24,7 @@ const NAV_LINKS = [
   { href: '/library', label: 'Q&A Library', icon: Library, requiresEdit: false },
   { href: '/coverage', label: 'Coverage', icon: BarChart3, requiresEdit: false },
   { href: '/guide', label: 'Guides', icon: BookOpen, requiresEdit: false },
-  { href: '/bid', label: 'Bids', icon: Briefcase, requiresEdit: false },
+  { href: '/workspaces', label: 'Workspaces', icon: Briefcase, requiresEdit: false },
   { href: '/review', label: 'Review', icon: ShieldCheck, requiresEdit: true },
 ] as const;
 
@@ -82,7 +82,7 @@ export function SiteHeader() {
           })}
         </div>
 
-        <div className="mx-auto hidden w-full max-w-md sm:block">
+        <div className="mx-auto hidden w-full max-w-sm md:max-w-md lg:max-w-lg sm:block">
           <SearchBar variant="compact" />
         </div>
 

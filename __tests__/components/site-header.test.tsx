@@ -87,7 +87,7 @@ describe('SiteHeader', () => {
     expect(screen.getAllByText('Browse').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Q&A Library').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Coverage').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('Bids').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('Workspaces').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('Review').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -103,8 +103,8 @@ describe('SiteHeader', () => {
     const coverageLinks = screen.getAllByText('Coverage');
     expect(coverageLinks[0].closest('a')).toHaveAttribute('href', '/coverage');
 
-    const bidLinks = screen.getAllByText('Bids');
-    expect(bidLinks[0].closest('a')).toHaveAttribute('href', '/bid');
+    const workspacesLinks = screen.getAllByText('Workspaces');
+    expect(workspacesLinks[0].closest('a')).toHaveAttribute('href', '/workspaces');
 
     const reviewLinks = screen.getAllByText('Review');
     expect(reviewLinks[0].closest('a')).toHaveAttribute('href', '/review');

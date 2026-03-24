@@ -10,8 +10,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
 import { buildAttentionItems, filterByRole } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
-import Link from 'next/link';
-import { Briefcase } from 'lucide-react';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -112,6 +110,7 @@ async function DashboardContent() {
     ...unified.attention_sources,
     active_bids: unified.active_bids,
   });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const roleItems = filterByRole(allItems, unified.user_role);
 
   // Build ReorientData from the unified data for ReorientSection
@@ -165,33 +164,6 @@ async function DashboardContent() {
           />
         </div>
         <ActiveBidsSection bids={unified.active_bids} />
-      </div>
-
-      {/* Subtle Claude prompt strip — replaces ClaudeActionsSection */}
-      {roleItems.length > 0 && (
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          {roleItems.length} {roleItems.length === 1 ? 'item needs' : 'items need'} attention
-          {' — '}
-          <a
-            href="https://claude.ai/new"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
-          >
-            ask Claude for help
-          </a>
-        </p>
-      )}
-
-      {/* Workspaces quick link */}
-      <div className="mt-6">
-        <Link
-          href="/workspaces"
-          className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-        >
-          <Briefcase className="size-4 shrink-0" aria-hidden="true" />
-          <span>Workspaces — use your knowledge base to power bids, proposals, and more</span>
-        </Link>
       </div>
 
       {/* Compliance Status */}
