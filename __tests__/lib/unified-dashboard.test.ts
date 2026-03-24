@@ -63,11 +63,12 @@ const TEST_USER_ID = 'user-abc-123';
  * Configure the mock Supabase client for fetchUnifiedDashboardData.
  *
  * Query structure:
- *   Phase 1 (last activity):
+ *   Phase 1 (last activity + cert relationships):
  *     from(0): content_history — last write activity
  *     from(1): read_marks — last read activity
+ *     from(2): entity_relationships — cert relationship targets
  *   Phase 2 (main parallel batch):
- *     Promise.allSettled with 11 items:
+ *     Promise.allSettled with 14 items:
  *       [0] governance reviews — from('content_items') or Promise.resolve for viewer
  *       [1] unverified items — from('content_items')
  *       [2] quality flags — rpc('get_items_with_quality_flags') or Promise.resolve
@@ -79,12 +80,16 @@ const TEST_USER_ID = 'user-abc-123';
  *       [8] bid response team changes — from('bid_response_history')
  *       [9] bid response recent work — from('bid_response_history')
  *       [10] expiring content dates — from('content_items')
+ *       [11] cert expiry — from('entity_mentions') or Promise.resolve
+ *       [12] coverage gaps — from('taxonomy_subtopics')
+ *       [13] content items by subtopic — from('content_items')
  *     fetchActiveBidsWithStats (mocked separately)
  *   auth.getUser() for display name
  */
 function setupDefaultMock(overrides: {
   lastActivityData?: unknown[];
   lastReadActivityData?: unknown[];
+  certRelData?: unknown[];
   authUser?: Record<string, unknown> | null;
   teamChangesData?: unknown[];
   recentWorkData?: unknown[];
@@ -96,6 +101,9 @@ function setupDefaultMock(overrides: {
   bidResponseRecentWorkData?: unknown[];
   unverifiedCount?: number;
   expiringContentDateCount?: number;
+  certMentionsData?: unknown[];
+  taxonomySubtopicsData?: unknown[];
+  contentBySubtopicData?: unknown[];
   activityFeedData?: unknown[];
   workspaces?: unknown[];
   statsMap?: Map<string, unknown>;
@@ -109,7 +117,7 @@ function setupDefaultMock(overrides: {
     count: number | null;
   }> = [];
 
-  // Phase 1: last activity queries
+  // Phase 1: last activity + cert relationships
   // Call 0: content_history for lastActivity (write)
   fromCalls.push({
     data: overrides.lastActivityData ?? [{ created_at: '2026-03-08T08:00:00Z' }],
@@ -120,6 +128,13 @@ function setupDefaultMock(overrides: {
   // Call 1: read_marks for lastActivity (read)
   fromCalls.push({
     data: overrides.lastReadActivityData ?? [],
+    error: null,
+    count: null,
+  });
+
+  // Call 2: entity_relationships for cert targets
+  fromCalls.push({
+    data: overrides.certRelData ?? [],
     error: null,
     count: null,
   });
@@ -179,6 +194,31 @@ function setupDefaultMock(overrides: {
     data: null,
     error: null,
     count: overrides.expiringContentDateCount ?? 0,
+  });
+
+  // [11] cert expiry — from('entity_mentions')
+  // When certRelData is empty, query 11 uses Promise.resolve so no from() call.
+  // When certRelData has data, the from('entity_mentions') call happens.
+  if (overrides.certRelData && overrides.certRelData.length > 0) {
+    fromCalls.push({
+      data: overrides.certMentionsData ?? [],
+      error: null,
+      count: null,
+    });
+  }
+
+  // [12] coverage gaps — from('taxonomy_subtopics')
+  fromCalls.push({
+    data: overrides.taxonomySubtopicsData ?? [],
+    error: null,
+    count: null,
+  });
+
+  // [13] content items by subtopic — from('content_items')
+  fromCalls.push({
+    data: overrides.contentBySubtopicData ?? [],
+    error: null,
+    count: null,
   });
 
   // Configure from() to return per-call chain
@@ -317,9 +357,9 @@ describe('fetchUnifiedDashboardData', () => {
     expect(sources.unverified_count).toBe(7);
     expect(sources.unread_notification_count).toBe(3);
     expect(sources.expiring_content_date_count).toBe(2);
-    // Hardcoded TODOs
-    expect(sources.expiring_cert_count).toBe(0);
-    expect(sources.coverage_gap_count).toBe(0);
+    // Cert and coverage counts are now wired server-side
+    expect(sources.expiring_cert_count).toBe(0); // No cert relationship data in default mock
+    expect(sources.coverage_gap_count).toBe(0); // No subtopics in default mock
   });
 
   it('populates freshness summary from RPC data', async () => {

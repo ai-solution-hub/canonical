@@ -394,8 +394,8 @@ export async function fetchUnifiedDashboardData(
   const effectiveRole = role ?? 'viewer';
   const nowIso = new Date().toISOString();
 
-  // --- Phase 1: User's last activity (needed to scope team_changes query) ---
-  const [lastWriteResult, lastReadResult] = await Promise.all([
+  // --- Phase 1: User's last activity + cert relationships (needed to scope later queries) ---
+  const [lastWriteResult, lastReadResult, certRelResult] = await Promise.all([
     supabase
       .from('content_history')
       .select('created_at')
@@ -408,6 +408,11 @@ export async function fetchUnifiedDashboardData(
       .eq('user_id', userId)
       .order('read_at', { ascending: false })
       .limit(1),
+    // Fetch certification relationship targets for expiry count
+    supabase
+      .from('entity_relationships')
+      .select('target_entity')
+      .eq('relationship_type', 'holds'),
   ]);
 
   const lastWriteAt = lastWriteResult.data?.[0]?.created_at ?? null;
@@ -521,6 +526,31 @@ export async function fetchUnifiedDashboardData(
         .select('*', { count: 'exact', head: true })
         .not('expiry_date', 'is', null)
         .lte('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
+
+      // 11: Certification expiry — entity_mentions with certification metadata
+      // containing expiry_date within 90 days. Replaces the client-side
+      // /api/certifications fetch for the count. Uses certRelResult from Phase 1.
+      certRelResult.data && certRelResult.data.length > 0
+        ? supabase
+            .from('entity_mentions')
+            .select('canonical_name, metadata')
+            .in(
+              'canonical_name',
+              certRelResult.data.map((r) => r.target_entity),
+            )
+            .or('entity_type.eq.certification,entity_type_override.eq.certification')
+        : Promise.resolve({ data: [], error: null }),
+
+      // 12: Coverage gaps — active taxonomy subtopics
+      supabase
+        .from('taxonomy_subtopics')
+        .select('id, name, domain_id')
+        .eq('is_active', true),
+
+      // 13: Content items grouped by subtopic (for coverage gap cross-reference)
+      supabase
+        .from('content_items')
+        .select('primary_subtopic'),
     ]),
     fetchActiveBidsWithStats(supabase),
   ]);
@@ -856,17 +886,62 @@ export async function fetchUnifiedDashboardData(
     }
   }
 
-  // --- Expiring certifications ---
-  // TODO: Implement server-side certification expiry count. Currently the
-  // compliance section does a complex client-side fetch via entity_mentions.
-  // For now, hardcode to 0 until the attention data model consumes this.
-  const expiring_cert_count = 0;
+  // --- Extract expiring certification count (query 11) ---
+  let expiring_cert_count = 0;
+  if (results[11].status === 'fulfilled') {
+    const { data, error } = results[11].value;
+    if (error) {
+      errors.push('expiring_cert_count query failed');
+    } else if (data) {
+      const now = new Date();
+      const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+      // Deduplicate by canonical_name and count those with expiry within 90 days
+      const seen = new Set<string>();
+      for (const row of data as { canonical_name: string; metadata: Record<string, unknown> | null }[]) {
+        if (seen.has(row.canonical_name)) continue;
+        seen.add(row.canonical_name);
+        const expiryDate = (row.metadata as Record<string, unknown> | null)?.expiry_date as string | undefined;
+        if (expiryDate) {
+          const expiry = new Date(expiryDate);
+          const diffMs = expiry.getTime() - now.getTime();
+          // Count if expired or expiring within 90 days
+          if (diffMs <= ninetyDaysMs) {
+            expiring_cert_count++;
+          }
+        }
+      }
+    }
+  } else {
+    errors.push('expiring_cert_count query failed');
+  }
 
-  // --- Coverage gaps ---
-  // TODO: Implement coverage gap count. Currently requires the
-  // content-suggestions API which involves template analysis. Set to 0
-  // until the attention data model integrates this source.
-  const coverage_gap_count = 0;
+  // --- Extract coverage gap count (queries 12 + 13) ---
+  let coverage_gap_count = 0;
+  if (results[12].status === 'fulfilled' && results[13].status === 'fulfilled') {
+    const subtopicResult = results[12].value as { data?: { id: string; name: string; domain_id: string }[] | null; error?: unknown };
+    const contentResult = results[13].value as { data?: { primary_subtopic: string | null }[] | null; error?: unknown };
+
+    if (subtopicResult.error) {
+      errors.push('coverage_gap subtopics query failed');
+    } else if (contentResult.error) {
+      errors.push('coverage_gap content query failed');
+    } else {
+      const activeSubtopics = subtopicResult.data ?? [];
+      // Build set of subtopics that have at least one content item
+      const coveredSubtopics = new Set(
+        (contentResult.data ?? [])
+          .map((item) => item.primary_subtopic)
+          .filter((s): s is string => s !== null),
+      );
+      // Count subtopics with zero content items
+      coverage_gap_count = activeSubtopics.filter(
+        (st) => !coveredSubtopics.has(st.name),
+      ).length;
+    }
+  } else {
+    if (results[12].status === 'rejected') errors.push('coverage_gap subtopics query failed');
+    if (results[13].status === 'rejected') errors.push('coverage_gap content query failed');
+  }
 
   return {
     attention_sources: {

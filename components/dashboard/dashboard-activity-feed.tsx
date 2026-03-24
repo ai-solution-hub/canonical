@@ -293,12 +293,18 @@ export function DashboardActivityFeed({
 
               const timestamp = formatGroupTimestamp(group);
 
+              // Left accent border colour per activity type
+              const accentBorderClass =
+                group.type === 'rollback' || group.type === 'quality_flag'
+                  ? 'border-l-status-warning'
+                  : 'border-l-border';
+
               return (
                 <Link
                   key={group.key}
                   href={`/item/${group.representative.entity_id}`}
                   role="article"
-                  className="group flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className={`group flex items-start gap-3 rounded-lg border border-border ${accentBorderClass} border-l-2 bg-card p-3 transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
                 >
                   <Icon
                     className={`mt-0.5 size-4 shrink-0 ${iconClass}`}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
+import { Shield, Copy, Check, ChevronDown, ChevronRight, Clock, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -92,7 +92,7 @@ const EXPIRY_BADGE_CONFIG: Record<
     bgClass: 'bg-freshness-expired-bg',
   },
   unknown: {
-    label: 'Unknown',
+    label: 'No expiry date',
     textClass: 'text-muted-foreground',
     bgClass: 'bg-muted',
   },
@@ -206,6 +206,7 @@ function CertificationRow({
   onEdit?: (name: string) => void;
 }) {
   const needsRenewal = cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
+  const needsExpiryUpdate = cert.expiry_status === 'unknown' || cert.expiry_status === 'expired';
   // Navigate to the first content item for renewal context
   const renewalItemId = cert.content_items?.[0]?.id;
 
@@ -216,23 +217,38 @@ function CertificationRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onEdit?.(cert.canonical_name)}
-            className={cn(
-              'text-sm font-medium text-foreground',
-              onEdit && 'cursor-pointer hover:underline',
-            )}
-            aria-label={`Edit ${cert.canonical_name}`}
-            disabled={!onEdit}
-          >
-            {cert.canonical_name}
-            {cert.metadata.version && (
-              <span className="ml-1 text-xs text-muted-foreground">
-                v{cert.metadata.version}
-              </span>
-            )}
-          </button>
+          {renewalItemId ? (
+            <Link
+              href={`/item/${renewalItemId}`}
+              className="text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
+              aria-label={`View ${cert.canonical_name} details`}
+            >
+              {cert.canonical_name}
+              {cert.metadata.version && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  v{cert.metadata.version}
+                </span>
+              )}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onEdit?.(cert.canonical_name)}
+              className={cn(
+                'text-sm font-medium text-foreground',
+                onEdit && 'cursor-pointer hover:underline',
+              )}
+              aria-label={`Edit ${cert.canonical_name}`}
+              disabled={!onEdit}
+            >
+              {cert.canonical_name}
+              {cert.metadata.version && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  v{cert.metadata.version}
+                </span>
+              )}
+            </button>
+          )}
           <ExpiryBadge status={cert.expiry_status} />
           {needsRenewal && renewalItemId && (
             <Button
@@ -247,6 +263,22 @@ function CertificationRow({
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
+              </Link>
+            </Button>
+          )}
+          {needsExpiryUpdate && renewalItemId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              asChild
+            >
+              <Link
+                href={`/item/${renewalItemId}?update_expiry=${encodeURIComponent(cert.canonical_name)}`}
+                aria-label={`Update expiry date for ${cert.canonical_name}`}
+              >
+                <Clock className="size-3" aria-hidden="true" />
+                Update expiry
               </Link>
             </Button>
           )}
@@ -266,9 +298,9 @@ function CertificationRow({
       </div>
       <span
         className="shrink-0 text-xs text-muted-foreground"
-        aria-label={`${cert.content_item_count} evidence ${cert.content_item_count === 1 ? 'item' : 'items'}`}
+        aria-label={`${cert.content_item_count} linked ${cert.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {cert.content_item_count} evidence
+        {cert.content_item_count} linked {cert.content_item_count === 1 ? 'item' : 'items'}
       </span>
     </div>
   );
@@ -342,9 +374,9 @@ function RegistrationRow({
       </div>
       <span
         className="shrink-0 text-xs text-muted-foreground"
-        aria-label={`${reg.content_item_count} evidence ${reg.content_item_count === 1 ? 'item' : 'items'}`}
+        aria-label={`${reg.content_item_count} linked ${reg.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {reg.content_item_count} evidence
+        {reg.content_item_count} linked {reg.content_item_count === 1 ? 'item' : 'items'}
       </span>
     </div>
   );

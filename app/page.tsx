@@ -4,11 +4,11 @@ import { SearchBar } from '@/components/search-bar';
 import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';
-import { NeedsAttentionSection } from '@/components/dashboard/needs-attention-section';
+import { UnifiedAttentionSection } from '@/components/dashboard/unified-attention-section';
 import { ComplianceStatusSection } from '@/components/dashboard/compliance-status-section';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
-import { buildAttentionItems, filterByRole } from '@/lib/attention';
+import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import type { ReorientData } from '@/types/reorient';
 
@@ -105,13 +105,10 @@ async function DashboardContent() {
   const { unified } = result;
 
   // Build attention items from unified source data.
-  // roleItems is ready for Wave 4 (UnifiedAttentionSection).
   const allItems = buildAttentionItems({
     ...unified.attention_sources,
     active_bids: unified.active_bids,
   });
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const roleItems = filterByRole(allItems, unified.user_role);
 
   // Build ReorientData from the unified data for ReorientSection
   const reorientData: ReorientData = {
@@ -149,20 +146,12 @@ async function DashboardContent() {
         <ReorientSection data={reorientData} />
       </div>
 
-      {/* Two-column layout: Needs Attention + Active Bids */}
+      {/* Two-column layout: Unified Attention + Active Bids */}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
-        <div>
-          <NeedsAttentionSection
-            governance_review_count={unified.attention_sources.governance_review_count}
-            unverified_count={unified.attention_sources.unverified_count}
-            quality_flag_count={unified.attention_sources.quality_flag_count}
-            stale_content_count={unified.attention_sources.stale_content_count}
-            expired_content_count={unified.attention_sources.expired_content_count}
-            expiringCertCount={unified.attention_sources.expiring_cert_count}
-            expiringContentCount={unified.attention_sources.expiring_content_date_count}
-            userRole={unified.user_role}
-          />
-        </div>
+        <UnifiedAttentionSection
+          items={allItems}
+          userRole={unified.user_role}
+        />
         <ActiveBidsSection bids={unified.active_bids} />
       </div>
 
