@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export interface ReviewSessionStats {
   total: number;
@@ -161,13 +162,13 @@ export function ReviewSessionSummary({
             <div
               key={label}
               role="listitem"
-              className={`flex items-center gap-3 rounded-lg ${bgClass} p-3`}
+              className={cn('flex items-center gap-3 rounded-lg p-3', bgClass)}
             >
-              <div className={`flex size-9 shrink-0 items-center justify-center rounded-full ${bgClass} ${colourClass}`}>
+              <div className={cn('flex size-9 shrink-0 items-center justify-center rounded-full', bgClass, colourClass)}>
                 <Icon className="size-4" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <div className={`text-lg font-semibold tabular-nums ${colourClass}`}>
+                <div className={cn('text-lg font-semibold tabular-nums', colourClass)}>
                   {value.toLocaleString('en-GB')}
                 </div>
                 <div className="text-xs text-muted-foreground">{label}</div>
