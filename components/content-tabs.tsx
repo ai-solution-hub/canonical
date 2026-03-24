@@ -416,7 +416,7 @@ export function ContentTabs({
           )}
           {hasFullText && (
             <TabsTrigger value="fulltext" className="px-6 text-sm hover:text-primary hover:bg-primary/10 data-[state=active]:text-primary data-[state=active]:bg-primary/10">
-              {isQAPair ? 'Full Answer' : 'Content'}
+              {isQAPair ? 'Full Answer' : 'Original Text'}
             </TabsTrigger>
           )}
           {hasReaderContent && (
