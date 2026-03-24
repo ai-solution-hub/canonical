@@ -31,14 +31,12 @@ function addRecentSearch(query: string) {
 interface SearchBarProps {
   variant?: 'hero' | 'compact';
   defaultValue?: string;
-  totalCount?: number;
   autoFocus?: boolean;
 }
 
 export function SearchBar({
   variant = 'compact',
   defaultValue = '',
-  totalCount,
   autoFocus = false,
 }: SearchBarProps) {
   const router = useRouter();
@@ -162,9 +160,7 @@ export function SearchBar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const placeholder = totalCount
-    ? `Search ${totalCount.toLocaleString()} items...`
-    : 'Search your knowledge...';
+  const placeholder = 'Search your knowledge base...';
 
   const activeDescendantId =
     activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;

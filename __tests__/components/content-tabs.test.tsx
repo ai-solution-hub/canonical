@@ -127,7 +127,7 @@ describe('ContentTabs', () => {
     expect(screen.getByText('Takeaways')).toBeInTheDocument();
   });
 
-  it('renders Content tab when content is provided', () => {
+  it('renders Original Text tab when content is provided for non-Q&A items', () => {
     render(
       <ContentTabs
         itemId="item-1"
@@ -136,7 +136,7 @@ describe('ContentTabs', () => {
         contentType="article"
       />,
     );
-    expect(screen.getByText('Content')).toBeInTheDocument();
+    expect(screen.getByText('Original Text')).toBeInTheDocument();
   });
 
   it('renders "Full Answer" for Q&A pairs instead of "Full Text"', () => {
