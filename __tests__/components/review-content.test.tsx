@@ -190,6 +190,12 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
 }));
 
+vi.mock('@/components/review/review-session-summary', () => ({
+  ReviewSessionSummary: ({ open, stats }: { open: boolean; stats: { total: number } }) => (
+    open ? <div data-testid="review-session-summary">Summary: {stats.total} reviewed</div> : null
+  ),
+}));
+
 // Import AFTER mocks
 import { ReviewContent } from '@/app/review/review-content';
 
@@ -489,8 +495,8 @@ describe('ReviewContent', () => {
     expect(liveRegion.closest('[aria-live]')).toHaveAttribute('aria-live', 'polite');
   });
 
-  // 17. Exit with session summary toast
-  it('shows session toast with count when exiting with reviewed items', async () => {
+  // 17. Exit with session summary dialog
+  it('shows session summary dialog when exiting with reviewed items', async () => {
     const user = userEvent.setup();
     const mockHandleExit = vi.fn();
     setHookReturn({
@@ -502,12 +508,14 @@ describe('ReviewContent', () => {
     // Click Exit button (from our stubbed ReviewActionBar)
     await user.click(screen.getByRole('button', { name: 'Exit' }));
 
-    expect(mockToast.info).toHaveBeenCalledWith('Session complete: 7 items reviewed');
-    expect(mockHandleExit).toHaveBeenCalled();
+    // Should show summary dialog instead of navigating away immediately
+    expect(screen.getByTestId('review-session-summary')).toBeInTheDocument();
+    // Should NOT call handleExit yet — dialog is shown first
+    expect(mockHandleExit).not.toHaveBeenCalled();
   });
 
-  // 18. Exit without toast when no items reviewed
-  it('does not show toast when exiting with zero reviewed items', async () => {
+  // 18. Exit directly when no items reviewed
+  it('exits directly without summary dialog when zero items reviewed', async () => {
     const user = userEvent.setup();
     const mockHandleExit = vi.fn();
     setHookReturn({
@@ -518,7 +526,8 @@ describe('ReviewContent', () => {
 
     await user.click(screen.getByRole('button', { name: 'Exit' }));
 
-    expect(mockToast.info).not.toHaveBeenCalled();
+    // Should navigate away directly — no summary dialog
+    expect(screen.queryByTestId('review-session-summary')).not.toBeInTheDocument();
     expect(mockHandleExit).toHaveBeenCalled();
   });
 

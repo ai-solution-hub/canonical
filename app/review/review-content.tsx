@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, BookOpen } from 'lucide-react';
+import { PanelRight, CheckCircle2, BookOpen, ClipboardList } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -14,8 +15,9 @@ import { ReviewActionBar } from '@/components/review-action-bar';
 import { ReviewProgressBar } from '@/components/review-progress-bar';
 import { ReviewFilters } from '@/components/review-filters';
 import { ReviewQueuePanel } from '@/components/review-queue-panel';
+import { ReviewSessionSummary } from '@/components/review/review-session-summary';
+import type { ReviewSessionStats } from '@/components/review/review-session-summary';
 import { useReviewQueue } from '@/hooks/use-review-queue';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -78,14 +80,75 @@ export function ReviewContent() {
     setShowHelp,
   } = useReviewQueue();
 
-  // Wrap exit to show session summary toast
-  const handleExitWithSummary = () => {
+  // Session summary dialog state
+  const [showSummary, setShowSummary] = useState(false);
+  const sessionStartRef = useRef(Date.now());
+  const sessionStatsRef = useRef<ReviewSessionStats>({
+    total: 0,
+    verified: 0,
+    flagged: 0,
+    skipped: 0,
+  });
+
+  // Track session-level verified/flagged/skipped counts independently.
+  // The hook's progress.sessionReviewed tracks total actions taken this session.
+  // We derive skipped from (sessionReviewed - verified - flagged) seen so far.
+  const updateSessionStats = useCallback(() => {
+    // The hook tracks sessionReviewed (total actions), but we need a breakdown.
+    // verified + flagged are tracked in progress. Skipped = sessionReviewed - verified_delta - flagged_delta.
+    // Since the hook resets sessionReviewed to 0 on load, we can use it directly
+    // combined with the running verified/flagged totals from this session.
+    const verifiedThisSession = sessionStatsRef.current.verified;
+    const flaggedThisSession = sessionStatsRef.current.flagged;
+    const total = progress.sessionReviewed;
+    const skipped = Math.max(0, total - verifiedThisSession - flaggedThisSession);
+
+    sessionStatsRef.current = {
+      total,
+      verified: verifiedThisSession,
+      flagged: flaggedThisSession,
+      skipped,
+    };
+  }, [progress.sessionReviewed]);
+
+  // Wrap exit to show session summary dialog (or just exit if nothing reviewed)
+  const handleExitWithSummary = useCallback(() => {
     const { sessionReviewed } = progress;
     if (sessionReviewed > 0) {
-      toast.info(`Session complete: ${sessionReviewed} items reviewed`);
+      updateSessionStats();
+      setShowSummary(true);
+    } else {
+      handleExit();
     }
-    handleExit();
-  };
+  }, [progress, handleExit, updateSessionStats]);
+
+  // Close summary and navigate away
+  const handleSummaryClose = useCallback((open: boolean) => {
+    setShowSummary(open);
+    if (!open) {
+      handleExit();
+    }
+  }, [handleExit]);
+
+  // Wrap verify to track session stats
+  const originalHandleVerify = handleVerify;
+  const handleVerifyWithTracking = useCallback(async () => {
+    sessionStatsRef.current = {
+      ...sessionStatsRef.current,
+      verified: sessionStatsRef.current.verified + 1,
+    };
+    await originalHandleVerify();
+  }, [originalHandleVerify]);
+
+  // Wrap flag submit to track session stats
+  const originalHandleFlagSubmit = handleFlagSubmit;
+  const handleFlagSubmitWithTracking = useCallback(async (details?: string) => {
+    sessionStatsRef.current = {
+      ...sessionStatsRef.current,
+      flagged: sessionStatsRef.current.flagged + 1,
+    };
+    await originalHandleFlagSubmit(details);
+  }, [originalHandleFlagSubmit]);
 
   // -- Render States --
 
@@ -254,6 +317,22 @@ export function ReviewContent() {
                 </span>
               )}
             </h1>
+            {/* Session summary indicator */}
+            {progress.sessionReviewed > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  updateSessionStats();
+                  setShowSummary(true);
+                }}
+                className="gap-1.5 text-xs text-muted-foreground"
+                aria-label={`Session: ${progress.sessionReviewed} reviewed. Click for summary.`}
+              >
+                <ClipboardList className="size-3.5" aria-hidden="true" />
+                Session: {progress.sessionReviewed}
+              </Button>
+            )}
             {/* Queue panel toggle */}
             <Button
               variant="ghost"
@@ -308,7 +387,7 @@ export function ReviewContent() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
-                  handleFlagSubmit(flagDetails);
+                  handleFlagSubmitWithTracking(flagDetails);
                 }
                 if (e.key === 'Escape') {
                   e.preventDefault();
@@ -324,7 +403,7 @@ export function ReviewContent() {
             <Button
               size="sm"
               className="h-8 shrink-0"
-              onClick={() => handleFlagSubmit(flagDetails)}
+              onClick={() => handleFlagSubmitWithTracking(flagDetails)}
             >
               Submit
             </Button>
@@ -346,7 +425,7 @@ export function ReviewContent() {
 
       {/* Sticky action bar */}
       <ReviewActionBar
-        onVerify={handleVerify}
+        onVerify={handleVerifyWithTracking}
         onPublish={handlePublish}
         onFlag={handleFlag}
         onSkip={handleSkip}
@@ -417,6 +496,14 @@ export function ReviewContent() {
           />
         </SheetContent>
       </Sheet>
+
+      {/* Session summary dialog */}
+      <ReviewSessionSummary
+        open={showSummary}
+        onOpenChange={handleSummaryClose}
+        stats={sessionStatsRef.current}
+        sessionDuration={Date.now() - sessionStartRef.current}
+      />
     </>
   );
 }
