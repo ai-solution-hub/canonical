@@ -8,7 +8,7 @@
  * This keeps prompts readable and lets Claude search the KB naturally.
  */
 
-import type { ActiveBidSummary, DashboardData } from '@/lib/dashboard';
+import type { ActiveBidSummary } from '@/lib/dashboard';
 import type { ContentSuggestion } from '@/lib/content-suggestions';
 
 // ---------------------------------------------------------------------------
@@ -130,111 +130,6 @@ export function generateCoverageGapPrompt(
     description: `No content for ${formattedSubtopic}`,
     category: 'coverage',
   };
-}
-
-// ---------------------------------------------------------------------------
-// Suggested actions (synthesised from dashboard data)
-// ---------------------------------------------------------------------------
-
-export function generateSuggestedActions(data: DashboardData): ClaudePrompt[] {
-  const actions: ClaudePrompt[] = [];
-
-  // Priority 1: Governance reviews
-  const govCount = data.needs_attention.governance_review_count ?? 0;
-  if (govCount > 0) {
-    actions.push(generateGovernancePrompt(govCount));
-  }
-
-  // Priority 2: Active bids with gaps (sorted by deadline urgency)
-  const bidsWithGaps = data.active_bids
-    .filter((b) => b.total_questions > 0 && b.answered_questions < b.total_questions)
-    .sort((a, b) => {
-      // Sort by days_until_deadline ascending (most urgent first)
-      const aD = a.days_until_deadline ?? 999;
-      const bD = b.days_until_deadline ?? 999;
-      return aD - bD;
-    });
-
-  for (const bid of bidsWithGaps.slice(0, 2)) {
-    actions.push(generateBidPrompt(bid));
-  }
-
-  // Priority 2b: Fully drafted bids approaching deadline (final review)
-  const bidsApproachingDeadline = data.active_bids
-    .filter((b) =>
-      b.answered_questions >= b.total_questions &&
-      b.days_until_deadline !== null &&
-      b.days_until_deadline >= 0 &&
-      b.days_until_deadline <= 7,
-    )
-    .sort((a, b) => (a.days_until_deadline ?? 999) - (b.days_until_deadline ?? 999));
-
-  for (const bid of bidsApproachingDeadline.slice(0, 1)) {
-    if (actions.length < 5) {
-      actions.push(generateBidDeadlinePrompt(bid));
-    }
-  }
-
-  // Priority 3: Quality flags
-  const qualityCount = data.needs_attention.quality_flag_count ?? 0;
-  if (qualityCount > 0) {
-    actions.push(generateQualityFlagPrompt(qualityCount));
-  }
-
-  // Priority 4: Stale content
-  const staleCount =
-    (data.needs_attention.stale_content_count ?? 0) +
-    (data.needs_attention.expired_content_count ?? 0);
-  if (staleCount > 0) {
-    actions.push(generateStaleContentPrompt(staleCount));
-  }
-
-  // Priority 5: Unverified items (lower priority)
-  const unverifiedCount = data.needs_attention.unverified_count ?? 0;
-  if (unverifiedCount > 0 && actions.length < 5) {
-    actions.push(generateUnverifiedPrompt(unverifiedCount));
-  }
-
-  // Priority 6: Coverage health (general analysis)
-  if (staleCount > 0 && actions.length < 5) {
-    actions.push({
-      label: 'Analyse coverage health',
-      prompt:
-        'Analyse our overall content coverage. Which domains have the most gaps? Where is content getting stale? Give me a prioritised action plan.',
-      description: 'Get a coverage health overview',
-      category: 'coverage',
-    });
-  }
-
-  // Priority 7: Bid sprint (multi-bid overview)
-  const bidCount = data.active_bids.length;
-  if (bidCount >= 2 && actions.length < 5) {
-    actions.push({
-      label: 'Bid sprint overview',
-      prompt: `I have ${bidCount} active bids. Show me a summary of each with progress and deadlines, then help me work through the most urgent gaps across all bids.`,
-      description: `${bidCount} bids active — get a cross-bid summary`,
-      category: 'bid',
-    });
-  }
-
-  // Priority 8: Content ingestion (always available as a utility action)
-  if (actions.length < 5) {
-    actions.push(generateBulkIngestPrompt());
-  }
-
-  // If nothing needs attention, offer a general prompt
-  if (actions.length === 0) {
-    actions.push({
-      label: 'Morning briefing',
-      prompt:
-        'Give me a morning briefing. What\'s changed recently? Are there any governance reviews, quality issues, or bid deadlines I should handle?',
-      description: 'Get a quick overview of what needs attention',
-      category: 'general',
-    });
-  }
-
-  // Cap at 5 suggestions
-  return actions.slice(0, 5);
 }
 
 // ---------------------------------------------------------------------------

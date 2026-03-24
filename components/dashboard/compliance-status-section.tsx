@@ -30,11 +30,6 @@ interface CertificationReport {
   };
 }
 
-interface ComplianceStatusSectionProps {
-  /** Callback for when expiring cert count is determined — used by parent for attention items */
-  onExpiringCountChange?: (count: number) => void;
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -45,9 +40,7 @@ interface ComplianceStatusSectionProps {
  *
  * Fetches from /api/certifications on mount.
  */
-export function ComplianceStatusSection({
-  onExpiringCountChange,
-}: ComplianceStatusSectionProps) {
+export function ComplianceStatusSection() {
   const [data, setData] = useState<CertificationReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +60,6 @@ export function ComplianceStatusSection({
         const report: CertificationReport = await response.json();
         if (!cancelled) {
           setData(report);
-          onExpiringCountChange?.(report.summary.expiring_soon);
         }
       } catch (err) {
         if (!cancelled) {
