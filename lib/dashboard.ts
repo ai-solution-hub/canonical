@@ -103,6 +103,7 @@ export async function fetchDashboardData(
   role?: string,
 ): Promise<DashboardData> {
   const errors: string[] = [];
+  const nowIso = new Date().toISOString();
 
   // Run active bids query in parallel with the other queries
   const [results, activeBidsResult] = await Promise.all([
@@ -126,12 +127,14 @@ export async function fetchDashboardData(
       // 3: Freshness breakdown
       supabase.rpc('get_freshness_breakdown'),
 
-      // 4: Unread notifications
+      // 4: Unread notifications (aligned with /api/notifications + reorient filters)
       supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .is('dismissed_at', null),
+        .is('dismissed_at', null)
+        .is('read_at', null)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
       // 5: Recent activity (grouped RPC — replaces separate content_history + quality_log queries)
       supabase.rpc('get_grouped_activity_feed', {
@@ -389,6 +392,7 @@ export async function fetchUnifiedDashboardData(
 ): Promise<UnifiedDashboardData> {
   const errors: string[] = [];
   const effectiveRole = role ?? 'viewer';
+  const nowIso = new Date().toISOString();
 
   // --- Phase 1: User's last activity (needed to scope team_changes query) ---
   const [lastWriteResult, lastReadResult] = await Promise.all([
@@ -462,12 +466,14 @@ export async function fetchUnifiedDashboardData(
       // 3: Freshness breakdown (single query, used by multiple consumers)
       supabase.rpc('get_freshness_breakdown'),
 
-      // 4: Unread notifications
+      // 4: Unread notifications (aligned with /api/notifications + reorient filters)
       supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .is('dismissed_at', null),
+        .is('dismissed_at', null)
+        .is('read_at', null)
+        .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
 
       // 5: Recent activity (grouped RPC)
       supabase.rpc('get_grouped_activity_feed', {
