@@ -6,6 +6,8 @@ export { LayerSwitcherNav } from './layer-switcher-nav';
 export { ItemTitleSection } from './item-title-section';
 export { ItemBreadcrumb } from './item-breadcrumb';
 export { DetailModeToggle } from './detail-mode-toggle';
+export { ReaderView } from './reader-view';
+export { EditorView } from './editor-view';
 
 export type { CollapsibleSectionProps } from './collapsible-section';
 export type { RelatedContentSectionProps } from './related-content-section';
@@ -15,3 +17,5 @@ export type { LayerSwitcherNavProps, TopicLayerItem } from './layer-switcher-nav
 export type { ItemTitleSectionProps } from './item-title-section';
 export type { ItemBreadcrumbProps } from './item-breadcrumb';
 export type { DetailModeToggleProps } from './detail-mode-toggle';
+export type { ReaderViewProps } from './reader-view';
+export type { EditorViewProps } from './editor-view';
