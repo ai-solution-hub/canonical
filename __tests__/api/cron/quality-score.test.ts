@@ -77,7 +77,6 @@ function makeContentItem(overrides: Partial<{
   metadata: Record<string, unknown> | null;
   quality_score: number | null;
   governance_review_status: string | null;
-  last_auto_flagged_at: string | null;
   verified_at: string | null;
 }> = {}) {
   return {
@@ -93,7 +92,6 @@ function makeContentItem(overrides: Partial<{
     metadata: overrides.metadata ?? null,
     quality_score: overrides.quality_score ?? null,
     governance_review_status: overrides.governance_review_status ?? null,
-    last_auto_flagged_at: overrides.last_auto_flagged_at ?? null,
     verified_at: overrides.verified_at ?? null,
   };
 }
@@ -628,8 +626,9 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     const govUpdates = updateCalls.filter(u => u.data.governance_review_status === 'pending');
     expect(govUpdates.length).toBe(1);
     expect(govUpdates[0].data.governance_reviewer_id).toBe(REVIEWER_ID);
-    expect(govUpdates[0].data.last_auto_flagged_at).toBeDefined();
     expect(govUpdates[0].data.governance_review_due).toBeDefined();
+    // last_auto_flagged_at should NOT be set — cooldown uses verified_at instead
+    expect(govUpdates[0].data.last_auto_flagged_at).toBeUndefined();
 
     // Check governance_review_needed notification was created (second call to createBulkNotifications)
     expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
@@ -767,8 +766,8 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     expect(body.auto_governance_triggered).toBe(0);
   });
 
-  it('respects cooldown period and skips recently auto-flagged items', async () => {
-    // Item was auto-flagged 3 days ago, cooldown is 7 days
+  it('respects cooldown period and skips recently verified items', async () => {
+    // Item was verified 3 days ago, cooldown is 7 days
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
@@ -779,7 +778,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       ai_summary: null,
       quality_score: 50,
       governance_review_status: null,
-      last_auto_flagged_at: threeDaysAgo,
+      verified_at: threeDaysAgo,
     });
 
     configureDetailedMock({
@@ -800,8 +799,8 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
     expect(body.auto_governance_triggered).toBe(0);
   });
 
-  it('auto-flags items when cooldown has expired', async () => {
-    // Item was auto-flagged 10 days ago, cooldown is 7 days -> should flag
+  it('auto-flags items when cooldown has expired (verified_at outside cooldown)', async () => {
+    // Item was verified 10 days ago, cooldown is 7 days -> should flag
     const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
@@ -813,7 +812,7 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
       ai_summary: null,
       quality_score: 50,
       governance_review_status: null,
-      last_auto_flagged_at: tenDaysAgo,
+      verified_at: tenDaysAgo,
     });
 
     configureDetailedMock({
@@ -943,5 +942,70 @@ describe('GET /api/cron/quality-score — governance bridge', () => {
 
     const body = await res.json();
     expect(body.auto_governance_triggered).toBe(1);
+  });
+
+  it('creates summary notification per reviewer when >20 items are flagged', async () => {
+    // Generate 25 items that will all drop below threshold
+    const items = Array.from({ length: 25 }, (_, i) =>
+      makeContentItem({
+        id: `00000000-0000-4000-8000-${String(100 + i).padStart(12, '0')}`,
+        title: `Batch Item ${i + 1}`,
+        primary_domain: 'Operations',
+        freshness: 'expired',
+        classification_confidence: 0.2,
+        brief: null,
+        ai_summary: null,
+        quality_score: 50,
+        governance_review_status: null,
+      }),
+    );
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+        reviewer_id: REVIEWER_ID,
+        timeout_days: 14,
+      }],
+      items,
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(25);
+    expect(body.batch_summary_notification).toBe(true);
+
+    // Governance notifications should use batch summary path
+    // First call = quality_flag notifications (individual per admin)
+    // Second call = governance summary (one per unique recipient)
+    expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
+
+    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+      userId: string;
+      type: string;
+      entityType: string;
+      entityId: string;
+      title: string;
+      message: string;
+    }>;
+
+    // Should have one notification per unique recipient (reviewer + 2 admins = 3)
+    const recipientIds = new Set(govNotifications.map(n => n.userId));
+    expect(recipientIds.has(REVIEWER_ID)).toBe(true);
+    expect(recipientIds.has(ADMIN_ID_1)).toBe(true);
+    expect(recipientIds.has(ADMIN_ID_2)).toBe(true);
+    expect(govNotifications.length).toBe(3);
+
+    // All should be summary-style governance_review_needed
+    for (const notif of govNotifications) {
+      expect(notif.type).toBe('governance_review_needed');
+      expect(notif.entityType).toBe('domain');
+      expect(notif.title).toContain('25 items flagged');
+    }
   });
 });

@@ -45,7 +45,6 @@ interface ContentItemRow {
   metadata: Record<string, unknown> | null;
   quality_score: number | null;
   governance_review_status: string | null;
-  last_auto_flagged_at: string | null;
   verified_at: string | null;
 }
 
@@ -123,7 +122,7 @@ export async function GET(request: NextRequest) {
 
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
-        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, last_auto_flagged_at, verified_at')
+        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at')
         .is('archived_at', null)
         .order('id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -183,7 +182,7 @@ export async function GET(request: NextRequest) {
 
             // Check if eligible for governance auto-flagging
             const domainConfig = govConfigMap.get(item.primary_domain ?? '');
-            const autoFlagEnabled = domainConfig?.auto_flag_on_quality_drop ?? false;
+            const autoFlagEnabled = domainConfig?.auto_flag_on_quality_drop ?? true;
 
             if (autoFlagEnabled) {
               // Guard: only flag items with null or 'approved' governance_review_status
@@ -192,11 +191,12 @@ export async function GET(request: NextRequest) {
               const eligibleForGovernance = status === null || status === 'approved';
 
               if (eligibleForGovernance) {
-                // Cooldown check: skip if last_auto_flagged_at is within cooldown period
+                // Cooldown check: skip if verified_at is within cooldown period
+                // (don't re-flag items recently reviewed by a human)
                 const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
                 const cooldownCutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
-                const lastFlagged = item.last_auto_flagged_at ? new Date(item.last_auto_flagged_at) : null;
-                const withinCooldown = lastFlagged && lastFlagged > cooldownCutoff;
+                const lastVerified = item.verified_at ? new Date(item.verified_at) : null;
+                const withinCooldown = lastVerified && lastVerified > cooldownCutoff;
 
                 if (!withinCooldown) {
                   governanceFlagItems.push({
@@ -275,7 +275,6 @@ export async function GET(request: NextRequest) {
             governance_review_status: 'pending',
             governance_review_due: reviewDue,
             governance_reviewer_id: item.reviewerId,
-            last_auto_flagged_at: new Date().toISOString(),
           })
           .eq('id', item.itemId);
       }
