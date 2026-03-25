@@ -251,4 +251,82 @@ describe('ItemActionBar', () => {
       expect(screen.queryByText(/visual analysis/i)).not.toBeInTheDocument();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // isReaderMode prop — hides editing actions
+  // -------------------------------------------------------------------------
+
+  describe('isReaderMode prop', () => {
+    it('hides Edit button when isReaderMode=true even for editors', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
+    });
+
+    it('hides Star button when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.queryByTestId('star-button')).not.toBeInTheDocument();
+    });
+
+    it('hides Priority selector when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.queryByTestId('priority-selector')).not.toBeInTheDocument();
+    });
+
+    it('still shows ReadToggle when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.getByTestId('read-toggle')).toBeInTheDocument();
+    });
+
+    it('still shows Copy content button when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.getByRole('button', { name: /copy content/i })).toBeInTheDocument();
+    });
+
+    it('still shows overflow menu when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true })} />);
+      expect(screen.getByRole('button', { name: /more actions/i })).toBeInTheDocument();
+    });
+
+    it('hides Visual Analysis in overflow when isReaderMode=true', async () => {
+      const user = userEvent.setup();
+      const item = createDefaultItem();
+      item.content_type = 'pdf';
+      item.source_url = 'https://example.com/test.pdf';
+
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: true, item })} />);
+
+      await user.click(screen.getByRole('button', { name: /more actions/i }));
+
+      expect(screen.queryByText(/visual analysis/i)).not.toBeInTheDocument();
+    });
+
+    it('hides Delete in overflow for admin when isReaderMode=true', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, canAdmin: true, isReaderMode: true })} />);
+      expect(screen.queryByTestId('delete-dialog')).not.toBeInTheDocument();
+    });
+
+    it('shows all editing actions when isReaderMode=false (default)', () => {
+      render(<ItemActionBar {...createProps({ canEdit: true, isReaderMode: false })} />);
+      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+      expect(screen.getByTestId('star-button')).toBeInTheDocument();
+      expect(screen.getByTestId('priority-selector')).toBeInTheDocument();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // detailModeToggle slot
+  // -------------------------------------------------------------------------
+
+  describe('detailModeToggle slot', () => {
+    it('renders detailModeToggle at the start of the action bar when provided', () => {
+      const toggle = <button data-testid="mode-toggle">Toggle</button>;
+      render(<ItemActionBar {...createProps({ detailModeToggle: toggle })} />);
+      expect(screen.getByTestId('mode-toggle')).toBeInTheDocument();
+    });
+
+    it('does not render detailModeToggle when not provided', () => {
+      render(<ItemActionBar {...createProps({ detailModeToggle: undefined })} />);
+      expect(screen.queryByTestId('mode-toggle')).not.toBeInTheDocument();
+    });
+  });
 });

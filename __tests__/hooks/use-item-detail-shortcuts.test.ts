@@ -40,6 +40,8 @@ function createParams(overrides: Partial<Parameters<typeof useItemDetailShortcut
     setEditAdvanced: vi.fn(),
     setEditDirty: vi.fn(),
     router: { push: vi.fn(), replace: vi.fn(), back: vi.fn(), forward: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() } as Parameters<typeof useItemDetailShortcuts>[0]['router'],
+    detailMode: 'editor' as const,
+    toggleDetailMode: vi.fn(),
     ...overrides,
   };
 }
@@ -189,6 +191,158 @@ describe('useItemDetailShortcuts', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Shift+D — toggle detail mode
+  // -------------------------------------------------------------------------
+
+  it('calls toggleDetailMode on Shift+D when canEdit is true', () => {
+    const params = createParams({ canEdit: true });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'D', shiftKey: true });
+
+    expect(params.toggleDetailMode).toHaveBeenCalledOnce();
+  });
+
+  it('does not call toggleDetailMode on Shift+D when canEdit is false', () => {
+    const params = createParams({ canEdit: false });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'D', shiftKey: true });
+
+    expect(params.toggleDetailMode).not.toHaveBeenCalled();
+  });
+
+  it('does not call toggleDetailMode on Shift+D when toggleDetailMode is not provided', () => {
+    const params = createParams({ canEdit: true, toggleDetailMode: undefined });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'D', shiftKey: true });
+
+    // Should not throw — the guard in the hook prevents the call
+  });
+
+  it('does not call toggleDetailMode on plain "d" (no shift)', () => {
+    const params = createParams({ canEdit: true });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    fireEvent.keyDown(window, { key: 'd' });
+
+    expect(params.toggleDetailMode).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Reader mode — editing shortcuts disabled
+  // -------------------------------------------------------------------------
+
+  describe('reader mode (detailMode=reader)', () => {
+    it('does not call handleStarToggle on "s" in reader mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 's' });
+
+      expect(params.handleStarToggle).not.toHaveBeenCalled();
+    });
+
+    it('does not call handlePriorityCycle on "p" in reader mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'p' });
+
+      expect(params.handlePriorityCycle).not.toHaveBeenCalled();
+    });
+
+    it('does not call setIsEditing on "e" in reader mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'e' });
+
+      expect(params.setIsEditing).not.toHaveBeenCalled();
+    });
+
+    it('still calls toggleRead on "m" in reader mode (reading shortcut)', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'm' });
+
+      expect(params.toggleRead).toHaveBeenCalledWith('item-1');
+    });
+
+    it('still calls toggleReader on "r" in reader mode (reading shortcut)', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'r' });
+
+      expect(params.toggleReader).toHaveBeenCalledOnce();
+    });
+
+    it('still calls toggleDetailMode on Shift+D in reader mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'reader' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'D', shiftKey: true });
+
+      expect(params.toggleDetailMode).toHaveBeenCalledOnce();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Editor mode — all shortcuts active
+  // -------------------------------------------------------------------------
+
+  describe('editor mode (detailMode=editor)', () => {
+    it('calls handleStarToggle on "s" in editor mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'editor' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 's' });
+
+      expect(params.handleStarToggle).toHaveBeenCalledOnce();
+    });
+
+    it('calls handlePriorityCycle on "p" in editor mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'editor' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'p' });
+
+      expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
+    });
+
+    it('calls setIsEditing on "e" in editor mode', () => {
+      const params = createParams({ canEdit: true, detailMode: 'editor' });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 'e' });
+
+      expect(params.setIsEditing).toHaveBeenCalledOnce();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Backwards compatibility — no detailMode provided
+  // -------------------------------------------------------------------------
+
+  describe('backwards compatibility (no detailMode)', () => {
+    it('editing shortcuts work when detailMode is undefined', () => {
+      const params = createParams({ canEdit: true, detailMode: undefined });
+      renderHook(() => useItemDetailShortcuts(params));
+
+      fireEvent.keyDown(window, { key: 's' });
+      fireEvent.keyDown(window, { key: 'p' });
+      fireEvent.keyDown(window, { key: 'e' });
+
+      expect(params.handleStarToggle).toHaveBeenCalledOnce();
+      expect(params.handlePriorityCycle).toHaveBeenCalledOnce();
+      expect(params.setIsEditing).toHaveBeenCalledOnce();
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Form element suppression
   // -------------------------------------------------------------------------
 
@@ -223,5 +377,20 @@ describe('useItemDetailShortcuts', () => {
     expect(params.setIsEditing).not.toHaveBeenCalled();
 
     document.body.removeChild(textarea);
+  });
+
+  it('suppresses Shift+D when focus is in an INPUT', () => {
+    const params = createParams({ canEdit: true });
+    renderHook(() => useItemDetailShortcuts(params));
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    fireEvent.keyDown(input, { key: 'D', shiftKey: true });
+
+    expect(params.toggleDetailMode).not.toHaveBeenCalled();
+
+    document.body.removeChild(input);
   });
 });

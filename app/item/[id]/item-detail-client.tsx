@@ -2,41 +2,19 @@
 
 import { useCallback } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { Thumbnail } from '@/components/thumbnail';
-import { ContentTabs } from '@/components/content-tabs';
-import { MetadataSidebar } from '@/components/metadata-sidebar';
 import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
-import { OrganiseSection } from '@/components/organise-section';
-import { EntityBadges } from '@/components/entity-badges';
-import { SourceDocumentInfo } from '@/components/source-document-info';
-import { VersionHistory } from '@/components/version-history';
-import { isFeatureEnabled } from '@/lib/client-config';
-import { getDisplayTitle } from '@/lib/format';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
-import {
-  generateIngestUrlPrompt,
-  generateSummariseAndIngestPrompt,
-} from '@/lib/claude-prompts';
+import { ErrorBoundary } from '@/components/error-boundary';
+
+// Hooks
+import { useItemDetailData } from '@/hooks/use-item-detail-data';
+import { useDetailMode } from '@/hooks/use-detail-mode';
 import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
 
-// Extracted data hook — shared state for reader and editor views
-import { useItemDetailData } from '@/hooks/use-item-detail-data';
-
-// Extracted sub-components
-import { ItemActionBar } from '@/components/item-action-bar';
-import {
-  CollapsibleSection,
-  RelatedContentSection,
-  QAUsedInBids,
-  QARelatedPairs,
-  ContentBody,
-  LayerSwitcherNav,
-  ItemTitleSection,
-  ItemBreadcrumb,
-} from '@/components/item-detail';
-import { TopicLayerComparison } from '@/components/topic-layer-comparison';
-import { ErrorBoundary } from '@/components/error-boundary';
+// Views
+import { ReaderView } from '@/components/item-detail/reader-view';
+import { EditorView } from '@/components/item-detail/editor-view';
+import { DetailModeToggle } from '@/components/item-detail/detail-mode-toggle';
 
 import type {
   ContentListItem,
@@ -92,7 +70,7 @@ export interface ItemData {
   lifecycle_type?: string | null;
 }
 
-interface ItemDetailClientProps {
+export interface ItemDetailClientProps {
   item: ItemData;
   relatedItems: Array<ContentListItem & { similarity: number }>;
 }
@@ -104,377 +82,98 @@ export function ItemDetailClient({
   // All data, state, and mutations extracted into shared hook
   const data = useItemDetailData({ initialItem, relatedItems });
 
-  const {
-    item,
-    setItem,
-    title,
-    isQAPair,
-    hasReaderContent,
-    transcriptChapters,
-    visionAnalysis,
-    isMobile,
-    canEdit,
-    canAdmin,
-    router,
-    toggleRead,
-    segments,
-    highlights,
-    fontSize,
-    maxWidth,
-    panelLayout,
-    readerOpen,
-    isDetached,
-    detachedPosition,
-    detachedSize,
-    setFontSize,
-    setMaxWidth,
-    setPanelLayout,
-    setReaderOpen,
-    toggleReader,
-    toggleDetached,
-    setDetachedPosition,
-    setDetachedSize,
-    showSplitReader,
-    inlineEdit,
-    qaEditMode,
-    isAnalysing,
-    handleVisionAnalysis,
-    qaProvenance,
-    layerContent,
-    isLayerContentLoading,
-    copied,
-    handleCopyLink,
-    handleCopyAnswer,
-    handleStarToggle,
-    handlePriorityCycle,
-    getActiveTabContent,
-    tabEditConfig,
-    startEdit,
-    cancelEdit,
-    saveEdit,
-  } = data;
+  // Reader/editor mode management
+  const { detailMode, toggleDetailMode, isReaderMode, canToggle } = useDetailMode({
+    canEdit: data.canEdit,
+  });
 
-  // Destructure frequently-used sub-hook values
-  const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
-  const {
-    isEditing,
-    setIsEditing,
-    editDirty,
-    setEditDirty,
-    editTitle,
-    setEditTitle,
-    editStandard,
-    setEditStandard,
-    editAdvanced,
-    setEditAdvanced,
-    isSavingTab,
-    setIsSavingTab,
-    enterEditMode,
-    cancelEditMode,
-    handleSaveAll,
-  } = qaEditMode;
-  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } = qaProvenance;
+  // Unsaved changes guard: block mode switch while editing
+  const handleModeToggle = useCallback(() => {
+    if (data.qaEditMode.editDirty) {
+      if (!window.confirm('You have unsaved changes. Discard and switch to reader mode?')) {
+        return;
+      }
+      data.qaEditMode.cancelEditMode();
+    }
+    toggleDetailMode();
+  }, [data.qaEditMode, toggleDetailMode]);
 
-  // Keyboard shortcuts (extracted hook)
+  // Keyboard shortcuts — mode-aware (disables edit shortcuts in reader mode)
   useItemDetailShortcuts({
-    itemId: item.id,
-    toggleRead,
-    handleStarToggle,
-    handlePriorityCycle,
-    toggleReader,
-    readerOpen,
-    toggleDetached,
-    canEdit,
-    title,
-    answerStandard: item.answer_standard,
-    answerAdvanced: item.answer_advanced,
-    setIsEditing,
-    setEditTitle,
-    setEditStandard,
-    setEditAdvanced,
-    setEditDirty,
-    router,
+    itemId: data.item.id,
+    toggleRead: data.toggleRead,
+    handleStarToggle: data.handleStarToggle,
+    handlePriorityCycle: data.handlePriorityCycle,
+    toggleReader: data.toggleReader,
+    readerOpen: data.readerOpen,
+    toggleDetached: data.toggleDetached,
+    canEdit: data.canEdit,
+    title: data.title,
+    answerStandard: data.item.answer_standard,
+    answerAdvanced: data.item.answer_advanced,
+    setIsEditing: data.qaEditMode.setIsEditing,
+    setEditTitle: data.qaEditMode.setEditTitle,
+    setEditStandard: data.qaEditMode.setEditStandard,
+    setEditAdvanced: data.qaEditMode.setEditAdvanced,
+    setEditDirty: data.qaEditMode.setEditDirty,
+    router: data.router,
+    detailMode,
+    toggleDetailMode: handleModeToggle,
   });
 
   const handleLayoutChanged = useCallback(
     (layout: Layout) => {
-      setPanelLayout(layout);
+      data.setPanelLayout(layout);
     },
-    [setPanelLayout],
+    [data.setPanelLayout],
   );
 
-  const contentTabsElement = (
-    <ContentTabs
-      itemId={item.id as string}
-      summaryData={item.summary_data ?? null}
-      contentType={item.content_type as string}
-      content={item.content}
-      aiSummary={item.ai_summary}
-      brief={item.brief}
-      detail={item.detail}
-      reference={item.reference}
-      readerHtml={item.metadata?.reader_html as string | undefined}
-      hideFullText={
-        item.content_type === 'transcript' &&
-        !!transcriptChapters &&
-        transcriptChapters.length > 0
-      }
-      platform={item.platform}
-      metadata={item.metadata}
-      authorName={item.author_name}
-      sourceUrl={item.source_url}
-      transcriptChapters={transcriptChapters}
-      segments={segments}
-      highlights={highlights}
-      frameable={item.metadata?.frameable === true}
-      canEdit={canEdit}
-      editConfig={tabEditConfig}
-      className="mb-6"
+  // Build the mode toggle element as a slot for both views
+  const detailModeToggle = canToggle ? (
+    <DetailModeToggle
+      detailMode={detailMode}
+      onToggle={handleModeToggle}
     />
-  );
+  ) : undefined;
 
+  // Reader panel props — shared across split and floating reader
   const readerPanelProps = {
-    readerHtml: item.metadata?.reader_html as string | undefined,
-    contentType: item.content_type,
-    title,
-    fontSize,
-    maxWidth,
-    onFontSizeChange: setFontSize,
-    onMaxWidthChange: setMaxWidth,
-    onClose: () => setReaderOpen(false),
-    platform: item.platform,
-    metadata: item.metadata,
-    authorName: item.author_name,
-    sourceUrl: item.source_url,
-    filePath: item.file_path,
-    content: item.content,
-    transcriptChapters,
-    segments,
-    highlights,
-    frameable: item.metadata?.frameable === true,
-    onDetachToggle: toggleDetached,
+    readerHtml: data.item.metadata?.reader_html as string | undefined,
+    contentType: data.item.content_type,
+    title: data.title,
+    fontSize: data.fontSize,
+    maxWidth: data.maxWidth,
+    onFontSizeChange: data.setFontSize,
+    onMaxWidthChange: data.setMaxWidth,
+    onClose: () => data.setReaderOpen(false),
+    platform: data.item.platform,
+    metadata: data.item.metadata,
+    authorName: data.item.author_name,
+    sourceUrl: data.item.source_url,
+    filePath: data.item.file_path,
+    content: data.item.content,
+    transcriptChapters: data.transcriptChapters,
+    segments: data.segments,
+    highlights: data.highlights,
+    frameable: data.item.metadata?.frameable === true,
+    onDetachToggle: data.toggleDetached,
   };
 
-  // Item detail content -- extracted to keep the PanelGroup JSX clean
-  const itemDetailContent = (
-    <>
-      {/* Screen reader: save announcements */}
-      <div aria-live="polite" className="sr-only">{saveAnnouncement}</div>
-
-      {/* Screen reader: keyboard shortcut help */}
-      <div className="sr-only" role="note" aria-label="Keyboard shortcuts">
-        {canEdit
-          ? 'Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel.'
-          : 'Available shortcuts: M to toggle read, R to open reader panel.'}
-      </div>
-
-      {/* Breadcrumb navigation */}
-      <ItemBreadcrumb
-        isQAPair={isQAPair}
-        primaryDomain={item.primary_domain}
-        title={title}
-      />
-
-      {/* Layer switcher — shows linked items sharing the same topic_id (editors only) */}
-      {canEdit && (
-        <LayerSwitcherNav
-          currentItemId={item.id}
-          topicLayers={topicLayers}
-        />
-      )}
-
-      {/* Layer comparison — inline tabbed preview of sibling layer content (editors only) */}
-      {canEdit && isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
-        <TopicLayerComparison
-          currentItem={{
-            id: item.id as string,
-            layer: (item.metadata?.layer as string) ?? '',
-            title: item.title ?? '',
-            brief: item.brief ?? null,
-            detail: item.detail ?? null,
-            content: item.content ?? null,
-            content_type: item.content_type as string,
-            metadata: item.metadata,
-          }}
-          layerContent={layerContent}
-          isLoading={isLayerContentLoading}
-        />
-      )}
-
-      <div className="flex flex-col gap-8 lg:flex-row">
-        {/* Main content */}
-        <article className="min-w-0 flex-1" aria-label={item.title ?? 'Untitled'}>
-          {/* Thumbnail (not shown for Q&A pairs) */}
-          {item.thumbnail_url && !isQAPair ? (
-            <Thumbnail
-              src={item.thumbnail_url as string | null}
-              alt={title}
-              contentType={item.content_type as string}
-              domain={item.primary_domain as string}
-              sizes="(max-width: 640px) 100vw, (max-width: 1280px) 80vw, 800px"
-              className="mb-6 max-w-2xl"
-            />
-          ) : null}
-
-          {/* Title + inline badges + editing banner */}
-          <ItemTitleSection
-            item={item}
-            title={title}
-            isEditing={isEditing}
-            editDirty={editDirty}
-            editTitle={editTitle}
-            setEditTitle={setEditTitle}
-            setEditDirty={setEditDirty}
-            handleSaveAll={handleSaveAll}
-            cancelEditMode={cancelEditMode}
-          />
-
-          {/* Action bar */}
-          <ItemActionBar
-            item={item}
-            canEdit={canEdit}
-            canAdmin={canAdmin}
-            isEditing={isEditing}
-            isQAPair={isQAPair}
-            isAnalysing={isAnalysing}
-            copied={copied}
-            hasReaderContent={hasReaderContent}
-            title={title}
-            readerOpen={readerOpen}
-            enterEditMode={enterEditMode}
-            cancelEditMode={cancelEditMode}
-            handleCopyLink={handleCopyLink}
-            handleCopyAnswer={handleCopyAnswer}
-            handleVisionAnalysis={handleVisionAnalysis}
-            toggleReader={toggleReader}
-            setItem={setItem}
-          />
-
-          {/* Content group (expanded by default) */}
-          <CollapsibleSection title="Content" defaultOpen>
-            <ContentBody
-              item={item}
-              setItem={setItem}
-              isQAPair={isQAPair}
-              canEdit={canEdit}
-              contentTabsElement={contentTabsElement}
-              isEditing={isEditing}
-              editStandard={editStandard}
-              editAdvanced={editAdvanced}
-              setEditStandard={setEditStandard}
-              setEditAdvanced={setEditAdvanced}
-              setEditDirty={setEditDirty}
-              handleCopyAnswer={handleCopyAnswer}
-              visionAnalysis={visionAnalysis}
-              transcriptChapters={transcriptChapters}
-              segments={segments}
-              highlights={highlights}
-              handleLayerChange={handleLayerChange}
-              getActiveTabContent={getActiveTabContent}
-            />
-
-            {/* Q&A provenance: bids using this pair */}
-            {isQAPair && (
-              <QAUsedInBids workspaces={usedInWorkspaces} />
-            )}
-
-            {/* Q&A related pairs from the same source document */}
-            {isQAPair && (
-              <QARelatedPairs relatedQA={relatedQA} />
-            )}
-
-            {/* OrganiseSection — replaces separate keywords/workspaces/tags (editors only) */}
-            {canEdit && (
-              <OrganiseSection
-                itemId={item.id}
-                keywords={(item.ai_keywords as string[]) ?? []}
-                workspaces={[]}
-                tags={(item.user_tags as string[]) ?? []}
-                canEdit={canEdit}
-                onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
-                onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
-                onWorkspacesChanged={() => {}}
-                className="mb-6"
-              />
-            )}
-          </CollapsibleSection>
-
-          {/* Claude actions — contextual ingestion prompts (editors only) */}
-          {canEdit && (item.source_url || (item.content && item.content.length > 5000)) && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {item.source_url && (
-                <ClaudePromptButton
-                  prompt={generateIngestUrlPrompt(item.source_url).prompt}
-                  label="Re-ingest source"
-                  size="sm"
-                />
-              )}
-              {item.content && item.content.length > 5000 && (
-                <ClaudePromptButton
-                  prompt={generateSummariseAndIngestPrompt(
-                    item.title ?? 'Untitled',
-                    item.content.slice(0, 500),
-                  ).prompt}
-                  label="Summarise and add to KB"
-                  size="sm"
-                />
-              )}
-            </div>
-          )}
-
-          {/* Relationships group (collapsed by default) */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
-            {/* Entity mentions — shows badges grouped by entity type */}
-            <EntityBadges
-              contentItemId={item.id}
-              className="mb-6"
-            />
-
-            {/* Version history */}
-            <VersionHistory
-              itemId={item.id}
-              currentContent={item.content ?? ''}
-              currentTitle={getDisplayTitle({
-                suggested_title: item.suggested_title,
-                title: item.title,
-                content: item.content,
-              })}
-              onRollback={() => router.refresh()}
-              className="mb-6"
-            />
-
-            {/* Consolidated related content section */}
-            <RelatedContentSection
-              relatedItems={relatedItems}
-              itemId={item.id}
-              userTags={(item.user_tags as string[]) ?? []}
-            />
-          </CollapsibleSection>
-        </article>
-
-        {/* Metadata sidebar (expanded on desktop, collapsed on mobile) */}
-        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border border-border bg-card p-4">
-          <MetadataSidebar
-            item={item}
-            editingField={editingField}
-            editValue={editValue}
-            saveSuccess={saveSuccess}
-            startEdit={startEdit}
-            saveEdit={saveEdit}
-            readOnly={!canEdit}
-            onOwnerChanged={(ownerId) =>
-              setItem((prev) => ({ ...prev, content_owner_id: ownerId }))
-            }
-          />
-          {/* Source document lineage */}
-          {item.source_document_id && (
-            <div className="mt-4 border-t border-border pt-4">
-              <SourceDocumentInfo sourceDocumentId={item.source_document_id} />
-            </div>
-          )}
-        </CollapsibleSection>
-      </div>
-    </>
+  // Render the active view based on mode
+  const viewContent = isReaderMode ? (
+    <ReaderView
+      data={data}
+      relatedItems={relatedItems}
+      onModeToggle={handleModeToggle}
+      detailModeToggle={detailModeToggle}
+    />
+  ) : (
+    <EditorView
+      data={data}
+      relatedItems={relatedItems}
+      onModeToggle={data.canEdit ? handleModeToggle : undefined}
+      detailModeToggle={detailModeToggle}
+    />
   );
 
   return (
@@ -483,24 +182,24 @@ export function ItemDetailClient({
     <PanelGroup
       orientation="horizontal"
       onLayoutChanged={handleLayoutChanged}
-      defaultLayout={showSplitReader ? panelLayout : undefined}
+      defaultLayout={data.showSplitReader ? data.panelLayout : undefined}
       className="min-h-[calc(100vh-4rem)]"
     >
       <Panel
         id="detail"
-        defaultSize={showSplitReader ? `${panelLayout.detail ?? 55}%` : '100%'}
+        defaultSize={data.showSplitReader ? `${data.panelLayout.detail ?? 55}%` : '100%'}
         minSize="30%"
       >
         <div className="mx-auto max-w-7xl overflow-y-auto px-4 py-6 sm:px-6">
-          {itemDetailContent}
+          {viewContent}
         </div>
       </Panel>
-      {showSplitReader && (
+      {data.showSplitReader && (
         <>
           <PanelResizeHandle aria-label="Resize panels" className="w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30" />
           <Panel
             id="reader"
-            defaultSize={`${panelLayout.reader ?? 45}%`}
+            defaultSize={`${data.panelLayout.reader ?? 45}%`}
             minSize="25%"
           >
             <div className="h-full border-l border-border bg-background">
@@ -513,30 +212,30 @@ export function ItemDetailClient({
         </>
       )}
     </PanelGroup>
-    {readerOpen && isDetached && (
+    {data.readerOpen && data.isDetached && (
       <FloatingReader
-        readerHtml={item.metadata?.reader_html as string | undefined}
-        contentType={item.content_type}
-        title={title}
-        fontSize={fontSize}
-        maxWidth={maxWidth}
-        onFontSizeChange={setFontSize}
-        onMaxWidthChange={setMaxWidth}
-        onClose={() => setReaderOpen(false)}
-        onDock={toggleDetached}
-        position={detachedPosition}
-        size={detachedSize}
-        onPositionChange={setDetachedPosition}
-        onSizeChange={setDetachedSize}
-        platform={item.platform}
-        metadata={item.metadata}
-        authorName={item.author_name}
-        sourceUrl={item.source_url}
-        filePath={item.file_path}
-        content={item.content}
-        transcriptChapters={transcriptChapters}
-        segments={segments}
-        highlights={highlights}
+        readerHtml={data.item.metadata?.reader_html as string | undefined}
+        contentType={data.item.content_type}
+        title={data.title}
+        fontSize={data.fontSize}
+        maxWidth={data.maxWidth}
+        onFontSizeChange={data.setFontSize}
+        onMaxWidthChange={data.setMaxWidth}
+        onClose={() => data.setReaderOpen(false)}
+        onDock={data.toggleDetached}
+        position={data.detachedPosition}
+        size={data.detachedSize}
+        onPositionChange={data.setDetachedPosition}
+        onSizeChange={data.setDetachedSize}
+        platform={data.item.platform}
+        metadata={data.item.metadata}
+        authorName={data.item.author_name}
+        sourceUrl={data.item.source_url}
+        filePath={data.item.file_path}
+        content={data.item.content}
+        transcriptChapters={data.transcriptChapters}
+        segments={data.segments}
+        highlights={data.highlights}
       />
     )}
     </>

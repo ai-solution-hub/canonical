@@ -94,7 +94,6 @@ export function EditorView({
     toggleReader,
     tabEditConfig,
     getActiveTabContent,
-    handleLayerChange: _handleLayerChange,
   } = data;
 
   // Destructure sub-hook values
