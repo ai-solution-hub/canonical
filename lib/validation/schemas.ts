@@ -84,10 +84,17 @@ export const ReviewActionBodySchema = z.object({
 /** GET /api/review/queue — validates status, limit, cursor only.
  *  Domain, content_type, and source_file are parsed separately via
  *  searchParams.getAll() in the route handler for proper array handling. */
+export const VALID_REVIEW_QUEUE_SORTS = [
+  'created_at',
+  'confidence_asc',
+  'quality_score_asc',
+] as const;
+
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
   limit: z.number().int().min(1).max(100).default(20),
   cursor: z.string().optional(),
+  sort: z.enum(VALID_REVIEW_QUEUE_SORTS).default('created_at').optional(),
 });
 
 /** POST /api/summaries/generate */

@@ -292,6 +292,43 @@ describe('ReviewQueueParamsSchema', () => {
     const result = ReviewQueueParamsSchema.safeParse({ limit: 101 });
     expect(result.success).toBe(false);
   });
+
+  it('should accept sort=confidence_asc', () => {
+    const result = ReviewQueueParamsSchema.safeParse({ sort: 'confidence_asc' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sort).toBe('confidence_asc');
+    }
+  });
+
+  it('should accept sort=quality_score_asc', () => {
+    const result = ReviewQueueParamsSchema.safeParse({ sort: 'quality_score_asc' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sort).toBe('quality_score_asc');
+    }
+  });
+
+  it('should accept sort=created_at', () => {
+    const result = ReviewQueueParamsSchema.safeParse({ sort: 'created_at' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sort).toBe('created_at');
+    }
+  });
+
+  it('should reject invalid sort value', () => {
+    const result = ReviewQueueParamsSchema.safeParse({ sort: 'invalid_sort' });
+    expect(result.success).toBe(false);
+  });
+
+  it('should default sort to created_at when omitted', () => {
+    const result = ReviewQueueParamsSchema.safeParse({});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.sort).toBe('created_at');
+    }
+  });
 });
 
 describe('ReadMarkBodySchema', () => {

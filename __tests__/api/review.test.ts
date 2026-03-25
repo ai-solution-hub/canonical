@@ -117,6 +117,7 @@ describe('GET /api/review/queue', () => {
         captured_date: '2026-01-01',
         ai_keywords: ['test'],
         classification_confidence: 0.9,
+        quality_score: 75,
         priority: 'medium',
         user_tags: [],
         metadata: null,

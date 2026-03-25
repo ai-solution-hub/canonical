@@ -12,7 +12,7 @@ export const maxDuration = 30;
 type ContentItemRow = Database['public']['Tables']['content_items']['Row'];
 
 /** Columns needed by mapToReviewQueueItem — excludes embedding, summary_data, reader_html and other large/unused fields */
-const REVIEW_COLUMNS = 'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
+const REVIEW_COLUMNS = 'id, title, suggested_title, ai_summary, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, platform, author_name, source_domain, thumbnail_url, captured_date, ai_keywords, classification_confidence, quality_score, priority, user_tags, metadata, content, source_url, verified_at, verified_by, freshness, governance_review_status, created_at';
 
 /**
  * GET /api/review/queue — fetch content items for the review workflow.
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const validated = parseSearchParams(ReviewQueueParamsSchema, searchParams);
     if (!validated.success) return validated.response;
 
-    const { status, limit, cursor } = validated.data;
+    const { status, limit, cursor, sort } = validated.data;
     // Use getAll for repeated params (domain=a&domain=b) and fall back to
     // comma-separated single values (domain=a,b) for backwards compatibility.
     const domainParams = searchParams.getAll('domain').flatMap(v => v.split(',')).filter(Boolean);
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       return await handleFlaggedQuery(
         supabase, limit, cursor,
         domainParams, contentTypeParams, sourceFileParam, sourceDocumentIdParam,
+        sort,
       );
     }
 
@@ -95,8 +96,15 @@ export async function GET(request: NextRequest) {
       query = query.lt('created_at', cursor);
     }
 
-    // Sort by creation date descending (newest first)
-    query = query.order('created_at', { ascending: false }).limit(limit);
+    // Apply sort order
+    if (sort === 'confidence_asc') {
+      query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
+    } else if (sort === 'quality_score_asc') {
+      query = query.order('quality_score', { ascending: true, nullsFirst: true });
+    } else {
+      query = query.order('created_at', { ascending: false });
+    }
+    query = query.limit(limit);
 
     const { data, error, count } = await query;
 
@@ -154,6 +162,7 @@ async function handleFlaggedQuery(
   contentTypeParams: string[],
   sourceFileParam: string | null,
   sourceDocumentIdParam: string | null,
+  sort?: string,
 ) {
   // First, get the content_item_ids that have open review_needed flags
   const { data: flaggedIds, error: flagError } = await supabase
@@ -211,7 +220,15 @@ async function handleFlaggedQuery(
     query = query.lt('created_at', cursor);
   }
 
-  query = query.order('created_at', { ascending: false }).limit(limit);
+  // Apply sort order
+  if (sort === 'confidence_asc') {
+    query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
+  } else if (sort === 'quality_score_asc') {
+    query = query.order('quality_score', { ascending: true, nullsFirst: true });
+  } else {
+    query = query.order('created_at', { ascending: false });
+  }
+  query = query.limit(limit);
 
   const { data, error, count } = await query;
 
@@ -281,5 +298,6 @@ function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
     secondary_subtopic: row.secondary_subtopic ?? null,
     freshness: row.freshness ?? null,
     governance_review_status: row.governance_review_status ?? null,
+    quality_score: row.quality_score ?? null,
   };
 }

@@ -145,6 +145,11 @@
   --color-confidence-none-bg: oklch(0.95 0.010 48);
   --color-confidence-none-border: oklch(0.82 0.014 48);
 
+  /* Low-confidence review indicator */
+  --color-confidence-low: oklch(0.55 0.20 20);
+  --color-confidence-low-bg: oklch(0.95 0.03 20);
+  --color-confidence-low-border: oklch(0.82 0.06 20);
+
   /* Gap summary banner */
   --color-gap-summary-bg: oklch(0.97 0.018 85);
   --color-gap-summary-border: oklch(0.87 0.050 85);
@@ -421,6 +426,11 @@
   --color-confidence-none-bg: oklch(0.25 0.016 48);
   --color-confidence-none-border: oklch(0.35 0.014 48);
 
+  /* Low-confidence review indicator (dark) */
+  --color-confidence-low: oklch(0.70 0.17 20);
+  --color-confidence-low-bg: oklch(0.25 0.05 20);
+  --color-confidence-low-border: oklch(0.35 0.06 20);
+
   /* Gap summary banner (dark) */
   --color-gap-summary-bg: oklch(0.20 0.016 85);
   --color-gap-summary-border: oklch(0.30 0.030 85 / 0.5);
@@ -626,6 +636,9 @@
   --color-confidence-none: var(--color-confidence-none);
   --color-confidence-none-bg: var(--color-confidence-none-bg);
   --color-confidence-none-border: var(--color-confidence-none-border);
+  --color-confidence-low: var(--color-confidence-low);
+  --color-confidence-low-bg: var(--color-confidence-low-bg);
+  --color-confidence-low-border: var(--color-confidence-low-border);
 
   --color-gap-summary-bg: var(--color-gap-summary-bg);
   --color-gap-summary-border: var(--color-gap-summary-border);

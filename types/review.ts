@@ -19,6 +19,7 @@ export interface ReviewFilters {
   content_type?: string[];
   source_file?: string;
   source_document_id?: string;
+  sort?: ReviewQueueSortField;
 }
 
 // -- Action payload --
@@ -50,6 +51,8 @@ export interface ReviewSession {
 
 // -- Queue item (extended for review display) --
 
+export type ReviewQueueSortField = 'created_at' | 'confidence_asc' | 'quality_score_asc';
+
 export interface ReviewQueueItem extends ContentListItem {
   content: string | null;
   source_url: string | null;
@@ -57,6 +60,7 @@ export interface ReviewQueueItem extends ContentListItem {
   verified_by: string | null;
   secondary_domain: string | null;
   secondary_subtopic: string | null;
+  quality_score: number | null;
 }
 
 // -- API responses --

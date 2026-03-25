@@ -91,6 +91,7 @@ function makeQueueItem(overrides: Partial<ReviewQueueItem> = {}, index = 0): Rev
     verified_by: null,
     secondary_domain: null,
     secondary_subtopic: null,
+    quality_score: null,
     ...overrides,
   };
 }
@@ -621,6 +622,11 @@ describe('useReviewQueue', () => {
 
       act(() => {
         result.current.setQueueSort('confidence');
+      });
+
+      // Setting confidence sort triggers a server-side refetch; wait for it to complete
+      await waitFor(() => {
+        expect(result.current.sortedQueue.length).toBe(3);
       });
 
       expect(result.current.sortedQueue[0].classification_confidence).toBe(0.95);

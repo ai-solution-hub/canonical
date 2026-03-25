@@ -45,6 +45,7 @@ function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueIt
     verified_by: null,
     secondary_domain: null,
     secondary_subtopic: null,
+    quality_score: null,
     ...overrides,
   };
 }
@@ -199,5 +200,99 @@ describe('ReviewCard', () => {
       />,
     );
     expect(screen.queryByText('Corporate')).not.toBeInTheDocument();
+  });
+});
+
+describe('ReviewCard — low-confidence indicator', () => {
+  it('shows "Low confidence" badge when classification_confidence < 0.7', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.5 })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.getByText('Low confidence')).toBeInTheDocument();
+  });
+
+  it('shows "Low confidence" badge when classification_confidence is 0', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0 })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.getByText('Low confidence')).toBeInTheDocument();
+  });
+
+  it('does not show "Low confidence" badge when classification_confidence >= 0.7', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.7 })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.queryByText('Low confidence')).not.toBeInTheDocument();
+  });
+
+  it('does not show "Low confidence" badge when classification_confidence is 0.85', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.85 })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.queryByText('Low confidence')).not.toBeInTheDocument();
+  });
+
+  it('does not show "Low confidence" badge when classification_confidence is null', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: null })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.queryByText('Low confidence')).not.toBeInTheDocument();
+  });
+
+  it('does not display a percentage value in the badge', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.45 })}
+        position={1}
+        total={10}
+      />,
+    );
+    const badge = screen.getByText('Low confidence');
+    expect(badge.textContent).toBe('Low confidence');
+    expect(badge.textContent).not.toMatch(/\d+%/);
+    expect(badge.textContent).not.toMatch(/0\.\d/);
+  });
+
+  it('renders the low-confidence badge with role="status"', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.3 })}
+        position={1}
+        total={10}
+      />,
+    );
+    const badge = screen.getByText('Low confidence');
+    expect(badge).toHaveAttribute('role', 'status');
+  });
+
+  it('shows badge at boundary value 0.69 (just below threshold)', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem({ classification_confidence: 0.69 })}
+        position={1}
+        total={10}
+      />,
+    );
+    expect(screen.getByText('Low confidence')).toBeInTheDocument();
   });
 });

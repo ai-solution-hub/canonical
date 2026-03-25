@@ -62,6 +62,7 @@ const { mockUseReviewQueue, mockToast } = vi.hoisted(() => {
     verified_by: null,
     secondary_domain: null,
     secondary_subtopic: null,
+    quality_score: null,
   });
 
   return {
@@ -243,6 +244,7 @@ describe('ReviewContent', () => {
         verified_by: null,
         secondary_domain: null,
         secondary_subtopic: null,
+        quality_score: null,
       };
 
       return {

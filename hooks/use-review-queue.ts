@@ -8,6 +8,7 @@ import type {
   ReviewProgress,
   ReviewFilters as ReviewFiltersType,
   ReviewStatsResponse,
+  ReviewQueueSortField,
 } from '@/types/review';
 import type { QueueSortField } from '@/components/review-queue-panel';
 import { useReviewShortcuts } from '@/hooks/use-review-shortcuts';
@@ -158,7 +159,22 @@ export function useReviewQueue(): UseReviewQueueReturn {
 
   // Queue panel state
   const [showQueuePanel, setShowQueuePanel] = useState(false);
-  const [queueSort, setQueueSort] = useState<QueueSortField>('default');
+  const [queueSort, setQueueSortInternal] = useState<QueueSortField>('default');
+
+  /** Map client-side sort field to server-side API sort parameter */
+  const apiSortForQueueSort = useCallback((sort: QueueSortField): ReviewQueueSortField | undefined => {
+    if (sort === 'confidence') return 'confidence_asc';
+    return undefined; // Other sorts are client-side only
+  }, []);
+
+  // Track which server-side sort is active (triggers refetch)
+  const [serverSort, setServerSort] = useState<ReviewQueueSortField | undefined>(undefined);
+
+  const setQueueSort = useCallback((sort: QueueSortField) => {
+    setQueueSortInternal(sort);
+    const newServerSort = apiSortForQueueSort(sort);
+    setServerSort(newServerSort);
+  }, [apiSortForQueueSort]);
 
   // Undo state (tracked for potential future use, e.g. multi-undo)
   const [, setLastAction] = useState<UndoableAction | null>(null);
@@ -260,6 +276,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
           params.append('content_type', ct);
         }
       }
+      if (serverSort) params.set('sort', serverSort);
       if (newCursor) params.set('cursor', newCursor);
 
       const res = await fetch(`/api/review/queue?${params.toString()}`);
@@ -268,7 +285,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
       }
       return res.json();
     },
-    [filters],
+    [filters, serverSort],
   );
 
   // Initial load + reload on filter change
