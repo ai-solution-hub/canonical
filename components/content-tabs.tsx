@@ -79,6 +79,9 @@ interface ContentTabsProps {
   // Editing support (optional — viewer role gets none)
   canEdit?: boolean;
   editConfig?: ContentTabsEditConfig;
+  /** When false, hides the human/AI content source toggle and auto-generated messages.
+   *  Reader mode and viewer roles should set this to false. Default: true. */
+  showSourceToggle?: boolean;
   className?: string;
 }
 
@@ -156,6 +159,7 @@ export function ContentTabs({
   frameable,
   canEdit,
   editConfig,
+  showSourceToggle = true,
   className,
 }: ContentTabsProps) {
   const [summaryData, setSummaryData] = useState<SummaryData | null>(initialData);
@@ -449,13 +453,13 @@ export function ContentTabs({
               <InlineTextEditor field="brief" />
             ) : (
               <>
-                {hasBriefHuman && hasBriefAI && (
+                {showSourceToggle && hasBriefHuman && hasBriefAI && (
                   <ContentSourceToggle
                     viewMode={briefViewMode}
                     onToggle={setBriefViewMode}
                   />
                 )}
-                {hasBriefHuman && briefViewMode === 'human' ? (
+                {hasBriefHuman && (showSourceToggle ? briefViewMode === 'human' : true) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
@@ -469,7 +473,7 @@ export function ContentTabs({
                       <span className="text-xs text-muted-foreground" />
                       <EditButton field="brief" label="Write Summary" />
                     </div>
-                    {!hasBriefHuman && canEdit && (
+                    {showSourceToggle && !hasBriefHuman && canEdit && (
                       <p className="mb-3 text-xs text-muted-foreground">
                         Auto-generated — write a Summary to replace
                       </p>
@@ -485,7 +489,7 @@ export function ContentTabs({
                     <p className="text-sm text-muted-foreground">
                       No summary yet for this item.
                     </p>
-                    {canEdit && (
+                    {canEdit && showSourceToggle && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -510,13 +514,13 @@ export function ContentTabs({
               <InlineTextEditor field="detail" />
             ) : (
               <>
-                {hasDetailHuman && hasDetailAI && (
+                {showSourceToggle && hasDetailHuman && hasDetailAI && (
                   <ContentSourceToggle
                     viewMode={detailViewMode}
                     onToggle={setDetailViewMode}
                   />
                 )}
-                {hasDetailHuman && detailViewMode === 'human' ? (
+                {hasDetailHuman && (showSourceToggle ? detailViewMode === 'human' : true) ? (
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs text-muted-foreground" />
@@ -530,7 +534,7 @@ export function ContentTabs({
                       <span className="text-xs text-muted-foreground" />
                       <EditButton field="detail" label="Write Detailed" />
                     </div>
-                    {!hasDetailHuman && canEdit && (
+                    {showSourceToggle && !hasDetailHuman && canEdit && (
                       <p className="mb-3 text-xs text-muted-foreground">
                         Auto-generated — write In Depth content to replace
                       </p>
@@ -611,7 +615,7 @@ export function ContentTabs({
         ) : (
           <span />
         )}
-        {canEdit && !summaryData && (
+        {canEdit && showSourceToggle && !summaryData && (
           <Button
             onClick={handleGenerate}
             variant="ghost"
