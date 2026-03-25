@@ -5,6 +5,10 @@
  * Detects items whose freshness changed and notifies admins + editors.
  * If >10 items transitioned, creates a summary notification instead.
  *
+ * Phase 2 governance bridge: when auto_flag_on_freshness_transition is enabled
+ * for a domain, items transitioning to stale or expired are also set to
+ * governance review status 'pending' with a governance_review_needed notification.
+ *
  * Also cleans up expired+dismissed notifications older than 30 days
  * (spec §10b.7).
  */
@@ -23,6 +27,9 @@ export const maxDuration = 30;
 
 const BATCH_THRESHOLD = 10;
 
+/** When more than this many items are governance-flagged, use summary notifications */
+const GOVERNANCE_BATCH_SUMMARY_THRESHOLD = 20;
+
 type FreshnessState = 'fresh' | 'aging' | 'stale' | 'expired';
 
 interface TransitionItem {
@@ -34,6 +41,17 @@ interface TransitionItem {
   updated_at: string | null;
   lifecycle_type: string | null;
   content_owner_id: string | null;
+  governance_review_status: string | null;
+  verified_at: string | null;
+}
+
+interface GovConfig {
+  domain: string;
+  id: string;
+  auto_flag_on_freshness_transition: boolean | null;
+  auto_flag_cooldown_days: number | null;
+  reviewer_id: string | null;
+  timeout_days: number | null;
 }
 
 function transitionTitle(title: string, from: FreshnessState, to: FreshnessState): string {
@@ -71,10 +89,22 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
 
+    // Fetch governance_config to build domain maps for auto-flagging
+    const { data: govConfigs } = await supabase
+      .from('governance_config')
+      .select('id, domain, auto_flag_on_freshness_transition, auto_flag_cooldown_days, reviewer_id, timeout_days');
+
+    const govConfigMap = new Map<string, GovConfig>();
+    if (govConfigs) {
+      for (const config of govConfigs) {
+        govConfigMap.set(config.domain, config as GovConfig);
+      }
+    }
+
     // Find items where freshness changed (skip positive transitions to fresh)
     const { data: transitions, error: queryError } = await supabase
       .from('content_items')
-      .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id')
+      .select('id, title, previous_freshness, freshness, primary_domain, updated_at, lifecycle_type, content_owner_id, governance_review_status, verified_at')
       .not('previous_freshness', 'is', null)
       .neq('freshness', 'fresh'); // Skip transitions TO fresh (positive = silent)
     // Note: PostgREST cannot compare two columns directly, so we filter
@@ -307,13 +337,149 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ── Governance bridge: auto-flag stale/expired items ─────────────────────
+    // For items transitioning to stale or expired, check if the domain's
+    // governance_config has auto_flag_on_freshness_transition enabled.
+    // Aging transitions are notification-only — they do not trigger governance.
+
+    let autoGovernanceTriggered = 0;
+    let batchSummaryNotification = false;
+
+    const governanceCandidates = newTransitions.filter(
+      (item) => item.freshness === 'stale' || item.freshness === 'expired',
+    );
+
+    if (governanceCandidates.length > 0) {
+      const governanceFlagItems: Array<{
+        itemId: string;
+        title: string;
+        domain: string | null;
+        reviewerId: string | null;
+        timeoutDays: number;
+        govConfigId: string | null;
+      }> = [];
+
+      for (const item of governanceCandidates) {
+        const domainConfig = govConfigMap.get(item.primary_domain ?? '');
+        const autoFlagEnabled = domainConfig?.auto_flag_on_freshness_transition ?? true;
+
+        if (!autoFlagEnabled) continue;
+
+        // Guard: only flag items with null or 'approved' governance_review_status
+        // Skip items in 'pending', 'changes_requested', or 'draft' state
+        const status = item.governance_review_status;
+        const eligibleForGovernance = status === null || status === 'approved';
+
+        if (!eligibleForGovernance) continue;
+
+        // Cooldown check: skip if verified_at is within cooldown period
+        const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
+        const cooldownCutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
+        const lastVerified = item.verified_at ? new Date(item.verified_at) : null;
+        const withinCooldown = lastVerified && lastVerified > cooldownCutoff;
+
+        if (withinCooldown) continue;
+
+        governanceFlagItems.push({
+          itemId: item.id,
+          title: item.title,
+          domain: item.primary_domain,
+          reviewerId: domainConfig?.reviewer_id ?? null,
+          timeoutDays: domainConfig?.timeout_days ?? 7,
+          govConfigId: domainConfig?.id ?? null,
+        });
+      }
+
+      if (governanceFlagItems.length > 0) {
+        autoGovernanceTriggered = governanceFlagItems.length;
+
+        // Update each item's governance status
+        for (const item of governanceFlagItems) {
+          const reviewDue = new Date(Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000).toISOString();
+          await supabase
+            .from('content_items')
+            .update({
+              governance_review_status: 'pending',
+              governance_review_due: reviewDue,
+              governance_reviewer_id: item.reviewerId,
+            })
+            .eq('id', item.itemId);
+        }
+
+        // Determine notification recipients per item
+        const govAdminIds = await getUsersByRole(supabase, ['admin']);
+
+        if (governanceFlagItems.length > GOVERNANCE_BATCH_SUMMARY_THRESHOLD) {
+          // Batch summary path: single notification per reviewer/admin
+          batchSummaryNotification = true;
+
+          // Find the most-affected domain's governance_config ID for entity_id
+          const domainCounts = new Map<string, number>();
+          for (const item of governanceFlagItems) {
+            const d = item.domain ?? 'unclassified';
+            domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
+          }
+          let maxDomain = '';
+          let maxCount = 0;
+          domainCounts.forEach((count, domain) => {
+            if (count > maxCount) {
+              maxDomain = domain;
+              maxCount = count;
+            }
+          });
+          const summaryEntityId = govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
+
+          // Collect unique recipients (reviewers + admins)
+          const recipientIds = new Set<string>(govAdminIds);
+          for (const item of governanceFlagItems) {
+            if (item.reviewerId) recipientIds.add(item.reviewerId);
+          }
+
+          const summaryNotifications = Array.from(recipientIds).map((userId) => ({
+            userId,
+            type: 'governance_review_needed' as const,
+            entityType: 'domain',
+            entityId: summaryEntityId,
+            title: `${governanceFlagItems.length} items flagged for freshness review`,
+            message: `The daily freshness scan flagged ${governanceFlagItems.length} items as stale or expired. Review them in the review queue.`,
+          }));
+
+          const { error: govNotifError } = await createBulkNotifications(supabase, summaryNotifications);
+          if (!govNotifError) notificationsCreated += summaryNotifications.length;
+        } else {
+          // Individual notification path
+          const govNotifications = governanceFlagItems.flatMap((item) => {
+            // Notify the assigned reviewer, or all admins if no reviewer
+            const recipients = item.reviewerId ? [item.reviewerId] : govAdminIds;
+            return recipients.map((userId) => ({
+              userId,
+              type: 'governance_review_needed' as const,
+              entityType: 'content_item',
+              entityId: item.itemId,
+              title: `Freshness review needed: "${item.title}"`,
+              message: `"${item.title}" transitioned to stale or expired. Auto-flagged for governance review.`,
+            }));
+          });
+
+          const { error: govNotifError } = await createBulkNotifications(supabase, govNotifications);
+          if (!govNotifError) notificationsCreated += govNotifications.length;
+        }
+      }
+    }
+
     // Log to pipeline_runs
     await supabase.from('pipeline_runs').insert({
       pipeline_name: 'freshness_transitions',
       status: 'completed',
       items_processed: changed.length,
       completed_at: new Date().toISOString(),
-      result: { transitions: counts, new_transitions: newTransitions.length, notifications_created: notificationsCreated } as unknown as Json,
+      result: {
+        transitions: counts,
+        new_transitions: newTransitions.length,
+        notifications_created: notificationsCreated,
+        auto_governance_triggered: autoGovernanceTriggered,
+        batch_summary_notification: batchSummaryNotification,
+      } as unknown as Json,
     });
 
     // ── Date-based expiry reminders ──────────────────────────────────────────
@@ -329,6 +495,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       transitions: counts,
       notifications_created: notificationsCreated,
+      auto_governance_triggered: autoGovernanceTriggered,
+      batch_summary_notification: batchSummaryNotification,
       expiry_reminders_created: expiryNotificationsCreated,
       executed_at: new Date().toISOString(),
     });
