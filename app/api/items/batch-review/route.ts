@@ -11,9 +11,7 @@ const BatchReviewBodySchema = z.object({
     .array(z.string().uuid('Each item_id must be a valid UUID'))
     .min(1, 'item_ids must contain at least one ID')
     .max(100, 'item_ids must contain at most 100 IDs'),
-  status: z.literal('pending', {
-    errorMap: () => ({ message: "status must be 'pending'" }),
-  }),
+  status: z.literal('pending'),
 });
 
 /**
