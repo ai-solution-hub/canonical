@@ -2,7 +2,7 @@
  * Quality, coverage, audit, and quality actions formatters for MCP tool responses.
  */
 import { formatContentType } from '@/lib/format';
-import type { QualityAction, QualityActionsResult } from '@/lib/quality-actions';
+import type { QualityActionsResult } from '@/lib/quality-actions';
 
 // ---------------------------------------------------------------------------
 // Quality summary

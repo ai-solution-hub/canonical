@@ -5,7 +5,7 @@
  * Note: Radix UI Select interactions are not fully compatible with jsdom,
  * so sort change callbacks are tested via the hook tests instead.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import { ReviewQueuePanel, type QueueSortField } from '@/components/review-queue-panel';

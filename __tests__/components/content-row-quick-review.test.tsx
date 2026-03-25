@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import type { ContentListItem } from '@/types/content';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
@@ -171,7 +171,7 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('actions do not navigate (stopPropagation)', () => {
-    const { container } = render(
+    render(
       <ContentRow item={makeContentItem()} canEdit={true} />,
     );
 

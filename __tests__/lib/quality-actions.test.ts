@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   suggestQualityActions,
   getTopQualityActions,
   type QualityActionInput,
-  type QualityAction,
 } from '@/lib/quality-actions';
 import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
 
@@ -801,7 +800,7 @@ describe('getTopQualityActions', () => {
       },
     ]);
 
-    const result = await getTopQualityActions(mockClient as never);
+    await getTopQualityActions(mockClient as never);
 
     // lte should be called with maxThreshold >= 60
     expect(mockClient._chain.lte).toHaveBeenCalledWith(

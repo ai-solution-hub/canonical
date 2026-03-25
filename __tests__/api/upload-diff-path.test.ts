@@ -261,10 +261,8 @@ describe('Upload diff path — graceful degradation', () => {
 // ---------------------------------------------------------------------------
 
 describe('Upload diff path — notifications', () => {
-  let mockClient: ReturnType<typeof createMockSupabaseClient>;
-
   beforeEach(() => {
-    mockClient = createMockSupabaseClient();
+    createMockSupabaseClient();
   });
 
   it('does not send notifications when impact has zero affected items', async () => {

@@ -15,7 +15,7 @@ import { FileUpload } from '@/components/file-upload';
 import { IngestionProgress } from '@/components/ingestion-progress';
 import { DedupWarning } from '@/components/dedup-warning';
 import { ReuploadBanner } from '@/components/reupload-banner';
-import { UploadReviewStep, type UploadReviewItem } from '@/components/upload-review-step';
+import { UploadReviewStep } from '@/components/upload-review-step';
 import { QAPreviewList } from '@/components/qa-preview-list';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
@@ -64,7 +64,6 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
     pendingCount,
     hasResults,
     hasActiveUploads,
-    getSkipReview,
   } = pipeline;
 
   // ---------------------------------------------------------------------------

@@ -151,7 +151,7 @@ function makeSampleItems(count: number = 2) {
  *   - Item insert — returns item ID + title
  *   - Item update / select — returns enrichment data
  */
-function configureSuccessFlow(itemCount: number = 1) {
+function configureSuccessFlow(_itemCount: number = 1) {
   // Pipeline chain: token check returns empty via then()
   mockPipelineChain.then.mockImplementation(
     (resolve: (v: unknown) => void) =>

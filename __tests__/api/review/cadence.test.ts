@@ -10,7 +10,6 @@ import {
   configureRole,
   configureUnauthenticated,
 } from '../../helpers/mock-supabase';
-import { createTestRequest } from '../../helpers/mock-next';
 import { _resetRateLimitStore } from '@/lib/rate-limit';
 
 // ---------------------------------------------------------------------------

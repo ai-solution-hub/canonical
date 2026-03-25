@@ -143,7 +143,7 @@ describe('ContentCard with QuickReviewActions', () => {
 
   it('actions do not navigate (stopPropagation working)', () => {
     // The card is a Link, so we check the button click doesn't trigger navigation
-    const { container } = render(
+    render(
       <ContentCard item={makeContentItem()} canEdit={true} />,
     );
 

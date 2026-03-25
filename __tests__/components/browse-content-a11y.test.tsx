@@ -210,7 +210,7 @@ describe('BrowseContent — accessibility', () => {
       mockBrowseData.isLoading = false;
       render(<BrowseContent />);
 
-      const announcement = screen.getByRole('status', { name: '' });
+      screen.getByRole('status', { name: '' });
       // The sr-only div with aria-live="polite"
       const srOnlyDivs = document.querySelectorAll('[aria-live="polite"]');
       const announcementDiv = Array.from(srOnlyDivs).find(

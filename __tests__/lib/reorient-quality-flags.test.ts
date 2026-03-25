@@ -1,13 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createMockSupabaseClient } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------
 // Mock modules
 // ---------------------------------------------------------------------------
-
-const { mockSupabase } = vi.hoisted(() => {
-  return { mockSupabase: null as ReturnType<typeof createMockSupabaseClient> | null };
-});
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),

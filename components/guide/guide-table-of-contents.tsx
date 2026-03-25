@@ -32,15 +32,11 @@ export function GuideTableOfContents({
   className,
 }: GuideTableOfContentsProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Initialise collapsed state based on viewport width (mobile = collapsed)
+  const [isCollapsed, setIsCollapsed] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false,
+  );
   const observerRef = useRef<IntersectionObserver | null>(null);
-
-  // Collapse on mobile by default
-  useEffect(() => {
-    if (window.innerWidth < 768) {
-      setIsCollapsed(true);
-    }
-  }, []);
 
   // IntersectionObserver to track active section
   useEffect(() => {

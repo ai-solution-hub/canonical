@@ -24,6 +24,17 @@ const eslintConfig = defineConfig([
       'react-hooks/set-state-in-effect': 'warn',
       'react-hooks/purity': 'warn',
       'react-hooks/incompatible-library': 'warn',
+      // Allow underscore-prefixed variables/args to be unused — standard
+      // convention for intentionally ignored destructured values and params.
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
     },
   },
 ]);

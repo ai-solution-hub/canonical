@@ -104,13 +104,9 @@ function createCronRequest() {
 }
 
 /** Track which table .from() was called with, to return appropriate data */
-let fromCallIndex = 0;
-let fromResponses: Record<number, { table: string; data: unknown; error: unknown }> = {};
 
 function resetMocks() {
   vi.clearAllMocks();
-  fromCallIndex = 0;
-  fromResponses = {};
 
   mockVerifyCronAuth.mockReturnValue(true);
   mockGetUsersByRole.mockResolvedValue([ADMIN_ID_1, ADMIN_ID_2]);

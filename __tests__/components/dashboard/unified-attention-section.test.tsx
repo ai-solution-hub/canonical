@@ -5,7 +5,7 @@
  * ClaudePromptButton wiring, and the contextual prompt strip.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { UnifiedAttentionSection } from '@/components/dashboard/unified-attention-section';
 import type { AttentionItem } from '@/lib/attention';
 

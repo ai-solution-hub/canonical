@@ -299,7 +299,6 @@ export function SummaryTabs({
   }
 
   const executive = summaryData.executive ?? '';
-  const model = summaryData.model ?? '';
 
   // Summary tabs with all data
   return (
