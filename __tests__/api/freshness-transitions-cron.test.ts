@@ -135,6 +135,10 @@ describe('GET /api/cron/freshness-transitions', () => {
       freshness: 'stale',
     });
 
+    // governance_config query (runs first in the route) — return empty config
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
     // content_items query returns the owned item
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: [ownedItem], error: null }),
@@ -179,6 +183,10 @@ describe('GET /api/cron/freshness-transitions', () => {
       freshness: 'stale',
     });
 
+    // governance_config query (runs first in the route) — return empty config
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: [unownedItem], error: null }),
     );
@@ -215,6 +223,10 @@ describe('GET /api/cron/freshness-transitions', () => {
       freshness: 'expired',
     });
 
+    // governance_config query (runs first in the route) — return empty config
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: [ownedItem, unownedItem], error: null }),
     );
@@ -246,6 +258,10 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('returns 0 notifications when no transitions detected', async () => {
+    // governance_config query (runs first in the route) — return empty config
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
     // Return items where freshness === previous_freshness (no change)
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({
@@ -276,6 +292,10 @@ describe('GET /api/cron/freshness-transitions', () => {
       content_owner_id: null,
     });
 
+    // governance_config query (runs first in the route) — return empty config
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: [item], error: null }),
     );
