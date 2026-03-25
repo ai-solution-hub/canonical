@@ -32,9 +32,12 @@ import {
   ProgressiveDepthFieldset,
   SaveActionsBar,
   MobileStepIndicator,
+  TemplateSelector,
 } from '@/components/create-content';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { useUserRole } from '@/hooks/use-user-role';
+import { useContentTemplates } from '@/hooks/use-content-templates';
+import type { ContentTemplate } from '@/lib/content-templates';
 
 const ContentEditor = dynamic(
   () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
@@ -101,6 +104,66 @@ export function CreateContentClient() {
   const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Template selection state
+  const { templates } = useContentTemplates();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>();
+
+  const handleTemplateSelect = useCallback(
+    (template: ContentTemplate | null) => {
+      // If form is dirty, confirm before replacing
+      if (isDirty) {
+        const confirmed = window.confirm(
+          'Selecting a template will replace your current content. Continue?',
+        );
+        if (!confirmed) return;
+      }
+
+      if (!template) {
+        // "Blank" selected — reset to defaults
+        reset(CREATE_CONTENT_DEFAULTS);
+        setSelectedTemplateId(undefined);
+        return;
+      }
+
+      setSelectedTemplateId(template.id);
+
+      // Apply template values
+      setValue('content_type', template.contentType, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+      setValue('content', template.contentTemplate, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+
+      // Validate suggestedDomain against active taxonomy
+      if (template.suggestedDomain) {
+        const activeDomains = getDomainNames();
+        if (activeDomains.includes(template.suggestedDomain)) {
+          setValue('primary_domain', template.suggestedDomain, {
+            shouldDirty: true,
+          });
+          // Auto-expand "More details" so the user sees the domain was set
+          setShowMoreDetails(true);
+        }
+      }
+
+      // Set default tags if provided
+      if (template.defaultTags && template.defaultTags.length > 0) {
+        setValue('user_tags', template.defaultTags, { shouldDirty: true });
+      } else {
+        setValue('user_tags', [], { shouldDirty: true });
+      }
+
+      // Set brief if provided
+      if (template.briefTemplate !== undefined) {
+        setValue('brief', template.briefTemplate, { shouldDirty: true });
+      }
+    },
+    [isDirty, reset, setValue, getDomainNames],
+  );
 
   // Auto-expand "More details" for editors/admins (C5-PA6)
   useEffect(() => {
@@ -235,6 +298,7 @@ export function CreateContentClient() {
 
         if (continueEditing) {
           reset(CREATE_CONTENT_DEFAULTS);
+          setSelectedTemplateId(undefined);
           setLayerSuggestion(null);
           setGuideSections([]);
           setGuideSectionsDismissed(false);
@@ -337,6 +401,13 @@ export function CreateContentClient() {
           noValidate
           className="space-y-6"
         >
+          {/* Template selector */}
+          <TemplateSelector
+            templates={templates}
+            selectedId={selectedTemplateId}
+            onSelect={handleTemplateSelect}
+          />
+
           {/* Title / Question */}
           <div ref={basicsRef} data-step="1" className="space-y-2">
             <Label htmlFor="title">
