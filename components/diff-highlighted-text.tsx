@@ -74,7 +74,7 @@ export function DiffHighlightedText({
             return (
               <mark
                 key={index}
-                className="bg-destructive/10 text-destructive line-through"
+                className="bg-destructive/10 text-destructive line-through rounded-sm px-0.5"
                 aria-label="Removed text"
               >
                 {change.value}
@@ -91,7 +91,7 @@ export function DiffHighlightedText({
           return (
             <mark
               key={index}
-              className="bg-quality-good-bg text-quality-good"
+              className="bg-quality-good-bg text-quality-good rounded-sm px-0.5"
               aria-label="Added text"
             >
               {change.value}
