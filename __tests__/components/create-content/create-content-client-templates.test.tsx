@@ -84,7 +84,7 @@ vi.mock('@/hooks/use-user-role', () => ({
 
 // Mock the Select component to avoid Radix pointer capture issues in jsdom
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children, value, onValueChange }: {
+  Select: ({ children, value, onValueChange: _onValueChange }: {
     value: string;
     onValueChange: (val: string) => void;
     children: React.ReactNode;
