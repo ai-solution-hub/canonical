@@ -1,7 +1,7 @@
 /**
  * ItemTitleSection Component Tests
  *
- * Tests the title display, inline editing, verification badge,
+ * Tests the title display, inline editing, verification badge (with trust data),
  * source document, and editing banner with save/cancel buttons.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -13,10 +13,33 @@ import userEvent from '@testing-library/user-event';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { mockUseDisplayNames, mockUseUserRole } = vi.hoisted(() => ({
+  mockUseDisplayNames: vi.fn(() => new Map<string, string>()),
+  mockUseUserRole: vi.fn(() => ({
+    role: 'viewer',
+    loading: false,
+    canEdit: false,
+    canAdmin: false,
+  })),
+}));
+
 vi.mock('@/components/verification-badge', () => ({
-  VerificationBadge: ({ verified }: { verified: boolean }) => (
-    <span data-testid="verification-badge" data-verified={verified}>
-      {verified ? 'Verified' : 'Unverified'}
+  VerificationBadge: ({
+    verified,
+    verifiedByName,
+    showDetailedTrust,
+  }: {
+    verified: boolean;
+    verifiedByName?: string | null;
+    showDetailedTrust?: boolean;
+  }) => (
+    <span
+      data-testid="verification-badge"
+      data-verified={verified}
+      data-verified-by-name={verifiedByName ?? ''}
+      data-show-detailed-trust={showDetailedTrust}
+    >
+      {verified ? (verifiedByName ? `Verified by ${verifiedByName}` : 'Verified') : 'Unverified'}
     </span>
   ),
 }));
@@ -39,6 +62,14 @@ vi.mock('@/components/ui/button', () => ({
 
 vi.mock('@/components/ui/input', () => ({
   Input: (props: Record<string, unknown>) => <input {...props} />,
+}));
+
+vi.mock('@/hooks/use-display-names', () => ({
+  useDisplayNames: mockUseDisplayNames,
+}));
+
+vi.mock('@/hooks/use-user-role', () => ({
+  useUserRole: mockUseUserRole,
 }));
 
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
@@ -102,7 +133,16 @@ function createDefaultProps(overrides: Partial<ItemTitleSectionProps> = {}): Ite
 // ---------------------------------------------------------------------------
 
 describe('ItemTitleSection', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseDisplayNames.mockReturnValue(new Map<string, string>());
+    mockUseUserRole.mockReturnValue({
+      role: 'viewer',
+      loading: false,
+      canEdit: false,
+      canAdmin: false,
+    });
+  });
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it('renders title as h1 when not editing', () => {
@@ -129,6 +169,51 @@ describe('ItemTitleSection', () => {
     render(<ItemTitleSection {...createDefaultProps({ item })} />);
     const badge = screen.getByTestId('verification-badge');
     expect(badge).toHaveAttribute('data-verified', 'true');
+  });
+
+  it('passes verifiedByName to VerificationBadge when name is resolved', () => {
+    const nameMap = new Map([['user-123', 'Jane Doe']]);
+    mockUseDisplayNames.mockReturnValue(nameMap);
+    const item = createMockItem({
+      verified_at: '2026-01-01T00:00:00Z',
+      verified_by: 'user-123',
+    });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveAttribute('data-verified-by-name', 'Jane Doe');
+    expect(badge).toHaveTextContent('Verified by Jane Doe');
+  });
+
+  it('calls useDisplayNames with verified_by user ID', () => {
+    const item = createMockItem({ verified_by: 'user-456' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    expect(mockUseDisplayNames).toHaveBeenCalledWith(['user-456']);
+  });
+
+  it('passes showDetailedTrust=true when user canEdit', () => {
+    mockUseUserRole.mockReturnValue({
+      role: 'editor',
+      loading: false,
+      canEdit: true,
+      canAdmin: false,
+    });
+    const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveAttribute('data-show-detailed-trust', 'true');
+  });
+
+  it('passes showDetailedTrust=false when user is viewer', () => {
+    mockUseUserRole.mockReturnValue({
+      role: 'viewer',
+      loading: false,
+      canEdit: false,
+      canAdmin: false,
+    });
+    const item = createMockItem({ verified_at: '2026-01-01T00:00:00Z' });
+    render(<ItemTitleSection {...createDefaultProps({ item })} />);
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveAttribute('data-show-detailed-trust', 'false');
   });
 
   it('shows freshness badge when freshness is set', () => {

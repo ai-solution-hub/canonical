@@ -91,7 +91,7 @@ interface ModeSelectorProps {
 
 function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
   return (
-    <div role="tablist" aria-label="Digest mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
+    <div role="tablist" aria-label="Report mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
       <button
         role="tab"
         id="tab-preset"
@@ -242,7 +242,7 @@ function GenerateControls({
                 ) : (
                   <RefreshCw className="size-4" />
                 )}
-                {variant === 'hero' ? 'Generate Digest' : 'Generate New'}
+                {variant === 'hero' ? 'Generate Report' : 'Generate New Report'}
               </>
             )}
           </Button>
@@ -256,7 +256,7 @@ function GenerateControls({
           <div className="mb-4 flex items-center gap-2">
             <Filter className="size-4 text-primary" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Custom Digest Filters
+              Custom Report Filters
             </h3>
           </div>
 
@@ -379,7 +379,7 @@ function GenerateControls({
               ) : (
                 <>
                   <RefreshCw className="size-4" />
-                  Generate Custom Digest
+                  Generate Custom Report
                 </>
               )}
             </Button>
@@ -519,7 +519,7 @@ export default function DigestPage() {
 
       const data = await res.json();
       setCurrentDigest(data.digest);
-      toast.success('Digest generated successfully');
+      toast.success('Report generated successfully');
 
       // Refresh the list
       fetchPastDigests();
@@ -614,7 +614,7 @@ export default function DigestPage() {
   // Loading state
   if (loading) {
     return (
-      <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div role="status" aria-label="Loading">
           <DigestSkeleton />
         </div>
@@ -625,16 +625,16 @@ export default function DigestPage() {
   // No digest state + generating state
   if (!currentDigest) {
     return (
-      <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="rounded-full bg-primary/10 p-4">
             <FileText className="size-8 text-primary" />
           </div>
           <h1 className="mt-6 text-fluid-2xl font-bold tracking-tight">
-            Content Digest
+            Change Reports
           </h1>
           <p className="mt-2 max-w-md text-muted-foreground">
-            Get a summary of your recent content, grouped by domain with
+            See what changed in your knowledge base, grouped by domain with
             cross-cutting themes identified.
           </p>
 
@@ -645,7 +645,7 @@ export default function DigestPage() {
           {generating && (
             <div className="mt-8 w-full max-w-2xl" aria-live="polite" role="status">
               <p className="mb-4 text-center text-sm text-muted-foreground">
-                Generating your digest... This may take up to a minute.
+                Generating your report... This may take up to a minute.
               </p>
               <DigestSkeleton />
             </div>
@@ -657,7 +657,7 @@ export default function DigestPage() {
 
   // Digest view state
   return (
-    <section aria-label="Content digest" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+    <section aria-label="Change reports" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       {/* Generate new / controls bar */}
       <div className="mb-8">
         <GenerateControls variant="bar" {...controlsProps} />
@@ -667,7 +667,7 @@ export default function DigestPage() {
       {generating ? (
         <div aria-live="polite" role="status">
           <p className="mb-4 text-sm text-muted-foreground">
-            Generating your digest... This may take up to a minute.
+            Generating your report... This may take up to a minute.
           </p>
           <DigestSkeleton />
         </div>
@@ -693,15 +693,15 @@ export default function DigestPage() {
       {(loadingPastDigests || pastDigests.filter((d) => d.id !== currentDigest?.id).length > 0) && (
         <section className="mt-12 border-t border-border pt-8">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Previous Digests
+            Previous Reports
           </h2>
           {loadingPastDigests ? (
-            <div className="flex items-center justify-center py-4" role="status" aria-label="Loading past digests">
+            <div className="flex items-center justify-center py-4" role="status" aria-label="Loading previous reports">
               <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
-              <span className="sr-only">Loading past digests</span>
+              <span className="sr-only">Loading previous reports</span>
             </div>
           ) : (
-            <ul className="space-y-2" aria-label="Previous digests">
+            <ul className="space-y-2" aria-label="Previous reports">
               {pastDigests
                 .filter((d) => d.id !== currentDigest?.id)
                 .map((digest) => (

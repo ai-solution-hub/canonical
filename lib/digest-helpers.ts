@@ -2,12 +2,12 @@
 export function digestTypeLabel(digestType: string): string {
   switch (digestType) {
     case 'weekly':
-      return 'Weekly Digest';
+      return 'Weekly Change Report';
     case 'daily':
-      return 'Daily Digest';
+      return 'Daily Change Report';
     case 'custom':
-      return 'Custom Digest';
+      return 'Custom Change Report';
     default:
-      return 'Content Digest';
+      return 'Change Report';
   }
 }

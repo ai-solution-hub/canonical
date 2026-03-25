@@ -15,6 +15,11 @@ vi.mock('@/components/content-renderer', () => ({
   ),
 }));
 
+// Mock useDisplayNames for verification badge name resolution
+vi.mock('@/hooks/use-display-names', () => ({
+  useDisplayNames: () => new Map<string, string>(),
+}));
+
 import { ReviewCard } from '@/components/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 
@@ -142,7 +147,7 @@ describe('ReviewCard', () => {
     expect(screen.getByText('Secondary:')).toBeInTheDocument();
   });
 
-  it('shows verification date when verified', () => {
+  it('shows verification status when verified', () => {
     render(
       <ReviewCard
         item={makeReviewItem({ verified_at: '2026-02-20T12:00:00Z' })}
@@ -150,7 +155,12 @@ describe('ReviewCard', () => {
         total={1}
       />,
     );
-    expect(screen.getByText('Verified on 20/02/2026')).toBeInTheDocument();
+    // VerificationBadge renders with role="status" showing relative time
+    const statuses = screen.getAllByRole('status');
+    const verifiedStatus = statuses.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
+    expect(verifiedStatus).toBeTruthy();
   });
 
   it('does not show verification when not verified', () => {

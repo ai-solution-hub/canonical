@@ -20,6 +20,11 @@ vi.mock('@/components/content-renderer', () => ({
   ),
 }));
 
+// Mock useDisplayNames for verification badge name resolution
+vi.mock('@/hooks/use-display-names', () => ({
+  useDisplayNames: () => new Map<string, string>(),
+}));
+
 import { ReviewCard } from '@/components/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 
@@ -116,12 +121,16 @@ describe('ReviewCard — days since review', () => {
     expect(daysText.className).toContain('text-muted-foreground');
   });
 
-  it('still shows verification date alongside days-since-review', () => {
+  it('still shows verification badge alongside days-since-review', () => {
     const item = makeReviewItem({ verified_at: daysAgo(5) });
     render(<ReviewCard item={item} position={1} total={10} />);
 
-    // Should show both the "Verified on DD/MM/YYYY" and "Last reviewed X days ago"
-    expect(screen.getByText(/^Verified on/)).toBeInTheDocument();
+    // Should show both the VerificationBadge (role="status") and "Last reviewed X days ago"
+    const statuses = screen.getAllByRole('status');
+    const verifiedStatus = statuses.find((el) =>
+      el.textContent?.includes('Verified'),
+    );
+    expect(verifiedStatus).toBeTruthy();
     expect(screen.getByText('Last reviewed 5 days ago')).toBeInTheDocument();
   });
 });

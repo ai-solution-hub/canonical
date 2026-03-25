@@ -1,14 +1,16 @@
 'use client';
 
 import { forwardRef, useState, useRef, useEffect, type ReactNode } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { DomainBadge } from '@/components/domain-badge';
+import { VerificationBadge } from '@/components/verification-badge';
 import { ContentRenderer } from '@/components/content-renderer';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/format';
+import { useDisplayNames } from '@/hooks/use-display-names';
 import { ReviewHistorySection } from '@/components/review/review-history-section';
 import type { ReviewQueueItem } from '@/types/review';
 import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
@@ -123,6 +125,12 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
       content: item.content,
     });
 
+    // Resolve verified_by UUID to display name
+    const displayNames = useDisplayNames([item.verified_by]);
+    const verifiedByName = item.verified_by
+      ? displayNames.get(item.verified_by) ?? null
+      : null;
+
     const confidence = getConfidenceDisplay(item.classification_confidence);
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
 
@@ -174,12 +182,12 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           {/* Verification / review timing */}
           {item.verified_at ? (
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs text-quality-good">
-                <Check className="size-3.5" aria-hidden="true" />
-                <span>
-                  Verified on {formatDateUK(item.verified_at)}
-                </span>
-              </div>
+              <VerificationBadge
+                verified
+                verifiedAt={item.verified_at}
+                verifiedByName={verifiedByName}
+                size="md"
+              />
               <DaysSinceReview verifiedAt={item.verified_at} />
             </div>
           ) : (
