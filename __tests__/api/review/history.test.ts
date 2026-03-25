@@ -123,9 +123,20 @@ describe('GET /api/review/history', () => {
     expect(body.error).toContain('item_id must be a valid UUID');
   });
 
-  it('returns review history entries for a valid item_id', async () => {
+  it('returns review history entries with display names for a valid item_id', async () => {
+    // First .then: ingestion_quality_log query
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: mockHistoryRows, error: null }),
+    );
+    // Second .then: user_roles display_name lookup
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({
+        data: [
+          { user_id: 'user-1', display_name: 'Alice Smith' },
+          { user_id: 'user-2', display_name: 'Bob Jones' },
+        ],
+        error: null,
+      }),
     );
 
     const { GET } = await import('@/app/api/review/history/route');
@@ -139,25 +150,52 @@ describe('GET /api/review/history', () => {
 
     expect(body.history).toHaveLength(2);
 
-    // First entry: resolved
+    // First entry: resolved, with display names populated
     expect(body.history[0]).toMatchObject({
       id: 'log-1',
       flag_type: 'classification_low',
       severity: 'warning',
       resolved: true,
       created_by: 'user-1',
-      created_by_name: null, // display_name not yet available
-      resolved_by_name: null,
+      created_by_name: 'Alice Smith',
+      resolved_by: 'user-2',
+      resolved_by_name: 'Bob Jones',
       resolution_notes: 'Reclassified correctly',
     });
 
-    // Second entry: unresolved
+    // Second entry: unresolved, no user so no name
     expect(body.history[1]).toMatchObject({
       id: 'log-2',
       flag_type: 'review_needed',
       resolved: false,
+      created_by_name: null,
+      resolved_by_name: null,
       resolution_notes: null,
     });
+  });
+
+  it('returns null display names when user_roles lookup returns nothing', async () => {
+    // First .then: ingestion_quality_log query
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: mockHistoryRows, error: null }),
+    );
+    // Second .then: user_roles display_name lookup returns empty
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: [], error: null }),
+    );
+
+    const { GET } = await import('@/app/api/review/history/route');
+    const request = new NextRequest(
+      `http://localhost/api/review/history?item_id=${VALID_UUID}`,
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    // Names should be null when no display_name found
+    expect(body.history[0].created_by_name).toBeNull();
+    expect(body.history[0].resolved_by_name).toBeNull();
   });
 
   it('returns empty array when no history exists', async () => {
@@ -207,5 +245,6 @@ describe('GET /api/review/history', () => {
     expect(mockSupabase._chain.eq).toHaveBeenCalledWith('content_item_id', VALID_UUID);
     expect(mockSupabase._chain.order).toHaveBeenCalledWith('created_at', { ascending: false });
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(10);
+    // No user_roles lookup when there are no rows (no user IDs to resolve)
   });
 });
