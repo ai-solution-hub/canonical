@@ -1129,6 +1129,63 @@ export type Database = {
           },
         ]
       }
+      review_assignments: {
+        Row: {
+          assigned_by: string
+          assignment_type: string
+          completed_at: string | null
+          created_at: string | null
+          due_date: string | null
+          filter_content_types: string[] | null
+          filter_date_from: string | null
+          filter_date_to: string | null
+          filter_domains: string[] | null
+          filter_freshness: string[] | null
+          id: string
+          item_count: number | null
+          notes: string | null
+          reviewer_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_by: string
+          assignment_type?: string
+          completed_at?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          filter_content_types?: string[] | null
+          filter_date_from?: string | null
+          filter_date_to?: string | null
+          filter_domains?: string[] | null
+          filter_freshness?: string[] | null
+          id?: string
+          item_count?: number | null
+          notes?: string | null
+          reviewer_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_by?: string
+          assignment_type?: string
+          completed_at?: string | null
+          created_at?: string | null
+          due_date?: string | null
+          filter_content_types?: string[] | null
+          filter_date_from?: string | null
+          filter_date_to?: string | null
+          filter_domains?: string[] | null
+          filter_freshness?: string[] | null
+          id?: string
+          item_count?: number | null
+          notes?: string | null
+          reviewer_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       source_document_diffs: {
         Row: {
           affected_content_item_id: string | null
@@ -1666,6 +1723,7 @@ export type Database = {
       user_roles: {
         Row: {
           created_at: string
+          display_name: string | null
           id: string
           role: string
           updated_at: string | null
@@ -1673,6 +1731,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_name?: string | null
           id?: string
           role?: string
           updated_at?: string | null
@@ -1680,6 +1739,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_name?: string | null
           id?: string
           role?: string
           updated_at?: string | null
