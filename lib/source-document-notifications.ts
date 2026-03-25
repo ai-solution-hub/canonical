@@ -54,8 +54,8 @@ export async function sendSourceDocumentUpdateNotifications(
       type: 'source_document_updated',
       entityType: 'source_document',
       entityId: newDocumentId,
-      title: 'Source document updated',
-      message: `${impact.document_filename} was updated. ${count} of your KB ${count === 1 ? 'item' : 'items'} may need reviewing.`,
+      title: 'Source document updated \u2014 diff available',
+      message: `${impact.document_filename} was updated. ${count} of your KB ${count === 1 ? 'item' : 'items'} may need reviewing. Click to review changes.`,
     });
   }
 
@@ -73,8 +73,8 @@ export async function sendSourceDocumentUpdateNotifications(
         type: 'source_document_updated',
         entityType: 'source_document',
         entityId: newDocumentId,
-        title: 'Source document updated',
-        message: `${impact.document_filename} was updated. ${impact.total_affected_items} KB ${impact.total_affected_items === 1 ? 'item' : 'items'} may need reviewing.`,
+        title: 'Source document updated \u2014 diff available',
+        message: `${impact.document_filename} was updated. ${impact.total_affected_items} KB ${impact.total_affected_items === 1 ? 'item' : 'items'} may need reviewing. Click to review changes.`,
       });
     }
   }

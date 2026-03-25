@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
+import {
+  DiffHighlightedText,
+  exceedsLazyThreshold,
+} from '@/components/diff-highlighted-text';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -401,11 +405,40 @@ function BulkActionToolbar({
 // Side-by-side content view for modified entries
 // ---------------------------------------------------------------------------
 
+function DiffContentBlock({
+  label,
+  oldText,
+  newText,
+  side,
+}: {
+  label: string;
+  oldText: string;
+  newText: string;
+  side: 'old' | 'new';
+}) {
+  return (
+    <div>
+      <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
+        <DiffHighlightedText oldText={oldText} newText={newText} side={side} />
+      </div>
+    </div>
+  );
+}
+
 function SideBySideContent({ entry }: { entry: DiffReviewEntry }) {
+  const oldContent = entry.old_content ?? '';
+  const newContent = entry.new_content ?? '';
+
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="rounded-md bg-destructive/5 p-1">
-        <ContentBlock label="Old answer:" content={entry.old_content ?? ''} />
+        <DiffContentBlock
+          label="Old answer:"
+          oldText={oldContent}
+          newText={newContent}
+          side="old"
+        />
         {entry.old_question !== entry.new_question && entry.old_question && (
           <p className="mt-1 text-xs text-muted-foreground">
             Q: {entry.old_question}
@@ -413,7 +446,12 @@ function SideBySideContent({ entry }: { entry: DiffReviewEntry }) {
         )}
       </div>
       <div className="rounded-md bg-quality-good-bg/50 p-1">
-        <ContentBlock label="New answer:" content={entry.new_content ?? ''} />
+        <DiffContentBlock
+          label="New answer:"
+          oldText={oldContent}
+          newText={newContent}
+          side="new"
+        />
         {entry.old_question !== entry.new_question && entry.new_question && (
           <p className="mt-1 text-xs text-muted-foreground">
             Q: {entry.new_question}
@@ -577,10 +615,22 @@ function DiffEntryCard({
   isLoading: boolean;
   viewMode: 'card' | 'side-by-side';
 }) {
+  // "Show changes" toggle for card view on modified entries
+  const [showCardDiff, setShowCardDiff] = useState(false);
+
   const question =
     entry.diff_type === 'added'
       ? entry.new_question
       : entry.old_question;
+
+  // Determine if inline diff should be shown in card view.
+  // For large texts, only compute the diff when the user toggles it on.
+  const isModified = entry.diff_type === 'modified';
+  const oldContent = entry.old_content ?? '';
+  const newContent = entry.new_content ?? '';
+  const isLargeText = isModified && exceedsLazyThreshold(oldContent, newContent);
+  // In card mode: show diff only when toggled on (lazy for large texts, eager for small)
+  const showDiffInCard = isModified && viewMode === 'card' && showCardDiff;
 
   return (
     <div
@@ -591,7 +641,7 @@ function DiffEntryCard({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <DiffTypeBadge diffType={entry.diff_type} />
 
-        {entry.diff_type === 'modified' &&
+        {isModified &&
           entry.similarity_score !== undefined && (
             <span
               className="text-xs text-muted-foreground"
@@ -620,7 +670,7 @@ function DiffEntryCard({
       )}
 
       {/* Question changed indicator for modified entries */}
-      {entry.diff_type === 'modified' &&
+      {isModified &&
         entry.old_question &&
         entry.new_question &&
         entry.old_question !== entry.new_question && (
@@ -631,23 +681,62 @@ function DiffEntryCard({
 
       {/* Content blocks */}
       <div className="space-y-3">
-        {entry.diff_type === 'modified' && viewMode === 'side-by-side' ? (
+        {isModified && viewMode === 'side-by-side' ? (
           <SideBySideContent entry={entry} />
         ) : (
           <>
-            {entry.diff_type === 'modified' && (
+            {isModified && (
               <>
-                {entry.old_content && (
-                  <ContentBlock
-                    label="Old answer:"
-                    content={entry.old_content}
-                  />
+                {/* "Show changes" / "Hide changes" toggle for card view */}
+                {viewMode === 'card' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCardDiff((prev) => !prev)}
+                    className="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                    aria-pressed={showCardDiff}
+                    aria-label={showCardDiff ? 'Hide inline changes' : 'Show inline changes'}
+                  >
+                    {showCardDiff ? 'Hide changes' : 'Show changes'}
+                    {isLargeText && !showCardDiff && (
+                      <span className="ml-1 text-muted-foreground/60">(large text)</span>
+                    )}
+                  </button>
                 )}
-                {entry.new_content && (
-                  <ContentBlock
-                    label="New answer:"
-                    content={entry.new_content}
-                  />
+
+                {showDiffInCard ? (
+                  <>
+                    {oldContent && (
+                      <DiffContentBlock
+                        label="Old answer:"
+                        oldText={oldContent}
+                        newText={newContent}
+                        side="old"
+                      />
+                    )}
+                    {newContent && (
+                      <DiffContentBlock
+                        label="New answer:"
+                        oldText={oldContent}
+                        newText={newContent}
+                        side="new"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {oldContent && (
+                      <ContentBlock
+                        label="Old answer:"
+                        content={oldContent}
+                      />
+                    )}
+                    {newContent && (
+                      <ContentBlock
+                        label="New answer:"
+                        content={newContent}
+                      />
+                    )}
+                  </>
                 )}
               </>
             )}

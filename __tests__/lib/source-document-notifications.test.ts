@@ -72,7 +72,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
         type: 'source_document_updated',
         entityType: 'source_document',
         entityId: 'new-doc-1',
-        title: 'Source document updated',
+        title: 'Source document updated \u2014 diff available',
         message: expect.stringContaining('bid-library-v2.docx was updated'),
       }),
     );
@@ -103,7 +103,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'owner-1',
-        message: expect.stringContaining('1 of your KB item may need reviewing'),
+        message: expect.stringContaining('1 of your KB item may need reviewing.'),
       }),
     );
 
@@ -111,7 +111,7 @@ describe('sendSourceDocumentUpdateNotifications', () => {
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
         userId: 'owner-2',
-        message: expect.stringContaining('1 of your KB item may need reviewing'),
+        message: expect.stringContaining('1 of your KB item may need reviewing.'),
       }),
     );
   });
@@ -152,7 +152,8 @@ describe('sendSourceDocumentUpdateNotifications', () => {
       expect.objectContaining({
         userId: 'admin-1',
         type: 'source_document_updated',
-        message: expect.stringContaining('2 KB items may need reviewing'),
+        title: 'Source document updated \u2014 diff available',
+        message: expect.stringContaining('2 KB items may need reviewing.'),
       }),
     );
     expect(mockCreateNotification).toHaveBeenCalledWith(
@@ -202,12 +203,15 @@ describe('sendSourceDocumentUpdateNotifications', () => {
 
     expect(mockCreateNotification).toHaveBeenCalledWith(
       expect.objectContaining({
-        message: expect.stringContaining('1 of your KB item may need reviewing'),
+        message: expect.stringContaining('1 of your KB item may need reviewing.'),
       }),
     );
-    // Should NOT contain "items" (plural)
-    const message = mockCreateNotification.mock.calls[0][0].message;
-    expect(message).not.toContain('items');
+    // Should NOT contain "items" (plural) — note: "items" should not appear before the period
+    const message = mockCreateNotification.mock.calls[0][0].message as string;
+    expect(message).toContain('item may need reviewing.');
+    expect(message).not.toContain('items may need reviewing.');
+    // Message should end with "Click to review changes."
+    expect(message).toMatch(/Click to review changes\.$/);
   });
 
   it('includes document filename in notification message', async () => {
@@ -233,5 +237,50 @@ describe('sendSourceDocumentUpdateNotifications', () => {
 
     const message = mockCreateNotification.mock.calls[0][0].message;
     expect(message).toContain('company-qa-library.docx');
+  });
+
+  it('notification title contains "diff available" (Phase 3.3)', async () => {
+    mockClient._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [{ id: 'item-1', content_owner_id: 'owner-1' }],
+          error: null,
+        }),
+    );
+
+    await sendSourceDocumentUpdateNotifications(
+      supabase,
+      {
+        ...baseImpact,
+        total_affected_items: 1,
+        items: [baseImpact.items[0]],
+      },
+      'new-doc-1',
+    );
+
+    const call = mockCreateNotification.mock.calls[0][0];
+    expect(call.title).toBe('Source document updated \u2014 diff available');
+  });
+
+  it('notification message ends with "Click to review changes." (Phase 3.3)', async () => {
+    mockClient._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({
+          data: [
+            { id: 'item-1', content_owner_id: 'owner-1' },
+            { id: 'item-2', content_owner_id: 'owner-1' },
+          ],
+          error: null,
+        }),
+    );
+
+    await sendSourceDocumentUpdateNotifications(
+      supabase,
+      baseImpact,
+      'new-doc-1',
+    );
+
+    const call = mockCreateNotification.mock.calls[0][0];
+    expect(call.message).toMatch(/Click to review changes\.$/);
   });
 });
