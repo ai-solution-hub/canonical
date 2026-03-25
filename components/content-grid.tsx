@@ -29,6 +29,8 @@ interface ContentGridProps {
   highlightQuery?: string;
   /** Whether the current user can edit (editor/admin). Enables quick review actions. */
   canEdit?: boolean;
+  /** When true, QualityBadge in each card shows a plain-language tooltip instead of full breakdown */
+  simplifiedQuality?: boolean;
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign */
@@ -50,6 +52,7 @@ export function ContentGrid({
   hideThumbnails,
   highlightQuery,
   canEdit,
+  simplifiedQuality,
   onQuickReviewUpdate,
   activeWorkspaces,
   itemAssignments,
@@ -240,6 +243,7 @@ export function ContentGrid({
                 hideThumbnail={hideThumbnails}
                 highlightQuery={highlightQuery}
                 canEdit={canEdit}
+                simplifiedQuality={simplifiedQuality}
                 onQuickReviewUpdate={onQuickReviewUpdate}
                 activeWorkspaces={activeWorkspaces}
                 assignedWorkspaceIds={itemAssignments?.get(item.id)}
@@ -348,6 +352,7 @@ export function ContentGrid({
                       hideThumbnail={hideThumbnails}
                       highlightQuery={highlightQuery}
                       canEdit={canEdit}
+                      simplifiedQuality={simplifiedQuality}
                       onQuickReviewUpdate={onQuickReviewUpdate}
                       activeWorkspaces={activeWorkspaces}
                       assignedWorkspaceIds={itemAssignments?.get(item.id)}

@@ -276,4 +276,34 @@ describe('ContentCard', () => {
     const link = container.querySelector('a');
     expect(link?.getAttribute('href')).toBe('/item/item-123');
   });
+
+  // ── Simplified quality tooltip ──
+
+  it('passes simplified tooltip to QualityBadge when simplifiedQuality is true', () => {
+    const { container } = render(
+      <ContentCard item={makeContentItem()} simplifiedQuality />,
+    );
+    // QualityBadge renders with a title attribute — simplified shows "Quality: {label}"
+    const qualityBadge = container.querySelector('[title^="Quality:"]');
+    expect(qualityBadge).toBeInTheDocument();
+    expect(qualityBadge?.getAttribute('title')).toMatch(/^Quality: /);
+  });
+
+  it('shows full breakdown tooltip when simplifiedQuality is false', () => {
+    const { container } = render(
+      <ContentCard item={makeContentItem()} simplifiedQuality={false} />,
+    );
+    // Full breakdown title starts with "Freshness:"
+    const qualityBadge = container.querySelector('[title^="Freshness:"]');
+    expect(qualityBadge).toBeInTheDocument();
+  });
+
+  it('shows full breakdown tooltip when simplifiedQuality is omitted', () => {
+    const { container } = render(
+      <ContentCard item={makeContentItem()} />,
+    );
+    // Default (no simplified prop) should show full breakdown
+    const qualityBadge = container.querySelector('[title^="Freshness:"]');
+    expect(qualityBadge).toBeInTheDocument();
+  });
 });
