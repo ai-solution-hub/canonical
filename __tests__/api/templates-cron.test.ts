@@ -1018,7 +1018,12 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('returns 200 with zero notifications when no transitions detected', async () => {
-    // Query returns no items
+    // Governance config query (consumed first by the route)
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+    );
+    // Content items query returns no items
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: [], error: null }),
@@ -1045,6 +1050,12 @@ describe('GET /api/cron/freshness-transitions', () => {
       },
     ];
 
+    // Governance config query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+    );
+    // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1079,6 +1090,12 @@ describe('GET /api/cron/freshness-transitions', () => {
       lifecycle_type: 'standard',
     }));
 
+    // Governance config query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+    );
+    // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1114,6 +1131,12 @@ describe('GET /api/cron/freshness-transitions', () => {
       },
     ];
 
+    // Governance config query
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+    );
+    // Content items query
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: transitions, error: null }),
@@ -1132,6 +1155,12 @@ describe('GET /api/cron/freshness-transitions', () => {
   });
 
   it('returns 500 when freshness query fails', async () => {
+    // Governance config query succeeds
+    mockSupabase._chain.then.mockImplementationOnce(
+      (resolve: (v: unknown) => void) =>
+        resolve({ data: [], error: null }),
+    );
+    // Content items query fails
     mockSupabase._chain.then.mockImplementationOnce(
       (resolve: (v: unknown) => void) =>
         resolve({ data: null, error: { message: 'DB error' } }),
