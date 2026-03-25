@@ -87,7 +87,10 @@ vi.mock('@/components/version-history', () => ({
 
 vi.mock('@/components/item-action-bar', () => ({
   ItemActionBar: (props: Record<string, unknown>) => (
-    <div data-testid="item-action-bar" data-can-edit={props.canEdit}>ItemActionBar</div>
+    <div data-testid="item-action-bar" data-can-edit={props.canEdit}>
+      ItemActionBar
+      {props.detailModeToggle as React.ReactNode}
+    </div>
   ),
 }));
 
