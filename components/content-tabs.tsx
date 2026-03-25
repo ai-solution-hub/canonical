@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { FileText, RefreshCw, CheckCircle2, Loader2, Pencil } from 'lucide-react';
+import { FileText, RefreshCw, CheckCircle2, Loader2, Pencil, Flag, Check } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/lib/format';
@@ -165,6 +166,11 @@ export function ContentTabs({
   const [summaryData, setSummaryData] = useState<SummaryData | null>(initialData);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Flag summary for review state
+  const [flagged, setFlagged] = useState(false);
+  const [showFlagForm, setShowFlagForm] = useState(false);
+  const [flagNote, setFlagNote] = useState('Summary needs improvement');
+
   // Dual-content toggle state (when both human + AI exist for a tab)
   const [briefViewMode, setBriefViewMode] = useState<'human' | 'ai'>('human');
   const [detailViewMode, setDetailViewMode] = useState<'human' | 'ai'>('human');
@@ -230,6 +236,34 @@ export function ContentTabs({
       );
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  // Flag summary for review handler
+  const handleFlagSummary = async () => {
+    try {
+      const res = await fetch('/api/review/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'flag',
+          item_id: itemId,
+          flag_details: `[Summary feedback] ${flagNote}`,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to flag summary');
+      }
+
+      setFlagged(true);
+      setShowFlagForm(false);
+      toast.success('Summary flagged for review');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to flag summary',
+      );
     }
   };
 
@@ -606,25 +640,96 @@ export function ContentTabs({
         )}
       </Tabs>
 
-      {/* Footer: summary date + generate button */}
-      <div className="flex items-center justify-between border-t border-border px-4 py-2.5">
-        {summaryData ? (
-          <p className="text-xs text-muted-foreground">
-            Last updated {formatDate(summaryData.generated_at)}
-          </p>
-        ) : (
-          <span />
-        )}
-        {canEdit && showSourceToggle && !summaryData && (
-          <Button
-            onClick={handleGenerate}
-            variant="ghost"
-            size="sm"
-            className="gap-1.5 text-xs"
-          >
-            <RefreshCw className="size-3.5" aria-hidden="true" />
-            Generate summary
-          </Button>
+      {/* Footer: summary date + generate/flag buttons */}
+      <div className="border-t border-border px-4 py-2.5">
+        <div className="flex items-center justify-between">
+          {summaryData ? (
+            <p className="text-xs text-muted-foreground">
+              Last updated {formatDate(summaryData.generated_at)}
+            </p>
+          ) : (
+            <span />
+          )}
+          <div className="flex items-center gap-2">
+            {canEdit && showSourceToggle && !summaryData && (
+              <Button
+                onClick={handleGenerate}
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs"
+              >
+                <RefreshCw className="size-3.5" aria-hidden="true" />
+                Generate summary
+              </Button>
+            )}
+            {canEdit && showSourceToggle && summaryData && !flagged && !showFlagForm && (
+              <Button
+                onClick={() => setShowFlagForm(true)}
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-xs"
+                aria-label="Flag summary for review"
+              >
+                <Flag className="size-3.5" aria-hidden="true" />
+                Flag for review
+              </Button>
+            )}
+            {canEdit && showSourceToggle && summaryData && flagged && (
+              <>
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+                  <Check className="size-3.5" aria-hidden="true" />
+                  Flagged for review
+                </span>
+                <Button
+                  onClick={() => {
+                    setFlagged(false);
+                    handleGenerate();
+                  }}
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-xs"
+                >
+                  <RefreshCw className="size-3.5" aria-hidden="true" />
+                  Regenerate
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        {showFlagForm && (
+          <div className="mt-2 flex items-center gap-2">
+            <label htmlFor="flag-note" className="sr-only">
+              Note for reviewer
+            </label>
+            <Input
+              id="flag-note"
+              value={flagNote}
+              onChange={(e) => setFlagNote(e.target.value.slice(0, 500))}
+              maxLength={500}
+              placeholder="Describe the issue…"
+              className="h-8 flex-1 text-xs"
+              aria-label="Note for reviewer"
+            />
+            <Button
+              onClick={handleFlagSummary}
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+            >
+              <Flag className="size-3" aria-hidden="true" />
+              Flag
+            </Button>
+            <Button
+              onClick={() => {
+                setShowFlagForm(false);
+                setFlagNote('Summary needs improvement');
+              }}
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+            >
+              Cancel
+            </Button>
+          </div>
         )}
       </div>
     </div>
