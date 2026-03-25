@@ -410,6 +410,24 @@ export const GovernanceReviewBodySchema = z.object({
   notes: z.string().max(1000).optional(),
 });
 
+/** POST /api/review/assignments — create a review assignment */
+export const ReviewAssignmentBodySchema = z.object({
+  reviewer_id: z.string().uuid(),
+  filter_domains: z.array(z.string()).default([]),
+  filter_content_types: z.array(z.string()).default([]),
+  filter_freshness: z.array(z.string()).default([]),
+  filter_date_from: z.string().datetime().nullable().optional(),
+  filter_date_to: z.string().datetime().nullable().optional(),
+  due_date: z.string().datetime().nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+});
+
+/** PATCH /api/review/assignments — update assignment status */
+export const ReviewAssignmentUpdateSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['completed', 'cancelled']),
+});
+
 /** POST /api/freshness/calculate */
 export const FreshnessCalculateBodySchema = z.object({
   item_ids: z.array(z.string().uuid()).min(1).max(500),

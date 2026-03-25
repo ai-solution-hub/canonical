@@ -23,6 +23,18 @@ interface UndoableAction {
   previousIndex: number;
 }
 
+export interface ReviewAssignmentInfo {
+  id: string;
+  notes: string | null;
+  filter_domains: string[];
+  filter_content_types: string[];
+  filter_freshness: string[];
+  filter_date_from: string | null;
+  filter_date_to: string | null;
+  item_count: number | null;
+  due_date: string | null;
+}
+
 export interface UseReviewQueueReturn {
   // State
   queue: ReviewQueueItem[];
@@ -38,6 +50,9 @@ export interface UseReviewQueueReturn {
   showQueuePanel: boolean;
   queueSort: QueueSortField;
   announcement: string;
+
+  // Assignment
+  activeAssignment: ReviewAssignmentInfo | null;
 
   // Refs
   cardRef: React.RefObject<HTMLDivElement | null>;
@@ -191,6 +206,9 @@ export function useReviewQueue(): UseReviewQueueReturn {
   // Announcements for screen readers
   const [announcement, setAnnouncement] = useState('');
 
+  // Active assignment state
+  const [activeAssignment, setActiveAssignment] = useState<ReviewAssignmentInfo | null>(null);
+
   const currentItem = queue[currentIndex] ?? null;
 
   // Sorted queue for the side panel
@@ -337,6 +355,60 @@ export function useReviewQueue(): UseReviewQueueReturn {
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Fetch active assignment for current user on mount.
+  // If an assignment exists and URL has no explicit filters, auto-apply its criteria.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAssignment() {
+      try {
+        const res = await fetch('/api/review/assignments?status=active');
+        if (!res.ok) return;
+        const data = await res.json();
+        const assignments = data.assignments ?? [];
+        if (cancelled || assignments.length === 0) return;
+
+        const assignment = assignments[0];
+        setActiveAssignment({
+          id: assignment.id,
+          notes: assignment.notes,
+          filter_domains: assignment.filter_domains ?? [],
+          filter_content_types: assignment.filter_content_types ?? [],
+          filter_freshness: assignment.filter_freshness ?? [],
+          filter_date_from: assignment.filter_date_from,
+          filter_date_to: assignment.filter_date_to,
+          item_count: assignment.item_count,
+          due_date: assignment.due_date,
+        });
+
+        // Only auto-apply filters if URL didn't specify any
+        const hasUrlFilters =
+          searchParams.getAll('domain').length > 0 ||
+          searchParams.getAll('content_type').length > 0 ||
+          searchParams.get('source_file');
+
+        if (!hasUrlFilters) {
+          const domains = assignment.filter_domains ?? [];
+          const contentTypes = assignment.filter_content_types ?? [];
+          if (domains.length > 0 || contentTypes.length > 0) {
+            setFilters((prev: ReviewFiltersType) => ({
+              ...prev,
+              domain: domains.length > 0 ? domains : prev.domain,
+              content_type: contentTypes.length > 0 ? contentTypes : prev.content_type,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load review assignment:', err);
+      }
+    }
+
+    loadAssignment();
+    return () => { cancelled = true; };
+    // Only run on mount — searchParams is used for initial check only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Prefetch next batch when approaching the end
   useEffect(() => {
@@ -693,6 +765,9 @@ export function useReviewQueue(): UseReviewQueueReturn {
     showQueuePanel,
     queueSort,
     announcement,
+
+    // Assignment
+    activeAssignment,
 
     // Refs
     cardRef,
