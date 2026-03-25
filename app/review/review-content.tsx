@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity, ClipboardCheck, X } from 'lucide-react';
 import {
@@ -92,10 +92,11 @@ export function ReviewContent() {
 
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
+  const [sessionDuration, setSessionDuration] = useState(0);
   // Review health cadence panel toggle
   const [showCadence, setShowCadence] = useState(false);
-  const sessionStartRef = useRef(Date.now());
-  const sessionStatsRef = useRef<ReviewSessionStats>({
+  const [sessionStart] = useState(() => Date.now());
+  const [sessionStats, setSessionStats] = useState<ReviewSessionStats>({
     total: 0,
     verified: 0,
     flagged: 0,
@@ -106,21 +107,11 @@ export function ReviewContent() {
   // The hook's progress.sessionReviewed tracks total actions taken this session.
   // We derive skipped from (sessionReviewed - verified - flagged) seen so far.
   const updateSessionStats = useCallback(() => {
-    // The hook tracks sessionReviewed (total actions), but we need a breakdown.
-    // verified + flagged are tracked in progress. Skipped = sessionReviewed - verified_delta - flagged_delta.
-    // Since the hook resets sessionReviewed to 0 on load, we can use it directly
-    // combined with the running verified/flagged totals from this session.
-    const verifiedThisSession = sessionStatsRef.current.verified;
-    const flaggedThisSession = sessionStatsRef.current.flagged;
-    const total = progress.sessionReviewed;
-    const skipped = Math.max(0, total - verifiedThisSession - flaggedThisSession);
-
-    sessionStatsRef.current = {
-      total,
-      verified: verifiedThisSession,
-      flagged: flaggedThisSession,
-      skipped,
-    };
+    setSessionStats((prev) => {
+      const total = progress.sessionReviewed;
+      const skipped = Math.max(0, total - prev.verified - prev.flagged);
+      return { total, verified: prev.verified, flagged: prev.flagged, skipped };
+    });
   }, [progress.sessionReviewed]);
 
   // Wrap exit to show session summary dialog (or just exit if nothing reviewed)
@@ -128,11 +119,12 @@ export function ReviewContent() {
     const { sessionReviewed } = progress;
     if (sessionReviewed > 0) {
       updateSessionStats();
+      setSessionDuration(Date.now() - sessionStart);
       setShowSummary(true);
     } else {
       handleExit();
     }
-  }, [progress, handleExit, updateSessionStats]);
+  }, [progress, handleExit, updateSessionStats, sessionStart]);
 
   // Close summary and navigate away
   const handleSummaryClose = useCallback((open: boolean) => {
@@ -145,20 +137,14 @@ export function ReviewContent() {
   // Wrap verify to track session stats
   const originalHandleVerify = handleVerify;
   const handleVerifyWithTracking = useCallback(async () => {
-    sessionStatsRef.current = {
-      ...sessionStatsRef.current,
-      verified: sessionStatsRef.current.verified + 1,
-    };
+    setSessionStats((prev) => ({ ...prev, verified: prev.verified + 1 }));
     await originalHandleVerify();
   }, [originalHandleVerify]);
 
   // Wrap flag submit to track session stats
   const originalHandleFlagSubmit = handleFlagSubmit;
   const handleFlagSubmitWithTracking = useCallback(async (details?: string) => {
-    sessionStatsRef.current = {
-      ...sessionStatsRef.current,
-      flagged: sessionStatsRef.current.flagged + 1,
-    };
+    setSessionStats((prev) => ({ ...prev, flagged: prev.flagged + 1 }));
     await originalHandleFlagSubmit(details);
   }, [originalHandleFlagSubmit]);
 
@@ -336,6 +322,7 @@ export function ReviewContent() {
                 size="sm"
                 onClick={() => {
                   updateSessionStats();
+                  setSessionDuration(Date.now() - sessionStart);
                   setShowSummary(true);
                 }}
                 className="gap-1.5 text-xs text-muted-foreground"
@@ -561,8 +548,8 @@ export function ReviewContent() {
       <ReviewSessionSummary
         open={showSummary}
         onOpenChange={handleSummaryClose}
-        stats={sessionStatsRef.current}
-        sessionDuration={Date.now() - sessionStartRef.current}
+        stats={sessionStats}
+        sessionDuration={sessionDuration}
       />
     </>
   );

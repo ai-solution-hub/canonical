@@ -11,7 +11,6 @@ import {
   VerificationBadge,
   getTrustLevel,
   formatRelativeTime,
-  type TrustData,
 } from '@/components/verification-badge';
 
 // ---------------------------------------------------------------------------
