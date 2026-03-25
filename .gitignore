@@ -28,6 +28,9 @@ venv/
 .DS_Store
 Thumbs.db
 
+# Git worktrees
+.worktrees/
+
 # Agent browser state
 .agent-browser/
 
