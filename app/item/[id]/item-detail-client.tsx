@@ -1,11 +1,7 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { useReadMarks } from '@/contexts/read-marks-context';
-import { useTranscript } from '@/hooks/use-transcript';
-import { useReaderPreferences } from '@/hooks/use-reader-preferences';
 import { Thumbnail } from '@/components/thumbnail';
 import { ContentTabs } from '@/components/content-tabs';
 import { MetadataSidebar } from '@/components/metadata-sidebar';
@@ -15,8 +11,6 @@ import { OrganiseSection } from '@/components/organise-section';
 import { EntityBadges } from '@/components/entity-badges';
 import { SourceDocumentInfo } from '@/components/source-document-info';
 import { VersionHistory } from '@/components/version-history';
-import { useUserRole } from '@/hooks/use-user-role';
-import { createClient } from '@/lib/supabase/client';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { getDisplayTitle } from '@/lib/format';
 import { ClaudePromptButton } from '@/components/claude-prompt-button';
@@ -24,16 +18,10 @@ import {
   generateIngestUrlPrompt,
   generateSummariseAndIngestPrompt,
 } from '@/lib/claude-prompts';
-import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
-import { toast } from 'sonner';
-
-// Extracted hooks
-import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
-import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
-import { useQAProvenance } from '@/hooks/use-qa-provenance';
-import { useTopicLayerContent } from '@/hooks/use-topic-layer-content';
 import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
-import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
+
+// Extracted data hook — shared state for reader and editor views
+import { useItemDetailData } from '@/hooks/use-item-detail-data';
 
 // Extracted sub-components
 import { ItemActionBar } from '@/components/item-action-bar';
@@ -53,9 +41,7 @@ import { ErrorBoundary } from '@/components/error-boundary';
 import type {
   ContentListItem,
   SummaryData,
-  TranscriptChapter,
 } from '@/types/content';
-import type { Priority } from '@/components/priority-selector';
 import type { Layout } from 'react-resizable-panels';
 
 export interface ItemData {
@@ -115,29 +101,24 @@ export function ItemDetailClient({
   item: initialItem,
   relatedItems,
 }: ItemDetailClientProps) {
-  const router = useRouter();
-  const { canEdit, canAdmin } = useUserRole();
-  const [item, setItem] = useState<ItemData>(initialItem);
+  // All data, state, and mutations extracted into shared hook
+  const data = useItemDetailData({ initialItem, relatedItems });
 
-  // Detect mobile for collapsible section defaults
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 1023px)');
-    setIsMobile(mql.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, []);
   const {
+    item,
+    setItem,
+    title,
+    isQAPair,
+    hasReaderContent,
+    transcriptChapters,
+    visionAnalysis,
+    isMobile,
+    canEdit,
+    canAdmin,
+    router,
+    toggleRead,
     segments,
     highlights,
-  } = useTranscript({
-    itemId: item.id as string,
-    initialSegments: null,
-    initialHighlights: null,
-  });
-  const [copied, setCopied] = useState(false);
-  const {
     fontSize,
     maxWidth,
     panelLayout,
@@ -153,25 +134,28 @@ export function ItemDetailClient({
     toggleDetached,
     setDetachedPosition,
     setDetachedSize,
-  } = useReaderPreferences();
-  const showSplitReader = readerOpen && !isDetached;
+    showSplitReader,
+    inlineEdit,
+    qaEditMode,
+    isAnalysing,
+    handleVisionAnalysis,
+    qaProvenance,
+    layerContent,
+    isLayerContentLoading,
+    copied,
+    handleCopyLink,
+    handleCopyAnswer,
+    handleStarToggle,
+    handlePriorityCycle,
+    getActiveTabContent,
+    tabEditConfig,
+    startEdit,
+    cancelEdit,
+    saveEdit,
+  } = data;
 
-  // Editable field states (extracted hook)
-  const inlineEdit = useInlineFieldEdit<ItemData>({
-    itemId: item.id,
-    onItemUpdate: setItem,
-  });
+  // Destructure frequently-used sub-hook values
   const { editingField, editValue, saveSuccess, saveAnnouncement } = inlineEdit;
-
-  const title = getDisplayTitle({
-    suggested_title: item.suggested_title,
-    title: item.title,
-    content: item.content,
-  });
-
-  const isQAPair = item.content_type === 'q_a_pair';
-
-  // Extracted hook: Q&A edit mode
   const {
     isEditing,
     setIsEditing,
@@ -188,153 +172,8 @@ export function ItemDetailClient({
     enterEditMode,
     cancelEditMode,
     handleSaveAll,
-  } = useQAEditMode({
-    itemId: item.id,
-    title,
-    answerStandard: item.answer_standard,
-    answerAdvanced: item.answer_advanced,
-    isQAPair,
-    onFieldSaved: useCallback((field: string, value: string | null) => {
-      setItem((prev) => ({ ...prev, [field]: value }));
-    }, []),
-  });
-
-  // Extracted hook: Vision analysis
-  const { isAnalysing, handleVisionAnalysis } = useVisionAnalysis({
-    itemId: item.id,
-    onAnalysisComplete: useCallback((result: VisionAnalysisResult) => {
-      setItem((prev) => ({
-        ...prev,
-        metadata: { ...prev.metadata, vision_analysis: result },
-      }));
-    }, []),
-  });
-  const visionAnalysis = item.metadata?.vision_analysis as VisionAnalysisResult | undefined;
-
-  // Extracted hook: Q&A provenance (workspaces, related Q&A, topic layers, layer change)
-  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } = useQAProvenance({
-    itemId: item.id,
-    isQAPair,
-    metadata: item.metadata,
-    onMetadataUpdate: useCallback((updater: (prev: Record<string, unknown> | null) => Record<string, unknown> | null) => {
-      setItem((prev) => ({ ...prev, metadata: updater(prev.metadata) }));
-    }, []),
-  });
-
-  // Fetch sibling layer content for inline comparison
-  const { layerContent, isLoading: isLayerContentLoading } = useTopicLayerContent(
-    topicLayers,
-    item.id as string,
-  );
-
-  const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Failed to copy link');
-    }
-  }, []);
-
-  const startEdit = (field: string) => {
-    inlineEdit.startEdit(field, (item as unknown as Record<string, unknown>)[field]);
-  };
-
-  const cancelEdit = inlineEdit.cancelEdit;
-  const saveEdit = inlineEdit.saveEdit;
-
-  const { toggleRead, loadReadMarks, checkReadStatus } = useReadMarks();
-
-  // Trigger lazy loading of read marks counts for this page
-  useEffect(() => { loadReadMarks(); }, [loadReadMarks]);
-
-  // Check read status for this specific item
-  useEffect(() => {
-    if (item?.id) {
-      checkReadStatus([item.id]);
-    }
-  }, [item?.id, checkReadStatus]);
-
-  // Star toggle handler for keyboard shortcut
-  const handleStarToggle = useCallback(async () => {
-    const newStarred = item.metadata?.starred !== true;
-    setItem((prev) => ({
-      ...prev,
-      metadata: { ...prev.metadata, starred: newStarred || undefined },
-    }));
-    try {
-      const supabase = createClient();
-      await supabase.rpc('toggle_star', {
-        p_item_id: item.id,
-        p_starred: newStarred,
-      });
-      toast(newStarred ? 'Starred' : 'Unstarred', { duration: 1500 });
-    } catch (err) {
-      console.error('Failed to toggle star:', err);
-      // Rollback
-      setItem((prev) => ({
-        ...prev,
-        metadata: { ...prev.metadata, starred: !newStarred || undefined },
-      }));
-    }
-  }, [item.id, item.metadata]);
-
-  // Cycle priority: null -> high -> medium -> low -> null
-  const handlePriorityCycle = useCallback(async () => {
-    const cycle: Priority[] = [null, 'high', 'medium', 'low'];
-    const currentIdx = cycle.indexOf((item.priority as Priority) ?? null);
-    const next = cycle[(currentIdx + 1) % cycle.length];
-    setItem((prev) => ({ ...prev, priority: next }));
-    try {
-      const res = await fetch(`/api/items/${item.id}/priority`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ priority: next }),
-      });
-      if (!res.ok) throw new Error();
-      toast(next ? `Priority: ${next}` : 'Priority cleared', { duration: 1500 });
-    } catch (err) {
-      console.error('Failed to cycle priority:', err);
-      setItem((prev) => ({ ...prev, priority: item.priority }));
-    }
-  }, [item.id, item.priority]);
-
-  // Copy answer handler (Q&A pairs)
-  const handleCopyAnswer = useCallback(async (variant?: 'standard' | 'advanced') => {
-    let text: string;
-    if (variant === 'standard') {
-      text = item.answer_standard ?? item.content ?? '';
-    } else if (variant === 'advanced') {
-      text = item.answer_advanced ?? item.content ?? '';
-    } else {
-      text = item.content ?? '';
-    }
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(variant ? `${variant.charAt(0).toUpperCase() + variant.slice(1)} answer copied` : 'Answer copied');
-    } catch {
-      toast.error('Failed to copy answer');
-    }
-  }, [item.content, item.answer_standard, item.answer_advanced]);
-
-  // Helper: get active tab content for TableOfContents
-  const getActiveTabContent = useCallback((): string => {
-    if (item.brief) return item.brief;
-    if (item.summary_data?.executive) return item.summary_data.executive;
-    if (item.ai_summary) return item.ai_summary;
-    if (item.content) return item.content;
-    return '';
-  }, [item.brief, item.summary_data, item.ai_summary, item.content]);
-
-  // Navigate away prompt when dirty
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (editDirty) e.preventDefault();
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [editDirty]);
+  } = qaEditMode;
+  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } = qaProvenance;
 
   // Keyboard shortcuts (extracted hook)
   useItemDetailShortcuts({
@@ -357,47 +196,12 @@ export function ItemDetailClient({
     router,
   });
 
-  const transcriptChapters =
-    item.metadata &&
-    Array.isArray((item.metadata as Record<string, unknown>).chapters)
-      ? ((item.metadata as Record<string, unknown>)
-          .chapters as TranscriptChapter[])
-      : undefined;
-
   const handleLayoutChanged = useCallback(
     (layout: Layout) => {
       setPanelLayout(layout);
     },
     [setPanelLayout],
   );
-
-  const hasReaderContent = !!(item.metadata?.reader_html) && !isQAPair;
-
-  // Build editConfig for ContentTabs — bridges existing saveEdit / startEdit
-  const tabFields = ['brief', 'detail', 'reference', 'content'] as const;
-  type TabField = (typeof tabFields)[number];
-  const tabEditingField: TabField | null = tabFields.includes(editingField as TabField)
-    ? (editingField as TabField)
-    : null;
-
-  const tabEditConfig = canEdit
-    ? {
-        editingField: tabEditingField,
-        editValue,
-        isSaving: isSavingTab,
-        onStartEdit: (field: TabField) => startEdit(field),
-        onEditValueChange: inlineEdit.setEditValue,
-        onSaveEdit: async (field: string) => {
-          setIsSavingTab(true);
-          try {
-            await saveEdit(field, editValue);
-          } finally {
-            setIsSavingTab(false);
-          }
-        },
-        onCancelEdit: cancelEdit,
-      }
-    : undefined;
 
   const contentTabsElement = (
     <ContentTabs
