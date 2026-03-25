@@ -1,7 +1,11 @@
 'use client';
 
 import { useCallback } from 'react';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import {
+  Panel,
+  Group as PanelGroup,
+  Separator as PanelResizeHandle,
+} from 'react-resizable-panels';
 import { FloatingReader } from '@/components/floating-reader';
 import { ReaderPanel } from '@/components/reader-panel';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -16,10 +20,7 @@ import { ReaderView } from '@/components/item-detail/reader-view';
 import { EditorView } from '@/components/item-detail/editor-view';
 import { DetailModeToggle } from '@/components/item-detail/detail-mode-toggle';
 
-import type {
-  ContentListItem,
-  SummaryData,
-} from '@/types/content';
+import type { ContentListItem, SummaryData } from '@/types/content';
 import type { Layout } from 'react-resizable-panels';
 
 export interface ItemData {
@@ -83,14 +84,19 @@ export function ItemDetailClient({
   const data = useItemDetailData({ initialItem, relatedItems });
 
   // Reader/editor mode management
-  const { detailMode, toggleDetailMode, isReaderMode, canToggle } = useDetailMode({
-    canEdit: data.canEdit,
-  });
+  const { detailMode, toggleDetailMode, isReaderMode, canToggle } =
+    useDetailMode({
+      canEdit: data.canEdit,
+    });
 
   // Unsaved changes guard: block mode switch while editing
   const handleModeToggle = useCallback(() => {
     if (data.qaEditMode.editDirty) {
-      if (!window.confirm('You have unsaved changes. Discard and switch to reader mode?')) {
+      if (
+        !window.confirm(
+          'You have unsaved changes. Discard and switch to reader mode?',
+        )
+      ) {
         return;
       }
       data.qaEditMode.cancelEditMode();
@@ -130,10 +136,7 @@ export function ItemDetailClient({
 
   // Build the mode toggle element as a slot for both views
   const detailModeToggle = canToggle ? (
-    <DetailModeToggle
-      detailMode={detailMode}
-      onToggle={handleModeToggle}
-    />
+    <DetailModeToggle detailMode={detailMode} onToggle={handleModeToggle} />
   ) : undefined;
 
   // Reader panel props — shared across split and floating reader
@@ -178,67 +181,71 @@ export function ItemDetailClient({
 
   return (
     <ErrorBoundary label="Error loading item details">
-    <>
-    <PanelGroup
-      orientation="horizontal"
-      onLayoutChanged={handleLayoutChanged}
-      defaultLayout={data.showSplitReader ? data.panelLayout : undefined}
-      className="min-h-[calc(100vh-4rem)]"
-    >
-      <Panel
-        id="detail"
-        defaultSize={data.showSplitReader ? `${data.panelLayout.detail ?? 55}%` : '100%'}
-        minSize="30%"
-      >
-        <div className="mx-auto max-w-7xl overflow-y-auto px-4 py-6 sm:px-6">
-          {viewContent}
-        </div>
-      </Panel>
-      {data.showSplitReader && (
-        <>
-          <PanelResizeHandle aria-label="Resize panels" className="w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30" />
+      <>
+        <PanelGroup
+          orientation="horizontal"
+          onLayoutChanged={handleLayoutChanged}
+          defaultLayout={data.showSplitReader ? data.panelLayout : undefined}
+          className="min-h-[calc(100vh-4rem)]"
+        >
           <Panel
-            id="reader"
-            defaultSize={`${data.panelLayout.reader ?? 45}%`}
-            minSize="25%"
+            id="detail"
+            defaultSize={
+              data.showSplitReader
+                ? `${data.panelLayout.detail ?? 55}%`
+                : '100%'
+            }
+            minSize="30%"
           >
-            <div className="h-full border-l border-border bg-background">
-              <ReaderPanel
-                {...readerPanelProps}
-                isDetached={false}
-              />
+            <div className="mx-auto max-w-7xl overflow-y-auto px-4 py-6 sm:px-6">
+              {viewContent}
             </div>
           </Panel>
-        </>
-      )}
-    </PanelGroup>
-    {data.readerOpen && data.isDetached && (
-      <FloatingReader
-        readerHtml={data.item.metadata?.reader_html as string | undefined}
-        contentType={data.item.content_type}
-        title={data.title}
-        fontSize={data.fontSize}
-        maxWidth={data.maxWidth}
-        onFontSizeChange={data.setFontSize}
-        onMaxWidthChange={data.setMaxWidth}
-        onClose={() => data.setReaderOpen(false)}
-        onDock={data.toggleDetached}
-        position={data.detachedPosition}
-        size={data.detachedSize}
-        onPositionChange={data.setDetachedPosition}
-        onSizeChange={data.setDetachedSize}
-        platform={data.item.platform}
-        metadata={data.item.metadata}
-        authorName={data.item.author_name}
-        sourceUrl={data.item.source_url}
-        filePath={data.item.file_path}
-        content={data.item.content}
-        transcriptChapters={data.transcriptChapters}
-        segments={data.segments}
-        highlights={data.highlights}
-      />
-    )}
-    </>
+          {data.showSplitReader && (
+            <>
+              <PanelResizeHandle
+                aria-label="Resize panels"
+                className="w-1.5 bg-border transition-colors hover:bg-primary/20 data-[active]:bg-primary/30"
+              />
+              <Panel
+                id="reader"
+                defaultSize={`${data.panelLayout.reader ?? 45}%`}
+                minSize="25%"
+              >
+                <div className="h-full border-l border-border bg-background">
+                  <ReaderPanel {...readerPanelProps} isDetached={false} />
+                </div>
+              </Panel>
+            </>
+          )}
+        </PanelGroup>
+        {data.readerOpen && data.isDetached && (
+          <FloatingReader
+            readerHtml={data.item.metadata?.reader_html as string | undefined}
+            contentType={data.item.content_type}
+            title={data.title}
+            fontSize={data.fontSize}
+            maxWidth={data.maxWidth}
+            onFontSizeChange={data.setFontSize}
+            onMaxWidthChange={data.setMaxWidth}
+            onClose={() => data.setReaderOpen(false)}
+            onDock={data.toggleDetached}
+            position={data.detachedPosition}
+            size={data.detachedSize}
+            onPositionChange={data.setDetachedPosition}
+            onSizeChange={data.setDetachedSize}
+            platform={data.item.platform}
+            metadata={data.item.metadata}
+            authorName={data.item.author_name}
+            sourceUrl={data.item.source_url}
+            filePath={data.item.file_path}
+            content={data.item.content}
+            transcriptChapters={data.transcriptChapters}
+            segments={data.segments}
+            highlights={data.highlights}
+          />
+        )}
+      </>
     </ErrorBoundary>
   );
 }

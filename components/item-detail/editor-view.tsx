@@ -112,7 +112,8 @@ export function EditorView({
     cancelEditMode,
     handleSaveAll,
   } = qaEditMode;
-  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } = qaProvenance;
+  const { usedInWorkspaces, relatedQA, topicLayers, handleLayerChange } =
+    qaProvenance;
 
   // --- Content tabs element ---
   const contentTabsElement = (
@@ -148,11 +149,15 @@ export function EditorView({
   return (
     <>
       {/* Screen reader: save announcements */}
-      <div aria-live="polite" className="sr-only">{saveAnnouncement}</div>
+      <div aria-live="polite" className="sr-only">
+        {saveAnnouncement}
+      </div>
 
       {/* Screen reader: keyboard shortcut help */}
       <div className="sr-only" role="note" aria-label="Keyboard shortcuts">
-        Available shortcuts: M to toggle read, S to toggle star, P to cycle priority, E to toggle edit, R to open reader panel, Shift+D to switch to reader mode.
+        Available shortcuts: M to toggle read, S to toggle star, P to cycle
+        priority, E to toggle edit, R to open reader panel, Shift+D to switch to
+        reader mode.
       </div>
 
       {/* Breadcrumb navigation */}
@@ -164,33 +169,35 @@ export function EditorView({
 
       {/* Layer switcher — shows linked items sharing the same topic_id (editors only) */}
       {canEdit && (
-        <LayerSwitcherNav
-          currentItemId={item.id}
-          topicLayers={topicLayers}
-        />
+        <LayerSwitcherNav currentItemId={item.id} topicLayers={topicLayers} />
       )}
 
       {/* Layer comparison — inline tabbed preview of sibling layer content (editors only) */}
-      {canEdit && isFeatureEnabled('content_layers') && topicLayers.length > 1 && (
-        <TopicLayerComparison
-          currentItem={{
-            id: item.id as string,
-            layer: (item.metadata?.layer as string) ?? '',
-            title: item.title ?? '',
-            brief: item.brief ?? null,
-            detail: item.detail ?? null,
-            content: item.content ?? null,
-            content_type: item.content_type as string,
-            metadata: item.metadata,
-          }}
-          layerContent={layerContent}
-          isLoading={isLayerContentLoading}
-        />
-      )}
+      {canEdit &&
+        isFeatureEnabled('content_layers') &&
+        topicLayers.length > 1 && (
+          <TopicLayerComparison
+            currentItem={{
+              id: item.id as string,
+              layer: (item.metadata?.layer as string) ?? '',
+              title: item.title ?? '',
+              brief: item.brief ?? null,
+              detail: item.detail ?? null,
+              content: item.content ?? null,
+              content_type: item.content_type as string,
+              metadata: item.metadata,
+            }}
+            layerContent={layerContent}
+            isLoading={isLayerContentLoading}
+          />
+        )}
 
       <div className="flex flex-col gap-8 lg:flex-row">
         {/* Main content */}
-        <article className="min-w-0 flex-1" aria-label={item.title ?? 'Untitled'}>
+        <article
+          className="min-w-0 flex-1"
+          aria-label={item.title ?? 'Untitled'}
+        >
           {/* Thumbnail (not shown for Q&A pairs) */}
           {item.thumbnail_url && !isQAPair ? (
             <Thumbnail
@@ -218,12 +225,12 @@ export function EditorView({
 
           {/* Action bar — full editor controls */}
           <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 bg-background py-2 sm:static sm:z-auto">
-            {detailModeToggle}
             <ItemActionBar
               item={item}
               canEdit={canEdit}
               canAdmin={canAdmin}
               isEditing={isEditing}
+              detailModeToggle={detailModeToggle}
               isQAPair={isQAPair}
               isAnalysing={isAnalysing}
               copied={copied}
@@ -264,14 +271,10 @@ export function EditorView({
             />
 
             {/* Q&A provenance: bids using this pair */}
-            {isQAPair && (
-              <QAUsedInBids workspaces={usedInWorkspaces} />
-            )}
+            {isQAPair && <QAUsedInBids workspaces={usedInWorkspaces} />}
 
             {/* Q&A related pairs from the same source document */}
-            {isQAPair && (
-              <QARelatedPairs relatedQA={relatedQA} />
-            )}
+            {isQAPair && <QARelatedPairs relatedQA={relatedQA} />}
 
             {/* OrganiseSection — replaces separate keywords/workspaces/tags (editors only) */}
             {canEdit && (
@@ -281,8 +284,12 @@ export function EditorView({
                 workspaces={[]}
                 tags={(item.user_tags as string[]) ?? []}
                 canEdit={canEdit}
-                onKeywordsChanged={(kw) => setItem((prev) => ({ ...prev, ai_keywords: kw }))}
-                onTagsChanged={(newTags) => setItem((prev) => ({ ...prev, user_tags: newTags }))}
+                onKeywordsChanged={(kw) =>
+                  setItem((prev) => ({ ...prev, ai_keywords: kw }))
+                }
+                onTagsChanged={(newTags) =>
+                  setItem((prev) => ({ ...prev, user_tags: newTags }))
+                }
                 onWorkspacesChanged={() => {}}
                 className="mb-6"
               />
@@ -290,35 +297,42 @@ export function EditorView({
           </CollapsibleSection>
 
           {/* Claude actions — contextual ingestion prompts (editors only) */}
-          {canEdit && (item.source_url || (item.content && item.content.length > 5000)) && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {item.source_url && (
-                <ClaudePromptButton
-                  prompt={generateIngestUrlPrompt(item.source_url).prompt}
-                  label="Re-ingest source"
-                  size="sm"
-                />
-              )}
-              {item.content && item.content.length > 5000 && (
-                <ClaudePromptButton
-                  prompt={generateSummariseAndIngestPrompt(
-                    item.title ?? 'Untitled',
-                    item.content.slice(0, 500),
-                  ).prompt}
-                  label="Summarise and add to KB"
-                  size="sm"
-                />
-              )}
-            </div>
-          )}
+          {canEdit &&
+            (item.source_url ||
+              (item.content && item.content.length > 5000)) && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {item.source_url && (
+                  <ClaudePromptButton
+                    prompt={generateIngestUrlPrompt(item.source_url).prompt}
+                    label="Re-ingest source"
+                    size="sm"
+                  />
+                )}
+                {item.content && item.content.length > 5000 && (
+                  <ClaudePromptButton
+                    prompt={
+                      generateSummariseAndIngestPrompt(
+                        item.title ?? 'Untitled',
+                        item.content.slice(0, 500),
+                      ).prompt
+                    }
+                    label="Summarise and add to KB"
+                    size="sm"
+                  />
+                )}
+              </div>
+            )}
 
           {/* Relationships group (collapsed by default) */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
+          <CollapsibleSection
+            title="Relationships"
+            defaultOpen={false}
+            lazy
+            className="mt-6"
+            contentClassName="mt-2 rounded-xl border border-border bg-card p-6"
+          >
             {/* Entity mentions — shows badges grouped by entity type */}
-            <EntityBadges
-              contentItemId={item.id}
-              className="mb-6"
-            />
+            <EntityBadges contentItemId={item.id} className="mb-6" />
 
             {/* Version history */}
             <VersionHistory
@@ -343,7 +357,12 @@ export function EditorView({
         </article>
 
         {/* Metadata sidebar (expanded on desktop, collapsed on mobile) */}
-        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border border-border bg-card p-4">
+        <CollapsibleSection
+          title="Metadata"
+          defaultOpen={!isMobile}
+          className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72"
+          contentClassName="mt-2 rounded-xl border border-border bg-card p-4"
+        >
           <MetadataSidebar
             item={item}
             editingField={editingField}
