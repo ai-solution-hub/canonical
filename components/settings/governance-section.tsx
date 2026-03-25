@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -43,8 +44,22 @@ interface GovernanceConfigEntry {
   posture: string;
   reviewer_id: string | null;
   timeout_days: number | null;
+  quality_score_threshold: number | null;
+  auto_flag_on_quality_drop: boolean | null;
+  auto_flag_on_freshness_transition: boolean | null;
+  auto_flag_cooldown_days: number | null;
   created_at: string | null;
   updated_at: string | null;
+}
+
+interface InitialDialogState {
+  domain: string;
+  posture: string;
+  timeout: string;
+  autoFlagQuality: boolean;
+  autoFlagFreshness: boolean;
+  cooldownDays: string;
+  qualityThreshold: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,16 +73,32 @@ export function GovernanceSection() {
   const [editDomain, setEditDomain] = useState('');
   const [editPosture, setEditPosture] = useState<'open' | 'review_on_change'>('open');
   const [editTimeoutDays, setEditTimeoutDays] = useState('7');
+  const [editAutoFlagQuality, setEditAutoFlagQuality] = useState(false);
+  const [editAutoFlagFreshness, setEditAutoFlagFreshness] = useState(false);
+  const [editCooldownDays, setEditCooldownDays] = useState('7');
+  const [editQualityThreshold, setEditQualityThreshold] = useState('40');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [lastRecalcAt, setLastRecalcAt] = useState<string | null>(null);
 
   // Track initial dialog values for dirty detection
-  const initialDialogRef = useRef({ domain: '', posture: 'open', timeout: '7' });
+  const initialDialogRef = useRef<InitialDialogState>({
+    domain: '',
+    posture: 'open',
+    timeout: '7',
+    autoFlagQuality: false,
+    autoFlagFreshness: false,
+    cooldownDays: '7',
+    qualityThreshold: '40',
+  });
   const isDialogDirty = dialogOpen && (
     editDomain !== initialDialogRef.current.domain ||
     editPosture !== initialDialogRef.current.posture ||
-    editTimeoutDays !== initialDialogRef.current.timeout
+    editTimeoutDays !== initialDialogRef.current.timeout ||
+    editAutoFlagQuality !== initialDialogRef.current.autoFlagQuality ||
+    editAutoFlagFreshness !== initialDialogRef.current.autoFlagFreshness ||
+    editCooldownDays !== initialDialogRef.current.cooldownDays ||
+    editQualityThreshold !== initialDialogRef.current.qualityThreshold
   );
 
   const fetchConfigs = useCallback(async () => {
@@ -133,6 +164,10 @@ export function GovernanceSection() {
           domain: editDomain.trim(),
           posture: editPosture,
           timeout_days: parseInt(editTimeoutDays, 10) || 7,
+          auto_flag_on_quality_drop: editAutoFlagQuality,
+          auto_flag_on_freshness_transition: editAutoFlagFreshness,
+          auto_flag_cooldown_days: parseInt(editCooldownDays, 10) || 7,
+          quality_score_threshold: parseInt(editQualityThreshold, 10) || 40,
         }),
       });
 
@@ -143,9 +178,7 @@ export function GovernanceSection() {
 
       toast.success('Governance configuration saved');
       setDialogOpen(false);
-      setEditDomain('');
-      setEditPosture('open');
-      setEditTimeoutDays('7');
+      resetDialogState();
       fetchConfigs();
     } catch (err) {
       toast.error(
@@ -156,14 +189,33 @@ export function GovernanceSection() {
     }
   }
 
+  function resetDialogState() {
+    setEditDomain('');
+    setEditPosture('open');
+    setEditTimeoutDays('7');
+    setEditAutoFlagQuality(false);
+    setEditAutoFlagFreshness(false);
+    setEditCooldownDays('7');
+    setEditQualityThreshold('40');
+  }
+
   function handleEdit(config: GovernanceConfigEntry) {
     const domain = config.domain;
     const posture = config.posture as 'open' | 'review_on_change';
     const timeout = String(config.timeout_days ?? 7);
+    const autoFlagQuality = config.auto_flag_on_quality_drop ?? false;
+    const autoFlagFreshness = config.auto_flag_on_freshness_transition ?? false;
+    const cooldownDays = String(config.auto_flag_cooldown_days ?? 7);
+    const qualityThreshold = String(config.quality_score_threshold ?? 40);
+
     setEditDomain(domain);
     setEditPosture(posture);
     setEditTimeoutDays(timeout);
-    initialDialogRef.current = { domain, posture, timeout };
+    setEditAutoFlagQuality(autoFlagQuality);
+    setEditAutoFlagFreshness(autoFlagFreshness);
+    setEditCooldownDays(cooldownDays);
+    setEditQualityThreshold(qualityThreshold);
+    initialDialogRef.current = { domain, posture, timeout, autoFlagQuality, autoFlagFreshness, cooldownDays, qualityThreshold };
     setDialogOpen(true);
   }
 
@@ -243,10 +295,16 @@ export function GovernanceSection() {
             <Button
               size="sm"
               onClick={() => {
-                setEditDomain('');
-                setEditPosture('open');
-                setEditTimeoutDays('7');
-                initialDialogRef.current = { domain: '', posture: 'open', timeout: '7' };
+                resetDialogState();
+                initialDialogRef.current = {
+                  domain: '',
+                  posture: 'open',
+                  timeout: '7',
+                  autoFlagQuality: false,
+                  autoFlagFreshness: false,
+                  cooldownDays: '7',
+                  qualityThreshold: '40',
+                };
               }}
             >
               Add Domain
@@ -304,6 +362,81 @@ export function GovernanceSection() {
                   />
                 </div>
               )}
+
+              <Separator />
+
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-medium">Automated Governance</p>
+                <p className="text-xs text-muted-foreground">
+                  Automatically flag items for governance review when quality or freshness
+                  thresholds are breached.
+                </p>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="gov-quality-threshold">Quality Score Threshold</Label>
+                  <Input
+                    id="gov-quality-threshold"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editQualityThreshold}
+                    onChange={(e) => setEditQualityThreshold(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Items scoring below this value are flagged for attention (0-100).
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="gov-auto-flag-quality" className="text-sm">
+                      Auto-flag on quality drop
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Send items to governance review when their quality score drops below threshold.
+                    </p>
+                  </div>
+                  <Switch
+                    id="gov-auto-flag-quality"
+                    checked={editAutoFlagQuality}
+                    onCheckedChange={setEditAutoFlagQuality}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1">
+                    <Label htmlFor="gov-auto-flag-freshness" className="text-sm">
+                      Auto-flag on freshness transition
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Send items to governance review when they transition to stale or expired.
+                    </p>
+                  </div>
+                  <Switch
+                    id="gov-auto-flag-freshness"
+                    checked={editAutoFlagFreshness}
+                    onCheckedChange={setEditAutoFlagFreshness}
+                  />
+                </div>
+
+                {(editAutoFlagQuality || editAutoFlagFreshness) && (
+                  <div className="flex flex-col gap-1.5">
+                    <Label htmlFor="gov-cooldown">Cooldown Period (days)</Label>
+                    <Input
+                      id="gov-cooldown"
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={editCooldownDays}
+                      onChange={(e) => setEditCooldownDays(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Don&apos;t re-flag items that were auto-flagged within this many days (1-90).
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <DialogFooter>
                 <Button
                   type="button"
@@ -346,6 +479,18 @@ export function GovernanceSection() {
                     {config.posture === 'review_on_change' &&
                       ` (${config.timeout_days ?? 7} day timeout)`}
                   </p>
+                  {(config.auto_flag_on_quality_drop || config.auto_flag_on_freshness_transition) && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Auto-flag:{' '}
+                      {[
+                        config.auto_flag_on_quality_drop && 'quality drop',
+                        config.auto_flag_on_freshness_transition && 'freshness',
+                      ]
+                        .filter(Boolean)
+                        .join(', ')}
+                      {' '}({config.auto_flag_cooldown_days ?? 7}d cooldown)
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge

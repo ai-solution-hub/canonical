@@ -48,6 +48,10 @@ function createGovernanceConfig(overrides: Record<string, unknown> = {}) {
     posture: 'open',
     reviewer_id: null,
     timeout_days: 7,
+    quality_score_threshold: 40,
+    auto_flag_on_quality_drop: false,
+    auto_flag_on_freshness_transition: false,
+    auto_flag_cooldown_days: 7,
     created_at: '2025-01-01T00:00:00Z',
     updated_at: null,
     ...overrides,
@@ -168,12 +172,42 @@ describe('GovernanceSection', () => {
             domain: 'New Domain',
             posture: 'open',
             timeout_days: 7,
+            auto_flag_on_quality_drop: false,
+            auto_flag_on_freshness_transition: false,
+            auto_flag_cooldown_days: 7,
+            quality_score_threshold: 40,
           }),
         }),
       );
     });
 
     expect(mockToast.success).toHaveBeenCalledWith('Governance configuration saved');
+  });
+
+  it('displays auto-flag indicators on config entries when enabled', async () => {
+    const configs = [
+      createGovernanceConfig({
+        id: 'gov-1',
+        domain: 'Operations',
+        posture: 'open',
+        auto_flag_on_quality_drop: true,
+        auto_flag_on_freshness_transition: false,
+        auto_flag_cooldown_days: 14,
+      }),
+    ];
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(configs),
+    });
+    render(<GovernanceSection />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Operations')).toBeInTheDocument();
+    });
+
+    // Should show auto-flag info
+    expect(screen.getByText(/quality drop/)).toBeInTheDocument();
+    expect(screen.getByText(/14d cooldown/)).toBeInTheDocument();
   });
 
   it('calls freshness recalculate API and shows success toast', async () => {

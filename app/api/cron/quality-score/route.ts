@@ -1,11 +1,13 @@
 /**
  * Quality Score Recalculation Cron
  *
- * Runs weekly (Sundays 05:00 UTC — after classification-quality at 04:00).
+ * Runs weekly (Sundays 05:00 UTC -- after classification-quality at 04:00).
  * Recalculates quality scores for all non-archived content items and creates
  * quality_flag notifications when scores drop below per-domain thresholds.
  *
- * Phase 1 of the Quality Manager Enhancement spec.
+ * Phase 1 governance bridge: when auto_flag_on_quality_drop is enabled for a
+ * domain, items that drop below threshold are also set to governance review
+ * status 'pending' with a governance_review_needed notification.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,6 +29,9 @@ const TIMEOUT_BUFFER_MS = 40_000;
 /** Default quality threshold when no governance_config row exists for a domain */
 const DEFAULT_THRESHOLD = 40;
 
+/** When more than this many items are flagged, use summary notifications */
+const BATCH_SUMMARY_THRESHOLD = 20;
+
 interface ContentItemRow {
   id: string;
   title: string;
@@ -39,6 +44,19 @@ interface ContentItemRow {
   ai_summary: string | null;
   metadata: Record<string, unknown> | null;
   quality_score: number | null;
+  governance_review_status: string | null;
+  last_auto_flagged_at: string | null;
+  verified_at: string | null;
+}
+
+interface GovConfig {
+  domain: string;
+  id: string;
+  quality_score_threshold: number | null;
+  auto_flag_on_quality_drop: boolean | null;
+  auto_flag_cooldown_days: number | null;
+  reviewer_id: string | null;
+  timeout_days: number | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -51,18 +69,20 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
 
-    // 1. Fetch governance_config to build domain → threshold map
+    // 1. Fetch governance_config to build domain maps
     const { data: govConfigs } = await supabase
       .from('governance_config')
-      .select('domain, quality_score_threshold');
+      .select('id, domain, quality_score_threshold, auto_flag_on_quality_drop, auto_flag_cooldown_days, reviewer_id, timeout_days');
 
     const thresholdMap = new Map<string, number>();
+    const govConfigMap = new Map<string, GovConfig>();
     if (govConfigs) {
       for (const config of govConfigs) {
         thresholdMap.set(
           config.domain,
           config.quality_score_threshold ?? DEFAULT_THRESHOLD,
         );
+        govConfigMap.set(config.domain, config as GovConfig);
       }
     }
 
@@ -71,12 +91,25 @@ export async function GET(request: NextRequest) {
     let totalProcessed = 0;
     let totalUpdated = 0;
     let totalDroppedBelowThreshold = 0;
+    let autoGovernanceTriggered = 0;
     const flaggedItems: Array<{
       itemId: string;
       title: string;
       domain: string | null;
       oldScore: number;
       newScore: number;
+    }> = [];
+
+    // Items eligible for governance auto-flagging (subset of flaggedItems)
+    const governanceFlagItems: Array<{
+      itemId: string;
+      title: string;
+      domain: string | null;
+      oldScore: number;
+      newScore: number;
+      reviewerId: string | null;
+      timeoutDays: number;
+      govConfigId: string | null;
     }> = [];
 
     let timedOut = false;
@@ -90,7 +123,7 @@ export async function GET(request: NextRequest) {
 
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
-        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score')
+        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, last_auto_flagged_at, verified_at')
         .is('archived_at', null)
         .order('id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -147,6 +180,38 @@ export async function GET(request: NextRequest) {
               oldScore: oldScore ?? 0,
               newScore,
             });
+
+            // Check if eligible for governance auto-flagging
+            const domainConfig = govConfigMap.get(item.primary_domain ?? '');
+            const autoFlagEnabled = domainConfig?.auto_flag_on_quality_drop ?? false;
+
+            if (autoFlagEnabled) {
+              // Guard: only flag items with null or 'approved' governance_review_status
+              // Skip items in 'pending', 'changes_requested', or 'draft' state
+              const status = item.governance_review_status;
+              const eligibleForGovernance = status === null || status === 'approved';
+
+              if (eligibleForGovernance) {
+                // Cooldown check: skip if last_auto_flagged_at is within cooldown period
+                const cooldownDays = domainConfig?.auto_flag_cooldown_days ?? 7;
+                const cooldownCutoff = new Date(Date.now() - cooldownDays * 24 * 60 * 60 * 1000);
+                const lastFlagged = item.last_auto_flagged_at ? new Date(item.last_auto_flagged_at) : null;
+                const withinCooldown = lastFlagged && lastFlagged > cooldownCutoff;
+
+                if (!withinCooldown) {
+                  governanceFlagItems.push({
+                    itemId: item.id,
+                    title: item.title,
+                    domain: item.primary_domain,
+                    oldScore: oldScore ?? 0,
+                    newScore,
+                    reviewerId: domainConfig?.reviewer_id ?? null,
+                    timeoutDays: domainConfig?.timeout_days ?? 7,
+                    govConfigId: domainConfig?.id ?? null,
+                  });
+                }
+              }
+            }
           }
         }
 
@@ -196,7 +261,86 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 6. Log to pipeline_runs
+    // 6. Governance bridge: set pending status and create governance notifications
+    let batchSummaryNotification = false;
+    if (governanceFlagItems.length > 0) {
+      autoGovernanceTriggered = governanceFlagItems.length;
+
+      // Update each item's governance status
+      for (const item of governanceFlagItems) {
+        const reviewDue = new Date(Date.now() + item.timeoutDays * 24 * 60 * 60 * 1000).toISOString();
+        await supabase
+          .from('content_items')
+          .update({
+            governance_review_status: 'pending',
+            governance_review_due: reviewDue,
+            governance_reviewer_id: item.reviewerId,
+            last_auto_flagged_at: new Date().toISOString(),
+          })
+          .eq('id', item.itemId);
+      }
+
+      // Determine notification recipients per item
+      const adminIds = await getUsersByRole(supabase, ['admin']);
+
+      if (governanceFlagItems.length > BATCH_SUMMARY_THRESHOLD) {
+        // Batch summary path: single notification per reviewer/admin
+        batchSummaryNotification = true;
+
+        // Find the most-affected domain's governance_config ID for entity_id
+        const domainCounts = new Map<string, number>();
+        for (const item of governanceFlagItems) {
+          const d = item.domain ?? 'unclassified';
+          domainCounts.set(d, (domainCounts.get(d) ?? 0) + 1);
+        }
+        let maxDomain = '';
+        let maxCount = 0;
+        domainCounts.forEach((count, domain) => {
+          if (count > maxCount) {
+            maxDomain = domain;
+            maxCount = count;
+          }
+        });
+        const summaryEntityId = govConfigMap.get(maxDomain)?.id ?? governanceFlagItems[0].itemId;
+
+        // Collect unique recipients (reviewers + admins)
+        const recipientIds = new Set<string>(adminIds);
+        for (const item of governanceFlagItems) {
+          if (item.reviewerId) recipientIds.add(item.reviewerId);
+        }
+
+        const summaryNotifications = Array.from(recipientIds).map((userId) => ({
+          userId,
+          type: 'governance_review_needed' as const,
+          entityType: 'domain',
+          entityId: summaryEntityId,
+          title: `${governanceFlagItems.length} items flagged for quality review`,
+          message: `The weekly quality scan flagged ${governanceFlagItems.length} items below threshold. Review them in the review queue.`,
+        }));
+
+        const { error: govNotifError } = await createBulkNotifications(supabase, summaryNotifications);
+        if (!govNotifError) notificationsCreated += summaryNotifications.length;
+      } else {
+        // Individual notification path
+        const notifications = governanceFlagItems.flatMap((item) => {
+          // Notify the assigned reviewer, or all admins if no reviewer
+          const recipients = item.reviewerId ? [item.reviewerId] : adminIds;
+          return recipients.map((userId) => ({
+            userId,
+            type: 'governance_review_needed' as const,
+            entityType: 'content_item',
+            entityId: item.itemId,
+            title: `Quality review needed: "${item.title}"`,
+            message: `"${item.title}" quality score dropped from ${item.oldScore} to ${item.newScore}. Auto-flagged for governance review.`,
+          }));
+        });
+
+        const { error: govNotifError } = await createBulkNotifications(supabase, notifications);
+        if (!govNotifError) notificationsCreated += notifications.length;
+      }
+    }
+
+    // 7. Log to pipeline_runs
     const durationMs = Date.now() - startTime;
     await supabase.from('pipeline_runs').insert({
       pipeline_name: 'quality_score',
@@ -208,6 +352,8 @@ export async function GET(request: NextRequest) {
         total_processed: totalProcessed,
         total_updated: totalUpdated,
         dropped_below_threshold: totalDroppedBelowThreshold,
+        auto_governance_triggered: autoGovernanceTriggered,
+        batch_summary_notification: batchSummaryNotification,
         notifications_created: notificationsCreated,
         timed_out: timedOut,
         duration_ms: durationMs,
@@ -218,6 +364,8 @@ export async function GET(request: NextRequest) {
       total_processed: totalProcessed,
       total_updated: totalUpdated,
       dropped_below_threshold: totalDroppedBelowThreshold,
+      auto_governance_triggered: autoGovernanceTriggered,
+      batch_summary_notification: batchSummaryNotification,
       notifications_created: notificationsCreated,
       timed_out: timedOut,
       duration_ms: durationMs,

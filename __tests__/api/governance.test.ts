@@ -318,6 +318,147 @@ describe('POST /api/governance', () => {
     const json = await res.json();
     expect(json.error).toBe('Failed to create governance configuration');
   });
+
+  it('accepts auto_flag_on_quality_drop in request body', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    // Domain lookup returns no existing entry
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'No rows found' },
+    });
+
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: {
+        domain: 'Test Domain',
+        posture: 'open',
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 14,
+        quality_score_threshold: 50,
+      },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.action).toBe('created');
+
+    expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'Test Domain',
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 14,
+        quality_score_threshold: 50,
+      }),
+    );
+  });
+
+  it('accepts auto_flag_on_freshness_transition in request body', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'PGRST116', message: 'No rows found' },
+    });
+
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: {
+        domain: 'Test Domain',
+        posture: 'open',
+        auto_flag_on_freshness_transition: true,
+      },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+  });
+
+  it('returns 400 for invalid auto_flag_cooldown_days (above max)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: {
+        domain: 'Test',
+        posture: 'open',
+        auto_flag_cooldown_days: 100, // max is 90
+      },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+  });
+
+  it('returns 400 for invalid quality_score_threshold (above max)', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: {
+        domain: 'Test',
+        posture: 'open',
+        quality_score_threshold: 200, // max is 100
+      },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toBe('Validation failed');
+  });
+
+  it('includes new fields when updating existing config', async () => {
+    configureRole(mockSupabase, 'admin');
+
+    // Domain lookup returns existing entry
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: VALID_UUID },
+      error: null,
+    });
+
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+
+    const req = createTestRequest('/api/governance', {
+      method: 'POST',
+      body: {
+        domain: 'Existing Domain',
+        posture: 'review_on_change',
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 30,
+        quality_score_threshold: 60,
+      },
+    });
+    const res = await postConfig(req);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.action).toBe('updated');
+
+    expect(mockSupabase._chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 30,
+        quality_score_threshold: 60,
+      }),
+    );
+  });
 });
 
 // ===========================================================================

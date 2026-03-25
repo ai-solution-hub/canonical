@@ -390,6 +390,10 @@ export const GovernanceConfigBodySchema = z.object({
   posture: z.enum(['open', 'review_on_change']),
   reviewer_id: z.string().uuid('reviewer_id must be a valid UUID').nullable().optional(),
   timeout_days: z.number().int().min(1).max(365).nullable().optional(),
+  quality_score_threshold: z.number().int().min(0).max(100).nullable().optional(),
+  auto_flag_on_quality_drop: z.boolean().optional(),
+  auto_flag_on_freshness_transition: z.boolean().optional(),
+  auto_flag_cooldown_days: z.number().int().min(1).max(90).optional(),
 });
 
 /** POST /api/governance/review */

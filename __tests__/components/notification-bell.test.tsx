@@ -276,3 +276,89 @@ describe('NotificationBell', () => {
     expect(mockMarkAllAsRead).toHaveBeenCalled();
   });
 });
+
+// ===========================================================================
+// Notification icon mapping tests (Finding 7 fix)
+// ===========================================================================
+
+describe('NotificationBell — icon mapping correctness', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockNotifications.value = [];
+    mockUnreadCount.value = 0;
+    mockLoading.value = false;
+  });
+
+  // Valid governance types per DB constraint
+  const VALID_GOVERNANCE_TYPES = [
+    'governance_review_needed',
+    'governance_approve',
+    'governance_request_changes',
+    'governance_revert',
+  ];
+
+  // Additional notification types that should have icons
+  const ADDITIONAL_MAPPED_TYPES = [
+    'quality_flag',
+    'freshness_transition',
+    'owner_content_stale',
+    'owner_content_updated',
+    'date_expiry_approaching',
+    'coverage_alert',
+    'content_gap',
+  ];
+
+  // INVALID types that used to be in the icon map (Finding 7 bug)
+  const INVALID_TYPES = [
+    'governance_request_update',
+    'governance_reject',
+  ];
+
+  it.each(VALID_GOVERNANCE_TYPES)(
+    'renders without error for governance type: %s',
+    async (type) => {
+      const user = userEvent.setup();
+      mockNotifications.value = [createNotification({ type, title: `Type: ${type}` })];
+      mockUnreadCount.value = 1;
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText(`Type: ${type}`)).toBeInTheDocument();
+      });
+    },
+  );
+
+  it.each(ADDITIONAL_MAPPED_TYPES)(
+    'renders without error for non-governance type: %s',
+    async (type) => {
+      const user = userEvent.setup();
+      mockNotifications.value = [createNotification({ type, title: `Type: ${type}` })];
+      mockUnreadCount.value = 1;
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText(`Type: ${type}`)).toBeInTheDocument();
+      });
+    },
+  );
+
+  it.each(INVALID_TYPES)(
+    'renders gracefully for previously-invalid type: %s (falls back to default icon)',
+    async (type) => {
+      const user = userEvent.setup();
+      mockNotifications.value = [createNotification({ type, title: `Fallback: ${type}` })];
+      mockUnreadCount.value = 1;
+
+      render(<NotificationBell />);
+      await user.click(screen.getByRole('button', { name: /Notifications/ }));
+
+      await waitFor(() => {
+        expect(screen.getByText(`Fallback: ${type}`)).toBeInTheDocument();
+      });
+    },
+  );
+});

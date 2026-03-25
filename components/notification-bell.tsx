@@ -6,8 +6,14 @@ import {
   Bell,
   BellOff,
   AlertCircle,
+  AlertTriangle,
+  BarChart3,
+  CalendarClock,
   CheckCircle,
+  Clock,
+  FileCheck,
   RefreshCw,
+  Search,
   XCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -25,8 +31,15 @@ import { cn } from '@/lib/utils';
 const NOTIFICATION_TYPE_ICONS: Record<string, LucideIcon> = {
   governance_review_needed: AlertCircle,
   governance_approve: CheckCircle,
-  governance_request_update: RefreshCw,
-  governance_reject: XCircle,
+  governance_request_changes: RefreshCw,
+  governance_revert: XCircle,
+  quality_flag: AlertTriangle,
+  freshness_transition: Clock,
+  owner_content_stale: Clock,
+  owner_content_updated: FileCheck,
+  date_expiry_approaching: CalendarClock,
+  coverage_alert: BarChart3,
+  content_gap: Search,
 };
 
 function NotificationIcon({ type }: { type: string }) {

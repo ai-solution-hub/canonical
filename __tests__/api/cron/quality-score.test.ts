@@ -9,6 +9,7 @@
  *   - Threshold-based notification creation (transition only)
  *   - Per-domain threshold from governance_config
  *   - Pipeline run logging
+ *   - Governance bridge: auto-flag items, draft exclusion, cooldown, batch summary
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createMockSupabaseClient } from '../../helpers/mock-supabase';
@@ -60,6 +61,8 @@ import { GET } from '@/app/api/cron/quality-score/route';
 
 const ADMIN_ID_1 = '00000000-0000-4000-8000-000000000001';
 const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
+const REVIEWER_ID = '00000000-0000-4000-8000-000000000099';
+const GOV_CONFIG_ID = '00000000-0000-4000-8000-000000000050';
 
 function makeContentItem(overrides: Partial<{
   id: string;
@@ -73,6 +76,9 @@ function makeContentItem(overrides: Partial<{
   ai_summary: string | null;
   metadata: Record<string, unknown> | null;
   quality_score: number | null;
+  governance_review_status: string | null;
+  last_auto_flagged_at: string | null;
+  verified_at: string | null;
 }> = {}) {
   return {
     id: overrides.id ?? '00000000-0000-4000-8000-000000000010',
@@ -86,6 +92,9 @@ function makeContentItem(overrides: Partial<{
     ai_summary: overrides.ai_summary ?? 'An AI summary',
     metadata: overrides.metadata ?? null,
     quality_score: overrides.quality_score ?? null,
+    governance_review_status: overrides.governance_review_status ?? null,
+    last_auto_flagged_at: overrides.last_auto_flagged_at ?? null,
+    verified_at: overrides.verified_at ?? null,
   };
 }
 
@@ -128,13 +137,21 @@ function resetMocks() {
 /**
  * Configure sequential .from() calls to return different data.
  * The cron calls:
- *   1. from('governance_config').select(...)    → govConfigs
- *   2. from('content_items').select(...)        → batch of items
- *   3. from('content_items').update(...)        → per-item updates (multiple)
- *   4. from('pipeline_runs').insert(...)        → logging
+ *   1. from('governance_config').select(...)    -> govConfigs
+ *   2. from('content_items').select(...)        -> batch of items
+ *   3. from('content_items').update(...)        -> per-item updates (multiple)
+ *   4. from('pipeline_runs').insert(...)        -> logging
  */
 function configureFromSequence(options: {
-  govConfigs?: Array<{ domain: string; quality_score_threshold: number | null }>;
+  govConfigs?: Array<{
+    domain: string;
+    id?: string;
+    quality_score_threshold: number | null;
+    auto_flag_on_quality_drop?: boolean | null;
+    auto_flag_cooldown_days?: number | null;
+    reviewer_id?: string | null;
+    timeout_days?: number | null;
+  }>;
   items?: Array<ReturnType<typeof makeContentItem>>;
 }) {
   const { govConfigs = [], items = [] } = options;
@@ -207,6 +224,86 @@ function configureFromSequence(options: {
   });
 }
 
+/**
+ * A more fine-grained mock that tracks update calls and
+ * correctly handles both quality score and governance updates.
+ */
+function configureDetailedMock(options: {
+  govConfigs?: Array<{
+    domain: string;
+    id?: string;
+    quality_score_threshold: number | null;
+    auto_flag_on_quality_drop?: boolean | null;
+    auto_flag_cooldown_days?: number | null;
+    reviewer_id?: string | null;
+    timeout_days?: number | null;
+  }>;
+  items?: Array<ReturnType<typeof makeContentItem>>;
+}) {
+  const { govConfigs = [], items = [] } = options;
+  const updateCalls: Array<{ table: string; data: Record<string, unknown>; id?: string }> = [];
+  const insertCalls: Array<{ table: string; data: Record<string, unknown> }> = [];
+  let contentItemsCallCount = 0;
+
+  mockSupabase.from.mockImplementation((table: string) => {
+    if (table === 'governance_config') {
+      return {
+        select: vi.fn().mockReturnValue({
+          then: vi.fn((resolve: (v: unknown) => void) =>
+            resolve({ data: govConfigs, error: null }),
+          ),
+        }),
+      };
+    }
+
+    if (table === 'content_items') {
+      contentItemsCallCount++;
+      return {
+        select: vi.fn().mockReturnThis(),
+        is: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        range: vi.fn().mockImplementation(() => ({
+          then: vi.fn((resolve: (v: unknown) => void) =>
+            resolve({
+              data: contentItemsCallCount === 1 ? items : [],
+              error: null,
+            }),
+          ),
+        })),
+        update: vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          return {
+            eq: vi.fn().mockImplementation((_col: string, id: string) => {
+              updateCalls.push({ table, data, id });
+              return {
+                then: vi.fn((resolve: (v: unknown) => void) =>
+                  resolve({ data: null, error: null }),
+                ),
+              };
+            }),
+          };
+        }),
+      };
+    }
+
+    if (table === 'pipeline_runs') {
+      return {
+        insert: vi.fn().mockImplementation((data: Record<string, unknown>) => {
+          insertCalls.push({ table, data });
+          return {
+            then: vi.fn((resolve: (v: unknown) => void) =>
+              resolve({ data: null, error: null }),
+            ),
+          };
+        }),
+      };
+    }
+
+    return mockSupabase._chain;
+  });
+
+  return { updateCalls, insertCalls };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -245,9 +342,6 @@ describe('GET /api/cron/quality-score', () => {
   });
 
   it('does not update items whose score has not changed', async () => {
-    // Create an item whose computed score matches the stored score
-    // fresh=100*0.3=30, conf=0.9*100*0.2=18, completeness=1/3*100*0.2=6.67, summary=100*0.15=15, citations=0*0.15=0
-    // Total ~70
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       freshness: 'fresh',
@@ -256,7 +350,7 @@ describe('GET /api/cron/quality-score', () => {
       detail: null,
       reference: null,
       ai_summary: 'Summary content',
-      quality_score: 70, // pre-calculated matching score
+      quality_score: 70,
     });
 
     configureFromSequence({ items: [item] });
@@ -266,83 +360,30 @@ describe('GET /api/cron/quality-score', () => {
 
     const body = await res.json();
     expect(body.total_processed).toBe(1);
-    // Score should match, so no update needed
     expect(body.total_updated).toBe(0);
   });
 
   it('preserves previous_quality_score when updating', async () => {
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
-      freshness: 'expired', // score will drop
+      freshness: 'expired',
       classification_confidence: 0.5,
       brief: null,
       ai_summary: null,
-      quality_score: 75, // was high
+      quality_score: 75,
     });
 
-    // Track update calls to verify previous_quality_score is set
-    const updateCalls: Array<Record<string, unknown>> = [];
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: [], error: null }),
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1 ? [item] : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockImplementation((data: Record<string, unknown>) => {
-            updateCalls.push(data);
-            return {
-              eq: vi.fn().mockReturnValue({
-                then: vi.fn((resolve: (v: unknown) => void) =>
-                  resolve({ data: null, error: null }),
-                ),
-              }),
-            };
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
-    });
+    const { updateCalls } = configureDetailedMock({ items: [item] });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
-    // Verify update was called with previous_quality_score = 75
-    expect(updateCalls.length).toBeGreaterThan(0);
-    expect(updateCalls[0].previous_quality_score).toBe(75);
-    expect(typeof updateCalls[0].quality_score).toBe('number');
-    expect(updateCalls[0].quality_score).not.toBe(75); // Should have changed
+    // Find the quality score update (not the governance update)
+    const scoreUpdates = updateCalls.filter(u => u.data.quality_score !== undefined);
+    expect(scoreUpdates.length).toBeGreaterThan(0);
+    expect(scoreUpdates[0].data.previous_quality_score).toBe(75);
+    expect(typeof scoreUpdates[0].data.quality_score).toBe('number');
+    expect(scoreUpdates[0].data.quality_score).not.toBe(75);
   });
 
   it('creates quality_flag notifications when score drops below threshold', async () => {
@@ -354,60 +395,12 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.3,
       brief: null,
       ai_summary: null,
-      quality_score: 50, // was above threshold (40)
+      quality_score: 50,
     });
 
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: [{ domain: 'Operations', quality_score_threshold: 40 }],
-                error: null,
-              }),
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1 ? [item] : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
+    configureDetailedMock({
+      govConfigs: [{ domain: 'Operations', quality_score_threshold: 40 }],
+      items: [item],
     });
 
     const res = await GET(createCronRequest() as never);
@@ -417,7 +410,6 @@ describe('GET /api/cron/quality-score', () => {
     expect(body.dropped_below_threshold).toBe(1);
     expect(body.notifications_created).toBeGreaterThan(0);
 
-    // Verify createBulkNotifications was called
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
     const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
       userId: string;
@@ -426,7 +418,6 @@ describe('GET /api/cron/quality-score', () => {
       title: string;
     }>;
 
-    // Should notify both admins
     expect(notifications.length).toBe(2);
     for (const notif of notifications) {
       expect(notif.type).toBe('quality_flag');
@@ -437,7 +428,6 @@ describe('GET /api/cron/quality-score', () => {
   });
 
   it('does NOT notify for items already below threshold (no transition)', async () => {
-    // Item was already below threshold and stays below
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       primary_domain: 'Operations',
@@ -445,74 +435,23 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.2,
       brief: null,
       ai_summary: null,
-      quality_score: 10, // already below threshold of 40
+      quality_score: 10,
     });
 
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: [{ domain: 'Operations', quality_score_threshold: 40 }],
-                error: null,
-              }),
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1 ? [item] : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
+    configureDetailedMock({
+      govConfigs: [{ domain: 'Operations', quality_score_threshold: 40 }],
+      items: [item],
     });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    // Was already below threshold, so no transition notification
     expect(body.dropped_below_threshold).toBe(0);
     expect(mockCreateBulkNotifications).not.toHaveBeenCalled();
   });
 
   it('uses per-domain threshold from governance_config', async () => {
-    // Two items in different domains with different thresholds
-    // Both will compute to ~45 (stale=9 + conf=14 + completeness=6.67 + summary=15 = ~45)
     const complianceItem = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       title: 'Compliance Item',
@@ -521,7 +460,7 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.7,
       brief: 'Brief',
       ai_summary: 'Summary',
-      quality_score: 65, // above Compliance threshold of 60 → new score ~45 < 60 → flagged
+      quality_score: 65,
     });
 
     const operationsItem = makeContentItem({
@@ -532,84 +471,29 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.7,
       brief: 'Brief',
       ai_summary: 'Summary',
-      quality_score: 55, // above Operations threshold of 30 → new score ~45 > 30 → NOT flagged
+      quality_score: 55,
     });
 
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: [
-                  { domain: 'Compliance', quality_score_threshold: 60 },
-                  { domain: 'Operations', quality_score_threshold: 30 },
-                ],
-                error: null,
-              }),
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1
-                  ? [complianceItem, operationsItem]
-                  : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
+    configureDetailedMock({
+      govConfigs: [
+        { domain: 'Compliance', quality_score_threshold: 60 },
+        { domain: 'Operations', quality_score_threshold: 30 },
+      ],
+      items: [complianceItem, operationsItem],
     });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    // Both items will get new scores of ~45 (stale=9 + conf=14 + completeness≈6.67 + summary=15 = ~45)
-    // Compliance item: new score ~45 < threshold 60, was 65 >= 60 → flagged (transition)
-    // Operations item: new score ~45 > threshold 30, was 55 >= 30 → NOT flagged (still above)
     expect(body.dropped_below_threshold).toBe(1);
 
-    // Verify only Compliance item was notified
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
     const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
       entityId: string;
       title: string;
     }>;
 
-    // All notifications should be for the Compliance item
     for (const notif of notifications) {
       expect(notif.entityId).toBe(complianceItem.id);
       expect(notif.title).toContain('Compliance Item');
@@ -624,130 +508,31 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.3,
       brief: null,
       ai_summary: null,
-      quality_score: 50, // above default threshold of 40
+      quality_score: 50,
     });
 
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: [], error: null }), // No governance config rows
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1 ? [item] : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
-    });
+    configureDetailedMock({ items: [item] });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    // expired=0*0.3=0 + conf=0.3*100*0.2=6 + completeness=0 + summary=0 + citations=0 = 6
-    // 6 < 40 (default threshold), was 50 >= 40 → flagged
     expect(body.dropped_below_threshold).toBe(1);
   });
 
   it('logs results to pipeline_runs', async () => {
-    const insertCalls: Array<Record<string, unknown>> = [];
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: [], error: null }),
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: contentItemsCallCount === 1 ? [makeContentItem()] : [], error: null }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockImplementation((data: Record<string, unknown>) => {
-            insertCalls.push(data);
-            return {
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            };
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
-    });
+    const { insertCalls } = configureDetailedMock({ items: [makeContentItem()] });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
-    // Verify pipeline_runs insert was called
-    expect(insertCalls.length).toBe(1);
-    expect(insertCalls[0].pipeline_name).toBe('quality_score');
-    expect(insertCalls[0].status).toBe('completed');
-    expect(insertCalls[0].items_processed).toBe(1);
+    const pipelineInserts = insertCalls.filter(c => c.table === 'pipeline_runs');
+    expect(pipelineInserts.length).toBe(1);
+    expect(pipelineInserts[0].data.pipeline_name).toBe('quality_score');
+    expect(pipelineInserts[0].data.status).toBe('completed');
+    expect(pipelineInserts[0].data.items_processed).toBe(1);
 
-    const result = insertCalls[0].result as Record<string, unknown>;
+    const result = pipelineInserts[0].data.result as Record<string, unknown>;
     expect(result.total_processed).toBe(1);
     expect(typeof result.duration_ms).toBe('number');
   });
@@ -764,14 +549,6 @@ describe('GET /api/cron/quality-score', () => {
   });
 
   it('handles null quality_score as first-time calculation (flags if below threshold)', async () => {
-    // Item has no previous score — first-time calculation.
-    // Per spec: "wasAboveThreshold = oldScore === null || oldScore >= threshold"
-    // So null is treated as "was above", meaning first-time items WILL be flagged
-    // if the calculated score falls below threshold. This is intentional —
-    // the backfill should have set initial scores for existing items.
-    //
-    // Mock data: expired=0, conf=0.2->4, completeness=0, summary=0, citations=0
-    // Calculated score = 4, which is below the default threshold of 40.
     const item = makeContentItem({
       id: '00000000-0000-4000-8000-000000000010',
       title: 'New Item',
@@ -779,69 +556,18 @@ describe('GET /api/cron/quality-score', () => {
       classification_confidence: 0.2,
       brief: null,
       ai_summary: null,
-      quality_score: null, // no previous score
+      quality_score: null,
     });
 
-    let contentItemsCallCount = 0;
-
-    mockSupabase.from.mockImplementation((table: string) => {
-      if (table === 'governance_config') {
-        return {
-          select: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: [], error: null }), // No governance config -> default threshold 40
-            ),
-          }),
-        };
-      }
-
-      if (table === 'content_items') {
-        contentItemsCallCount++;
-        return {
-          select: vi.fn().mockReturnThis(),
-          is: vi.fn().mockReturnThis(),
-          order: vi.fn().mockReturnThis(),
-          range: vi.fn().mockImplementation(() => ({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({
-                data: contentItemsCallCount === 1 ? [item] : [],
-                error: null,
-              }),
-            ),
-          })),
-          update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              then: vi.fn((resolve: (v: unknown) => void) =>
-                resolve({ data: null, error: null }),
-              ),
-            }),
-          }),
-        };
-      }
-
-      if (table === 'pipeline_runs') {
-        return {
-          insert: vi.fn().mockReturnValue({
-            then: vi.fn((resolve: (v: unknown) => void) =>
-              resolve({ data: null, error: null }),
-            ),
-          }),
-        };
-      }
-
-      return mockSupabase._chain;
-    });
+    configureDetailedMock({ items: [item] });
 
     const res = await GET(createCronRequest() as never);
     expect(res.status).toBe(200);
 
     const body = await res.json();
     expect(body.total_updated).toBe(1);
-
-    // Score 4 < threshold 40, and null is treated as "was above" -> flagged
     expect(body.dropped_below_threshold).toBe(1);
 
-    // Verify notifications were created for admin users
     expect(mockCreateBulkNotifications).toHaveBeenCalled();
     const notifications = mockCreateBulkNotifications.mock.calls[0][1] as Array<{
       userId: string;
@@ -849,12 +575,373 @@ describe('GET /api/cron/quality-score', () => {
       entityId: string;
       title: string;
     }>;
-    expect(notifications.length).toBe(2); // One per admin
+    expect(notifications.length).toBe(2);
     for (const notif of notifications) {
       expect(notif.type).toBe('quality_flag');
       expect(notif.entityId).toBe(item.id);
       expect(notif.title).toContain('New Item');
       expect([ADMIN_ID_1, ADMIN_ID_2]).toContain(notif.userId);
     }
+  });
+});
+
+// ===========================================================================
+// Governance bridge tests
+// ===========================================================================
+
+describe('GET /api/cron/quality-score — governance bridge', () => {
+  beforeEach(resetMocks);
+
+  it('auto-flags items for governance review when auto_flag_on_quality_drop is enabled', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      title: 'Auto-Flag Item',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+    });
+
+    const { updateCalls } = configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+        reviewer_id: REVIEWER_ID,
+        timeout_days: 14,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(1);
+
+    // Check that governance status was set to pending
+    const govUpdates = updateCalls.filter(u => u.data.governance_review_status === 'pending');
+    expect(govUpdates.length).toBe(1);
+    expect(govUpdates[0].data.governance_reviewer_id).toBe(REVIEWER_ID);
+    expect(govUpdates[0].data.last_auto_flagged_at).toBeDefined();
+    expect(govUpdates[0].data.governance_review_due).toBeDefined();
+
+    // Check governance_review_needed notification was created (second call to createBulkNotifications)
+    expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
+    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+      userId: string;
+      type: string;
+      entityId: string;
+    }>;
+
+    // Should notify the reviewer
+    expect(govNotifications.length).toBe(1);
+    expect(govNotifications[0].type).toBe('governance_review_needed');
+    expect(govNotifications[0].userId).toBe(REVIEWER_ID);
+    expect(govNotifications[0].entityId).toBe(item.id);
+  });
+
+  it('does NOT auto-flag when auto_flag_on_quality_drop is disabled', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: false,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(0);
+    expect(body.dropped_below_threshold).toBe(1);
+  });
+
+  it('excludes items with governance_review_status = draft from auto-flagging', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: 'draft',
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(0);
+  });
+
+  it('excludes items already in pending governance review', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: 'pending',
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(0);
+  });
+
+  it('excludes items in changes_requested governance state', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: 'changes_requested',
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(0);
+  });
+
+  it('respects cooldown period and skips recently auto-flagged items', async () => {
+    // Item was auto-flagged 3 days ago, cooldown is 7 days
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+      last_auto_flagged_at: threeDaysAgo,
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(0);
+  });
+
+  it('auto-flags items when cooldown has expired', async () => {
+    // Item was auto-flagged 10 days ago, cooldown is 7 days -> should flag
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      title: 'Expired Cooldown Item',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+      last_auto_flagged_at: tenDaysAgo,
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(1);
+  });
+
+  it('sends governance notification to admins when no reviewer configured', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      title: 'No Reviewer Item',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+        reviewer_id: null,
+        timeout_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(1);
+
+    // Second createBulkNotifications call is governance
+    expect(mockCreateBulkNotifications).toHaveBeenCalledTimes(2);
+    const govNotifications = mockCreateBulkNotifications.mock.calls[1][1] as Array<{
+      userId: string;
+      type: string;
+    }>;
+
+    // Should notify both admins (no reviewer configured)
+    expect(govNotifications.length).toBe(2);
+    const userIds = govNotifications.map(n => n.userId).sort();
+    expect(userIds).toEqual([ADMIN_ID_1, ADMIN_ID_2].sort());
+    for (const notif of govNotifications) {
+      expect(notif.type).toBe('governance_review_needed');
+    }
+  });
+
+  it('logs auto_governance_triggered count in pipeline_runs', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: null,
+    });
+
+    const { insertCalls } = configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const pipelineInserts = insertCalls.filter(c => c.table === 'pipeline_runs');
+    expect(pipelineInserts.length).toBe(1);
+    const result = pipelineInserts[0].data.result as Record<string, unknown>;
+    expect(result.auto_governance_triggered).toBe(1);
+    expect(result.batch_summary_notification).toBe(false);
+  });
+
+  it('allows auto-flag for items with governance_review_status = approved', async () => {
+    const item = makeContentItem({
+      id: '00000000-0000-4000-8000-000000000010',
+      primary_domain: 'Operations',
+      freshness: 'expired',
+      classification_confidence: 0.3,
+      brief: null,
+      ai_summary: null,
+      quality_score: 50,
+      governance_review_status: 'approved',
+    });
+
+    configureDetailedMock({
+      govConfigs: [{
+        domain: 'Operations',
+        id: GOV_CONFIG_ID,
+        quality_score_threshold: 40,
+        auto_flag_on_quality_drop: true,
+        auto_flag_cooldown_days: 7,
+      }],
+      items: [item],
+    });
+
+    const res = await GET(createCronRequest() as never);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.auto_governance_triggered).toBe(1);
   });
 });
