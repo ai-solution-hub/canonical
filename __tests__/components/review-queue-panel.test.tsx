@@ -179,7 +179,7 @@ describe('ReviewQueuePanel', () => {
 
   it('accepts QueueSortField values including confidence', () => {
     // Verify the component renders without error with each sort value
-    const sortValues: QueueSortField[] = ['default', 'flagged', 'domain', 'content_type', 'confidence', 'date'];
+    const sortValues: QueueSortField[] = ['default', 'flagged', 'domain', 'content_type', 'confidence', 'quality_score', 'date'];
 
     for (const sortBy of sortValues) {
       const { unmount } = render(

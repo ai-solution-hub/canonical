@@ -164,6 +164,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
   /** Map client-side sort field to server-side API sort parameter */
   const apiSortForQueueSort = useCallback((sort: QueueSortField): ReviewQueueSortField | undefined => {
     if (sort === 'confidence') return 'confidence_asc';
+    if (sort === 'quality_score') return 'quality_score_asc';
     return undefined; // Other sorts are client-side only
   }, []);
 
@@ -215,6 +216,9 @@ export function useReviewQueue(): UseReviewQueueReturn {
         break;
       case 'confidence':
         sorted.sort((a, b) => (b.classification_confidence ?? 0) - (a.classification_confidence ?? 0));
+        break;
+      case 'quality_score':
+        sorted.sort((a, b) => (a.quality_score ?? Infinity) - (b.quality_score ?? Infinity));
         break;
       case 'date':
         sorted.sort((a, b) => (b.captured_date ?? '').localeCompare(a.captured_date ?? ''));
