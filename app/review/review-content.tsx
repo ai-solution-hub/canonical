@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, BookOpen, ClipboardList } from 'lucide-react';
+import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -17,6 +17,7 @@ import { ReviewFilters } from '@/components/review-filters';
 import { ReviewQueuePanel } from '@/components/review-queue-panel';
 import { ReviewSessionSummary } from '@/components/review/review-session-summary';
 import type { ReviewSessionStats } from '@/components/review/review-session-summary';
+import { ReviewCadenceCard } from '@/components/review/review-cadence-card';
 import { useReviewQueue } from '@/hooks/use-review-queue';
 import { useReviewHistory } from '@/hooks/use-review-history';
 import { Button } from '@/components/ui/button';
@@ -88,6 +89,8 @@ export function ReviewContent() {
 
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
+  // Review health cadence panel toggle
+  const [showCadence, setShowCadence] = useState(false);
   const sessionStartRef = useRef(Date.now());
   const sessionStatsRef = useRef<ReviewSessionStats>({
     total: 0,
@@ -339,6 +342,18 @@ export function ReviewContent() {
                 Session: {progress.sessionReviewed}
               </Button>
             )}
+            {/* Review health toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCadence(!showCadence)}
+              aria-label={showCadence ? 'Hide review health' : 'Show review health'}
+              aria-expanded={showCadence}
+              className="gap-1.5 text-xs text-muted-foreground"
+            >
+              <Activity className="size-3.5" aria-hidden="true" />
+              Health
+            </Button>
             {/* Queue panel toggle */}
             <Button
               variant="ghost"
@@ -356,6 +371,11 @@ export function ReviewContent() {
             stats={stats}
           />
         </div>
+
+        {/* Review health cadence card (collapsible) */}
+        {showCadence && (
+          <ReviewCadenceCard className="mb-4" />
+        )}
 
         {/* Progress bar */}
         <ReviewProgressBar

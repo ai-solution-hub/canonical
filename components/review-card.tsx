@@ -1,7 +1,7 @@
 'use client';
 
 import { forwardRef, useState, useRef, useEffect, type ReactNode } from 'react';
-import { AlertTriangle, Check, ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ChevronUp, Clock, FileText } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -171,13 +171,21 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
           {/* Title */}
           <h2 className="text-lg font-semibold leading-tight">{title}</h2>
 
-          {/* Verification status (if already verified) */}
-          {item.verified_at && (
-            <div className="flex items-center gap-1.5 text-xs text-quality-good">
-              <Check className="size-3.5" aria-hidden="true" />
-              <span>
-                Verified on {formatDateUK(item.verified_at)}
-              </span>
+          {/* Verification / review timing */}
+          {item.verified_at ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-xs text-quality-good">
+                <Check className="size-3.5" aria-hidden="true" />
+                <span>
+                  Verified on {formatDateUK(item.verified_at)}
+                </span>
+              </div>
+              <DaysSinceReview verifiedAt={item.verified_at} />
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-freshness-stale">
+              <Clock className="size-3.5" aria-hidden="true" />
+              <span>Never reviewed</span>
             </div>
           )}
         </CardHeader>
@@ -299,3 +307,38 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
     );
   },
 );
+
+// ---------------------------------------------------------------------------
+// Days since review helper
+// ---------------------------------------------------------------------------
+
+function DaysSinceReview({ verifiedAt }: { verifiedAt: string }) {
+  // Capture "now" once on mount to avoid impure Date.now() during re-renders
+  const [mountTime] = useState(() => Date.now());
+  const days = Math.floor(
+    (mountTime - new Date(verifiedAt).getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  if (days === 0) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Clock className="size-3" aria-hidden="true" />
+        Reviewed today
+      </span>
+    );
+  }
+
+  const isOverdue = days > 90;
+
+  return (
+    <span
+      className={cn(
+        'flex items-center gap-1 text-xs',
+        isOverdue ? 'text-bid-overdue' : 'text-muted-foreground',
+      )}
+    >
+      <Clock className="size-3" aria-hidden="true" />
+      Last reviewed {days} {days === 1 ? 'day' : 'days'} ago
+    </span>
+  );
+}
