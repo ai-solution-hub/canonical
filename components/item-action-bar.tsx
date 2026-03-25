@@ -50,6 +50,10 @@ export interface ItemActionBarProps {
   handleVisionAnalysis: () => void;
   toggleReader: () => void;
   setItem: React.Dispatch<React.SetStateAction<ItemData>>;
+  /** Slot for the detail mode toggle component */
+  detailModeToggle?: React.ReactNode;
+  /** When true, hides editing actions (Edit, Star, Priority, Visual Analysis, Delete) */
+  isReaderMode?: boolean;
 }
 
 export function ItemActionBar({
@@ -70,11 +74,18 @@ export function ItemActionBar({
   handleVisionAnalysis,
   toggleReader,
   setItem,
+  detailModeToggle,
+  isReaderMode = false,
 }: ItemActionBarProps) {
+  // When isReaderMode is true, hide editing actions
+  const showEditingActions = canEdit && !isReaderMode;
+  const showAdminActions = canAdmin && !isReaderMode;
+
   return (
     <div className="sticky top-0 z-10 mb-6 flex flex-wrap items-center gap-2 bg-background py-2 sm:static sm:z-auto">
+      {detailModeToggle}
       <ReadToggleButton itemId={item.id as string} />
-      {canEdit && (
+      {showEditingActions && (
         <Button
           variant={isEditing ? 'outline' : 'default'}
           size="sm"
@@ -122,14 +133,14 @@ export function ItemActionBar({
           Copy content
         </Button>
       )}
-      {canEdit && (
+      {showEditingActions && (
         <StarButton
           itemId={item.id}
           starred={item.metadata?.starred === true}
           size="md"
         />
       )}
-      {canEdit && (
+      {showEditingActions && (
         <PrioritySelector
           itemId={item.id}
           priority={(item.priority as Priority) ?? null}
@@ -171,13 +182,13 @@ export function ItemActionBar({
               View PDF
             </DropdownMenuItem>
           )}
-          {canEdit && item.content_type === 'pdf' && (
+          {showEditingActions && item.content_type === 'pdf' && (
             <DropdownMenuItem onClick={handleVisionAnalysis} disabled={isAnalysing}>
               <Eye className="size-4" />
               {isAnalysing ? 'Analysing\u2026' : 'Visual Analysis'}
             </DropdownMenuItem>
           )}
-          {canAdmin && (
+          {showAdminActions && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -205,7 +216,7 @@ export function ItemActionBar({
           />
         </div>
       )}
-      {canAdmin && (
+      {showAdminActions && (
         <div className="hidden">
           <DeleteContentDialog
             itemId={item.id}
