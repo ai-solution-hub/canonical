@@ -514,7 +514,7 @@ export default function DigestPage() {
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate digest');
+        throw new Error(errorData.error || 'Failed to generate report');
       }
 
       const data = await res.json();
@@ -525,7 +525,7 @@ export default function DigestPage() {
       fetchPastDigests();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to generate digest';
+        err instanceof Error ? err.message : 'Failed to generate report';
       toast.error(message);
       console.error('Digest generation failed:', err);
     } finally {
@@ -580,13 +580,13 @@ export default function DigestPage() {
           if (singleData) {
             setCurrentDigest(singleData);
           } else {
-            toast.error('Digest not found');
+            toast.error('Report not found');
           }
         }
       }
     } catch (err) {
       console.error('Failed to load digest:', err);
-      toast.error('Failed to load digest');
+      toast.error('Failed to load report');
     } finally {
       setLoading(false);
     }
