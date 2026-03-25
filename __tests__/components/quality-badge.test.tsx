@@ -226,7 +226,7 @@ describe('QualityBadge', () => {
     const { container } = render(<QualityBadge score={score} simplified={false} />);
     const badge = container.firstElementChild!;
     expect(badge.getAttribute('title')).toBe(
-      'Freshness: 18/30, Confidence: 10/20, Completeness: 7/20, Summary: 15/15, Citations: 0/15',
+      'Freshness: 18/30\nConfidence: 10/20\nCompleteness: 7/20\nSummary: 15/15\nCitations: 0/15',
     );
   });
 
@@ -241,7 +241,7 @@ describe('QualityBadge', () => {
     const { container } = render(<QualityBadge score={score} />);
     const badge = container.firstElementChild!;
     expect(badge.getAttribute('title')).toBe(
-      'Freshness: 20/30, Confidence: 15/20, Completeness: 10/20, Summary: 10/15, Citations: 10/15',
+      'Freshness: 20/30\nConfidence: 15/20\nCompleteness: 10/20\nSummary: 10/15\nCitations: 10/15',
     );
   });
 
