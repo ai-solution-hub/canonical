@@ -9,10 +9,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /**
  * Review history entry returned by the API.
  *
- * Reviewer names: `created_by_name` and `resolved_by_name` are currently
- * always null because `user_roles.display_name` does not yet exist.
- * TODO: Once Workflows spec Phase 2.1 adds `user_roles.display_name`,
- * join against it here and populate the name fields.
+ * Reviewer names are populated from `user_roles.display_name` via a
+ * separate lookup after the main query (PostgREST cannot join the same
+ * table twice with different FK aliases).
  */
 export interface ReviewHistoryEntry {
   id: string;
@@ -22,12 +21,10 @@ export interface ReviewHistoryEntry {
   resolution_notes: string | null;
   created_at: string;
   created_by: string | null;
-  /** TODO: Populate from user_roles.display_name when column exists (Workflows spec Phase 2.1) */
   created_by_name: string | null;
   resolved: boolean;
   resolved_at: string | null;
   resolved_by: string | null;
-  /** TODO: Populate from user_roles.display_name when column exists (Workflows spec Phase 2.1) */
   resolved_by_name: string | null;
 }
 
@@ -78,8 +75,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Map rows to ReviewHistoryEntry shape.
-    // Reviewer display names are null until user_roles.display_name exists.
+    // Collect unique user IDs referenced in the history rows
+    const userIds = new Set<string>();
+    for (const row of data ?? []) {
+      if (row.created_by) userIds.add(row.created_by);
+      if (row.resolved_by) userIds.add(row.resolved_by);
+    }
+
+    // Look up display names from user_roles (single query)
+    const displayNames: Record<string, string> = {};
+    if (userIds.size > 0) {
+      const { data: nameRows } = await supabase
+        .from('user_roles')
+        .select('user_id, display_name')
+        .in('user_id', Array.from(userIds));
+
+      if (nameRows) {
+        for (const row of nameRows) {
+          if (row.display_name) {
+            displayNames[row.user_id] = row.display_name;
+          }
+        }
+      }
+    }
+
     const history: ReviewHistoryEntry[] = (data ?? []).map((row) => ({
       id: row.id,
       flag_type: row.flag_type,
@@ -88,11 +107,11 @@ export async function GET(request: NextRequest) {
       resolution_notes: row.resolution_notes,
       created_at: row.created_at ?? '',
       created_by: row.created_by,
-      created_by_name: null, // TODO: join user_roles.display_name (Workflows spec Phase 2.1)
+      created_by_name: row.created_by ? (displayNames[row.created_by] ?? null) : null,
       resolved: row.resolved ?? false,
       resolved_at: row.resolved_at,
       resolved_by: row.resolved_by,
-      resolved_by_name: null, // TODO: join user_roles.display_name (Workflows spec Phase 2.1)
+      resolved_by_name: row.resolved_by ? (displayNames[row.resolved_by] ?? null) : null,
     }));
 
     return NextResponse.json({ history });
