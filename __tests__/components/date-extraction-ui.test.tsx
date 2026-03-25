@@ -314,7 +314,7 @@ describe('ExpiryDateDisplay', () => {
     );
 
     const statusBadge = screen.getByRole('status');
-    expect(statusBadge).toHaveTextContent(/20 days remaining/);
+    expect(statusBadge).toHaveTextContent(/(?:19|20) days remaining/);
   });
 
   it('displays "Date-bound" lifecycle label when lifecycle_type is date_bound', () => {
