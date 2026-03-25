@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity } from 'lucide-react';
+import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity, ClipboardCheck, X } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -59,6 +59,9 @@ export function ReviewContent() {
     currentItem,
     sortedQueue,
     currentSortedIndex,
+
+    // Assignment
+    activeAssignment,
 
     // Handlers
     handleSelectItem,
@@ -385,6 +388,35 @@ export function ReviewContent() {
           queueLength={queue.length}
           className="mb-6"
         />
+
+        {/* Review assignment banner */}
+        {activeAssignment && (
+          <div
+            role="status"
+            className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-3"
+          >
+            <ClipboardCheck className="size-5 shrink-0 text-primary" aria-hidden="true" />
+            <p className="flex-1 text-sm text-foreground">
+              {activeAssignment.notes
+                ? `You have a review assignment: ${activeAssignment.notes}`
+                : 'You have a review assignment'}
+              {activeAssignment.due_date && (
+                <span className="ml-1 text-muted-foreground">
+                  (due {new Date(activeAssignment.due_date).toLocaleDateString('en-GB')})
+                </span>
+              )}
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0 gap-1.5 text-xs"
+              onClick={() => setFilters({ status: 'unverified' })}
+            >
+              <X className="size-3.5" aria-hidden="true" />
+              Clear filters
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Content area with bottom padding for sticky action bar clearance */}
