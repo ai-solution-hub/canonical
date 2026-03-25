@@ -239,6 +239,38 @@ export function BrowseContent() {
     setMultiSelectMode(false);
   }, [selectedIds, markBulkRead]);
 
+  // Send to review bulk action state
+  const [isSendingToReview, setIsSendingToReview] = useState(false);
+
+  const handleSendToReview = useCallback(async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    setIsSendingToReview(true);
+    try {
+      const res = await fetch('/api/items/batch-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_ids: ids, status: 'pending' }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? 'Failed to send items for review');
+      }
+      const data = await res.json();
+      toast.success(
+        `${data.updated} item${data.updated !== 1 ? 's' : ''} sent for review`,
+      );
+      setSelectedIds(new Set());
+      setMultiSelectMode(false);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to send items for review',
+      );
+    } finally {
+      setIsSendingToReview(false);
+    }
+  }, [selectedIds]);
+
   const handleCancelMultiSelect = useCallback(() => {
     setSelectedIds(new Set());
     setMultiSelectMode(false);
@@ -423,6 +455,9 @@ export function BrowseContent() {
           selectedCount={selectedIds.size}
           onMarkSelectedRead={handleMarkSelectedRead}
           onCancel={handleCancelMultiSelect}
+          canSendToReview={canEdit}
+          onSendToReview={handleSendToReview}
+          isSendingToReview={isSendingToReview}
         />
       )}
 
