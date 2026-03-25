@@ -352,6 +352,7 @@ export function ContentGrid({
                       hideThumbnail={hideThumbnails}
                       highlightQuery={highlightQuery}
                       canEdit={canEdit}
+                      simplifiedQuality={simplifiedQuality}
                       onQuickReviewUpdate={onQuickReviewUpdate}
                       activeWorkspaces={activeWorkspaces}
                       assignedWorkspaceIds={itemAssignments?.get(item.id)}
