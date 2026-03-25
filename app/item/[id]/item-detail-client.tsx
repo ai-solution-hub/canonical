@@ -127,11 +127,12 @@ export function ItemDetailClient({
     toggleDetailMode: handleModeToggle,
   });
 
+  const { setPanelLayout } = data;
   const handleLayoutChanged = useCallback(
     (layout: Layout) => {
-      data.setPanelLayout(layout);
+      setPanelLayout(layout);
     },
-    [data.setPanelLayout],
+    [setPanelLayout],
   );
 
   // Build the mode toggle element as a slot for both views
