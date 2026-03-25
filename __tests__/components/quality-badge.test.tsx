@@ -182,4 +182,72 @@ describe('QualityBadge', () => {
     expect(screen.getByText('100')).toBeInTheDocument();
     expect(screen.getByText('Excellent')).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Simplified mode (plain-language tooltip for viewers/reader mode)
+  // -------------------------------------------------------------------------
+
+  it('shows plain-language title when simplified is true', () => {
+    const score = makeScore(75, 'Good', {
+      freshness: 30,
+      confidence: 16,
+      completeness: 13,
+      summary: 15,
+      citations: 6,
+    });
+    const { container } = render(<QualityBadge score={score} simplified />);
+    const badge = container.firstElementChild!;
+    expect(badge.getAttribute('title')).toBe('Quality: Good');
+  });
+
+  it('shows simplified aria-label without breakdown when simplified is true', () => {
+    const score = makeScore(72, 'Good', {
+      freshness: 25,
+      confidence: 14,
+      completeness: 12,
+      summary: 12,
+      citations: 9,
+    });
+    render(<QualityBadge score={score} simplified />);
+    const badge = screen.getByLabelText(
+      'Quality score: 72 out of 100 — Good',
+    );
+    expect(badge).toBeInTheDocument();
+  });
+
+  it('shows full breakdown title when simplified is false', () => {
+    const score = makeScore(50, 'Fair', {
+      freshness: 18,
+      confidence: 10,
+      completeness: 7,
+      summary: 15,
+      citations: 0,
+    });
+    const { container } = render(<QualityBadge score={score} simplified={false} />);
+    const badge = container.firstElementChild!;
+    expect(badge.getAttribute('title')).toBe(
+      'Freshness: 18/30, Confidence: 10/20, Completeness: 7/20, Summary: 15/15, Citations: 0/15',
+    );
+  });
+
+  it('shows full breakdown title when simplified is omitted (default)', () => {
+    const score = makeScore(65, 'Good', {
+      freshness: 20,
+      confidence: 15,
+      completeness: 10,
+      summary: 10,
+      citations: 10,
+    });
+    const { container } = render(<QualityBadge score={score} />);
+    const badge = container.firstElementChild!;
+    expect(badge.getAttribute('title')).toBe(
+      'Freshness: 20/30, Confidence: 15/20, Completeness: 10/20, Summary: 10/15, Citations: 10/15',
+    );
+  });
+
+  it('still renders score and label visually when simplified', () => {
+    render(<QualityBadge score={makeScore(85, 'Excellent')} simplified />);
+    expect(screen.getByText('85')).toBeInTheDocument();
+    expect(screen.getByText('Excellent')).toBeInTheDocument();
+  });
 });

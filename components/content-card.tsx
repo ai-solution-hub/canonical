@@ -186,9 +186,10 @@ function ContentTypeLine({ item }: { item: ContentListItem | SearchResult }) {
 }
 
 /** Status row: date, freshness always visible; governance, quality, similarity on hover */
-function CardStatusRow({ item, hasQualityFlag, children }: {
+function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
+  simplifiedQuality?: boolean;
   children?: React.ReactNode;
 }) {
   const hasSecondaryBadges =
@@ -202,7 +203,7 @@ function CardStatusRow({ item, hasQualityFlag, children }: {
       <time className="text-xs text-muted-foreground" dateTime={item.captured_date ?? undefined}>
         {formatSmartDate(item.captured_date)}
       </time>
-      <QualityBadge score={qualityScoreForItem(item)} />
+      <QualityBadge score={qualityScoreForItem(item)} simplified={simplifiedQuality} />
       {children}
       {item.freshness && item.freshness !== 'fresh' && (
         <FreshnessBadge freshness={item.freshness} compact />
@@ -220,9 +221,10 @@ function CardStatusRow({ item, hasQualityFlag, children }: {
 }
 
 /** Card footer: badges row, action bar, author, content type line, status row (shared by compact + standard) */
-function CardFooter({ item, hasQualityFlag, badgeSlot, actionSlot }: {
+function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, actionSlot }: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
+  simplifiedQuality?: boolean;
   badgeSlot?: React.ReactNode;
   actionSlot?: React.ReactNode;
 }) {
@@ -245,7 +247,7 @@ function CardFooter({ item, hasQualityFlag, badgeSlot, actionSlot }: {
         <span className="truncate text-xs font-medium text-foreground">{item.author_name}</span>
       )}
       <ContentTypeLine item={item} />
-      <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} />
+      <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} />
     </div>
   );
 }
@@ -268,6 +270,8 @@ interface ContentCardProps {
   highlightQuery?: string;
   /** Whether the current user can edit (editor/admin). Enables quick review actions. */
   canEdit?: boolean;
+  /** When true, QualityBadge shows a plain-language tooltip instead of full breakdown */
+  simplifiedQuality?: boolean;
   /** Callback for optimistic item state updates (verify/flag actions) */
   onQuickReviewUpdate?: OnOptimisticUpdate;
   /** Active bid workspaces for quick-assign (from parent context) */
@@ -278,7 +282,7 @@ interface ContentCardProps {
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
 }
 
-export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, onQuickReviewUpdate, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, simplifiedQuality, onQuickReviewUpdate, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
@@ -342,7 +346,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                 {actionSlot}
               </div>
             )}
-            <CardStatusRow item={item} hasQualityFlag={hasQualityFlag}>
+            <CardStatusRow item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality}>
               {answerPreview && (
                 <button
                   type="button"
@@ -380,7 +384,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} />
           <CardTitle title={title} priority={item.priority} renderText={renderText} />
           <SummaryPreview item={item} renderText={renderText} />
-          <CardFooter item={item} hasQualityFlag={hasQualityFlag} actionSlot={actionSlot} />
+          <CardFooter item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} actionSlot={actionSlot} />
         </div>
       </Link>
     );
@@ -426,6 +430,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
         <CardFooter
           item={item}
           hasQualityFlag={hasQualityFlag}
+          simplifiedQuality={simplifiedQuality}
           badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge metadata={item.metadata} /></>}
           actionSlot={actionSlot}
         />

@@ -447,6 +447,7 @@ export function BrowseContent() {
                 onToggleSelect={toggleSelectItem}
                 hideThumbnails={hideThumbnails}
                 canEdit={canEdit}
+                simplifiedQuality={!canEdit}
                 onQuickReviewUpdate={handleQuickReviewUpdate}
                 activeWorkspaces={canEdit ? activeWorkspaces : undefined}
                 itemAssignments={canEdit ? itemAssignments : undefined}

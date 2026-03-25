@@ -34,6 +34,7 @@ import {
   MobileStepIndicator,
 } from '@/components/create-content';
 import { ErrorBoundary } from '@/components/error-boundary';
+import { useUserRole } from '@/hooks/use-user-role';
 
 const ContentEditor = dynamic(
   () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
@@ -67,6 +68,7 @@ export function CreateContentClient() {
   const router = useRouter();
   const { getDomainNames, getSubtopics, formatSubtopic, formatDomainName } =
     useTaxonomy();
+  const { canEdit, loading: roleLoading } = useUserRole();
 
   const methods = useForm<CreateContentFormValues>({
     resolver: zodResolver(CreateContentFormSchema),
@@ -96,8 +98,17 @@ export function CreateContentClient() {
 
   // UI state
   const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [hasAutoExpanded, setHasAutoExpanded] = useState(false);
   const [isSavingAndContinue, setIsSavingAndContinue] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Auto-expand "More details" for editors/admins (C5-PA6)
+  useEffect(() => {
+    if (!roleLoading && canEdit && !hasAutoExpanded) {
+      setShowMoreDetails(true);
+      setHasAutoExpanded(true);
+    }
+  }, [roleLoading, canEdit, hasAutoExpanded]);
 
   // Layer suggestion state (shown after item creation)
   const [layerSuggestion, setLayerSuggestion] = useState<{
