@@ -364,3 +364,15 @@ When implementing from specs, follow this methodical phased approach:
   `extraKnownMarketplaces`. After pushing new plugins to the remote, the
   local marketplace must be refreshed (`git pull` in the marketplace dir)
   before `/plugin` will discover them. Manual file copies don't persist.
+- **Worktree agents leak files to main working tree (S114):** Agents
+  launched with `isolation: "worktree"` or general-purpose agents directed
+  to work in a worktree path sometimes write files to both the worktree AND
+  the main working directory. Before merging worktree branches, always run
+  `git status` on main and clean leaked files with `git checkout -- .` and
+  `git clean -fd` (for untracked files). Failure to clean causes merge
+  conflicts with "untracked working tree files would be overwritten."
+- **React compiler memoisation with nested data access (S114):** The React
+  compiler (`react-compiler`) cannot preserve memoisation when `useCallback`
+  dependencies reference nested object properties (e.g. `data.setPanelLayout`).
+  Destructure the needed property first: `const { setPanelLayout } = data;`
+  then use the destructured variable in the dependency array.
