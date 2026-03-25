@@ -3,6 +3,8 @@
  *
  * Tests the digest page — loading state, hero/generate states, mode selector,
  * custom filters, generation flow, past digests, and accessibility.
+ *
+ * Updated for digest-to-"Change Report" vocabulary reframing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -30,9 +32,9 @@ const {
   mockFormatDate: vi.fn((d: string) => d ? d.slice(0, 10) : ''),
   mockDigestTypeLabel: vi.fn((t: string) => {
     switch (t) {
-      case 'weekly': return 'Weekly Digest';
-      case 'daily': return 'Daily Digest';
-      default: return 'Custom Digest';
+      case 'weekly': return 'Weekly Change Report';
+      case 'daily': return 'Daily Change Report';
+      default: return 'Custom Change Report';
     }
   }),
 }));
@@ -189,30 +191,30 @@ describe('DigestPage', () => {
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
   });
 
-  // 2. No digest (hero state)
+  // 2. No digest (hero state) — now says "Change Reports"
   it('shows hero state when no digest exists', async () => {
     setupFetch({ latest: null, list: [] });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     expect(
-      screen.getByText(/summary of your recent content/),
+      screen.getByText(/what changed in your knowledge base/),
     ).toBeInTheDocument();
   });
 
-  // 3. Mode selector tabs
+  // 3. Mode selector tabs — now labelled "Report mode"
   it('renders three mode tabs with correct aria attributes', async () => {
     setupFetch({ latest: null, list: [] });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const tablist = screen.getByRole('tablist', { name: 'Digest mode' });
+    const tablist = screen.getByRole('tablist', { name: 'Report mode' });
     expect(tablist).toBeInTheDocument();
 
     const tabs = within(tablist).getAllByRole('tab');
@@ -224,16 +226,16 @@ describe('DigestPage', () => {
     expect(tabs[2]).toHaveAttribute('aria-selected', 'false');
   });
 
-  // 4. Preset mode: period select and generate button
+  // 4. Preset mode: period select and generate button — now "Generate Report"
   it('shows generate button in preset mode', async () => {
     setupFetch({ latest: null, list: [] });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /Generate Digest/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate Report/i })).toBeInTheDocument();
   });
 
   // 5. Daily mode
@@ -243,7 +245,7 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     const dailyTab = screen.getByRole('tab', { name: /Daily/i });
@@ -252,20 +254,20 @@ describe('DigestPage', () => {
     expect(screen.getByText(/Summarise today/)).toBeInTheDocument();
   });
 
-  // 6. Custom mode: shows filter panel
+  // 6. Custom mode: shows filter panel — now "Custom Report Filters"
   it('shows custom filter panel when Custom tab is selected', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     const customTab = screen.getByRole('tab', { name: /Custom/i });
     await user.click(customTab);
 
-    expect(screen.getByText('Custom Digest Filters')).toBeInTheDocument();
+    expect(screen.getByText('Custom Report Filters')).toBeInTheDocument();
     expect(screen.getByLabelText('From')).toBeInTheDocument();
     expect(screen.getByLabelText('To')).toBeInTheDocument();
     expect(screen.getByLabelText('Domain')).toBeInTheDocument();
@@ -279,7 +281,7 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     const customTab = screen.getByRole('tab', { name: /Custom/i });
@@ -310,10 +312,10 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -327,14 +329,14 @@ describe('DigestPage', () => {
     });
   });
 
-  // 9. Generate custom digest
+  // 9. Generate custom digest — button now says "Generate Custom Report"
   it('calls fetch with custom filters when generating custom digest', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [], generateResult: makeDigest() });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     const customTab = screen.getByRole('tab', { name: /Custom/i });
@@ -344,7 +346,7 @@ describe('DigestPage', () => {
     await user.clear(keywordsInput);
     await user.type(keywordsInput, 'ai agents');
 
-    const generateButton = screen.getByRole('button', { name: /Generate Custom Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Custom Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -378,10 +380,10 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -397,17 +399,17 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    expect(mockToast.success).toHaveBeenCalledWith('Digest generated successfully');
+    expect(mockToast.success).toHaveBeenCalledWith('Report generated successfully');
   });
 
   // 12. Generation error
@@ -417,10 +419,10 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -428,7 +430,7 @@ describe('DigestPage', () => {
     });
   });
 
-  // 13. Digest view state renders controls and DigestView
+  // 13. Digest view state renders controls and DigestView — "Generate New Report"
   it('renders bar controls and DigestView when digest exists', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [] });
@@ -438,8 +440,8 @@ describe('DigestPage', () => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    // Bar variant shows "Generate New" not "Generate Digest"
-    expect(screen.getByRole('button', { name: /Generate New/i })).toBeInTheDocument();
+    // Bar variant shows "Generate New Report"
+    expect(screen.getByRole('button', { name: /Generate New Report/i })).toBeInTheDocument();
   });
 
   // 14. Mark all as read
@@ -464,8 +466,8 @@ describe('DigestPage', () => {
     });
   });
 
-  // 15. Past digests list
-  it('renders previous digests excluding the current one', async () => {
+  // 15. Past digests list — now "Previous Reports"
+  it('renders previous reports excluding the current one', async () => {
     const digest = makeDigest({ id: 'current-digest' });
     const pastList = [
       { ...digest, id: 'current-digest' },
@@ -479,8 +481,8 @@ describe('DigestPage', () => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Previous Digests')).toBeInTheDocument();
-    const list = screen.getByRole('list', { name: 'Previous digests' });
+    expect(screen.getByText('Previous Reports')).toBeInTheDocument();
+    const list = screen.getByRole('list', { name: 'Previous reports' });
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(2);
   });
@@ -494,11 +496,11 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Previous Digests')).toBeInTheDocument();
+      expect(screen.getByText('Previous Reports')).toBeInTheDocument();
     });
 
     // Click the past digest entry — this triggers loadDigest which calls fetch
-    const list = screen.getByRole('list', { name: 'Previous digests' });
+    const list = screen.getByRole('list', { name: 'Previous reports' });
     const pastButton = within(list).getAllByRole('button')[0];
     await user.click(pastButton);
 
@@ -511,7 +513,7 @@ describe('DigestPage', () => {
   });
 
   // 17. Empty past digests
-  it('does not render previous digests section when none exist', async () => {
+  it('does not render previous reports section when none exist', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [digest] });
     render(<DigestPage />);
@@ -520,7 +522,7 @@ describe('DigestPage', () => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
     });
 
-    expect(screen.queryByText('Previous Digests')).not.toBeInTheDocument();
+    expect(screen.queryByText('Previous Reports')).not.toBeInTheDocument();
   });
 
   // 18. aria-live regions
@@ -542,10 +544,10 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /Generate Digest/i }));
+    await user.click(screen.getByRole('button', { name: /Generate Report/i }));
 
     await waitFor(() => {
       const liveRegion = screen.getByRole('status');
@@ -553,16 +555,16 @@ describe('DigestPage', () => {
     });
   });
 
-  // 19. Content digest section has correct aria-label
+  // 19. Content section has correct aria-label — now "Change reports"
   it('wraps content in section with correct aria-label', async () => {
     setupFetch({ latest: null, list: [] });
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('region', { name: 'Content digest' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Change reports' })).toBeInTheDocument();
   });
 
   // 20. Mode switching works correctly
@@ -572,7 +574,7 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     // Start in preset mode
@@ -653,10 +655,10 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
-    const generateButton = screen.getByRole('button', { name: /Generate Digest/i });
+    const generateButton = screen.getByRole('button', { name: /Generate Report/i });
     await user.click(generateButton);
 
     await waitFor(() => {
@@ -670,7 +672,7 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     const tabpanel = screen.getByRole('tabpanel');
@@ -702,7 +704,7 @@ describe('DigestPage', () => {
     render(<DigestPage />);
 
     await waitFor(() => {
-      expect(screen.getByText('Content Digest')).toBeInTheDocument();
+      expect(screen.getByText('Change Reports')).toBeInTheDocument();
     });
 
     expect(screen.queryByRole('button', { name: /Mark all as read/i })).not.toBeInTheDocument();

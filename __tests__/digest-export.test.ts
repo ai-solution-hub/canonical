@@ -73,7 +73,7 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
 
 
 // ---------------------------------------------------------------------------
-// Tests
+// Tests — updated for "Change Report" vocabulary
 // ---------------------------------------------------------------------------
 
 describe('digestToMarkdown', () => {
@@ -81,14 +81,14 @@ describe('digestToMarkdown', () => {
     const digest = makeDigest();
     const md = digestToMarkdown(digest);
 
-    // Title (auto-generated from type + dates)
-    expect(md).toContain('# Weekly Digest: 25 Jan 2026 -- 24 Feb 2026');
+    // Title (auto-generated from type + dates) — now "Change Report"
+    expect(md).toContain('# Weekly Change Report: 25 Jan 2026 -- 24 Feb 2026');
 
     // Metadata line
     expect(md).toContain('*42 items | Generated 24 Feb 2026*');
 
-    // Narrative summary section
-    expect(md).toContain('## Summary');
+    // Narrative summary section — now "Overview" instead of "Summary"
+    expect(md).toContain('## Overview');
     expect(md).toContain('A busy week across AI tooling');
 
     // Domain sections
@@ -159,7 +159,7 @@ describe('digestToMarkdown', () => {
     const digest = makeDigest({ narrative_summary: null });
     const md = digestToMarkdown(digest);
 
-    expect(md).not.toContain('## Summary');
+    expect(md).not.toContain('## Overview');
   });
 
   it('should handle empty domain summaries', () => {
@@ -169,8 +169,8 @@ describe('digestToMarkdown', () => {
     });
     const md = digestToMarkdown(digest);
 
-    // Should still have the title and metadata
-    expect(md).toContain('# Weekly Digest:');
+    // Should still have the title and metadata — now "Change Report"
+    expect(md).toContain('# Weekly Change Report:');
     expect(md).toContain('*42 items |');
 
     // Should not have any domain or theme sections
@@ -203,21 +203,21 @@ describe('digestToMarkdown', () => {
     const digest = makeDigest({ digest_type: 'daily' });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('# Daily Digest:');
+    expect(md).toContain('# Daily Change Report:');
   });
 
   it('should handle custom digest type label', () => {
     const digest = makeDigest({ digest_type: 'custom' });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('# Custom Digest:');
+    expect(md).toContain('# Custom Change Report:');
   });
 
   it('should handle unknown digest type label gracefully', () => {
     const digest = makeDigest({ digest_type: 'monthly' });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('# Content Digest:');
+    expect(md).toContain('# Change Report:');
   });
 
   it('should not contain trailing whitespace on content lines', () => {
@@ -238,7 +238,7 @@ describe('digestToMarkdown', () => {
     });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('# Weekly Digest:');
+    expect(md).toContain('# Weekly Change Report:');
     expect(md).not.toContain('## Cross-Domain Themes');
   });
 
@@ -261,4 +261,3 @@ describe('digestToMarkdown', () => {
   });
 
 });
-

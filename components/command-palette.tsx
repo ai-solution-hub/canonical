@@ -202,12 +202,12 @@ export function CommandPalette() {
                     Bids
                   </Command.Item>
                   <Command.Item
-                    value="Content digest summary"
+                    value="Change reports summary"
                     onSelect={() => runCommand(() => router.push('/digest'))}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm aria-selected:bg-accent"
                   >
                     <BookOpen className="size-4 text-muted-foreground" />
-                    Content Digest
+                    Change Reports
                   </Command.Item>
                   <Command.Item
                     value="Settings preferences profile"

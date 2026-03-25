@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { VerificationBadge } from '@/components/verification-badge';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { formatSmartDate } from '@/lib/format';
+import { useDisplayNames } from '@/hooks/use-display-names';
+import { useUserRole } from '@/hooks/use-user-role';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -36,6 +38,15 @@ export function ItemTitleSection({
   handleSaveAll,
   cancelEditMode,
 }: ItemTitleSectionProps) {
+  // Resolve verified_by UUID to display name
+  const displayNames = useDisplayNames([item.verified_by]);
+  const verifiedByName = item.verified_by
+    ? displayNames.get(item.verified_by) ?? null
+    : null;
+
+  // Role-gate detailed trust levels (editor/admin only)
+  const { canEdit } = useUserRole();
+
   return (
     <>
       {/* Title + inline badges */}
@@ -63,7 +74,18 @@ export function ItemTitleSection({
           {item.freshness && (
             <FreshnessBadge freshness={item.freshness as string} />
           )}
-          <VerificationBadge verified={!!item.verified_at} size="md" />
+          <VerificationBadge
+            verified={!!item.verified_at}
+            verifiedAt={item.verified_at}
+            verifiedByName={verifiedByName}
+            trustData={{
+              brief: item.brief,
+              detail: item.detail,
+              content_owner_id: item.content_owner_id,
+            }}
+            showDetailedTrust={canEdit}
+            size="md"
+          />
           {item.updated_at && (
             <span className="text-xs text-muted-foreground">
               Updated {formatSmartDate(item.updated_at)}

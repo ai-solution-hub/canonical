@@ -60,7 +60,7 @@ export function digestToMarkdown(
 
   // Narrative summary
   if (digest.narrative_summary) {
-    lines.push('## Summary');
+    lines.push('## Overview');
     lines.push('');
     lines.push(digest.narrative_summary);
     lines.push('');
@@ -379,7 +379,7 @@ export async function downloadDigestDocx(
 
   const start = formatDateForFilename(digest.period_start);
   const end = formatDateForFilename(digest.period_end);
-  const filename = `digest-${start}-${end}.docx`;
+  const filename = `change-report-${start}-${end}.docx`;
 
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');

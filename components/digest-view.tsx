@@ -48,7 +48,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
           <div className="mb-3 flex items-center gap-2">
             <FileText className="size-4 text-primary" />
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Summary
+              Overview
             </h2>
           </div>
           <div className="space-y-4 text-[15px] leading-relaxed text-foreground/90">
