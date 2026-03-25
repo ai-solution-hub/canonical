@@ -379,7 +379,7 @@ describe('TenderMetadataPrompt', () => {
   it('works without onUpdated callback', async () => {
     mockFetch.mockReturnValueOnce(mockFetchResponse({ ok: true }));
     const user = userEvent.setup();
-    const { onUpdated: _unused, ...propsNoCallback } = defaultProps; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { onUpdated: _unused, ...propsNoCallback } = defaultProps;  
     render(<TenderMetadataPrompt {...propsNoCallback} />);
     await user.click(screen.getByText('Update Bid Details'));
 

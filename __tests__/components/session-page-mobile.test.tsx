@@ -351,7 +351,7 @@ describe('Session Page Mobile Layout', () => {
   describe('Responsive layout classes', () => {
     it('mobile compact bar section has lg:hidden class', () => {
       setupDefaults();
-      const { container } = render(<BidSessionPage params={mockParams} />);
+      render(<BidSessionPage params={mockParams} />);
 
       // The compact bar is wrapped in a div with lg:hidden
       // Find the navigation element and check its parent wrapper

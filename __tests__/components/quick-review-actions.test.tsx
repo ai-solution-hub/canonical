@@ -40,10 +40,6 @@ function mockFetchOk() {
   global.fetch = vi.fn().mockResolvedValue({ ok: true });
 }
 
-function mockFetchFail() {
-  global.fetch = vi.fn().mockResolvedValue({ ok: false });
-}
-
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -137,7 +133,7 @@ describe('QuickReviewActions', () => {
     const parentClick = vi.fn();
 
     render(
-      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+       
       <div onClick={parentClick}>
         <QuickReviewActions
           itemId="item-1"

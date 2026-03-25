@@ -145,7 +145,7 @@ describe('Freshness cron — date expiry reminders', () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 
   // Import handler AFTER mocks
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
+   
   let GET: typeof import('@/app/api/cron/freshness-transitions/route').GET;
 
   beforeEach(async () => {
@@ -180,11 +180,7 @@ describe('Freshness cron — date expiry reminders', () => {
     const entityMentions = overrides?.entityMentions ?? [];
 
     // Track call counts for .from()
-    let fromCallCount = 0;
-
     mockSupabase.from.mockImplementation((table: string) => {
-      fromCallCount++;
-      const chainMethods: Record<string, unknown> = {};
 
       // Make all chain methods return the chain object
       const makeChain = (finalData: unknown = null, finalError: unknown = null) => {
@@ -266,7 +262,7 @@ describe('Freshness cron — date expiry reminders', () => {
     });
 
     const response = await GET(createRequest() as import('next/server').NextRequest);
-    const json = await response.json();
+    await response.json();
 
     expect(response.status).toBe(200);
     // Should have called createBulkNotifications at least once for the expiry

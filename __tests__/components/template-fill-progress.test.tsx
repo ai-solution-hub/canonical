@@ -225,7 +225,7 @@ describe('TemplateFillProgress', () => {
       status: 'failed',
       error_message: 'Error',
     })));
-    const { onRetry: _unused, ...propsWithoutRetry } = defaultProps; // eslint-disable-line @typescript-eslint/no-unused-vars
+    const { onRetry: _unused, ...propsWithoutRetry } = defaultProps;  
     await act(async () => {
       render(<TemplateFillProgress {...propsWithoutRetry} />);
     });

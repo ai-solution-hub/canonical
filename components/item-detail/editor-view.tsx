@@ -63,7 +63,7 @@ export interface EditorViewProps {
 export function EditorView({
   data,
   relatedItems,
-  onModeToggle,
+  onModeToggle: _onModeToggle,
   detailModeToggle,
 }: EditorViewProps) {
   const {

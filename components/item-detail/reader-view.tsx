@@ -72,7 +72,7 @@ export interface ReaderViewProps {
 export function ReaderView({
   data,
   relatedItems,
-  onModeToggle,
+  onModeToggle: _onModeToggle,
   detailModeToggle,
 }: ReaderViewProps) {
   const {

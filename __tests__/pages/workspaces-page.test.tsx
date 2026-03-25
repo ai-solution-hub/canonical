@@ -10,7 +10,6 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
 // Mock auth — getAuthenticatedClient returns { supabase }
-const mockSelect = vi.fn();
 vi.mock('@/lib/auth', () => ({
   getAuthenticatedClient: vi.fn().mockResolvedValue({
     supabase: {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QuickAssignButton } from '@/components/quick-assign-button';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
@@ -183,7 +183,7 @@ describe('QuickAssignButton', () => {
     const user = userEvent.setup();
 
     render(
-      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+       
       <div onClick={parentClick}>
         <QuickAssignButton
           itemId={ITEM_ID}

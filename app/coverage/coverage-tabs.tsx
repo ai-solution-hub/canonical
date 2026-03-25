@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart3, BookOpen, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
@@ -145,20 +145,26 @@ export function CoveragePageTabs() {
   const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
   const [activeTab, setActiveTab] = useState('taxonomy');
 
-  const fetchGapSummary = useCallback(async () => {
-    try {
-      const res = await fetch('/api/coverage/gap-summary');
-      if (!res.ok) return;
-      const data: GapSummary = await res.json();
-      setGapSummary(data);
-    } catch {
-      // Silently fail — the banner is supplementary
-    }
-  }, []);
-
   useEffect(() => {
+    let cancelled = false;
+
+    async function fetchGapSummary() {
+      try {
+        const res = await fetch('/api/coverage/gap-summary');
+        if (!res.ok || cancelled) return;
+        const data: GapSummary = await res.json();
+        if (!cancelled) setGapSummary(data);
+      } catch {
+        // Silently fail — the banner is supplementary
+      }
+    }
+
     fetchGapSummary();
-  }, [fetchGapSummary]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab}>

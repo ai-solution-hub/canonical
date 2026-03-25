@@ -16,14 +16,13 @@
  * - extractTemporalReferences() main entry point
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   extractDates,
   findExpiryDate,
   extractTemporalReferences,
   classifyDateType,
   type DateExtraction,
-  type TemporalReference,
 } from '@/lib/date-extraction';
 
 // ──────────────────────────────────────────
