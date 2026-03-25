@@ -18,6 +18,7 @@ import { ReviewQueuePanel } from '@/components/review-queue-panel';
 import { ReviewSessionSummary } from '@/components/review/review-session-summary';
 import type { ReviewSessionStats } from '@/components/review/review-session-summary';
 import { useReviewQueue } from '@/hooks/use-review-queue';
+import { useReviewHistory } from '@/hooks/use-review-history';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -79,6 +80,11 @@ export function ReviewContent() {
     showHelp,
     setShowHelp,
   } = useReviewQueue();
+
+  // Fetch review history for the current item
+  const { history: reviewHistory, isLoading: reviewHistoryLoading } = useReviewHistory(
+    currentItem?.id ?? null,
+  );
 
   // Session summary dialog state
   const [showSummary, setShowSummary] = useState(false);
@@ -370,6 +376,8 @@ export function ReviewContent() {
             item={currentItem}
             position={currentIndex + 1}
             total={progress.total || queue.length}
+            reviewHistory={reviewHistory}
+            reviewHistoryLoading={reviewHistoryLoading}
           />
         </div>
 

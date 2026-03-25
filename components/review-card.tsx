@@ -9,12 +9,18 @@ import { DomainBadge } from '@/components/domain-badge';
 import { ContentRenderer } from '@/components/content-renderer';
 import { cn } from '@/lib/utils';
 import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/format';
+import { ReviewHistorySection } from '@/components/review/review-history-section';
 import type { ReviewQueueItem } from '@/types/review';
+import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
 
 interface ReviewCardProps {
   item: ReviewQueueItem;
   position: number;
   total: number;
+  /** Pre-fetched review history entries */
+  reviewHistory?: ReviewHistoryEntry[];
+  /** Whether review history is still loading */
+  reviewHistoryLoading?: boolean;
   className?: string;
 }
 
@@ -110,7 +116,7 @@ function CollapsibleContent({ children }: { children: ReactNode }) {
  * Shows domain, content type, classification, provenance, and verification status.
  */
 export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
-  function ReviewCard({ item, position, total, className = '' }, ref) {
+  function ReviewCard({ item, position, total, reviewHistory, reviewHistoryLoading, className = '' }, ref) {
     const title = getDisplayTitle({
       suggested_title: item.suggested_title,
       title: item.title,
@@ -200,6 +206,14 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
         )}
 
         <CardContent className="flex flex-col gap-6">
+          {/* Review history — only shown when there are entries or loading */}
+          {(reviewHistoryLoading || (reviewHistory && reviewHistory.length > 0)) && (
+            <ReviewHistorySection
+              history={reviewHistory ?? []}
+              isLoading={reviewHistoryLoading}
+            />
+          )}
+
           {/* Content body */}
           <section>
             <CollapsibleContent key={item.id}>
