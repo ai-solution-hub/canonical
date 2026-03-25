@@ -88,8 +88,8 @@ export interface ItemDetailData {
   setReaderOpen: (open: boolean) => void;
   toggleReader: () => void;
   toggleDetached: () => void;
-  setDetachedPosition: (pos: FloatingPosition | null) => void;
-  setDetachedSize: (size: FloatingSize | null) => void;
+  setDetachedPosition: (pos: FloatingPosition) => void;
+  setDetachedSize: (size: FloatingSize) => void;
   showSplitReader: boolean;
 
   // --- Inline field edit ---

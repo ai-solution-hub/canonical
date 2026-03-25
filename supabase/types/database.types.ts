@@ -709,6 +709,9 @@ export type Database = {
       }
       governance_config: {
         Row: {
+          auto_flag_cooldown_days: number | null
+          auto_flag_on_freshness_transition: boolean | null
+          auto_flag_on_quality_drop: boolean | null
           created_at: string | null
           created_by: string | null
           domain: string
@@ -721,6 +724,9 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          auto_flag_cooldown_days?: number | null
+          auto_flag_on_freshness_transition?: boolean | null
+          auto_flag_on_quality_drop?: boolean | null
           created_at?: string | null
           created_by?: string | null
           domain: string
@@ -733,6 +739,9 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          auto_flag_cooldown_days?: number | null
+          auto_flag_on_freshness_transition?: boolean | null
+          auto_flag_on_quality_drop?: boolean | null
           created_at?: string | null
           created_by?: string | null
           domain?: string

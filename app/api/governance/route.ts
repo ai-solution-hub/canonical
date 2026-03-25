@@ -105,20 +105,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, action: 'updated' });
     } else {
       // Create new
-      const insertPayload: Record<string, unknown> = {
+      const { error } = await supabase.from('governance_config').insert({
         domain,
         posture,
         reviewer_id: reviewer_id ?? null,
         timeout_days: timeout_days ?? 7,
         created_by: user.id,
         updated_by: user.id,
-      };
-      if (quality_score_threshold !== undefined) insertPayload.quality_score_threshold = quality_score_threshold;
-      if (auto_flag_on_quality_drop !== undefined) insertPayload.auto_flag_on_quality_drop = auto_flag_on_quality_drop;
-      if (auto_flag_on_freshness_transition !== undefined) insertPayload.auto_flag_on_freshness_transition = auto_flag_on_freshness_transition;
-      if (auto_flag_cooldown_days !== undefined) insertPayload.auto_flag_cooldown_days = auto_flag_cooldown_days;
-
-      const { error } = await supabase.from('governance_config').insert(insertPayload);
+        ...(quality_score_threshold !== undefined && { quality_score_threshold }),
+        ...(auto_flag_on_quality_drop !== undefined && { auto_flag_on_quality_drop }),
+        ...(auto_flag_on_freshness_transition !== undefined && { auto_flag_on_freshness_transition }),
+        ...(auto_flag_cooldown_days !== undefined && { auto_flag_cooldown_days }),
+      });
 
       if (error) {
         console.error('Failed to create governance config:', error);
