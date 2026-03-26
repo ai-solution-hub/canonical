@@ -5,13 +5,13 @@
  * and duplicate detection.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockIlike, mockSelect, mockLimit } = vi.hoisted(() => {
+const { mockSelect, mockLimit } = vi.hoisted(() => {
   const mockLimit = vi.fn();
   const mockIlike = vi.fn().mockReturnValue({ limit: mockLimit });
   const mockSelect = vi.fn().mockReturnValue({ ilike: mockIlike });

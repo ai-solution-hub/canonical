@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { formatQAContent } from '@/components/batch-qa-preview-table';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -135,7 +136,7 @@ export function useBatchCreate(): UseBatchCreateReturn {
     try {
       const items = pairs.map((pair) => ({
         title: pair.question,
-        content: `Q: ${pair.question}\n\nA: ${pair.answer}`,
+        content: formatQAContent(pair),
         contentType: 'q_a_pair' as const,
       }));
 

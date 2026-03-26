@@ -126,21 +126,6 @@ export function BatchCreateClient() {
     setShowDuplicateDialog(false);
   }, []);
 
-  const handleSubmit = useCallback(async () => {
-    if (!canSubmit) return;
-
-    // Run duplicate check first
-    const dupes = await checkDuplicates(validPairs);
-    if (dupes.length > 0) {
-      setDuplicateMatches(dupes);
-      setShowDuplicateDialog(true);
-      return;
-    }
-
-    // No duplicates — proceed with submission
-    await executeSubmission();
-  }, [canSubmit, validPairs, checkDuplicates]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const executeSubmission = useCallback(async () => {
     setShowDuplicateDialog(false);
 
@@ -170,6 +155,21 @@ export function BatchCreateClient() {
       }
     }
   }, [validPairs, domain, subtopic, sourceDocumentLink, submit]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!canSubmit) return;
+
+    // Run duplicate check first
+    const dupes = await checkDuplicates(validPairs);
+    if (dupes.length > 0) {
+      setDuplicateMatches(dupes);
+      setShowDuplicateDialog(true);
+      return;
+    }
+
+    // No duplicates — proceed with submission
+    await executeSubmission();
+  }, [canSubmit, validPairs, checkDuplicates, executeSubmission]);
 
   const handleContinueWithDuplicates = useCallback(async () => {
     await executeSubmission();
@@ -280,7 +280,9 @@ export function BatchCreateClient() {
                 disabled={isSubmitting}
               />
 
-              {/* Shared metadata */}
+              {/* Shared metadata — domain/subtopic are collected for future per-item
+                  metadata support. Currently the batch API auto-classifies all items
+                  via the pipeline, so these values are informational only. */}
               <fieldset className="space-y-4 rounded-md border p-4" disabled={isSubmitting}>
                 <legend className="px-2 text-sm font-medium text-muted-foreground">
                   Shared metadata (optional)
