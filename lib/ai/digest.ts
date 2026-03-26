@@ -18,6 +18,8 @@ import type {
   Digest,
 } from '@/types/digest';
 import { AIServiceError } from '@/lib/ai/errors';
+import { generateContentSuggestions } from '@/lib/content-suggestions';
+import type { ContentSuggestion } from '@/lib/content-suggestions';
 
 // ──────────────────────────────────────────
 // Types
@@ -68,6 +70,7 @@ function buildStandardPrompt(
   itemsByDomainText: string,
   crossDomainSection: string,
   filterContext: string,
+  suggestionsSection: string,
 ): string {
   return `You are generating a content digest for a knowledge base.
 Period: ${periodLabel}
@@ -75,13 +78,14 @@ Total items: ${itemCount}
 ${filterContext}
 Items by domain:
 ${itemsByDomainText}
-${crossDomainSection}
+${crossDomainSection}${suggestionsSection}
 Rules:
 - narrative_summary: 2-3 paragraphs summarising the period's content themes and highlights. Write in second person ("you captured", "your focus was on").
 - domain_summaries: one per domain that has items, with a concise 2-3 sentence summary
 - key_themes: 2-5 themes per domain
 - top_items: the 3 most interesting/important items per domain with a brief explanation of why each stands out this period. Use the exact UUIDs from the item list above. If a domain has fewer than 3 items, include all of them.
 - theme_clusters: cross-domain themes that span multiple domains (3-7 clusters)
+- content_opportunities: if content suggestions are provided above, include 1-3 actionable suggestions for content to create. Each should have a domain, subtopic, a short suggestion sentence, and priority level. If no suggestions are provided, return an empty array.
 - Use UK English throughout`;
 }
 
@@ -94,6 +98,7 @@ function buildDailyPrompt(
   itemCount: number,
   itemsByDomainText: string,
   filterContext: string,
+  suggestionsSection: string,
 ): string {
   return `You are generating a brief daily digest for a knowledge base.
 Date: ${periodLabel}
@@ -101,15 +106,34 @@ Total new items: ${itemCount}
 ${filterContext}
 Items by domain:
 ${itemsByDomainText}
-
+${suggestionsSection}
 Rules:
 - narrative_summary: 1 short paragraph (2-4 sentences) summarising what was captured today. Write in second person ("you added", "today's captures focus on"). Keep it punchy.
 - domain_summaries: one per domain that has items, with a single concise sentence
 - key_themes: 1-3 themes per domain (keep it brief)
 - top_items: highlight the 1-2 most interesting items per domain. Use the exact UUIDs from the item list above. If a domain has only 1 item, include it.
 - theme_clusters: 1-3 cross-domain themes only if genuinely applicable. If items are few and unrelated, return an empty array.
+- content_opportunities: if content suggestions are provided above, include 1-2 actionable suggestions. If none provided, return an empty array.
 - Use UK English throughout
 - Be concise — this is a daily snapshot, not a deep analysis`;
+}
+
+// ──────────────────────────────────────────
+// Content suggestions section builder
+// ──────────────────────────────────────────
+
+/**
+ * Build a text section describing content suggestions for inclusion in the
+ * digest prompt. Returns an empty string if no suggestions are available.
+ */
+function buildSuggestionsSection(suggestions: ContentSuggestion[]): string {
+  if (suggestions.length === 0) return '';
+
+  let text = '\nContent Opportunities (gaps and suggestions for new content):\n';
+  for (const s of suggestions) {
+    text += `- [${s.priority}] ${s.domain} / ${s.subtopic}: ${s.title} — ${s.description}\n`;
+  }
+  return text;
 }
 
 // ──────────────────────────────────────────
@@ -276,6 +300,20 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
       ? `\nCross-domain keywords (these keywords appear across multiple domains — use them as hints for theme clustering):\n${crossDomainKeywords.map((k) => `- ${k}`).join('\n')}\n`
       : '';
 
+  // Fetch content suggestions for the "Suggested Actions" digest section
+  let contentSuggestions: ContentSuggestion[] = [];
+  try {
+    contentSuggestions = await generateContentSuggestions({
+      supabase,
+      maxSuggestions: 5,
+      domainFilter: filterDomain ?? undefined,
+    });
+  } catch (suggestionsErr) {
+    console.warn('Failed to fetch content suggestions for digest:', suggestionsErr);
+  }
+
+  const suggestionsSection = buildSuggestionsSection(contentSuggestions);
+
   // Choose prompt based on digest type
   const prompt = isDaily
     ? buildDailyPrompt(
@@ -283,6 +321,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
         typedItems.length,
         itemsByDomainText,
         filterContext,
+        suggestionsSection,
       )
     : buildStandardPrompt(
         periodLabel,
@@ -290,6 +329,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
         itemsByDomainText,
         crossDomainSection,
         filterContext,
+        suggestionsSection,
       );
 
   // Call Claude API — daily digests use fewer tokens
@@ -343,6 +383,20 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
                   item_count: { type: 'number' },
                 },
                 required: ['theme', 'description', 'item_count'],
+              },
+            },
+            content_opportunities: {
+              type: 'array',
+              description: 'Suggested content to create based on coverage gaps',
+              items: {
+                type: 'object',
+                properties: {
+                  domain: { type: 'string' },
+                  subtopic: { type: 'string' },
+                  suggestion: { type: 'string' },
+                  priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+                },
+                required: ['domain', 'subtopic', 'suggestion', 'priority'],
               },
             },
           },
@@ -482,6 +536,9 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
     console.error('Failed to collect governance data for digest:', govErr);
   }
 
+  // Extract content opportunities from Claude response
+  const contentOpportunities = parsed.content_opportunities ?? [];
+
   // Store in the digests table
   const digestRow = {
     digest_type: digestType,
@@ -497,6 +554,7 @@ export async function generateDigest(params: DigestParams): Promise<DigestResult
     metadata: toJson({
       ...(filters ?? {}),
       ...(governanceSummary ? { governance_summary: governanceSummary } : {}),
+      ...(contentOpportunities.length > 0 ? { content_opportunities: contentOpportunities } : {}),
     }),
     created_by: userId,
   };

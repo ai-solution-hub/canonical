@@ -41,6 +41,9 @@ const LazyGuidesSection = lazy(() =>
 const LazyDeveloperSetupSection = lazy(() =>
   import('@/components/settings/developer-setup-section').then((m) => ({ default: m.DeveloperSetupSection }))
 );
+const LazyContentOwnerManagement = lazy(() =>
+  import('@/components/settings/content-owner-management').then((m) => ({ default: m.ContentOwnerManagement }))
+);
 
 // ---------------------------------------------------------------------------
 // Section loading skeleton — shown briefly while a lazy section chunk loads
@@ -74,6 +77,12 @@ function SectionContent({ section }: { section: SettingsSection }) {
       return (
         <Suspense fallback={<SectionSkeleton />}>
           <LazyContentOrganisationSection />
+        </Suspense>
+      );
+    case 'content-owners':
+      return (
+        <Suspense fallback={<SectionSkeleton />}>
+          <LazyContentOwnerManagement />
         </Suspense>
       );
     case 'developer-setup':

@@ -35,6 +35,16 @@ const DigestDomainSummaryResponseSchema = z.object({
 });
 
 /**
+ * Schema for a single content opportunity within the digest response.
+ */
+const DigestContentOpportunitySchema = z.object({
+  domain: z.string(),
+  subtopic: z.string(),
+  suggestion: z.string(),
+  priority: z.enum(['critical', 'high', 'medium', 'low']),
+});
+
+/**
  * Schema for the `return_digest` tool response.
  * Used by: POST /api/digest/generate
  */
@@ -48,6 +58,7 @@ export const DigestResponseSchema = z.object({
       item_count: z.number(),
     }),
   ),
+  content_opportunities: z.array(DigestContentOpportunitySchema).optional(),
 });
 
 export type DigestResponse = z.infer<typeof DigestResponseSchema>;

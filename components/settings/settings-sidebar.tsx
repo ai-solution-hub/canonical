@@ -1,6 +1,6 @@
 'use client';
 
-import { User, Users, ShieldCheck, Activity, FolderTree, Menu, Plug, Terminal, Network, BookOpen } from 'lucide-react';
+import { User, Users, ShieldCheck, Activity, FolderTree, Menu, Plug, Terminal, Network, BookOpen, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ export type SettingsSection =
   | 'profile'
   | 'connections'
   | 'content-organisation'
+  | 'content-owners'
   | 'entities'
   | 'guides'
   | 'team'
@@ -39,6 +40,7 @@ const ALL_SECTIONS: SectionDef[] = [
   { id: 'profile', label: 'Profile', icon: User, group: 'personal' },
   { id: 'connections', label: 'Connections', icon: Plug, group: 'personal' },
   { id: 'content-organisation', label: 'Content Organisation', icon: FolderTree, group: 'content' },
+  { id: 'content-owners', label: 'Content Owners', icon: UserCheck, group: 'content' },
   { id: 'entities', label: 'Organisations & People', icon: Network, group: 'content' },
   { id: 'guides', label: 'Guides', icon: BookOpen, group: 'content' },
   { id: 'team', label: 'Team', icon: Users, group: 'system' },
