@@ -49,6 +49,7 @@ import {
 import { toast } from 'sonner';
 import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
 import { BidExportMenu } from '@/components/bid-export-menu';
+import { ReadinessChecklist, ReadinessBadge } from '@/components/bid/readiness-checklist';
 import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
 import { BidOutcomeDialog } from '@/components/bid-outcome';
 import { KBIntegrationReview } from '@/components/kb-integration-review';
@@ -60,6 +61,7 @@ import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBidActions } from '@/hooks/use-bid-actions';
 import { useBidExport } from '@/hooks/use-bid-export';
+import { useBidReadiness } from '@/hooks/use-bid-readiness';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { BID_STATE_LABELS } from '@/lib/bid-state-machine';
@@ -112,6 +114,13 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
     regularTransitions,
     tabs,
   } = useBidActions({ id });
+
+  const {
+    readiness,
+    isLoading: readinessLoading,
+    error: readinessError,
+    refresh: refreshReadiness,
+  } = useBidReadiness(id);
 
   if (loading) {
     return (
@@ -234,6 +243,7 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
                   Record Outcome
                 </Button>
               )}
+              <ReadinessBadge readiness={readiness} isLoading={readinessLoading} />
               <BidExportMenu
                 bidId={id}
                 bidName={bid.name}
@@ -374,6 +384,10 @@ export default function BidDetailPage({ params }: { params: Promise<{ id: string
             onSwitchTab={setActiveTab}
             onShowOutcomeDialog={() => setShowOutcomeDialog(true)}
             onShowKBReview={() => setShowKBReview(true)}
+            readiness={readiness}
+            readinessLoading={readinessLoading}
+            readinessError={readinessError}
+            onRefreshReadiness={refreshReadiness}
           />
         )}
         {activeTab === 'questions' && (
@@ -650,6 +664,10 @@ function OverviewTab({
   onSwitchTab,
   onShowOutcomeDialog,
   onShowKBReview,
+  readiness,
+  readinessLoading,
+  readinessError,
+  onRefreshReadiness,
 }: {
   bid: Bid;
   bidId: string;
@@ -667,6 +685,10 @@ function OverviewTab({
   onSwitchTab: (tab: 'overview' | 'questions' | 'responses' | 'documents') => void;
   onShowOutcomeDialog: () => void;
   onShowKBReview: () => void;
+  readiness: import('@/hooks/use-bid-readiness').ReadinessData | null;
+  readinessLoading: boolean;
+  readinessError: string | null;
+  onRefreshReadiness: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
   const overviewStatus = (bid.status ?? metadata.status) as BidState;
@@ -772,6 +794,18 @@ function OverviewTab({
               Find answers for {stats.unmatched_count} questions
             </Button>
           )}
+        </div>
+      )}
+
+      {/* Submission readiness — full width */}
+      {totalQuestions > 0 && canEdit && (
+        <div className="lg:col-span-2">
+          <ReadinessChecklist
+            readiness={readiness}
+            isLoading={readinessLoading}
+            error={readinessError}
+            onRefresh={onRefreshReadiness}
+          />
         </div>
       )}
 

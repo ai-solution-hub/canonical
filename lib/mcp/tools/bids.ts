@@ -25,6 +25,7 @@ import type {
   CitationResult,
   ContentEffectiveness,
 } from '@/lib/mcp/formatters';
+import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import {
   type ToolExtra,
@@ -162,6 +163,66 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         // Fetch individual questions grouped by section
         const { sections, status_breakdown, confidence_breakdown } = await fetchBidSections(supabase, args.id);
 
+        // Compute readiness summary from responses with metadata
+        const allQuestionIds = sections.flatMap((s) => s.questions.map((q) => q.id));
+        let readinessSummary: {
+          ready: boolean;
+          summary: {
+            total_questions: number;
+            answered: number;
+            approved: number;
+            quality_checked: number;
+            passing_quality: number;
+          };
+        } | null = null;
+
+        if (allQuestionIds.length > 0) {
+          const { data: responses } = await supabase
+            .from('bid_responses')
+            .select('question_id, response_text, review_status, metadata')
+            .in('question_id', allQuestionIds);
+
+          const responseMap = new Map<string, {
+            response_text: string | null;
+            review_status: string | null;
+            metadata: unknown;
+          }>();
+          for (const r of (responses ?? [])) {
+            responseMap.set(r.question_id, r);
+          }
+
+          let answered = 0;
+          let approved = 0;
+          let qualityChecked = 0;
+          let passingQuality = 0;
+          const QUALITY_THRESHOLD = 60;
+
+          for (const qId of allQuestionIds) {
+            const resp = responseMap.get(qId);
+            if (resp?.response_text && resp.response_text.trim().length > 0) answered++;
+            if (resp?.review_status === 'approved' || resp?.review_status === 'edited') approved++;
+
+            const meta2 = (resp?.metadata ?? {}) as BidResponseMetadata;
+            const qd: QualityData | null = meta2.quality_data ?? null;
+            if (qd) {
+              qualityChecked++;
+              if ((qd.overall_score ?? 0) >= QUALITY_THRESHOLD) passingQuality++;
+            }
+          }
+
+          const totalQ = allQuestionIds.length;
+          readinessSummary = {
+            ready: answered === totalQ && approved === totalQ && (qualityChecked === 0 || passingQuality === qualityChecked),
+            summary: {
+              total_questions: totalQ,
+              answered,
+              approved,
+              quality_checked: qualityChecked,
+              passing_quality: passingQuality,
+            },
+          };
+        }
+
         const meta = parseBidMetadata(workspace.domain_metadata);
         const bidDetail: BidDetail = {
           id: workspace.id,
@@ -177,10 +238,16 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           confidence_breakdown,
         };
 
-        const markdown = truncateResponse(formatBidDetail(bidDetail));
+        const readinessLine = readinessSummary
+          ? `\n\n**Readiness:** ${readinessSummary.ready ? 'Ready to export' : 'Not ready'} (${readinessSummary.summary.answered}/${readinessSummary.summary.total_questions} answered, ${readinessSummary.summary.approved}/${readinessSummary.summary.total_questions} approved)`
+          : '';
+        const markdown = truncateResponse(formatBidDetail(bidDetail) + readinessLine);
         return {
           content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(bidDetail),
+          structuredContent: toStructuredContent({
+            ...bidDetail,
+            readiness_summary: readinessSummary,
+          }),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
