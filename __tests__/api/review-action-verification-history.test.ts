@@ -44,31 +44,6 @@ import { POST as postAction } from '@/app/api/review/action/route';
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000001';
 
-/** Track calls to .from() and .insert() for verification_history specifically. */
-function getVerificationHistoryInserts(): unknown[] {
-  const fromCalls = mockSupabase.from.mock.calls;
-  const insertCalls = mockSupabase._chain.insert.mock.calls;
-
-  // We need to find insert calls that were preceded by from('verification_history')
-  // Since the mock chain is shared, we track by call order
-  const historyInserts: unknown[] = [];
-
-  // Find all from() calls for 'verification_history' and get their indices
-  const historyFromIndices: number[] = [];
-  fromCalls.forEach((call: unknown[], index: number) => {
-    if (call[0] === 'verification_history') {
-      historyFromIndices.push(index);
-    }
-  });
-
-  // For each insert call, check if there's a matching from('verification_history')
-  // This is approximate but works for our test structure
-  insertCalls.forEach((call: unknown[]) => {
-    historyInserts.push(call[0]);
-  });
-
-  return historyInserts;
-}
 
 function resetMocks() {
   vi.clearAllMocks();
