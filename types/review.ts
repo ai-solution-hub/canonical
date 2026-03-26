@@ -61,6 +61,8 @@ export interface ReviewQueueItem extends ContentListItem {
   secondary_domain: string | null;
   secondary_subtopic: string | null;
   quality_score: number | null;
+  /** Most recent verification_history action timestamp (verify, unverify, or flag) */
+  last_reviewed_at: string | null;
 }
 
 // -- API responses --

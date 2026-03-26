@@ -188,8 +188,10 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
                 verifiedByName={verifiedByName}
                 size="md"
               />
-              <DaysSinceReview verifiedAt={item.verified_at} />
+              <DaysSinceReview reviewedAt={item.last_reviewed_at ?? item.verified_at} />
             </div>
+          ) : item.last_reviewed_at ? (
+            <DaysSinceReview reviewedAt={item.last_reviewed_at} />
           ) : (
             <div className="flex items-center gap-1.5 text-xs text-freshness-stale">
               <Clock className="size-3.5" aria-hidden="true" />
@@ -320,11 +322,11 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
 // Days since review helper
 // ---------------------------------------------------------------------------
 
-function DaysSinceReview({ verifiedAt }: { verifiedAt: string }) {
+function DaysSinceReview({ reviewedAt }: { reviewedAt: string }) {
   // Capture "now" once on mount to avoid impure Date.now() during re-renders
   const [mountTime] = useState(() => Date.now());
   const days = Math.floor(
-    (mountTime - new Date(verifiedAt).getTime()) / (1000 * 60 * 60 * 24),
+    (mountTime - new Date(reviewedAt).getTime()) / (1000 * 60 * 60 * 24),
   );
 
   if (days === 0) {

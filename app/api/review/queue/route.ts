@@ -132,8 +132,16 @@ export async function GET(request: NextRequest) {
         .eq('resolved', false),
     ]);
 
+    // Batch-fetch latest verification_history action per item for "last reviewed" display
+    const mappedItems = items.map(mapToReviewQueueItem);
+    const itemIds = mappedItems.map((i) => i.id);
+    const reviewDates = await fetchLastReviewedDates(supabase, itemIds);
+    for (const item of mappedItems) {
+      item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+    }
+
     const response: ReviewQueueResponse = {
-      items: items.map(mapToReviewQueueItem),
+      items: mappedItems,
       total: count ?? 0,
       verified_count: verifiedResult.count ?? 0,
       flagged_count: flaggedResult.count ?? 0,
@@ -256,8 +264,16 @@ async function handleFlaggedQuery(
       .eq('resolved', false),
   ]);
 
+  // Batch-fetch latest verification_history action per item for "last reviewed" display
+  const mappedItems = items.map(mapToReviewQueueItem);
+  const flaggedItemIds = mappedItems.map((i) => i.id);
+  const reviewDates = await fetchLastReviewedDates(supabase, flaggedItemIds);
+  for (const item of mappedItems) {
+    item.last_reviewed_at = reviewDates.get(item.id) ?? null;
+  }
+
   const response: ReviewQueueResponse = {
-    items: items.map(mapToReviewQueueItem),
+    items: mappedItems,
     total: count ?? 0,
     verified_count: verifiedResult.count ?? 0,
     flagged_count: flaggedResult.count ?? 0,
@@ -265,6 +281,36 @@ async function handleFlaggedQuery(
   };
 
   return NextResponse.json(response);
+}
+
+/**
+ * Batch-fetch the most recent verification_history performed_at per item.
+ * Returns a Map of content_item_id → ISO timestamp string.
+ */
+async function fetchLastReviewedDates(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  itemIds: string[],
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  if (itemIds.length === 0) return result;
+
+  const { data } = await supabase
+    .from('verification_history')
+    .select('content_item_id, performed_at')
+    .in('content_item_id', itemIds)
+    .order('performed_at', { ascending: false });
+
+  if (data) {
+    // Take the first (most recent) entry per item
+    for (const row of data as Array<{ content_item_id: string; performed_at: string }>) {
+      if (!result.has(row.content_item_id)) {
+        result.set(row.content_item_id, row.performed_at);
+      }
+    }
+  }
+
+  return result;
 }
 
 /**
@@ -299,5 +345,6 @@ function mapToReviewQueueItem(row: ContentItemRow): ReviewQueueItem {
     freshness: row.freshness ?? null,
     governance_review_status: row.governance_review_status ?? null,
     quality_score: row.quality_score ?? null,
+    last_reviewed_at: null, // Populated post-query from verification_history
   };
 }
