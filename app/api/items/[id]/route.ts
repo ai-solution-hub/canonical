@@ -289,12 +289,11 @@ export async function PATCH(
         // Fetch the updated item's current state
         const { data: updatedForQuality } = await supabase
           .from('content_items')
-          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score')
+          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count, quality_score')
           .eq('id', id)
           .single();
 
         if (updatedForQuality) {
-          const meta = updatedForQuality.metadata as Record<string, unknown> | null;
           const newScore = calculateAndRoundQualityScore({
             freshness: updatedForQuality.freshness,
             classification_confidence: updatedForQuality.classification_confidence,
@@ -302,7 +301,7 @@ export async function PATCH(
             detail: updatedForQuality.detail,
             reference: updatedForQuality.reference,
             ai_summary: updatedForQuality.ai_summary,
-            citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+            citation_count: updatedForQuality.citation_count ?? 0,
           });
 
           await supabase

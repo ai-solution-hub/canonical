@@ -256,8 +256,8 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "classification_confidence": pair.get("classification_confidence", 0.0),
         "ai_summary": ai_summary,
         "ai_keywords": keywords,
+        "source_file": pair.get("source_file", "") or None,
         "metadata": {
-            "source_file": pair.get("source_file", ""),
             "section_name": pair.get("section_name", ""),
             "table_index": pair.get("table_index", 0),
             "row_index": pair.get("row_index", 0),

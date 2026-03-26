@@ -661,12 +661,11 @@ export async function POST(request: NextRequest) {
         // Fetch the latest item state (classification and summary may have updated fields)
         const { data: latestItem } = await serviceClient
           .from('content_items')
-          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, metadata')
+          .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count')
           .eq('id', itemId)
           .single();
 
         if (latestItem) {
-          const meta = latestItem.metadata as Record<string, unknown> | null;
           const score = calculateAndRoundQualityScore({
             freshness: latestItem.freshness,
             classification_confidence: latestItem.classification_confidence,
@@ -674,7 +673,7 @@ export async function POST(request: NextRequest) {
             detail: latestItem.detail,
             reference: latestItem.reference,
             ai_summary: latestItem.ai_summary,
-            citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+            citation_count: latestItem.citation_count ?? 0,
           });
 
           await serviceClient

@@ -10,6 +10,8 @@ export interface UseQAProvenanceParams {
   itemId: string;
   isQAPair: boolean;
   metadata: Record<string, unknown> | null;
+  /** Direct source_file column value (preferred over metadata extraction) */
+  sourceFile?: string | null;
   onMetadataUpdate: (updater: (prevMetadata: Record<string, unknown> | null) => Record<string, unknown> | null) => void;
 }
 
@@ -24,6 +26,7 @@ export function useQAProvenance({
   itemId,
   isQAPair,
   metadata,
+  sourceFile: sourceFileProp,
   onMetadataUpdate,
 }: UseQAProvenanceParams): UseQAProvenanceReturn {
   const [usedInWorkspaces, setUsedInWorkspaces] = useState<Array<{ id: string; name: string; type: string }>>([]);
@@ -58,7 +61,7 @@ export function useQAProvenance({
   // Fetch related Q&A pairs from the same source document
   useEffect(() => {
     if (!isQAPair) return;
-    const sourceFile = (metadata as Record<string, unknown> | null)?.source_file as string | undefined;
+    const sourceFile = sourceFileProp ?? (metadata as Record<string, unknown> | null)?.source_file as string | undefined;
     if (!sourceFile) return;
     const fetchRelated = async () => {
       const supabase = createClient();
@@ -66,14 +69,14 @@ export function useQAProvenance({
         .from('content_items')
         .select('id, title')
         .eq('content_type', 'q_a_pair')
-        .eq('metadata->>source_file', sourceFile)
+        .eq('source_file', sourceFile)
         .neq('id', itemId)
         .order('title')
         .limit(10);
       if (data) setRelatedQA(data as Array<{ id: string; title: string | null }>);
     };
     fetchRelated();
-  }, [itemId, metadata, isQAPair]);
+  }, [itemId, metadata, isQAPair, sourceFileProp]);
 
   // Fetch topic layers (items sharing the same topic_id)
   useEffect(() => {

@@ -29,6 +29,7 @@ function makeItem(overrides: Partial<QualityActionInput> = {}): QualityActionInp
     source_url: 'https://example.com/article',
     quality_score: 85,
     previous_quality_score: 80,
+    citation_count: 3,
     metadata: { citation_count: 3 },
     ...overrides,
   };
@@ -237,6 +238,7 @@ describe('suggestQualityActions', () => {
     const item = makeItem({
       id: 'no-citations',
       content_type: 'article',
+      citation_count: 0,
       metadata: { citation_count: 0 },
     });
     const actions = suggestQualityActions([item]);
@@ -250,6 +252,7 @@ describe('suggestQualityActions', () => {
   it('does not suggest add citations for qa_pair items', () => {
     const item = makeItem({
       content_type: 'qa_pair',
+      citation_count: 0,
       metadata: { citation_count: 0 },
     });
     const actions = suggestQualityActions([item]);
@@ -258,7 +261,7 @@ describe('suggestQualityActions', () => {
   });
 
   it('does not suggest add citations when citation_count > 0', () => {
-    const item = makeItem({ metadata: { citation_count: 2 } });
+    const item = makeItem({ citation_count: 2, metadata: { citation_count: 2 } });
     const actions = suggestQualityActions([item]);
     const citationActions = actions.filter(a => a.category === 'citations');
     expect(citationActions).toHaveLength(0);
@@ -267,6 +270,7 @@ describe('suggestQualityActions', () => {
   it('handles missing metadata for citation count', () => {
     const item = makeItem({
       content_type: 'article',
+      citation_count: null,
       metadata: null,
     });
     const actions = suggestQualityActions([item]);
@@ -356,6 +360,7 @@ describe('suggestQualityActions', () => {
       content_owner_id: null,
       source_url: null,
       quality_score: 10,
+      citation_count: 0,
       metadata: { citation_count: 0 },
     });
     const actions = suggestQualityActions([item]);
@@ -381,6 +386,7 @@ describe('suggestQualityActions', () => {
     const items = [
       makeItem({
         id: 'low-prio',
+        citation_count: 0,
         metadata: { citation_count: 0 },
         content_type: 'article',
       }),
@@ -440,6 +446,7 @@ describe('suggestQualityActions', () => {
       freshness: 'expired',
       classification_confidence: 0.1,
       ai_summary: null,
+      citation_count: 0,
       metadata: { citation_count: 0 },
       content_type: 'article',
       brief: 'Brief only',
@@ -535,9 +542,10 @@ describe('suggestQualityActions', () => {
   // Citation count extraction from metadata variants
   // -------------------------------------------------------------------------
 
-  it('extracts citation_count from metadata as number', () => {
+  it('reads citation_count from direct column property', () => {
     const item = makeItem({
       content_type: 'article',
+      citation_count: 3,
       metadata: { citation_count: 3 },
     });
     const actions = suggestQualityActions([item]);
@@ -545,9 +553,10 @@ describe('suggestQualityActions', () => {
     expect(citationActions).toHaveLength(0); // has citations, no action
   });
 
-  it('extracts citation_count from metadata as string', () => {
+  it('reads citation_count from direct column even when metadata has string', () => {
     const item = makeItem({
       content_type: 'article',
+      citation_count: 5,
       metadata: { citation_count: '5' },
     });
     const actions = suggestQualityActions([item]);
@@ -555,9 +564,10 @@ describe('suggestQualityActions', () => {
     expect(citationActions).toHaveLength(0); // has citations, no action
   });
 
-  it('treats non-numeric citation_count as 0', () => {
+  it('treats null citation_count as 0', () => {
     const item = makeItem({
       content_type: 'article',
+      citation_count: null,
       metadata: { citation_count: 'invalid' },
     });
     const actions = suggestQualityActions([item]);
@@ -796,6 +806,7 @@ describe('getTopQualityActions', () => {
         source_url: 'https://example.com',
         quality_score: 55, // below 60 threshold for Compliance
         previous_quality_score: null,
+        citation_count: 3,
         metadata: { citation_count: 3 },
       },
     ]);
@@ -876,6 +887,7 @@ describe('getTopQualityActions', () => {
         source_url: 'https://example.com',
         quality_score: 30,
         previous_quality_score: null,
+        citation_count: 3,
         metadata: { citation_count: 3 },
       },
     ]);

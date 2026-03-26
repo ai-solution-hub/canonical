@@ -83,8 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (sourceFileParam) {
-      // Filter by metadata->source_file using the JSONB text accessor
-      query = query.eq('metadata->>source_file' as string, sourceFileParam);
+      query = query.eq('source_file', sourceFileParam);
     }
 
     if (sourceDocumentIdParam) {
@@ -217,7 +216,7 @@ async function handleFlaggedQuery(
   }
 
   if (sourceFileParam) {
-    query = query.eq('metadata->>source_file', sourceFileParam);
+    query = query.eq('source_file', sourceFileParam);
   }
 
   if (sourceDocumentIdParam) {

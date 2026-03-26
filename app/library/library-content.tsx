@@ -151,7 +151,7 @@ export function LibraryContent() {
       }
 
       if (filters.source_file) {
-        query = query.eq('metadata->>source_file', filters.source_file);
+        query = query.eq('source_file', filters.source_file);
       }
 
       if (filters.variant === 'both') {
@@ -203,10 +203,10 @@ export function LibraryContent() {
     const fetchSources = async () => {
       const { data } = await supabase
         .from('content_items')
-        .select('metadata->>source_file')
+        .select('source_file')
         .eq('content_type', 'q_a_pair')
-        .not('metadata->>source_file', 'is', null)
-        .not('metadata->>source_file', 'eq', '');
+        .not('source_file', 'is', null)
+        .neq('source_file', '');
 
       if (data) {
         const unique = [

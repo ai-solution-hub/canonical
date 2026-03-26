@@ -57,6 +57,7 @@ function createQAItem(overrides: Partial<ContentListItem> = {}): ContentListItem
     user_tags: [],
     governance_review_status: null,
     metadata: null,
+    source_file: null,
     answer_standard: null,
     answer_advanced: null,
     content: null,
@@ -89,8 +90,9 @@ describe('QARow', () => {
     expect(screen.getByText('Technical > Information Security')).toBeInTheDocument();
   });
 
-  it('shows source file from metadata', () => {
+  it('shows source file from direct column', () => {
     const item = createQAItem({
+      source_file: 'bid-answers-2026.docx',
       metadata: { source_file: 'bid-answers-2026.docx' },
     });
     render(<QARow item={item} />);

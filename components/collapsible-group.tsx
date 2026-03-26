@@ -70,8 +70,7 @@ export function groupItems(
   for (const item of items) {
     let key: string;
     if (groupBy === 'source') {
-      const metadata = item.metadata as Record<string, unknown> | null;
-      key = (metadata?.source_file as string) || 'No source';
+      key = item.source_file || (item.metadata as Record<string, unknown> | null)?.source_file as string || 'No source';
     } else {
       key = item.primary_domain || 'Unclassified';
     }

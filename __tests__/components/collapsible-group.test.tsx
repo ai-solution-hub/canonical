@@ -36,6 +36,7 @@ function createQAItem(overrides: Partial<ContentListItem> = {}): ContentListItem
     user_tags: [],
     governance_review_status: null,
     metadata: overrides.metadata ?? null,
+    source_file: overrides.source_file ?? null,
     ...overrides,
   };
 }
@@ -92,11 +93,11 @@ describe('CollapsibleGroup', () => {
 });
 
 describe('groupItems', () => {
-  it('groups by source (metadata.source_file)', () => {
+  it('groups by source (source_file column)', () => {
     const items = [
-      createQAItem({ id: '1', metadata: { source_file: 'doc-a.docx' } }),
-      createQAItem({ id: '2', metadata: { source_file: 'doc-a.docx' } }),
-      createQAItem({ id: '3', metadata: { source_file: 'doc-b.docx' } }),
+      createQAItem({ id: '1', source_file: 'doc-a.docx', metadata: { source_file: 'doc-a.docx' } }),
+      createQAItem({ id: '2', source_file: 'doc-a.docx', metadata: { source_file: 'doc-a.docx' } }),
+      createQAItem({ id: '3', source_file: 'doc-b.docx', metadata: { source_file: 'doc-b.docx' } }),
     ];
     const groups = groupItems(items, 'source');
     expect(groups.get('doc-a.docx')).toHaveLength(2);

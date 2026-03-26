@@ -43,6 +43,8 @@ export interface QualityActionInput {
   quality_score: number | null;
   previous_quality_score: number | null;
   metadata: Record<string, unknown> | null;
+  /** Direct column — preferred over metadata extraction */
+  citation_count?: number | null;
 }
 
 export type QualityActionCategory =
@@ -107,7 +109,7 @@ export function suggestQualityActions(
   for (const item of items) {
     const itemTitle =
       item.suggested_title || item.title || 'Untitled';
-    const citationCount = extractCitationCount(item.metadata);
+    const citationCount = item.citation_count ?? extractCitationCount(item.metadata);
 
     // 0. Score drop — critical priority if item dropped below threshold
     if (
@@ -357,12 +359,13 @@ export async function getTopQualityActions(
     quality_score: number | null;
     previous_quality_score: number | null;
     metadata: Record<string, unknown> | null;
+    citation_count: number | null;
   }
 
   let query = supabase
     .from('content_items')
     .select(
-      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, freshness, classification_confidence, ai_summary, brief, detail, reference, content_owner_id, source_url, quality_score, previous_quality_score, metadata',
+      'id, title, suggested_title, content_type, primary_domain, primary_subtopic, freshness, classification_confidence, ai_summary, brief, detail, reference, content_owner_id, source_url, quality_score, previous_quality_score, metadata, citation_count',
     )
     .is('archived_at', null)
     .not('quality_score', 'is', null)
@@ -410,6 +413,7 @@ export async function getTopQualityActions(
         quality_score: item.quality_score ?? null,
         previous_quality_score: item.previous_quality_score ?? null,
         metadata: item.metadata,
+        citation_count: item.citation_count ?? null,
       });
     }
   }

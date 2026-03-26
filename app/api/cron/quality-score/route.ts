@@ -46,6 +46,7 @@ interface ContentItemRow {
   quality_score: number | null;
   governance_review_status: string | null;
   verified_at: string | null;
+  citation_count: number | null;
 }
 
 interface GovConfig {
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest) {
 
       const { data: items, error: fetchError } = await supabase
         .from('content_items')
-        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at')
+        .select('id, title, primary_domain, freshness, classification_confidence, brief, detail, reference, ai_summary, metadata, quality_score, governance_review_status, verified_at, citation_count')
         .is('archived_at', null)
         .order('id', { ascending: true })
         .range(offset, offset + BATCH_SIZE - 1);
@@ -144,7 +145,6 @@ export async function GET(request: NextRequest) {
       }> = [];
 
       for (const item of batch) {
-        const meta = item.metadata;
         const newScore = calculateAndRoundQualityScore({
           freshness: item.freshness,
           classification_confidence: item.classification_confidence,
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
           detail: item.detail,
           reference: item.reference,
           ai_summary: item.ai_summary,
-          citation_count: typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+          citation_count: item.citation_count ?? 0,
         });
 
         const oldScore = item.quality_score;

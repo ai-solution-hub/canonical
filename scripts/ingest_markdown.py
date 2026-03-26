@@ -208,15 +208,15 @@ def discover_markdown_files(path: str) -> list[str]:
 # ── Skip-existing Check ─────────────────────────────────────────────────────
 
 def check_source_file_exists(relative_path: str) -> bool:
-    """Check if a file with this source_file metadata already exists in Supabase."""
+    """Check if a file with this source_file already exists in Supabase."""
     supabase_url = get_supabase_url()
     key = get_supabase_secret_key()
 
-    # Use PostgREST JSON column filter: metadata->>source_file
+    # Use PostgREST column filter on the proper source_file column
     encoded_path = urllib.parse.quote(relative_path, safe="")
     url = (
         f"{supabase_url}/rest/v1/content_items"
-        f"?metadata->>source_file=eq.{encoded_path}"
+        f"?source_file=eq.{encoded_path}"
         f"&select=id"
         f"&limit=1"
     )
@@ -411,9 +411,9 @@ def process_markdown_file(
         "platform": "manual",
         "author_name": author_name or None,
         "captured_date": captured_date,
+        "source_file": relative_path,
         "metadata": {
             "ingestion_source": "markdown_file",
-            "source_file": relative_path,
             "source_folder": folder_name,
             "original_format": "markdown",
         },

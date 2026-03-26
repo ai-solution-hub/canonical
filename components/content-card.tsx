@@ -38,15 +38,13 @@ function isSearchResult(item: ContentListItem | SearchResult): item is SearchRes
 
 /** Derive a composite quality score from the fields available on a list item */
 function qualityScoreForItem(item: ContentListItem | SearchResult) {
-  const meta = item.metadata as Record<string, unknown> | null;
   return calculateQualityScore({
     freshness: item.freshness,
     classification_confidence: item.classification_confidence,
     brief: item.brief,
     // detail + reference are not fetched for list views — omitted intentionally
     ai_summary: item.ai_summary,
-    citation_count:
-      typeof meta?.citation_count === 'number' ? meta.citation_count : 0,
+    citation_count: item.citation_count ?? 0,
   });
 }
 

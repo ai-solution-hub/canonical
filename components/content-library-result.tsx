@@ -31,7 +31,8 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
   const isQAPair = result.content_type === 'q_a_pair';
   const qaParts = extractQAParts(result);
 
-  const sourceDocument = (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
+  const sourceDocument = result.source_file
+    ?? (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
     ?? result.source_document
     ?? undefined;
 
