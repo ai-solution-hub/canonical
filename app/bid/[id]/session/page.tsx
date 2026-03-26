@@ -22,6 +22,7 @@ import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator'
 import { ContentLibraryDrawer } from '@/components/content-library-drawer';
 import { ResponseVersionHistory } from '@/components/response-version-history';
 import { BidContextProvider } from '@/components/bid-context-provider';
+import { DraftRecoveryDialog } from '@/components/bid/draft-recovery-dialog';
 import {
   Sheet,
   SheetContent,
@@ -33,6 +34,7 @@ import { useUserRole } from '@/hooks/use-user-role';
 import { useModifierKey } from '@/hooks/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
+import { useDraftRecovery } from '@/hooks/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/response-editor';
@@ -184,6 +186,54 @@ export default function BidSessionPage({
     editorInstanceRef,
   });
 
+  // ── Draft recovery (localStorage crash protection) ──
+  const draftRecovery = useDraftRecovery(
+    id,
+    currentQuestion?.id ?? null,
+    response?.version ?? null,
+  );
+
+  // Destructure for React Compiler memoisation compatibility (S114 gotcha)
+  const { saveDraft, clearDraft, draftContent } = draftRecovery;
+
+  // Persist editor content to localStorage on change (debounced)
+  useEffect(() => {
+    // Only save when there is meaningful content and not during streaming
+    if (editorContent.length > 7 && !isStreaming) {
+      saveDraft(editorContent);
+    }
+  }, [editorContent, isStreaming, saveDraft]);
+
+  // Handle restoring a recovered draft
+  const handleRestoreDraft = useCallback(() => {
+    if (draftContent) {
+      setEditorContent(draftContent);
+      clearDraft();
+    }
+  }, [draftContent, clearDraft, setEditorContent]);
+
+  // Handle discarding a recovered draft
+  const handleDiscardDraft = useCallback(() => {
+    clearDraft();
+  }, [clearDraft]);
+
+  // Wrap handleAction to clear draft on successful save/accept
+  const handleActionWithRecovery = useCallback(
+    (action: Parameters<typeof handleAction>[0], instructions?: string) => {
+      if (instructions !== undefined) {
+        handleAction(action, instructions);
+      } else {
+        handleAction(action);
+      }
+
+      // Clear draft after save or accept actions
+      if (action === 'save' || action === 'accept') {
+        clearDraft();
+      }
+    },
+    [handleAction, clearDraft],
+  );
+
   // Citation orphan detection — batch-check source IDs via RPC
   const citationSourceIds = useMemo(
     () => (response?.citations ?? []).map((c) => c.source_id),
@@ -220,14 +270,14 @@ export default function BidSessionPage({
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         if (response?.id && editorContent.length > 7) {
-          handleAction('save');
+          handleActionWithRecovery('save');
         }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [canEdit, response?.id, editorContent.length, handleAction]);
+  }, [canEdit, response?.id, editorContent.length, handleActionWithRecovery]);
 
   // ── Current word count from editor content ──
   const currentWordCount = useMemo(() => {
@@ -465,7 +515,7 @@ export default function BidSessionPage({
                 <div className="flex items-center gap-2">
                   <div className="flex-1">
                     <ResponseActions
-                      onAction={handleAction}
+                      onAction={handleActionWithRecovery}
                       reviewStatus={response?.review_status ?? null}
                       isLoading={actionLoading || isStreaming}
                       loadingAction={isStreaming ? 'regenerate' : loadingAction}
@@ -514,6 +564,14 @@ export default function BidSessionPage({
                 </div>
               )}
 
+              {/* Draft recovery banner */}
+              <DraftRecoveryDialog
+                hasDraft={draftRecovery.hasDraft}
+                lastSavedAt={draftRecovery.lastSavedAt}
+                onRestore={handleRestoreDraft}
+                onDiscard={handleDiscardDraft}
+              />
+
               {/* Streaming phase indicator */}
               {stream.phase !== 'idle' && (
                 <StreamingPhaseIndicator
@@ -533,7 +591,7 @@ export default function BidSessionPage({
                 onSave={(html) => {
                   setEditorContent(html);
                   if (response?.id) {
-                    handleAction('save');
+                    handleActionWithRecovery('save');
                   }
                 }}
                 readOnly={!canEdit || isStreaming}
