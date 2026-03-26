@@ -32,7 +32,7 @@ import type { ContentOwnerStats } from '@/types/owner';
 // ---------------------------------------------------------------------------
 
 interface EnrichedOwnerStats extends ContentOwnerStats {
-  display_name?: string | null;
+  display_name?: string;
 }
 
 interface TeamMember {
