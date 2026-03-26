@@ -109,7 +109,7 @@ export function suggestQualityActions(
   for (const item of items) {
     const itemTitle =
       item.suggested_title || item.title || 'Untitled';
-    const citationCount = item.citation_count ?? extractCitationCount(item.metadata);
+    const citationCount = item.citation_count ?? 0;
 
     // 0. Score drop — critical priority if item dropped below threshold
     if (
@@ -442,20 +442,6 @@ export async function getTopQualityActions(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Extract citation_count from metadata JSONB. */
-function extractCitationCount(
-  metadata: Record<string, unknown> | null,
-): number {
-  if (!metadata) return 0;
-  const count = metadata.citation_count;
-  if (typeof count === 'number') return count;
-  if (typeof count === 'string') {
-    const parsed = parseInt(count, 10);
-    return isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
-}
 
 /** Count how many of brief/detail/reference are populated. */
 function countDepthLayers(
