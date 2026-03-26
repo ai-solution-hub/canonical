@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { RefreshCw, LayoutGrid, Download, Grid3x3 } from 'lucide-react';
+import { RefreshCw, LayoutGrid, Download, Grid3x3, Target } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -13,7 +13,11 @@ import {
 import { CoverageDomainSection } from '@/components/coverage-domain-section';
 import { CoverageLayerFilter } from '@/components/coverage-layer-filter';
 import { CoverageHeatmapView } from '@/components/coverage-heatmap-view';
+import { CoverageTargetProgress } from '@/components/coverage-target-progress';
+import { CoverageTargetEditor } from '@/components/coverage-target-editor';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
+import { useCoverageTargets } from '@/hooks/use-coverage-targets';
+import { useUserRole } from '@/hooks/use-user-role';
 import type { CoverageCellData } from '@/components/coverage-cell';
 
 // ---------------------------------------------------------------------------
@@ -185,11 +189,14 @@ function exportCoverageCSV(
 export function CoverageContent() {
   const { getSubtopics, getDomainColourKey, formatSubtopic, formatDomainName } =
     useTaxonomy();
+  const { targets, saveTargets } = useCoverageTargets();
+  const { canAdmin } = useUserRole();
 
   const [data, setData] = useState<CoverageResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [layerFilter, setLayerFilter] = useState<string | null>(null);
+  const [targetEditorOpen, setTargetEditorOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'cards' | 'heatmap'>(() => {
     if (typeof window === 'undefined') return 'cards';
     return (
@@ -310,6 +317,17 @@ export function CoverageContent() {
             Export CSV
           </Button>
         )}
+        {canAdmin && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setTargetEditorOpen(true)}
+            className="gap-1.5"
+          >
+            <Target className="size-3.5" aria-hidden="true" />
+            Targets
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -336,6 +354,14 @@ export function CoverageContent() {
           <>
             {/* Summary cards */}
             <CoverageSummaryCards summary={data.summary} />
+
+            {/* Coverage target progress */}
+            {targets.length > 0 && (
+              <CoverageTargetProgress
+                targets={targets}
+                coverageData={data.summary}
+              />
+            )}
 
             {/* Domain sections / Heatmap */}
             {viewMode === 'cards' ? (
@@ -375,6 +401,16 @@ export function CoverageContent() {
           </>
         )}
       </div>
+
+      {/* Target editor dialog (admin only) */}
+      {canAdmin && (
+        <CoverageTargetEditor
+          open={targetEditorOpen}
+          onOpenChange={setTargetEditorOpen}
+          targets={targets}
+          onSave={saveTargets}
+        />
+      )}
     </div>
   );
 }
