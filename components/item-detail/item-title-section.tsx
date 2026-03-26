@@ -8,6 +8,7 @@ import { FreshnessBadge } from '@/components/freshness-badge';
 import { formatSmartDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useUserRole } from '@/hooks/use-user-role';
+import { LatestVerificationNote, VerificationHistory } from '@/components/verification-history';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -97,6 +98,14 @@ export function ItemTitleSection({
             </span>
           )}
         </div>
+
+        {/* Latest verification note + expandable history */}
+        {item.id && (
+          <div className="mt-1.5 space-y-1">
+            <LatestVerificationNote contentItemId={item.id} />
+            <VerificationHistory contentItemId={item.id} />
+          </div>
+        )}
       </div>
 
       {/* Editing banner */}
