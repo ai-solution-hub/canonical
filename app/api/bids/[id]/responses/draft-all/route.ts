@@ -212,7 +212,7 @@ export async function POST(
               drafted_by: null,
               updated_at: new Date().toISOString(),
               overall_score: overallScore,
-            } as Record<string, unknown>,
+            },
             { onConflict: 'question_id' },
           );
 

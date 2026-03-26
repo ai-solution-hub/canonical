@@ -120,7 +120,7 @@ export async function POST(
         last_edited_by: user.id,
         updated_at: new Date().toISOString(),
         overall_score: overallScore,
-      } as Record<string, unknown>)
+      })
       .eq('id', rId)
       .select('id')
       .single();
