@@ -126,6 +126,9 @@ function resolveFilename(item: ContentItemRow): string {
   if (metadata?.original_filename && typeof metadata.original_filename === 'string') {
     return metadata.original_filename;
   }
+  if (item.source_file) {
+    return item.source_file;
+  }
   if (metadata?.source_file && typeof metadata.source_file === 'string') {
     return metadata.source_file;
   }
@@ -145,6 +148,7 @@ interface ContentItemRow {
   file_path: string | null;
   created_by: string | null;
   created_at: string | null;
+  source_file: string | null;
 }
 
 interface SourceDocGroup {
@@ -169,7 +173,7 @@ async function main() {
   // filter in code.
   const { data: items, error } = await supabase
     .from('content_items')
-    .select('id, content, content_type, metadata, file_path, created_by, created_at')
+    .select('id, content, content_type, metadata, file_path, created_by, created_at, source_file')
     .is('source_document_id', null)
     .order('created_at', { ascending: true })
     .limit(5000);
@@ -188,6 +192,7 @@ async function main() {
   const eligible = items.filter((item: ContentItemRow) => {
     const metadata = item.metadata as Record<string, unknown> | null;
     return (
+      item.source_file ||
       (metadata?.source_file && typeof metadata.source_file === 'string') ||
       (metadata?.original_filename && typeof metadata.original_filename === 'string') ||
       item.file_path

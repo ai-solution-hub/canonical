@@ -76,6 +76,7 @@ let mockFetch: ReturnType<typeof vi.fn>;
 const DEFAULT_PARAMS = {
   itemId: 'item-1',
   isQAPair: true,
+  sourceFile: 'answers.docx',
   metadata: { source_file: 'answers.docx' } as Record<string, unknown> | null,
   onMetadataUpdate: vi.fn(),
 };
@@ -192,9 +193,9 @@ describe('useQAProvenance', () => {
     expect(result.current.relatedQA[0].title).toBe('Related Question 1');
   });
 
-  it('does not fetch related Q&A when metadata has no source_file', async () => {
+  it('does not fetch related Q&A when no source_file available', async () => {
     const { result } = renderHook(() =>
-      useQAProvenance({ ...DEFAULT_PARAMS, metadata: {} }),
+      useQAProvenance({ ...DEFAULT_PARAMS, sourceFile: null, metadata: {} }),
     );
 
     await new Promise((r) => setTimeout(r, 50));

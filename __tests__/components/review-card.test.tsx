@@ -56,6 +56,7 @@ function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueIt
     metadata: null,
     content: 'This is the review content body.',
     source_url: null,
+    source_file: undefined,
     verified_at: null,
     verified_by: null,
     secondary_domain: null,
@@ -184,10 +185,11 @@ describe('ReviewCard', () => {
     expect(screen.queryByText(/Verified on/)).not.toBeInTheDocument();
   });
 
-  it('shows provenance when source_file in metadata', () => {
+  it('shows provenance when source_file is set', () => {
     render(
       <ReviewCard
         item={makeReviewItem({
+          source_file: 'client-qa.docx',
           metadata: { source_file: 'client-qa.docx' },
         })}
         position={1}

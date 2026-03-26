@@ -196,6 +196,7 @@ describe('ContentLibraryResult', () => {
         result={createResult({
           content_type: 'q_a_pair',
           content: 'Answer text',
+          source_file: 'tender-2026.docx',
           metadata: { question: 'Q?', source_file: 'tender-2026.docx' },
         })}
         onCopy={mockOnCopy}

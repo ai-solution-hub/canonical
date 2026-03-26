@@ -35,10 +35,9 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
   const [expanded, setExpanded] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  const metadata = item.metadata as Record<string, unknown> | null;
   const hasStandard = !!item.answer_standard;
   const hasAdvanced = !!item.answer_advanced;
-  const sourceFile = metadata?.source_file as string | undefined;
+  const sourceFile = item.source_file ?? (item.metadata as Record<string, unknown> | null)?.source_file as string | undefined;
 
   const handleCopy = useCallback(
     async (text: string, label: string) => {

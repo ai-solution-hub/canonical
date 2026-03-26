@@ -140,7 +140,8 @@ export function ContentLibraryDrawer({
     const ungrouped: SearchResult[] = [];
 
     for (const result of filteredResults) {
-      const sourceDoc = (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
+      const sourceDoc = result.source_file
+        ?? (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
         ?? result.source_document;
       if (sourceDoc) {
         const existing = groups.get(sourceDoc) ?? [];

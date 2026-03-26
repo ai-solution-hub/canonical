@@ -71,7 +71,7 @@ export async function GET() {
     // Uses a lightweight query fetching only the columns needed for aggregation.
     const { data: breakdownItems } = await supabase
       .from('content_items')
-      .select('primary_domain, content_type, verified_at, metadata, governance_review_status')
+      .select('primary_domain, content_type, verified_at, source_file, governance_review_status')
       .or('governance_review_status.is.null,governance_review_status.neq.draft')
       .limit(10000);
 
@@ -101,9 +101,8 @@ export async function GET() {
           by_content_type[contentType].verified++;
         }
 
-        // Source file breakdown (from metadata JSONB)
-        const sourceFile =
-          (item.metadata as Record<string, unknown> | null)?.source_file as string | undefined;
+        // Source file breakdown (from proper column)
+        const sourceFile = item.source_file as string | undefined;
         if (sourceFile) {
           if (!by_source_file[sourceFile]) {
             by_source_file[sourceFile] = { total: 0, verified: 0 };

@@ -43,6 +43,10 @@ export interface ContentListItem {
   quality_score?: number | null;
   /** Source document UUID for provenance tracking */
   source_document_id?: string | null;
+  /** Citation count (proper column, default 0) */
+  citation_count?: number | null;
+  /** Source file name (proper column, nullable) */
+  source_file?: string | null;
 }
 
 /** Content list item with read state */
@@ -211,7 +215,7 @@ export const CONTENT_LIST_COLUMNS = `
   verified_at, verified_by, source_document, brief, content,
   answer_standard, answer_advanced,
   content_owner_id, quality_score,
-  source_document_id
+  source_document_id, citation_count, source_file
 ` as const;
 
 /** Columns selected for detail view */

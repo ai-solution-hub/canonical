@@ -134,7 +134,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
     const confidence = getConfidenceDisplay(item.classification_confidence);
     const metadata = (item.metadata ?? {}) as Record<string, unknown>;
 
-    const sourceFile = metadata.source_file as string | undefined;
+    const sourceFile = item.source_file ?? (metadata.source_file as string | undefined);
     const sectionName = metadata.section_name as string | undefined;
     const importBatch = metadata.import_batch as string | undefined;
 
