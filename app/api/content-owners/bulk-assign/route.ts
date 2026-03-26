@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       try {
         await supabase.from('notifications').insert({
           user_id: owner_id,
-          type: 'owner_assignment' as 'quality_flag',
+          type: 'owner_assignment',
           entity_type: 'content_item',
           entity_id: itemIds[0],
           title: `You have been assigned as owner of ${count} content item${count === 1 ? '' : 's'}`,

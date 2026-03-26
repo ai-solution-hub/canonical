@@ -93,10 +93,10 @@ const mockHandleDismissDedupWarning = vi.fn();
 
 const defaultHookReturn = {
   phase: 'select' as const,
-  files: [],
-  fileStates: {},
+  files: [] as File[],
+  fileStates: {} as Record<string, unknown>,
   isUploading: false,
-  reviewItems: [],
+  reviewItems: [] as Array<{ id: string; title: string; contentType: string; warnings: string[]; dedupMatches: unknown[] }>,
   handleFilesAdded: mockHandleFilesAdded,
   handleFileRemoved: mockHandleFileRemoved,
   handleUpload: mockHandleUpload,

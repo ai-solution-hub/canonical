@@ -139,9 +139,13 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('ContentOwnerManagement', () => {
-  it('renders loading state initially', () => {
+  it('renders loading state initially', async () => {
     render(<ContentOwnerManagement />);
     expect(screen.getByText('Content Owners')).toBeInTheDocument();
+    // Wait for async effects to settle to avoid act() warnings
+    await waitFor(() => {
+      expect(screen.getByText('Content Owners')).toBeInTheDocument();
+    });
   });
 
   it('renders owner stats table after loading', async () => {
