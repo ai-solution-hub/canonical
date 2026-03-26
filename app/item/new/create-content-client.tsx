@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -358,6 +359,15 @@ export function CreateContentClient() {
         <h1 className="text-xl font-bold">
           {isQAPair ? 'New Q&A Pair' : 'Create New Content'}
         </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Need to create multiple items?{' '}
+          <Link
+            href="/item/new/batch"
+            className="font-medium text-primary underline-offset-2 hover:underline"
+          >
+            Use batch create
+          </Link>
+        </p>
       </div>
 
       {/* Layer suggestion banner (shown after item creation) */}
