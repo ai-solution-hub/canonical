@@ -3,6 +3,7 @@ import {
   getAuthorisedClient,
   authFailureResponse,
 } from '@/lib/auth';
+import { safeErrorMessage } from '@/lib/error';
 import type { BidResponseMetadata, QualityData } from '@/types/bid-metadata';
 
 export const maxDuration = 30;
@@ -291,9 +292,8 @@ export async function GET(
 
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json(
-      { error: `Failed to compute readiness: ${message}` },
+      { error: safeErrorMessage(err, 'Failed to compute readiness') },
       { status: 500 },
     );
   }
