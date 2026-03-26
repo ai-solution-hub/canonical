@@ -16,12 +16,28 @@ export interface Notification {
   created_at: string | null;
 }
 
+/** API response shape from GET /api/notifications */
+interface NotificationsResponse {
+  notifications: Notification[];
+  unreadCount: number;
+}
+
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Custom event dispatched when notifications are marked as read.
+ * Other components (e.g. dashboard) can listen for this to refresh
+ * stale server-rendered counts.
+ */
+export const NOTIFICATIONS_UPDATED_EVENT = 'notifications:updated';
 
 /**
  * Hook for managing notifications with 5-minute polling.
  *
  * Returns unread notifications and methods to mark them as read.
+ * The `unreadCount` is provided by the server (not computed client-side
+ * from the capped list) so it remains accurate regardless of how many
+ * notifications exist.
  */
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -33,11 +49,11 @@ export function useNotifications() {
     try {
       const res = await fetch('/api/notifications');
       if (!res.ok) return;
-      const data: Notification[] = await res.json();
-      setNotifications(data);
-      setUnreadCount(data.filter((n) => !n.read_at).length);
+      const data: NotificationsResponse = await res.json();
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
     } catch {
-      // Fail silently - notifications are non-critical
+      // Fail silently — notifications are non-critical
     } finally {
       setLoading(false);
     }
@@ -62,6 +78,13 @@ export function useNotifications() {
           ),
         );
         setUnreadCount((prev) => Math.max(0, prev - notificationIds.length));
+
+        // Notify other components (e.g. dashboard QuickStatsStrip) that
+        // the notification count has changed so they can refresh stale
+        // server-rendered values.
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
+        }
       }
     } catch {
       // Fail silently

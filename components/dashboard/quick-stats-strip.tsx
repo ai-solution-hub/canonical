@@ -1,3 +1,9 @@
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { NOTIFICATIONS_UPDATED_EVENT } from '@/hooks/use-notifications';
+
 interface QuickStatsStripProps {
   freshness: {
     fresh: number;
@@ -34,6 +40,21 @@ export function QuickStatsStrip({
   activeBidCount,
   unreadNotificationCount,
 }: QuickStatsStripProps) {
+  const router = useRouter();
+
+  // Listen for notification mark-as-read events from the bell hook and
+  // refresh server components so the dashboard count stays in sync.
+  useEffect(() => {
+    const handleUpdate = () => {
+      router.refresh();
+    };
+
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleUpdate);
+    };
+  }, [router]);
+
   const hasUnhealthyContent = freshness.aging > 0 || freshness.stale > 0 || freshness.expired > 0;
 
   return (

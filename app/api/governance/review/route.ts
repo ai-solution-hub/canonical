@@ -161,17 +161,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create a notification for the item's last editor if it's not the reviewer
+    // Create notifications for the content owner and/or last editor
     try {
       const { data: itemDetail } = await supabase
         .from('content_items')
-        .select('updated_by')
+        .select('updated_by, content_owner_id' as 'updated_by')
         .eq('id', item_id)
         .single();
 
-      if (itemDetail?.updated_by && itemDetail.updated_by !== user.id) {
+      const detail = itemDetail as Record<string, unknown> | null;
+      const notifyTargets = new Set<string>();
+
+      // Notify content owner first (primary recipient)
+      if (detail?.content_owner_id && detail.content_owner_id !== user.id) {
+        notifyTargets.add(detail.content_owner_id as string);
+      }
+      // Also notify last editor if different from owner and reviewer
+      if (detail?.updated_by && detail.updated_by !== user.id) {
+        notifyTargets.add(detail.updated_by as string);
+      }
+
+      for (const targetUserId of notifyTargets) {
         await supabase.from('notifications').insert({
-          user_id: itemDetail.updated_by,
+          user_id: targetUserId,
           type: `governance_${action}`,
           entity_type: 'content_item',
           entity_id: item_id,

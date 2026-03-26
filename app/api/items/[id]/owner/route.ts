@@ -102,7 +102,7 @@ export async function PATCH(
         version: nextVersion,
         title: (currentData.title as string) ?? '',
         content: (currentData.content as string) ?? '',
-        change_type: 'metadata_change',
+        change_type: 'owner_change',
         change_summary: `Content owner ${owner_id ? 'assigned' : 'unassigned'}`,
         change_details: {
           field: 'content_owner_id',

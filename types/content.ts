@@ -25,6 +25,8 @@ export interface ContentListItem {
   metadata: Record<string, unknown> | null;
   /** ISO timestamp when the item was verified, null if unverified */
   verified_at?: string | null;
+  /** UUID of user who verified the item */
+  verified_by?: string | null;
   /** Source document name for imported Q&A pairs */
   source_document?: string | null;
   /** Brief/executive summary for progressive depth */
@@ -64,8 +66,6 @@ export interface ContentItemDetail extends ContentListItem {
   updated_at: string;
   created_by: string | null;
   updated_by: string | null;
-  /** UUID of user who verified the item */
-  verified_by?: string | null;
   /** Source bid reference for provenance tracking */
   source_bid?: string | null;
   /** Progressive depth: detailed explanation */
@@ -208,7 +208,7 @@ export const CONTENT_LIST_COLUMNS = `
   primary_domain, primary_subtopic, content_type, platform,
   author_name, source_domain, thumbnail_url, captured_date,
   ai_keywords, classification_confidence, priority, freshness, user_tags, governance_review_status, metadata,
-  verified_at, source_document, brief, content,
+  verified_at, verified_by, source_document, brief, content,
   answer_standard, answer_advanced,
   content_owner_id, quality_score,
   source_document_id
@@ -220,7 +220,7 @@ export const CONTENT_DETAIL_COLUMNS = `
   source_url, file_path, secondary_domain, secondary_subtopic,
   classification_reasoning, classified_at, summary_data,
   created_at, updated_at, created_by, updated_by,
-  verified_by, source_bid, detail, reference,
+  source_bid, detail, reference,
   governance_review_status, governance_review_due, governance_reviewer_id,
   source_document_id, expiry_date, lifecycle_type
 ` as const;

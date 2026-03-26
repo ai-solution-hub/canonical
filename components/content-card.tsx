@@ -99,12 +99,13 @@ function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) 
 }
 
 /** Header row: content type icon, domain badge, layer badge, unread dot, quick assign, star */
-function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: {
+function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange, fromBidId }: {
   item: ContentListItem | SearchResult;
   isRead?: boolean;
   activeWorkspaces?: ActiveBidWorkspace[];
   assignedWorkspaceIds?: Set<string>;
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  fromBidId?: string;
 }) {
   return (
     <div className="flex items-center gap-1.5">
@@ -119,6 +120,7 @@ function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, o
             activeWorkspaces={activeWorkspaces}
             assignedWorkspaceIds={assignedWorkspaceIds}
             onAssignmentChange={onAssignmentChange}
+            fromBidId={fromBidId}
           />
         )}
         <StarToggle itemId={item.id} metadata={item.metadata} />
@@ -228,12 +230,13 @@ function CardStatusRow({ item, hasQualityFlag, simplifiedQuality, children }: {
 }
 
 /** Card footer: badges row, action bar, author, content type line, status row (shared by compact + standard) */
-function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, actionSlot }: {
+function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, actionSlot, verifiedByName }: {
   item: ContentListItem | SearchResult;
   hasQualityFlag?: boolean;
   simplifiedQuality?: boolean;
   badgeSlot?: React.ReactNode;
   actionSlot?: React.ReactNode;
+  verifiedByName?: string | null;
 }) {
   return (
     <div className="mt-auto flex flex-col gap-1.5 pt-1">
@@ -241,7 +244,13 @@ function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, action
         {badgeSlot}
         {item.verified_at && (
           <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-            <VerificationBadge verified={true} size="sm" />
+            <VerificationBadge
+              verified={true}
+              verifiedAt={item.verified_at}
+              verifiedByName={verifiedByName}
+              tooltipOnly={true}
+              size="sm"
+            />
           </span>
         )}
       </div>
@@ -287,9 +296,13 @@ interface ContentCardProps {
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
+  fromBidId?: string;
+  /** Map of user UUID to display name for verification badge attribution */
+  verifierNames?: Map<string, string>;
 }
 
-export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, simplifiedQuality, onQuickReviewUpdate, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange }: ContentCardProps) {
+export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityFlag, hideThumbnail, highlightQuery, canEdit, simplifiedQuality, onQuickReviewUpdate, activeWorkspaces, assignedWorkspaceIds, onAssignmentChange, fromBidId, verifierNames }: ContentCardProps) {
   const { getDomainColourKey } = useTaxonomy();
   const title = getDisplayTitle(item);
   const renderText = (text: string) =>
@@ -302,6 +315,9 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
 
   const answerPreview = isQAPair ? (item.content || item.brief || item.ai_summary || null) : null;
   const sourceDocument = isQAPair ? item.source_document : null;
+  const verifiedByName = item.verified_by
+    ? verifierNames?.get(item.verified_by) ?? null
+    : null;
 
   const cardClassName = cn(
     'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
@@ -347,6 +363,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                   activeWorkspaces={activeWorkspaces}
                   assignedWorkspaceIds={assignedWorkspaceIds}
                   onAssignmentChange={onAssignmentChange}
+                  fromBidId={fromBidId}
                 />
               )}
               <StarToggle itemId={item.id} metadata={item.metadata} />
@@ -392,7 +409,13 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
               )}
               {item.verified_at && (
                 <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-                  <VerificationBadge verified={true} size="sm" />
+                  <VerificationBadge
+                    verified={true}
+                    verifiedAt={item.verified_at}
+                    verifiedByName={verifiedByName}
+                    tooltipOnly={true}
+                    size="sm"
+                  />
                 </span>
               )}
             </CardStatusRow>
@@ -407,10 +430,10 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     return (
       <Link href={`/item/${item.id}`} prefetch={true} className={cardClassName} style={cardStyle('200px')}>
         <div className="flex flex-1 flex-col gap-2 p-3">
-          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} />
+          <CardHeaderRow item={item} isRead={isRead} activeWorkspaces={activeWorkspaces} assignedWorkspaceIds={assignedWorkspaceIds} onAssignmentChange={onAssignmentChange} fromBidId={fromBidId} />
           <CardTitle title={title} priority={item.priority} renderText={renderText} />
           <SummaryPreview item={item} renderText={renderText} />
-          <CardFooter item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} actionSlot={actionSlot} />
+          <CardFooter item={item} hasQualityFlag={hasQualityFlag} simplifiedQuality={simplifiedQuality} actionSlot={actionSlot} verifiedByName={verifiedByName} />
         </div>
       </Link>
     );
@@ -430,6 +453,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                 activeWorkspaces={activeWorkspaces}
                 assignedWorkspaceIds={assignedWorkspaceIds}
                 onAssignmentChange={onAssignmentChange}
+                fromBidId={fromBidId}
                 className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
               />
             )}
@@ -445,6 +469,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
               activeWorkspaces={activeWorkspaces}
               assignedWorkspaceIds={assignedWorkspaceIds}
               onAssignmentChange={onAssignmentChange}
+              fromBidId={fromBidId}
             />
           )}
           <StarToggle itemId={item.id} metadata={item.metadata} />
@@ -459,6 +484,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           simplifiedQuality={simplifiedQuality}
           badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge metadata={item.metadata} /></>}
           actionSlot={actionSlot}
+          verifiedByName={verifiedByName}
         />
       </div>
     </Link>

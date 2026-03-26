@@ -20,8 +20,18 @@ vi.mock('@/hooks/use-display-names', () => ({
   useDisplayNames: () => new Map<string, string>(),
 }));
 
+// Mock ReviewHistorySection to isolate ReviewCard tests
+vi.mock('@/components/review/review-history-section', () => ({
+  ReviewHistorySection: ({ history, isLoading }: { history: unknown[]; isLoading?: boolean }) => (
+    <div data-testid="review-history-section" data-loading={isLoading ? 'true' : 'false'}>
+      {history.length > 0 && <span data-testid="history-count">{history.length} entries</span>}
+    </div>
+  ),
+}));
+
 import { ReviewCard } from '@/components/review-card';
 import type { ReviewQueueItem } from '@/types/review';
+import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
 
 function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
   return {
@@ -304,5 +314,136 @@ describe('ReviewCard — low-confidence indicator', () => {
       />,
     );
     expect(screen.getByText('Low confidence')).toBeInTheDocument();
+  });
+});
+
+// ─── Review history prop tests ──────────────────────────────────────────────
+
+function makeHistoryEntry(overrides: Partial<ReviewHistoryEntry> = {}): ReviewHistoryEntry {
+  return {
+    id: 'history-1',
+    flag_type: 'review_needed',
+    severity: 'warning',
+    details: { notes: 'Needs attention' },
+    resolution_notes: null,
+    created_at: '2026-03-20T10:00:00Z',
+    created_by: 'user-1',
+    created_by_name: 'Alice Smith',
+    resolved: false,
+    resolved_at: null,
+    resolved_by: null,
+    resolved_by_name: null,
+    ...overrides,
+  };
+}
+
+describe('ReviewCard — review history props', () => {
+  it('renders ReviewHistorySection when reviewHistory has entries', () => {
+    const history = [makeHistoryEntry(), makeHistoryEntry({ id: 'history-2' })];
+
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistory={history}
+      />,
+    );
+
+    expect(screen.getByTestId('review-history-section')).toBeInTheDocument();
+    expect(screen.getByTestId('history-count')).toHaveTextContent('2 entries');
+  });
+
+  it('shows loading state when reviewHistoryLoading is true', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistoryLoading={true}
+      />,
+    );
+
+    const section = screen.getByTestId('review-history-section');
+    expect(section).toBeInTheDocument();
+    expect(section).toHaveAttribute('data-loading', 'true');
+  });
+
+  it('does not render history section when reviewHistory is undefined', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+      />,
+    );
+
+    expect(screen.queryByTestId('review-history-section')).not.toBeInTheDocument();
+  });
+
+  it('does not render history section when reviewHistory is empty and not loading', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistory={[]}
+        reviewHistoryLoading={false}
+      />,
+    );
+
+    expect(screen.queryByTestId('review-history-section')).not.toBeInTheDocument();
+  });
+
+  it('passes history data through to ReviewHistorySection correctly', () => {
+    const history = [
+      makeHistoryEntry({ id: 'h-1', flag_type: 'classification_low' }),
+      makeHistoryEntry({ id: 'h-2', flag_type: 'short_content' }),
+      makeHistoryEntry({ id: 'h-3', flag_type: 'duplicate_candidate' }),
+    ];
+
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistory={history}
+      />,
+    );
+
+    expect(screen.getByTestId('history-count')).toHaveTextContent('3 entries');
+  });
+
+  it('renders history section when loading even with no history data', () => {
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistory={[]}
+        reviewHistoryLoading={true}
+      />,
+    );
+
+    const section = screen.getByTestId('review-history-section');
+    expect(section).toBeInTheDocument();
+    expect(section).toHaveAttribute('data-loading', 'true');
+  });
+
+  it('sets loading to false when history is loaded', () => {
+    const history = [makeHistoryEntry()];
+
+    render(
+      <ReviewCard
+        item={makeReviewItem()}
+        position={1}
+        total={5}
+        reviewHistory={history}
+        reviewHistoryLoading={false}
+      />,
+    );
+
+    const section = screen.getByTestId('review-history-section');
+    expect(section).toHaveAttribute('data-loading', 'false');
   });
 });

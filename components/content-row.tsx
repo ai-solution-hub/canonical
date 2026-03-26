@@ -7,6 +7,7 @@ import { DomainBadge } from '@/components/domain-badge';
 import { SimilarityBadge } from '@/components/similarity-badge';
 import { StarButton } from '@/components/star-button';
 import { PriorityBadge } from '@/components/priority-selector';
+import { VerificationBadge } from '@/components/verification-badge';
 import { getDisplayTitle, formatDate, formatSmartDate, formatContentType } from '@/lib/format';
 import { ContentTypeIcon } from '@/components/content-type-icon';
 import { AlertTriangle, Copy } from 'lucide-react';
@@ -40,6 +41,10 @@ interface ContentRowProps {
   assignedWorkspaceIds?: Set<string>;
   /** Callback when workspace assignment changes */
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
+  fromBidId?: string;
+  /** Map of user UUID to display name for verification badge attribution */
+  verifierNames?: Map<string, string>;
 }
 
 function isSearchResult(
@@ -59,6 +64,8 @@ export const ContentRow = memo(function ContentRow({
   activeWorkspaces,
   assignedWorkspaceIds,
   onAssignmentChange,
+  fromBidId,
+  verifierNames,
 }: ContentRowProps) {
   const { getDomainColourKey } = useTaxonomy();
   const { getLayerLabel } = useLayerVocabulary();
@@ -71,6 +78,10 @@ export const ContentRow = memo(function ContentRow({
   /** Conditionally highlight text when a query is provided */
   const renderText = (text: string) =>
     highlightQuery ? highlightTerms(text, highlightQuery) : text;
+
+  const verifiedByName = item.verified_by
+    ? verifierNames?.get(item.verified_by) ?? null
+    : null;
 
   // Answer snippet for Q&A rows
   const answerSnippet = isQAPair
@@ -135,6 +146,17 @@ export const ContentRow = memo(function ContentRow({
                 aria-label="Has quality issues"
               />
             )}
+            {item.verified_at && (
+              <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                <VerificationBadge
+                  verified={true}
+                  verifiedAt={item.verified_at}
+                  verifiedByName={verifiedByName}
+                  tooltipOnly={true}
+                  size="sm"
+                />
+              </span>
+            )}
           </div>
           <span
             className={cn(
@@ -177,6 +199,7 @@ export const ContentRow = memo(function ContentRow({
             activeWorkspaces={activeWorkspaces}
             assignedWorkspaceIds={assignedWorkspaceIds}
             onAssignmentChange={onAssignmentChange}
+            fromBidId={fromBidId}
             className="shrink-0"
           />
         )}
@@ -272,6 +295,17 @@ export const ContentRow = memo(function ContentRow({
               aria-label="Has quality issues"
             />
           )}
+          {item.verified_at && (
+            <span className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+              <VerificationBadge
+                verified={true}
+                verifiedAt={item.verified_at}
+                verifiedByName={verifiedByName}
+                tooltipOnly={true}
+                size="sm"
+              />
+            </span>
+          )}
         </div>
         <span
           className={cn(
@@ -318,6 +352,7 @@ export const ContentRow = memo(function ContentRow({
           activeWorkspaces={activeWorkspaces}
           assignedWorkspaceIds={assignedWorkspaceIds}
           onAssignmentChange={onAssignmentChange}
+          fromBidId={fromBidId}
           className="shrink-0"
         />
       )}

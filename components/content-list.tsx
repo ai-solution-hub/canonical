@@ -26,6 +26,10 @@ interface ContentListProps {
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
+  fromBidId?: string;
+  /** Map of user UUID to display name for verification badge attribution */
+  verifierNames?: Map<string, string>;
 }
 
 export function ContentList({
@@ -42,6 +46,8 @@ export function ContentList({
   activeWorkspaces,
   itemAssignments,
   onAssignmentChange,
+  fromBidId,
+  verifierNames,
 }: ContentListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +155,8 @@ export function ContentList({
                   activeWorkspaces={activeWorkspaces}
                   assignedWorkspaceIds={itemAssignments?.get(item.id)}
                   onAssignmentChange={onAssignmentChange}
+                  fromBidId={fromBidId}
+                  verifierNames={verifierNames}
                 />
               </div>
             </div>

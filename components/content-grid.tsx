@@ -39,6 +39,10 @@ interface ContentGridProps {
   itemAssignments?: Map<string, Set<string>>;
   /** Callback when workspace assignment changes */
   onAssignmentChange?: (itemId: string, workspaceId: string, workspaceName: string) => void;
+  /** Workspace ID from ?from_bid= URL param for contextual quick-assign shortcut */
+  fromBidId?: string;
+  /** Map of user UUID to display name for verification badge attribution */
+  verifierNames?: Map<string, string>;
 }
 
 export function ContentGrid({
@@ -57,6 +61,8 @@ export function ContentGrid({
   activeWorkspaces,
   itemAssignments,
   onAssignmentChange,
+  fromBidId,
+  verifierNames,
 }: ContentGridProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [columns, setColumns] = useState(1);
@@ -248,6 +254,8 @@ export function ContentGrid({
                 activeWorkspaces={activeWorkspaces}
                 assignedWorkspaceIds={itemAssignments?.get(item.id)}
                 onAssignmentChange={onAssignmentChange}
+                fromBidId={fromBidId}
+                verifierNames={verifierNames}
               />
             </div>
           );
@@ -357,6 +365,7 @@ export function ContentGrid({
                       activeWorkspaces={activeWorkspaces}
                       assignedWorkspaceIds={itemAssignments?.get(item.id)}
                       onAssignmentChange={onAssignmentChange}
+                      verifierNames={verifierNames}
                     />
                   </div>
                   );

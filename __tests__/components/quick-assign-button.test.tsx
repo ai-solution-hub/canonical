@@ -235,4 +235,135 @@ describe('QuickAssignButton', () => {
     const listbox = screen.getByRole('listbox', { name: 'Active bid workspaces' });
     expect(listbox).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // fromBidId shortcut tests
+  // -------------------------------------------------------------------------
+
+  describe('fromBidId shortcut', () => {
+    it('shows quick-add shortcut when fromBidId matches an active workspace', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set()}
+          onAssignmentChange={mockOnChange}
+          fromBidId="ws-1"
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
+      await user.click(trigger);
+
+      const shortcut = screen.getByRole('button', { name: 'Quick add to Bid Alpha' });
+      expect(shortcut).toBeInTheDocument();
+    });
+
+    it('does not show quick-add shortcut when fromBidId is not provided', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set()}
+          onAssignmentChange={mockOnChange}
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
+      await user.click(trigger);
+
+      expect(screen.queryByRole('button', { name: /Quick add to/ })).not.toBeInTheDocument();
+    });
+
+    it('does not show quick-add shortcut when fromBidId does not match any workspace', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set()}
+          onAssignmentChange={mockOnChange}
+          fromBidId="ws-nonexistent"
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
+      await user.click(trigger);
+
+      expect(screen.queryByRole('button', { name: /Quick add to/ })).not.toBeInTheDocument();
+    });
+
+    it('clicking quick-add shortcut triggers assignment', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set()}
+          onAssignmentChange={mockOnChange}
+          fromBidId="ws-1"
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
+      await user.click(trigger);
+
+      const shortcut = screen.getByRole('button', { name: 'Quick add to Bid Alpha' });
+      await user.click(shortcut);
+
+      expect(mockOnChange).toHaveBeenCalledWith(ITEM_ID, 'ws-1', 'Bid Alpha');
+    });
+
+    it('shows check mark on quick-add shortcut when already assigned', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set(['ws-1'])}
+          onAssignmentChange={mockOnChange}
+          fromBidId="ws-1"
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assigned to 1 workspace' });
+      await user.click(trigger);
+
+      const shortcut = screen.getByRole('button', { name: 'Quick add to Bid Alpha' });
+      expect(shortcut).toBeInTheDocument();
+
+      // The shortcut should contain a Check icon (svg element within the button)
+      // We can verify by checking the shortcut contains an svg (the Check icon)
+      const svgInShortcut = shortcut.querySelector('svg');
+      expect(svgInShortcut).not.toBeNull();
+    });
+
+    it('quick-add shortcut has visually distinct styling', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <QuickAssignButton
+          itemId={ITEM_ID}
+          activeWorkspaces={WORKSPACES}
+          assignedWorkspaceIds={new Set()}
+          onAssignmentChange={mockOnChange}
+          fromBidId="ws-2"
+        />,
+      );
+
+      const trigger = screen.getByRole('button', { name: 'Assign to workspace' });
+      await user.click(trigger);
+
+      const shortcut = screen.getByRole('button', { name: 'Quick add to Bid Beta' });
+      // Should have primary-coloured styling (bg-primary/10, text-primary)
+      expect(shortcut.className).toContain('text-primary');
+    });
+  });
 });

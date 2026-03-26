@@ -85,7 +85,7 @@ describe('GET /api/notifications', () => {
     expect(json.error).toBe('Unauthorised');
   });
 
-  it('returns 200 with notification list on success', async () => {
+  it('returns 200 with notifications and unreadCount', async () => {
     const mockNotifications = [
       {
         id: VALID_UUID_1,
@@ -115,22 +115,65 @@ describe('GET /api/notifications', () => {
       },
     ];
 
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: mockNotifications, error: null }),
-    );
+    // Both queries resolve via Promise.all — list then count
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        // List query
+        return resolve({ data: mockNotifications, error: null });
+      }
+      // Count query
+      return resolve({ data: null, error: null, count: 2 });
+    });
 
     const res = await getNotifications();
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toHaveLength(2);
-    expect(json[0].id).toBe(VALID_UUID_1);
-    expect(json[1].id).toBe(VALID_UUID_2);
+    expect(json.notifications).toHaveLength(2);
+    expect(json.notifications[0].id).toBe(VALID_UUID_1);
+    expect(json.notifications[1].id).toBe(VALID_UUID_2);
+    expect(json.unreadCount).toBe(2);
+  });
+
+  it('returns accurate unreadCount independent of list limit', async () => {
+    // Simulate: list returns 50 items (capped), but there are 73 unread in total
+    const cappedList = Array.from({ length: 50 }, (_, i) => ({
+      id: `uuid-${i}`,
+      title: `Notification ${i}`,
+      message: null,
+      type: 'freshness',
+      entity_type: 'content_item',
+      entity_id: `item-${i}`,
+      user_id: 'test-user-id',
+      read_at: null,
+      dismissed_at: null,
+      expires_at: null,
+      created_at: '2026-03-01T10:00:00Z',
+    }));
+
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        return resolve({ data: cappedList, error: null });
+      }
+      // Server-side count returns the true total: 73
+      return resolve({ data: null, error: null, count: 73 });
+    });
+
+    const res = await getNotifications();
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.notifications).toHaveLength(50);
+    expect(json.unreadCount).toBe(73);
   });
 
   it('returns notifications scoped to the current user', async () => {
     mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+      resolve({ data: [], error: null, count: 0 }),
     );
 
     await getNotifications();
@@ -142,40 +185,107 @@ describe('GET /api/notifications', () => {
     expect(mockSupabase._chain.limit).toHaveBeenCalledWith(50);
   });
 
-  it('returns empty array when user has no notifications', async () => {
+  it('issues a head-only count query for unread notifications', async () => {
     mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [], error: null }),
+      resolve({ data: [], error: null, count: 0 }),
     );
+
+    await getNotifications();
+
+    // The count query uses select('*', { count: 'exact', head: true })
+    // and filters for read_at IS NULL
+    expect(mockSupabase._chain.select).toHaveBeenCalledWith(
+      '*',
+      { count: 'exact', head: true },
+    );
+    // read_at IS NULL filter for the count query
+    expect(mockSupabase._chain.is).toHaveBeenCalledWith('read_at', null);
+  });
+
+  it('returns empty notifications with zero unreadCount when none exist', async () => {
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        return resolve({ data: [], error: null });
+      }
+      return resolve({ data: null, error: null, count: 0 });
+    });
 
     const res = await getNotifications();
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual([]);
+    expect(json.notifications).toEqual([]);
+    expect(json.unreadCount).toBe(0);
   });
 
-  it('returns empty array when data is null', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: null }),
-    );
+  it('returns empty notifications when data is null', async () => {
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        return resolve({ data: null, error: null });
+      }
+      return resolve({ data: null, error: null, count: 0 });
+    });
 
     const res = await getNotifications();
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual([]);
+    expect(json.notifications).toEqual([]);
+    expect(json.unreadCount).toBe(0);
   });
 
-  it('returns 500 on database error', async () => {
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: null, error: { message: 'Database connection failed' } }),
-    );
+  it('returns 500 on list query database error', async () => {
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        return resolve({ data: null, error: { message: 'Database connection failed' } });
+      }
+      return resolve({ data: null, error: null, count: 0 });
+    });
 
     const res = await getNotifications();
 
     expect(res.status).toBe(500);
     const json = await res.json();
     expect(json.error).toBe('Failed to fetch notifications');
+  });
+
+  it('falls back to client-side count when count query fails', async () => {
+    const mixedNotifications = [
+      {
+        id: VALID_UUID_1, title: 'Unread', message: null, type: 'freshness',
+        entity_type: 'content_item', entity_id: VALID_UUID_2, user_id: 'test-user-id',
+        read_at: null, dismissed_at: null, expires_at: null, created_at: '2026-03-01T10:00:00Z',
+      },
+      {
+        id: VALID_UUID_2, title: 'Read', message: null, type: 'quality',
+        entity_type: 'content_item', entity_id: VALID_UUID_1, user_id: 'test-user-id',
+        read_at: '2026-03-01T11:00:00Z', dismissed_at: null, expires_at: null, created_at: '2026-03-01T09:00:00Z',
+      },
+    ];
+
+    let callCount = 0;
+    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      callCount++;
+      if (callCount === 1) {
+        return resolve({ data: mixedNotifications, error: null });
+      }
+      // Count query fails
+      return resolve({ data: null, error: { message: 'Count failed' }, count: null });
+    });
+
+    const res = await getNotifications();
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.notifications).toHaveLength(2);
+    // Falls back to counting from the list (1 unread out of 2)
+    expect(json.unreadCount).toBe(1);
   });
 });
 

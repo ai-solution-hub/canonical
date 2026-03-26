@@ -2,11 +2,15 @@
  * WP7: useNotifications Hook Tests
  *
  * Tests the useNotifications hook — fetch on mount, polling interval,
- * markAsRead API call, and unread count tracking.
+ * markAsRead API call, server-provided unread count, and event dispatch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
-import { useNotifications, type Notification } from '@/hooks/use-notifications';
+import {
+  useNotifications,
+  NOTIFICATIONS_UPDATED_EVENT,
+  type Notification,
+} from '@/hooks/use-notifications';
 
 // ---------------------------------------------------------------------------
 // Mock data
@@ -54,6 +58,11 @@ const mockNotifications: Notification[] = [
   },
 ];
 
+/** Helper to build the API response shape expected by the hook */
+function mockApiResponse(notifications: Notification[], unreadCount: number) {
+  return { notifications, unreadCount };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -64,7 +73,7 @@ describe('useNotifications', () => {
 
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockNotifications),
+      json: () => Promise.resolve(mockApiResponse(mockNotifications, 2)),
     });
   });
 
@@ -84,22 +93,29 @@ describe('useNotifications', () => {
     expect(result.current.notifications).toHaveLength(3);
   });
 
-  it('calculates unread count correctly', async () => {
+  it('uses server-provided unreadCount instead of client-side counting', async () => {
+    // Server says 5 unread even though only 2 in the list are unread —
+    // this simulates more unread notifications beyond the 50-item cap
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockApiResponse(mockNotifications, 5)),
+    });
+
     const { result } = renderHook(() => useNotifications());
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
     });
 
-    // notif-1 and notif-3 are unread (read_at is null)
-    expect(result.current.unreadCount).toBe(2);
+    // Should use the server-provided count (5), not client-computed (2)
+    expect(result.current.unreadCount).toBe(5);
   });
 
   it('marks notifications as read via API call', async () => {
     (global.fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockNotifications),
+        json: () => Promise.resolve(mockApiResponse(mockNotifications, 2)),
       })
       .mockResolvedValueOnce({
         ok: true,
@@ -128,6 +144,64 @@ describe('useNotifications', () => {
     expect(result.current.unreadCount).toBe(1);
   });
 
+  it('dispatches custom event after marking as read', async () => {
+    const eventSpy = vi.fn();
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, eventSpy);
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockApiResponse(mockNotifications, 2)),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({}),
+      });
+
+    const { result } = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.markAsRead(['notif-1']);
+    });
+
+    expect(eventSpy).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, eventSpy);
+  });
+
+  it('does not dispatch event when markAsRead API fails', async () => {
+    const eventSpy = vi.fn();
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, eventSpy);
+
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockApiResponse(mockNotifications, 2)),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({ error: 'Failed' }),
+      });
+
+    const { result } = renderHook(() => useNotifications());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.markAsRead(['notif-1']);
+    });
+
+    expect(eventSpy).not.toHaveBeenCalled();
+
+    window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, eventSpy);
+  });
+
   it('polls at the configured interval', async () => {
     const { result } = renderHook(() => useNotifications());
 
@@ -150,7 +224,7 @@ describe('useNotifications', () => {
   it('handles empty notification list', async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve([]),
+      json: () => Promise.resolve(mockApiResponse([], 0)),
     });
 
     const { result } = renderHook(() => useNotifications());

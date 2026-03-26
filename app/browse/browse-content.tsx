@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 import { toast } from 'sonner';
 import { Upload, Plus, Loader2, Search, AlertCircle } from 'lucide-react';
@@ -34,6 +34,7 @@ import { useBrowseData } from '@/hooks/use-browse-data';
 import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
 import { useFilterPresets } from '@/hooks/use-filter-presets';
 import { useQuickAssign } from '@/hooks/use-quick-assign';
+import { useDisplayNames } from '@/hooks/use-display-names';
 import {
   getSortOptionFromFilters,
   getSortFiltersFromOption,
@@ -41,7 +42,11 @@ import {
 
 export function BrowseContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { canEdit } = useUserRole();
+
+  // Parse ?from_bid=<workspaceId> for contextual quick-assign shortcut
+  const fromBidId = searchParams.get('from_bid') ?? undefined;
   const {
     isRead,
     readItemIds,
@@ -214,6 +219,12 @@ export function BrowseContent() {
     showUnreadOnly && readMarksLoaded
       ? items.filter((item) => !isRead(item.id))
       : items;
+
+  // Resolve verifier display names for browse badges
+  const verifierIds = displayItems
+    .map((item) => item.verified_by)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+  const verifierNames = useDisplayNames(verifierIds);
 
   // Multi-select handlers
   const toggleSelectItem = useCallback((itemId: string) => {
@@ -496,6 +507,8 @@ export function BrowseContent() {
                 activeWorkspaces={canEdit ? activeWorkspaces : undefined}
                 itemAssignments={canEdit ? itemAssignments : undefined}
                 onAssignmentChange={canEdit ? toggleAssignment : undefined}
+                fromBidId={canEdit ? fromBidId : undefined}
+                verifierNames={verifierNames}
               />
             ) : (
               <ContentList
@@ -511,6 +524,8 @@ export function BrowseContent() {
                 activeWorkspaces={canEdit ? activeWorkspaces : undefined}
                 itemAssignments={canEdit ? itemAssignments : undefined}
                 onAssignmentChange={canEdit ? toggleAssignment : undefined}
+                fromBidId={canEdit ? fromBidId : undefined}
+                verifierNames={verifierNames}
               />
             )}
           </div>

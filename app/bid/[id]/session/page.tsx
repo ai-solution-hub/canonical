@@ -9,6 +9,7 @@ import {
   Loader2,
   AlertCircle,
   Library,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -375,6 +376,19 @@ export default function BidSessionPage({
           <h1 className="text-lg font-semibold text-foreground truncate">
             {bidName}
           </h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="gap-1.5"
+          >
+            <Link href={`/browse?from_bid=${id}`}>
+              <Search className="size-3.5" aria-hidden="true" />
+              Browse for content
+            </Link>
+          </Button>
         </div>
       </div>
 
