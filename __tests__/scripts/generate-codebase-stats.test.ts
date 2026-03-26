@@ -70,8 +70,8 @@ describe("collectFileStats", () => {
     expect(stats.vitest_test_files).toBeGreaterThan(100);
   });
 
-  it("counts migrations correctly (should be substantial)", () => {
-    expect(stats.migrations).toBeGreaterThan(50);
+  it("counts migrations correctly (at least 1 after squash)", () => {
+    expect(stats.migrations).toBeGreaterThanOrEqual(1);
   });
 
   it("counts API route files correctly", () => {

@@ -94,6 +94,10 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
   remotely
 - Use Supabase MCP tools (`execute_sql`, `list_tables`, etc.) for queries and
   quick DML
+- **Never use MCP `execute_sql` for DDL** (CREATE TABLE, ALTER TABLE, etc.) —
+  always use `supabase migration new` + `supabase db push`. S118 migration
+  squash found ~20 columns and 25 functions applied via MCP that were never
+  captured in migration files, blocking replay for 3+ months.
 - **Function search_path:** All new PL/pgSQL functions MUST include
   `SET search_path = public, extensions` to avoid security warnings
 - **Prefer proper schema** -- tables and columns over JSONB for key data

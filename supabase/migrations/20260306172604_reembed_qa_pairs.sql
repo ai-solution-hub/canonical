@@ -1,6 +1,0 @@
--- Embedding regeneration for 179 Q&A pairs (Session 58)
--- Applied via supabase db push on 6 March 2026
--- Original file contained 179 UPDATE statements with vector(1024) data (~3.9MB)
--- Embeddings generated with text-embedding-3-large (1024 dimensions)
--- Source text: title + ai_summary + content[:1500]
--- This placeholder exists for migration history tracking only.
