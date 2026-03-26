@@ -87,7 +87,15 @@ export const ThemeClusterSchema = z
  * Logs a warning with issue details when validation fails.
  */
 export function parseJsonb<T>(schema: z.ZodType<T>, data: unknown): T | null {
-  const result = schema.safeParse(data);
+  let input = data;
+  if (typeof input === 'string') {
+    try {
+      input = JSON.parse(input);
+    } catch {
+      // Not valid JSON string — fall through to schema validation
+    }
+  }
+  const result = schema.safeParse(input);
   if (!result.success) {
     console.warn('JSONB parse warning:', result.error.issues);
     return null;
