@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fetchUnifiedDashboardData } from '@/lib/dashboard';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
+import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -144,6 +145,11 @@ async function DashboardContent() {
           userRole={unified.user_role}
         />
         <ActiveBidsSection bids={unified.active_bids} />
+      </div>
+
+      {/* Owned Content Health — personal content ownership card */}
+      <div className="mt-6">
+        <OwnedContentHealth />
       </div>
 
       {/* QuickStatsStrip — content health at a glance */}
