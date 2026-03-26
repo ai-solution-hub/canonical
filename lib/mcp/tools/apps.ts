@@ -186,6 +186,34 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           totalFlagged++;
         }
 
+        // Coverage targets
+        const { data: targetRows } = await supabase
+          .from('coverage_targets')
+          .select('domain_id, metric_name, target_value, taxonomy_domains(name)')
+          .order('domain_id');
+
+        type TargetRow = {
+          domain_id: string;
+          metric_name: string;
+          target_value: number;
+          taxonomy_domains: { name: string } | null;
+        };
+        const coverageTargets: Array<{
+          domain_name: string;
+          metric_name: string;
+          target_value: number;
+        }> = [];
+        for (const row of (targetRows ?? []) as unknown as TargetRow[]) {
+          const domName = row.taxonomy_domains?.name;
+          if (domName) {
+            coverageTargets.push({
+              domain_name: domName,
+              metric_name: row.metric_name,
+              target_value: row.target_value,
+            });
+          }
+        }
+
         // Coverage gaps
         const gaps: CoverageMatrixData['gaps'] = [];
         if (includeGaps) {
@@ -221,10 +249,52 @@ export async function registerAppTools(server: McpServer): Promise<void> {
           gaps,
         };
 
-        const markdown = truncateResponse(formatCoverageMatrix(result));
+        // Add targets to structured response
+        const structuredData = {
+          ...result,
+          targets: coverageTargets.length > 0 ? coverageTargets : undefined,
+        };
+
+        // Build markdown with optional target comparison
+        let markdown = formatCoverageMatrix(result);
+        if (coverageTargets.length > 0) {
+          const targetLines: string[] = [
+            '',
+            '## Coverage Targets',
+            '',
+            '| Domain | Metric | Target | Current | Status |',
+            '|--------|--------|--------|---------|--------|',
+          ];
+          for (const target of coverageTargets) {
+            const domain = domains.find((d) => d.name === target.domain_name);
+            let current = '—';
+            let status = '—';
+            if (domain) {
+              if (target.metric_name === 'item_count') {
+                current = String(domain.total_items);
+                status = domain.total_items >= target.target_value ? 'On track' : 'Below target';
+              } else if (target.metric_name === 'fresh_pct') {
+                const totalDomain = domain.total_items || 1;
+                const freshPct = Math.round((domain.fresh / totalDomain) * 100);
+                current = `${freshPct}%`;
+                status = freshPct >= target.target_value ? 'On track' : 'Below target';
+              } else if (target.metric_name === 'max_expired') {
+                current = String(domain.expired);
+                status = domain.expired <= target.target_value ? 'On track' : 'Below target';
+              }
+            }
+            const metricLabel = target.metric_name.replace(/_/g, ' ');
+            const targetDisplay = target.metric_name === 'fresh_pct'
+              ? `${target.target_value}%`
+              : String(target.target_value);
+            targetLines.push(`| ${target.domain_name} | ${metricLabel} | ${targetDisplay} | ${current} | ${status} |`);
+          }
+          markdown += targetLines.join('\n');
+        }
+
         return {
-          content: [{ type: 'text' as const, text: markdown }],
-          structuredContent: toStructuredContent(result),
+          content: [{ type: 'text' as const, text: truncateResponse(markdown) }],
+          structuredContent: toStructuredContent(structuredData),
         };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';

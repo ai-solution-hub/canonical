@@ -90,6 +90,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
       inputSchema: {
         min_items: z.number().optional().describe('Threshold below which a subtopic is considered "thin" (default: 3)'),
         include_stale: z.boolean().optional().describe('Whether to flag subtopics where all items are stale/expired (default: true)'),
+        use_targets: z.boolean().optional().describe('Use coverage_targets item_count to recalibrate thin thresholds per domain (default: true)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -101,8 +102,9 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const minItems = args.min_items ?? 3;
+        const defaultMinItems = args.min_items ?? 3;
         const includeStale = args.include_stale ?? true;
+        const useTargets = args.use_targets ?? true;
 
         // Fetch full taxonomy
         const { data: domains } = await supabase
@@ -126,6 +128,23 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
           domainMap.set(d.id, d.name);
         }
 
+        // Fetch coverage targets for item_count to recalibrate thin thresholds
+        const domainTargetMinItems = new Map<string, number>();
+        if (useTargets) {
+          const { data: targetRows } = await supabase
+            .from('coverage_targets')
+            .select('domain_id, metric_name, target_value')
+            .eq('metric_name', 'item_count');
+
+          for (const row of (targetRows ?? []) as Array<{ domain_id: string; metric_name: string; target_value: number }>) {
+            const domName = domainMap.get(row.domain_id);
+            if (domName) {
+              // Use target item_count as the thin threshold for this domain
+              domainTargetMinItems.set(domName, row.target_value);
+            }
+          }
+        }
+
         // Count items per domain+subtopic
         type ItemRow = { primary_domain: string | null; primary_subtopic: string | null; freshness: string | null };
         const countMap = new Map<string, { total: number; stale: number; expired: number }>();
@@ -147,6 +166,9 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
         for (const st of (subtopics ?? []) as Array<{ id: string; name: string; domain_id: string }>) {
           const domainName = domainMap.get(st.domain_id);
           if (!domainName) continue;
+
+          // Use domain-specific target threshold if available, otherwise default
+          const minItems = domainTargetMinItems.get(domainName) ?? defaultMinItems;
 
           const key = `${domainName}|${st.name}`;
           const counts = countMap.get(key);
