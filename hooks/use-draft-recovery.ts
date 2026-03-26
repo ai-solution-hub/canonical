@@ -178,8 +178,22 @@ export function useDraftRecovery(
     // readVersion dependency ensures re-read after clear
     void readVersion;
     if (!storageKey) return null;
-    return getStoredDraft(storageKey);
-  }, [storageKey, readVersion]);
+    const draft = getStoredDraft(storageKey);
+    if (!draft) return null;
+
+    // Silently discard draft if the server response is newer than when
+    // the draft was saved — another user may have saved a newer version
+    if (
+      responseVersion !== null &&
+      draft.responseVersion !== null &&
+      responseVersion > draft.responseVersion
+    ) {
+      removeDraft(storageKey);
+      return null;
+    }
+
+    return draft;
+  }, [storageKey, readVersion, responseVersion]);
 
   const hasDraft = storedDraft !== null;
   const draftContent = storedDraft?.content ?? null;

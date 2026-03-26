@@ -217,18 +217,22 @@ export default function BidSessionPage({
     clearDraft();
   }, [clearDraft]);
 
-  // Wrap handleAction to clear draft on successful save/accept
+  // Wrap handleAction to clear draft only after successful save/accept
   const handleActionWithRecovery = useCallback(
-    (action: Parameters<typeof handleAction>[0], instructions?: string) => {
-      if (instructions !== undefined) {
-        handleAction(action, instructions);
-      } else {
-        handleAction(action);
-      }
+    async (action: Parameters<typeof handleAction>[0], instructions?: string) => {
+      try {
+        if (instructions !== undefined) {
+          await handleAction(action, instructions);
+        } else {
+          await handleAction(action);
+        }
 
-      // Clear draft after save or accept actions
-      if (action === 'save' || action === 'accept') {
-        clearDraft();
+        // Clear draft only after successful save or accept
+        if (action === 'save' || action === 'accept') {
+          clearDraft();
+        }
+      } catch {
+        // On failure, keep the draft as a safety net
       }
     },
     [handleAction, clearDraft],
