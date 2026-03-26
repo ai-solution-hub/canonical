@@ -7,6 +7,7 @@
  *   - Zero fresh content in a domain (critical gap)
  *   - >20% drop in fresh percentage
  *   - Subtopics with zero content items
+ *   - Per-domain target breaches (fresh_pct, max_expired, item_count)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -42,6 +43,32 @@ interface CoverageSnapshot {
   };
 }
 
+interface CoverageTargetRow {
+  domain_id: string;
+  metric_name: string;
+  target_value: number;
+  taxonomy_domains: { name: string } | null;
+}
+
+/**
+ * Build a lookup map from domain name to metric targets.
+ * Map<domainName, Map<metricName, targetValue>>
+ */
+function buildTargetsByDomain(
+  targets: CoverageTargetRow[],
+): Map<string, Map<string, number>> {
+  const map = new Map<string, Map<string, number>>();
+  for (const t of targets) {
+    const domainName = t.taxonomy_domains?.name;
+    if (!domainName) continue;
+    if (!map.has(domainName)) {
+      map.set(domainName, new Map());
+    }
+    map.get(domainName)!.set(t.metric_name, Number(t.target_value));
+  }
+  return map;
+}
+
 export async function GET(request: NextRequest) {
   if (!verifyCronAuth(request)) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
@@ -50,8 +77,16 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createServiceClient();
 
-    // Fetch current coverage via RPC
-    const { data: coverageData, error: rpcError } = await supabase.rpc('get_coverage_summary');
+    // Fetch current coverage via RPC and per-domain targets in parallel
+    const [coverageResult, targetsResult] = await Promise.all([
+      supabase.rpc('get_coverage_summary'),
+      supabase
+        .from('coverage_targets')
+        .select('domain_id, metric_name, target_value, taxonomy_domains(name)')
+        .order('domain_id'),
+    ]);
+
+    const { data: coverageData, error: rpcError } = coverageResult;
 
     if (rpcError) {
       console.error('get_coverage_summary RPC failed:', rpcError);
@@ -62,6 +97,9 @@ export async function GET(request: NextRequest) {
     }
 
     const currentCoverage = (coverageData ?? []) as CoverageSummaryRow[];
+    const targetsByDomain = buildTargetsByDomain(
+      (targetsResult.data ?? []) as CoverageTargetRow[],
+    );
 
     // Build snapshot object
     const currentSnapshot: CoverageSnapshot = {};
@@ -105,6 +143,7 @@ export async function GET(request: NextRequest) {
     let criticalGaps = 0;
     let degradedDomains = 0;
     let emptySubtopics = 0;
+    let targetBreaches = 0;
 
     for (const row of currentCoverage) {
       const domain = row.domain_name;
@@ -113,8 +152,9 @@ export async function GET(request: NextRequest) {
       const gapCount = Number(row.gap_count);
       const expiredCount = Number(row.expired_count);
       const prev = previousSnapshot[domain];
+      const domainTargets = targetsByDomain.get(domain);
 
-      // Critical: zero fresh content
+      // Critical: zero fresh content (hardcoded fallback)
       if (totalItems > 0 && freshPct === 0) {
         criticalGaps++;
         alerts.push({
@@ -125,7 +165,7 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      // Degradation: >20% drop in fresh percentage
+      // Degradation: >20% drop in fresh percentage (hardcoded fallback)
       if (prev && prev.fresh_pct > 0) {
         const drop = prev.fresh_pct - freshPct;
         if (drop > DEGRADATION_THRESHOLD) {
@@ -142,6 +182,45 @@ export async function GET(request: NextRequest) {
       // Empty subtopics
       if (gapCount > 0) {
         emptySubtopics += gapCount;
+      }
+
+      // ----- Per-domain target-based alerts -----
+      if (domainTargets) {
+        // Fresh % below target
+        const freshTarget = domainTargets.get('fresh_pct');
+        if (freshTarget !== undefined && freshPct < freshTarget) {
+          targetBreaches++;
+          alerts.push({
+            entityId: '00000000-0000-0000-0000-000000000000',
+            entityType: 'domain',
+            title: `${domain}: freshness ${freshPct}% below ${freshTarget}% target`,
+            message: `Weekly coverage analysis for ${now.toLocaleDateString('en-GB')}. ${domain} fresh content is ${freshPct}%, which is below the configured target of ${freshTarget}% (${totalItems} total items, ${expiredCount} expired).`,
+          });
+        }
+
+        // Expired exceeds max_expired target
+        const maxExpiredTarget = domainTargets.get('max_expired');
+        if (maxExpiredTarget !== undefined && expiredCount > maxExpiredTarget) {
+          targetBreaches++;
+          alerts.push({
+            entityId: '00000000-0000-0000-0000-000000000000',
+            entityType: 'domain',
+            title: `${domain}: ${expiredCount} expired items (target: max ${maxExpiredTarget})`,
+            message: `Weekly coverage analysis for ${now.toLocaleDateString('en-GB')}. ${domain} has ${expiredCount} expired items, exceeding the maximum target of ${maxExpiredTarget}.`,
+          });
+        }
+
+        // Items below item_count target
+        const itemCountTarget = domainTargets.get('item_count');
+        if (itemCountTarget !== undefined && totalItems < itemCountTarget) {
+          targetBreaches++;
+          alerts.push({
+            entityId: '00000000-0000-0000-0000-000000000000',
+            entityType: 'domain',
+            title: `${domain}: ${totalItems} items, target is ${itemCountTarget}`,
+            message: `Weekly coverage analysis for ${now.toLocaleDateString('en-GB')}. ${domain} has ${totalItems} content items, which is below the configured target of ${itemCountTarget}.`,
+          });
+        }
       }
     }
 
@@ -205,7 +284,7 @@ export async function GET(request: NextRequest) {
       status: 'completed',
       items_processed: currentCoverage.length,
       completed_at: new Date().toISOString(),
-      result: { ...currentSnapshot as Record<string, unknown>, notifications_created: notificationsCreated } as unknown as Json,
+      result: { ...currentSnapshot as Record<string, unknown>, notifications_created: notificationsCreated, target_breaches: targetBreaches } as unknown as Json,
     });
 
     return NextResponse.json({
@@ -213,6 +292,7 @@ export async function GET(request: NextRequest) {
       critical_gaps: criticalGaps,
       degraded_domains: degradedDomains,
       empty_subtopics: emptySubtopics,
+      target_breaches: targetBreaches,
       notifications_created: notificationsCreated,
       snapshot_stored: true,
       executed_at: new Date().toISOString(),
