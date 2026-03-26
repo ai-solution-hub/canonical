@@ -194,13 +194,13 @@ export async function POST(request: NextRequest) {
       });
       suggestedLayer = suggestion;
 
-      // Store the suggested layer in metadata via merge_item_metadata
+      // Store the suggested layer in the dedicated column
       const { createServiceClient } = await import('@/lib/supabase/server');
       const serviceClient = createServiceClient();
-      await serviceClient.rpc('merge_item_metadata', {
-        p_item_id: newItem.id,
-        p_new_data: { layer: suggestion.suggestedLayer },
-      });
+      await serviceClient
+        .from('content_items')
+        .update({ layer: suggestion.suggestedLayer })
+        .eq('id', newItem.id);
     } catch (layerErr) {
       console.error('Layer inference failed:', layerErr);
       // Non-fatal — item is still usable without a layer suggestion

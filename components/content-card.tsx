@@ -75,25 +75,25 @@ function UnreadDot({ isRead }: { isRead?: boolean }) {
 }
 
 /** Hover-reveal star toggle */
-function StarToggle({ itemId, metadata, className }: {
+function StarToggle({ itemId, starred, className }: {
   itemId: string;
-  metadata: Record<string, unknown> | null;
+  starred?: boolean;
   className?: string;
 }) {
   return (
     <span className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-      <StarButton itemId={itemId} starred={metadata?.starred === true} size="sm" className={className} />
+      <StarButton itemId={itemId} starred={starred === true} size="sm" className={className} />
     </span>
   );
 }
 
 /** Layer badge (shown when content_layers feature is enabled) */
-function LayerBadge({ metadata }: { metadata: Record<string, unknown> | null }) {
+function LayerBadge({ layer }: { layer?: string | null }) {
   const { getLayerLabel } = useLayerVocabulary();
-  if (!isFeatureEnabled('content_layers') || !metadata?.layer) return null;
+  if (!isFeatureEnabled('content_layers') || !layer) return null;
   return (
     <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-      {getLayerLabel(metadata.layer as string)}
+      {getLayerLabel(layer)}
     </Badge>
   );
 }
@@ -111,7 +111,7 @@ function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, o
     <div className="flex items-center gap-1.5">
       <ContentTypeIcon contentType={item.content_type} size="size-5" />
       <DomainBadge domain={item.primary_domain ?? ''} />
-      <LayerBadge metadata={item.metadata} />
+      <LayerBadge layer={item.layer} />
       <div className="ml-auto flex items-center gap-1">
         <UnreadDot isRead={isRead} />
         {activeWorkspaces && assignedWorkspaceIds && (
@@ -123,7 +123,7 @@ function CardHeaderRow({ item, isRead, activeWorkspaces, assignedWorkspaceIds, o
             fromBidId={fromBidId}
           />
         )}
-        <StarToggle itemId={item.id} metadata={item.metadata} />
+        <StarToggle itemId={item.id} starred={item.starred} />
       </div>
     </div>
   );
@@ -354,7 +354,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
             {isSearchResult(item) && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0">Q&amp;A</Badge>
             )}
-            <LayerBadge metadata={item.metadata} />
+            <LayerBadge layer={item.layer} />
             <div className="ml-auto flex items-center gap-1">
               <UnreadDot isRead={isRead} />
               {activeWorkspaces && assignedWorkspaceIds && (
@@ -366,7 +366,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                   fromBidId={fromBidId}
                 />
               )}
-              <StarToggle itemId={item.id} metadata={item.metadata} />
+              <StarToggle itemId={item.id} starred={item.starred} />
             </div>
           </div>
           <CardTitle title={title} priority={item.priority} qaPrefix renderText={renderText} />
@@ -457,7 +457,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
                 className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm"
               />
             )}
-            <StarToggle itemId={item.id} metadata={item.metadata} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />
+            <StarToggle itemId={item.id} starred={item.starred} className="rounded-full bg-background/80 shadow-sm backdrop-blur-sm" />
           </div>
         </div>
       ) : (
@@ -472,7 +472,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
               fromBidId={fromBidId}
             />
           )}
-          <StarToggle itemId={item.id} metadata={item.metadata} />
+          <StarToggle itemId={item.id} starred={item.starred} />
         </div>
       )}
       <div className="flex flex-1 flex-col gap-2 p-3">
@@ -482,7 +482,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
           item={item}
           hasQualityFlag={hasQualityFlag}
           simplifiedQuality={simplifiedQuality}
-          badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge metadata={item.metadata} /></>}
+          badgeSlot={<><DomainBadge domain={item.primary_domain ?? ''} /><LayerBadge layer={item.layer} /></>}
           actionSlot={actionSlot}
           verifiedByName={verifiedByName}
         />

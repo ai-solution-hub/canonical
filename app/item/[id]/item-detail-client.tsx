@@ -69,6 +69,10 @@ export interface ItemData {
   source_document_id?: string | null;
   expiry_date?: string | null;
   lifecycle_type?: string | null;
+  /** Content layer (promoted from metadata JSONB) */
+  layer?: string | null;
+  /** Starred flag (promoted from metadata JSONB) */
+  starred?: boolean;
 }
 
 export interface ItemDetailClientProps {

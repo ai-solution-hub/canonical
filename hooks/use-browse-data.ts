@@ -91,10 +91,7 @@ function applyPostFilters(
   }
   if (filters.layer) {
     const layerValue = filters.layer;
-    filtered = filtered.filter((r) => {
-      const meta = r.metadata as Record<string, unknown> | null;
-      return meta && meta['layer'] === layerValue;
-    });
+    filtered = filtered.filter((r) => r.layer === layerValue);
   }
 
   return filtered;
@@ -316,7 +313,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       }
 
       if (filters.layer) {
-        query = query.eq('metadata->>layer', filters.layer);
+        query = query.eq('layer', filters.layer);
       }
 
       // Exclude draft items by default (unless include_drafts filter is on)
@@ -334,7 +331,7 @@ export function useBrowseData(): UseBrowseDataReturn {
       }
 
       if (filters.starred) {
-        query = query.eq('metadata->>starred', 'true');
+        query = query.eq('starred', true);
       }
 
       if (filters.priority?.length) {

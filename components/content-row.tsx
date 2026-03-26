@@ -129,9 +129,9 @@ export const ContentRow = memo(function ContentRow({
             {isSearchResult(item) && (
               <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">Q&amp;A</Badge>
             )}
-            {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
+            {isFeatureEnabled('content_layers') && !!item.layer && (
               <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-                {getLayerLabel(item.metadata.layer as string)}
+                {getLayerLabel(item.layer)}
               </Badge>
             )}
             {isSearchResult(item) && (
@@ -234,7 +234,7 @@ export const ContentRow = memo(function ContentRow({
         )}
         <StarButton
           itemId={item.id}
-          starred={item.metadata?.starred === true}
+          starred={item.starred === true}
           size="sm"
           className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         />
@@ -278,9 +278,9 @@ export const ContentRow = memo(function ContentRow({
             domain={item.primary_domain ?? ''}
             className="shrink-0"
           />
-          {isFeatureEnabled('content_layers') && !!item.metadata?.layer && (
+          {isFeatureEnabled('content_layers') && !!item.layer && (
             <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0 border-confidence-needs-sme-border text-confidence-needs-sme">
-              {getLayerLabel(item.metadata.layer as string)}
+              {getLayerLabel(item.layer)}
             </Badge>
           )}
           {isSearchResult(item) && (
@@ -370,7 +370,7 @@ export const ContentRow = memo(function ContentRow({
       )}
       <StarButton
         itemId={item.id}
-        starred={item.metadata?.starred === true}
+        starred={item.starred === true}
         size="sm"
         className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
       />

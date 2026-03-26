@@ -136,7 +136,7 @@ export function ItemActionBar({
       {showEditingActions && (
         <StarButton
           itemId={item.id}
-          starred={item.metadata?.starred === true}
+          starred={item.starred === true}
           size="md"
         />
       )}

@@ -246,7 +246,16 @@ export function useItemDetailData({
     metadata: item.metadata,
     onMetadataUpdate: useCallback(
       (updater: (prev: Record<string, unknown> | null) => Record<string, unknown> | null) => {
-        setItem((prev) => ({ ...prev, metadata: updater(prev.metadata) }));
+        setItem((prev) => {
+          const newMetadata = updater(prev.metadata);
+          // Sync the dedicated layer column with metadata.layer during Phase 2
+          const layerFromMetadata = newMetadata?.layer as string | null | undefined;
+          return {
+            ...prev,
+            metadata: newMetadata,
+            layer: layerFromMetadata !== undefined ? (layerFromMetadata ?? null) : prev.layer,
+          };
+        });
       },
       [],
     ),
@@ -284,10 +293,10 @@ export function useItemDetailData({
 
   // --- Star toggle ---
   const handleStarToggle = useCallback(async () => {
-    const newStarred = item.metadata?.starred !== true;
+    const newStarred = !item.starred;
     setItem((prev) => ({
       ...prev,
-      metadata: { ...prev.metadata, starred: newStarred || undefined },
+      starred: newStarred,
     }));
     try {
       const supabase = createClient();
@@ -300,10 +309,10 @@ export function useItemDetailData({
       console.error('Failed to toggle star:', err);
       setItem((prev) => ({
         ...prev,
-        metadata: { ...prev.metadata, starred: !newStarred || undefined },
+        starred: !newStarred,
       }));
     }
-  }, [item.id, item.metadata]);
+  }, [item.id, item.starred]);
 
   // --- Priority cycle ---
   const handlePriorityCycle = useCallback(async () => {

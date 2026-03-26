@@ -220,11 +220,11 @@ export async function registerContentTools(server: McpServer): Promise<void> {
             });
             suggestedLayerKey = suggestion.suggestedLayer;
 
-            // Store the suggested layer via merge_item_metadata
-            await supabase.rpc('merge_item_metadata', {
-              p_item_id: item.id,
-              p_new_data: { layer: suggestion.suggestedLayer } as unknown as Json,
-            });
+            // Store the suggested layer in the dedicated column
+            await supabase
+              .from('content_items')
+              .update({ layer: suggestion.suggestedLayer } as Record<string, unknown>)
+              .eq('id', item.id);
           } catch (layerErr) {
             // Non-fatal — item is still usable without a layer
             console.error('MCP layer inference failed:', layerErr);
@@ -266,11 +266,10 @@ export async function registerContentTools(server: McpServer): Promise<void> {
 
             if (classifiedItem?.primary_domain) {
               const { suggestGuideSections } = await import('@/lib/guide-section-mapping');
-              const meta = classifiedItem.metadata as Record<string, unknown> | null;
               const matches = await suggestGuideSections(supabase, {
                 primaryDomain: classifiedItem.primary_domain,
                 primarySubtopic: classifiedItem.primary_subtopic || '',
-                layer: (typeof meta?.layer === 'string' ? meta.layer : suggestedLayerKey) || undefined,
+                layer: suggestedLayerKey || undefined,
                 contentType: classifiedItem.content_type || args.content_type,
               });
               guideSectionSuggestions = matches;

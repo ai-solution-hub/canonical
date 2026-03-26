@@ -184,7 +184,8 @@ export async function POST(
         totalCost += draftResult.total_cost;
         totalTokens += draftResult.total_tokens;
 
-        // Upsert the response
+        // Upsert the response (overall_score written to both column and metadata for backward compat)
+        const overallScore = draftResult.metadata.quality_data?.overall_score ?? null;
         const { data: response, error: upsertError } = await supabase
           .from('bid_responses')
           .upsert(
@@ -196,7 +197,8 @@ export async function POST(
               review_status: 'ai_drafted',
               drafted_by: null, // null = AI drafted
               updated_at: new Date().toISOString(),
-            },
+              overall_score: overallScore,
+            } as Record<string, unknown>,
             { onConflict: 'question_id' },
           )
           .select('id')

@@ -32,9 +32,9 @@ export function ContentLayerSelector({
           <button
             type="button"
             onClick={() => handleLayerChange(null)}
-            aria-pressed={!item.metadata?.layer}
+            aria-pressed={!item.layer}
             className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
-              !item.metadata?.layer
+              !item.layer
                 ? 'border-primary bg-primary/10 text-primary'
                 : 'border-border bg-muted text-foreground hover:bg-accent'
             }`}
@@ -42,7 +42,7 @@ export function ContentLayerSelector({
             No layer
           </button>
           {layers.map((layer) => {
-            const isActive = item.metadata?.layer === layer.key;
+            const isActive = item.layer === layer.key;
             return (
               <button
                 key={layer.key}
@@ -60,9 +60,9 @@ export function ContentLayerSelector({
             );
           })}
         </div>
-        {!!item.metadata?.layer && (
+        {!!item.layer && (
           <p className="mt-1 text-xs text-muted-foreground">
-            {getLayerDescription(item.metadata.layer as string)}
+            {getLayerDescription(item.layer)}
           </p>
         )}
       </section>
@@ -70,7 +70,7 @@ export function ContentLayerSelector({
   }
 
   // Read-only layer badge (for viewers)
-  if (!item.metadata?.layer) return null;
+  if (!item.layer) return null;
 
   return (
     <section className="mb-6 border-t border-border pt-4">
@@ -78,7 +78,7 @@ export function ContentLayerSelector({
         Content Layer
       </h3>
       <Badge variant="outline" className="text-xs border-confidence-needs-sme-border text-confidence-needs-sme">
-        {getLayerLabel(item.metadata.layer as string)}
+        {getLayerLabel(item.layer)}
       </Badge>
     </section>
   );

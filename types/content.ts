@@ -43,6 +43,10 @@ export interface ContentListItem {
   quality_score?: number | null;
   /** Source document UUID for provenance tracking */
   source_document_id?: string | null;
+  /** Content layer (promoted from metadata JSONB) */
+  layer?: string | null;
+  /** Starred flag (promoted from metadata JSONB) */
+  starred?: boolean;
 }
 
 /** Content list item with read state */
@@ -211,7 +215,8 @@ export const CONTENT_LIST_COLUMNS = `
   verified_at, verified_by, source_document, brief, content,
   answer_standard, answer_advanced,
   content_owner_id, quality_score,
-  source_document_id
+  source_document_id,
+  layer, starred
 ` as const;
 
 /** Columns selected for detail view */

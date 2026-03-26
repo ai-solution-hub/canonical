@@ -67,8 +67,7 @@ export async function POST(request: NextRequest) {
     const allResults = results ?? [];
     const filtered = layer
       ? allResults.filter((r) => {
-          const meta = r.metadata as Record<string, unknown> | null;
-          return meta && meta['layer'] === layer;
+          return (r as Record<string, unknown>).layer === layer;
         })
       : allResults;
 
