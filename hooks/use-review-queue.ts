@@ -65,7 +65,7 @@ export interface UseReviewQueueReturn {
 
   // Handlers
   handleSelectItem: (sortedIndex: number) => void;
-  handleVerify: () => Promise<void>;
+  handleVerify: (note?: string) => Promise<void>;
   handlePublish: () => Promise<void>;
   handleFlagSubmit: (details?: string) => Promise<void>;
   handleFlag: () => void;
@@ -507,7 +507,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     });
   }, [queue.length]);
 
-  const handleVerify = useCallback(async () => {
+  const handleVerify = useCallback(async (note?: string) => {
     if (!currentItem || isActioning) return;
     setIsActioning(true);
 
@@ -556,7 +556,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
       const res = await fetch('/api/review/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: currentItem.id, action: 'verify' }),
+        body: JSON.stringify({ item_id: currentItem.id, action: 'verify', ...(note ? { note } : {}) }),
       });
       if (!res.ok) throw new Error('Verify failed');
     } catch (err) {

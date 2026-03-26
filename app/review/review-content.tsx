@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { PanelRight, CheckCircle2, BookOpen, ClipboardList, Activity, ClipboardCheck, X } from 'lucide-react';
 import {
@@ -103,6 +103,11 @@ export function ReviewContent() {
     skipped: 0,
   });
 
+  // Verify-with-note state
+  const [showVerifyNote, setShowVerifyNote] = useState(false);
+  const [verifyNote, setVerifyNote] = useState('');
+  const verifyNoteRef = useRef<HTMLTextAreaElement>(null);
+
   // Track session-level verified/flagged/skipped counts independently.
   // The hook's progress.sessionReviewed tracks total actions taken this session.
   // We derive skipped from (sessionReviewed - verified - flagged) seen so far.
@@ -134,12 +139,24 @@ export function ReviewContent() {
     }
   }, [handleExit]);
 
-  // Wrap verify to track session stats
+  // Show verify note input instead of verifying immediately
+  const handleVerifyClick = useCallback(() => {
+    setShowVerifyNote(true);
+    // Focus the textarea after rendering
+    setTimeout(() => verifyNoteRef.current?.focus(), 50);
+  }, []);
+
+  // Actually verify with an optional note (tracks session stats)
   const originalHandleVerify = handleVerify;
-  const handleVerifyWithTracking = useCallback(async () => {
+  const handleVerifyWithNote = useCallback(async (note?: string) => {
+    setShowVerifyNote(false);
+    setVerifyNote('');
     setSessionStats((prev) => ({ ...prev, verified: prev.verified + 1 }));
-    await originalHandleVerify();
+    await originalHandleVerify(note);
   }, [originalHandleVerify]);
+
+  // Legacy alias for action bar (it just opens the note input)
+  const handleVerifyWithTracking = handleVerifyClick;
 
   // Wrap flag submit to track session stats
   const originalHandleFlagSubmit = handleFlagSubmit;
@@ -419,6 +436,73 @@ export function ReviewContent() {
             reviewHistoryLoading={reviewHistoryLoading}
           />
         </div>
+
+        {/* Verify note input (inline below card, above action bar) */}
+        {showVerifyNote && (
+          <div className="mt-3 rounded-lg border border-border bg-card p-3">
+            <div className="flex items-start gap-2">
+              <label htmlFor="verify-note" className="shrink-0 pt-1.5 text-sm text-muted-foreground">
+                Add a note (optional):
+              </label>
+              <div className="flex-1">
+                <textarea
+                  ref={verifyNoteRef}
+                  id="verify-note"
+                  value={verifyNote}
+                  onChange={(e) => setVerifyNote(e.target.value.slice(0, 500))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleVerifyWithNote(verifyNote || undefined);
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setShowVerifyNote(false);
+                      setVerifyNote('');
+                      cardRef.current?.focus();
+                    }
+                  }}
+                  placeholder="Reviewer note for this verification..."
+                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  rows={2}
+                  maxLength={500}
+                />
+                <div className="mt-1 text-right text-xs text-muted-foreground" aria-live="polite">
+                  {verifyNote.length}/500
+                </div>
+              </div>
+            </div>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button
+                size="sm"
+                className="h-8"
+                onClick={() => handleVerifyWithNote(verifyNote || undefined)}
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8"
+                onClick={() => handleVerifyWithNote(undefined)}
+              >
+                Skip
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8"
+                onClick={() => {
+                  setShowVerifyNote(false);
+                  setVerifyNote('');
+                  cardRef.current?.focus();
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Flag input (inline below card, above action bar) */}
         {showFlagInput && (

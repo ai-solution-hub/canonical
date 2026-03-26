@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(ReviewActionBodySchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { item_id, action, flag_details } = parsed.data;
+    const { item_id, action, flag_details, note } = parsed.data;
 
     // Validate that the content item exists
     const { data: item, error: fetchError } = await supabase
@@ -66,6 +66,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Record in verification history
+      await supabase.from('verification_history').insert({
+        content_item_id: item_id,
+        action_type: 'verify',
+        note: note ?? null,
+        performed_by: user.id,
+      });
+
       // Resolve any open review_needed flags — verification overrides flags
       await supabase
         .from('ingestion_quality_log')
@@ -96,6 +104,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Record in verification history for unified audit trail
+      await supabase.from('verification_history').insert({
+        content_item_id: item_id,
+        action_type: 'flag',
+        note: flag_details ?? null,
+        performed_by: user.id,
+      });
+
       // Clear verified status — flagging returns item to needs-attention state
       await supabase
         .from('content_items')
@@ -122,6 +138,14 @@ export async function POST(request: NextRequest) {
           { status: 500 },
         );
       }
+
+      // Record in verification history
+      await supabase.from('verification_history').insert({
+        content_item_id: item_id,
+        action_type: 'unverify',
+        note: note ?? null,
+        performed_by: user.id,
+      });
     } else if (action === 'unflag') {
       // Resolve the most recent unresolved review_needed flag for this item.
       // Two-step query: Supabase does not support .update().limit(1).

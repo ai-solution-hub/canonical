@@ -79,6 +79,7 @@ export const ReviewActionBodySchema = z.object({
   item_id: z.string().uuid('item_id must be a valid UUID'),
   action: z.enum(VALID_REVIEW_ACTIONS),
   flag_details: z.string().max(500).optional(),
+  note: z.string().max(500).optional(),
 });
 
 /** GET /api/review/queue — validates status, limit, cursor only.

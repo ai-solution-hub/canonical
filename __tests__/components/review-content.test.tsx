@@ -578,15 +578,25 @@ describe('ReviewContent', () => {
     expect(screen.getByRole('heading', { name: /Review Queue/ })).toBeInTheDocument();
   });
 
-  // 21. Action bar handlers are wired correctly
-  it('calls handleVerify when Verify button is clicked', async () => {
+  // 21. Action bar handlers: Verify opens note input, then Skip verifies without note
+  it('calls handleVerify via Skip after Verify button shows note input', async () => {
     const user = userEvent.setup();
     const mockVerify = vi.fn().mockResolvedValue(undefined);
     setHookReturn({ handleVerify: mockVerify });
     render(<ReviewContent />);
 
-    await user.click(screen.getByRole('button', { name: 'Verify' }));
-    expect(mockVerify).toHaveBeenCalled();
+    // Click Verify — should show the note input, not call verify directly
+    await user.click(screen.getByRole('button', { name: /Verify/ }));
+    expect(mockVerify).not.toHaveBeenCalled();
+
+    // Note input should appear with verify-note textarea
+    expect(screen.getByLabelText(/Add a note/)).toBeInTheDocument();
+
+    // Click the first Skip button (from verify-note input, rendered above the action bar)
+    // The action bar also has a "Skip" button, so we use getAllByRole
+    const skipButtons = screen.getAllByRole('button', { name: 'Skip' });
+    await user.click(skipButtons[0]);
+    expect(mockVerify).toHaveBeenCalledWith(undefined);
   });
 
   // -- ARIA label consistency tests --
