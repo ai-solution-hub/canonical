@@ -147,6 +147,7 @@ export type Database = {
           id: string
           last_edited_by: string | null
           metadata: Json | null
+          overall_score: number | null
           question_id: string
           response_text: string | null
           response_text_advanced: string | null
@@ -162,6 +163,7 @@ export type Database = {
           id?: string
           last_edited_by?: string | null
           metadata?: Json | null
+          overall_score?: number | null
           question_id: string
           response_text?: string | null
           response_text_advanced?: string | null
@@ -177,6 +179,7 @@ export type Database = {
           id?: string
           last_edited_by?: string | null
           metadata?: Json | null
+          overall_score?: number | null
           question_id?: string
           response_text?: string | null
           response_text_advanced?: string | null
@@ -348,6 +351,7 @@ export type Database = {
           author_name: string | null
           brief: string | null
           captured_date: string | null
+          citation_count: number
           classification_confidence: number | null
           classification_reasoning: string | null
           classified_at: string | null
@@ -366,6 +370,7 @@ export type Database = {
           governance_review_status: string | null
           governance_reviewer_id: string | null
           id: string
+          layer: string | null
           lifecycle_type: string | null
           metadata: Json | null
           notes: string | null
@@ -385,7 +390,9 @@ export type Database = {
           source_document: string | null
           source_document_id: string | null
           source_domain: string | null
+          source_file: string | null
           source_url: string | null
+          starred: boolean
           suggested_title: string | null
           summary_data: Json | null
           thumbnail_url: string | null
@@ -407,6 +414,7 @@ export type Database = {
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null
+          citation_count?: number
           classification_confidence?: number | null
           classification_reasoning?: string | null
           classified_at?: string | null
@@ -425,6 +433,7 @@ export type Database = {
           governance_review_status?: string | null
           governance_reviewer_id?: string | null
           id?: string
+          layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
           notes?: string | null
@@ -444,7 +453,9 @@ export type Database = {
           source_document?: string | null
           source_document_id?: string | null
           source_domain?: string | null
+          source_file?: string | null
           source_url?: string | null
+          starred?: boolean
           suggested_title?: string | null
           summary_data?: Json | null
           thumbnail_url?: string | null
@@ -466,6 +477,7 @@ export type Database = {
           author_name?: string | null
           brief?: string | null
           captured_date?: string | null
+          citation_count?: number
           classification_confidence?: number | null
           classification_reasoning?: string | null
           classified_at?: string | null
@@ -484,6 +496,7 @@ export type Database = {
           governance_review_status?: string | null
           governance_reviewer_id?: string | null
           id?: string
+          layer?: string | null
           lifecycle_type?: string | null
           metadata?: Json | null
           notes?: string | null
@@ -503,7 +516,9 @@ export type Database = {
           source_document?: string | null
           source_document_id?: string | null
           source_domain?: string | null
+          source_file?: string | null
           source_url?: string | null
+          starred?: boolean
           suggested_title?: string | null
           summary_data?: Json | null
           thumbnail_url?: string | null
@@ -534,6 +549,101 @@ export type Database = {
             columns: ["source_document_id"]
             isOneToOne: false
             referencedRelation: "source_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      content_templates: {
+        Row: {
+          brief_template: string | null
+          content_template: string
+          content_type: string
+          created_at: string
+          created_by: string | null
+          default_tags: string[] | null
+          description: string
+          display_order: number
+          id: string
+          is_active: boolean
+          name: string
+          slug: string
+          suggested_domain: string | null
+          title_template: string
+          updated_at: string | null
+        }
+        Insert: {
+          brief_template?: string | null
+          content_template?: string
+          content_type: string
+          created_at?: string
+          created_by?: string | null
+          default_tags?: string[] | null
+          description?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          slug: string
+          suggested_domain?: string | null
+          title_template?: string
+          updated_at?: string | null
+        }
+        Update: {
+          brief_template?: string | null
+          content_template?: string
+          content_type?: string
+          created_at?: string
+          created_by?: string | null
+          default_tags?: string[] | null
+          description?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          slug?: string
+          suggested_domain?: string | null
+          title_template?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      coverage_targets: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          domain_id: string
+          id: string
+          metric_name: string
+          target_value: number
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          domain_id: string
+          id?: string
+          metric_name: string
+          target_value: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          domain_id?: string
+          id?: string
+          metric_name?: string
+          target_value?: number
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coverage_targets_domain_id_fkey"
+            columns: ["domain_id"]
+            isOneToOne: false
+            referencedRelation: "taxonomy_domains"
             referencedColumns: ["id"]
           },
         ]
@@ -1747,6 +1857,41 @@ export type Database = {
         }
         Relationships: []
       }
+      verification_history: {
+        Row: {
+          action_type: string
+          content_item_id: string
+          id: string
+          note: string | null
+          performed_at: string
+          performed_by: string
+        }
+        Insert: {
+          action_type: string
+          content_item_id: string
+          id?: string
+          note?: string | null
+          performed_at?: string
+          performed_by: string
+        }
+        Update: {
+          action_type?: string
+          content_item_id?: string
+          id?: string
+          note?: string | null
+          performed_at?: string
+          performed_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_history_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           color: string | null
@@ -2581,3 +2726,5 @@ export const Constants = {
     Enums: {},
   },
 } as const
+A new version of Supabase CLI is available: v2.84.2 (currently installed v2.65.5)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
