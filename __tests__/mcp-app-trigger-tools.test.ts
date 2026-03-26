@@ -283,6 +283,13 @@ describe('MCP App trigger tools #22-23', () => {
               error: null,
             }),
           );
+        } else if (table === 'coverage_targets') {
+          chain.then.mockImplementation((resolve: (v: unknown) => void) =>
+            resolve({
+              data: [],
+              error: null,
+            }),
+          );
         }
 
         return chain;

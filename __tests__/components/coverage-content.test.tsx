@@ -62,6 +62,22 @@ vi.mock('@/components/coverage-heatmap-view', () => ({
   ),
 }));
 
+vi.mock('@/hooks/use-coverage-targets', () => ({
+  useCoverageTargets: () => ({ targets: [], loading: false, error: null, saveTargets: vi.fn(), refetch: vi.fn() }),
+}));
+
+vi.mock('@/hooks/use-user-role', () => ({
+  useUserRole: () => ({ role: 'admin', canAdmin: true, canEdit: true, loading: false }),
+}));
+
+vi.mock('@/components/coverage-target-progress', () => ({
+  CoverageTargetProgress: () => null,
+}));
+
+vi.mock('@/components/coverage-target-editor', () => ({
+  CoverageTargetEditor: () => null,
+}));
+
 vi.mock('@/components/coverage-layer-filter', () => ({
   CoverageLayerFilter: ({ value, onLayerChange }: { value: string | null; onLayerChange: (v: string | null) => void }) => (
     <select
