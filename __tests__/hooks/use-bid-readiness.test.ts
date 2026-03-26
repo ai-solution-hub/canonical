@@ -1,0 +1,166 @@
+/**
+ * useBidReadiness hook tests.
+ *
+ * Covers:
+ *   - Successful fetch
+ *   - Error handling
+ *   - Loading state
+ *   - Refresh functionality
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useBidReadiness } from '@/hooks/use-bid-readiness';
+
+// ---------------------------------------------------------------------------
+// Mock fetch
+// ---------------------------------------------------------------------------
+
+const mockFetch = vi.fn();
+vi.stubGlobal('fetch', mockFetch);
+
+// ---------------------------------------------------------------------------
+// Test data
+// ---------------------------------------------------------------------------
+
+const BID_UUID = '00000000-0000-4000-8000-000000000001';
+
+const readyResponse = {
+  ready: true,
+  summary: {
+    total_questions: 3,
+    answered: 3,
+    approved: 3,
+    quality_checked: 3,
+    passing_quality: 3,
+  },
+  criteria: [
+    { name: 'All questions answered', passed: true, details: '3 of 3' },
+  ],
+  issues: [],
+};
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('useBidReadiness', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetches readiness data successfully', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => readyResponse,
+    });
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+
+    // Initially loading
+    expect(result.current.isLoading).toBe(true);
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.readiness).toEqual(readyResponse);
+    expect(result.current.error).toBeNull();
+    expect(mockFetch).toHaveBeenCalledWith(`/api/bids/${BID_UUID}/readiness`);
+  });
+
+  it('handles fetch error', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({ error: 'Server error' }),
+    });
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.readiness).toBeNull();
+    expect(result.current.error).toBe('Server error');
+  });
+
+  it('handles network error', async () => {
+    mockFetch.mockRejectedValueOnce(new Error('Network failure'));
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.readiness).toBeNull();
+    expect(result.current.error).toBe('Network failure');
+  });
+
+  it('starts in loading state', () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => readyResponse,
+    });
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.readiness).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('supports refresh', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => readyResponse,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ...readyResponse,
+          ready: false,
+        }),
+      });
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.readiness?.ready).toBe(true);
+
+    // Trigger refresh
+    act(() => {
+      result.current.refresh();
+    });
+
+    await waitFor(() => {
+      expect(result.current.readiness?.ready).toBe(false);
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('handles error response without JSON body', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => { throw new Error('not JSON'); },
+    });
+
+    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.error).toBe('Failed to fetch readiness (403)');
+  });
+});
