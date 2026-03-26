@@ -186,7 +186,7 @@ export function BidContextProvider({
         reviewStatus: data.review_status ?? 'draft',
         sourceContentIds:
           data.source_content?.map((s: { id: string }) => s.id) ?? [],
-        qualityScore: data.quality_check?.overall_score ?? null,
+        qualityScore: data.overall_score ?? data.quality_check?.overall_score ?? null,
       });
     } catch (err) {
       // Non-critical — context degrades gracefully without response data

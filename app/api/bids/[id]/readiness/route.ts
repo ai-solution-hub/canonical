@@ -137,12 +137,13 @@ export async function GET(
       response_text: string | null;
       review_status: string | null;
       metadata: unknown;
+      overall_score?: number | null;
     }> = [];
 
     if (questionIds.length > 0) {
       const { data: responses, error: responsesError } = await supabase
         .from('bid_responses')
-        .select('question_id, response_text, review_status, metadata')
+        .select('question_id, response_text, review_status, metadata, overall_score')
         .in('question_id', questionIds);
 
       if (responsesError) {
@@ -194,9 +195,14 @@ export async function GET(
       if (isApproved) approvedCount++;
       else if (hasResponse) issues.push(`Review status: ${reviewStatus ?? 'none'} (requires approved or edited)`);
 
-      // Quality data assessment
+      // Quality data assessment — prefer overall_score from dedicated column
       const meta = (response?.metadata ?? {}) as BidResponseMetadata;
-      const qualityData = meta.quality_data ?? null;
+      const qualityDataFromMeta = meta.quality_data ?? null;
+      // Merge column value into quality data for backward compat
+      const columnScore = (response as Record<string, unknown> | undefined)?.overall_score as number | null | undefined;
+      const qualityData = qualityDataFromMeta
+        ? { ...qualityDataFromMeta, overall_score: columnScore ?? qualityDataFromMeta.overall_score }
+        : null;
       const quality = assessQualityData(qualityData);
 
       if (quality.hasQualityCheck) {

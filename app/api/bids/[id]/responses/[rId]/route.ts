@@ -38,7 +38,7 @@ export async function GET(
     const { data: response, error: responseError } = await supabase
       .from('bid_responses')
       .select(
-        'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at',
+        'id, question_id, response_text, response_text_advanced, source_content_ids, metadata, review_status, version, drafted_by, last_edited_by, approved_by, created_at, updated_at, overall_score',
       )
       .eq('id', rId)
       .single();
@@ -94,6 +94,9 @@ export async function GET(
       }));
     }
 
+    // Prefer overall_score from the dedicated column; fall back to metadata for pre-migration data
+    const overallScore = (response as Record<string, unknown>).overall_score ?? qualityCheck?.overall_score ?? null;
+
     return NextResponse.json({
       id: response.id,
       question_id: response.question_id,
@@ -109,6 +112,7 @@ export async function GET(
       citations,
       source_content: sourceContent,
       quality_check: qualityCheck,
+      overall_score: overallScore,
       review_status: response.review_status,
       drafted_by: response.drafted_by,
       last_edited_by: response.last_edited_by,
@@ -217,6 +221,9 @@ export async function PATCH(
         ...existingMeta,
         quality_data: updatedQuality,
       };
+
+      // Also write overall_score to the dedicated column (backward compat: metadata still has it)
+      updates.overall_score = updatedQuality.overall_score ?? null;
     }
 
     // Set change_reason session variable for the trigger to capture.

@@ -179,13 +179,14 @@ export async function registerBidTools(server: McpServer): Promise<void> {
         if (allQuestionIds.length > 0) {
           const { data: responses } = await supabase
             .from('bid_responses')
-            .select('question_id, response_text, review_status, metadata')
+            .select('question_id, response_text, review_status, metadata, overall_score')
             .in('question_id', allQuestionIds);
 
           const responseMap = new Map<string, {
             response_text: string | null;
             review_status: string | null;
             metadata: unknown;
+            overall_score?: number | null;
           }>();
           for (const r of (responses ?? [])) {
             responseMap.set(r.question_id, r);
@@ -206,7 +207,9 @@ export async function registerBidTools(server: McpServer): Promise<void> {
             const qd: QualityData | null = meta2.quality_data ?? null;
             if (qd) {
               qualityChecked++;
-              if ((qd.overall_score ?? 0) >= QUALITY_THRESHOLD) passingQuality++;
+              // Prefer overall_score from dedicated column; fall back to metadata
+              const score = (resp as Record<string, unknown> | undefined)?.overall_score as number | null ?? qd.overall_score ?? 0;
+              if (score >= QUALITY_THRESHOLD) passingQuality++;
             }
           }
 

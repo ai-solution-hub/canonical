@@ -70,7 +70,7 @@ export function useTopicLayerContent(
         const supabase = createClient();
         const { data, error } = await supabase
           .from('content_items')
-          .select('id, title, brief, detail, content, content_type, metadata')
+          .select('id, title, brief, detail, content, content_type, metadata, layer')
           .in('id', siblingIds);
 
         if (error) {
@@ -81,7 +81,7 @@ export function useTopicLayerContent(
         if (data) {
           const mapped: LayerItem[] = data.map((row) => ({
             id: row.id,
-            layer: ((row.metadata as Record<string, unknown> | null)?.layer as string) ?? '',
+            layer: (row as Record<string, unknown>).layer as string ?? '',
             title: row.title ?? '',
             brief: row.brief ?? null,
             detail: row.detail ?? null,

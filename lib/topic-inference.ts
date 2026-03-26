@@ -154,7 +154,7 @@ async function findExistingTopicGroup(
 ): Promise<TopicSuggestion | null> {
   const { data: items, error } = await supabase
     .from('content_items')
-    .select('id, title, metadata')
+    .select('id, title, metadata, layer')
     .eq('primary_domain', domain)
     .eq('primary_subtopic', subtopic)
     .not('metadata->topic_id', 'is', null)
@@ -173,7 +173,7 @@ async function findExistingTopicGroup(
   for (const item of items) {
     const metadata = item.metadata as Record<string, unknown> | null;
     const topicId = metadata?.topic_id as string | undefined;
-    const layer = metadata?.layer as string | undefined;
+    const layer = (item as Record<string, unknown>).layer as string | undefined ?? metadata?.layer as string | undefined;
 
     if (!topicId || !layer) continue;
 
@@ -288,7 +288,7 @@ async function findSimilarUngroupedItem(
 
   const { data: detailItems, error: detailError } = await supabase
     .from('content_items')
-    .select('id, title, primary_domain, primary_subtopic, metadata')
+    .select('id, title, primary_domain, primary_subtopic, metadata, layer')
     .in('id', matchedIds)
     .is('archived_at', null);
 
@@ -307,7 +307,7 @@ async function findSimilarUngroupedItem(
     if (metadata?.topic_id) return false;
 
     // Prefer items at a different layer (or without a layer)
-    const itemLayer = metadata?.layer as string | undefined;
+    const itemLayer = (item as Record<string, unknown>).layer as string | undefined ?? metadata?.layer as string | undefined;
     return !itemLayer || itemLayer !== suggestedLayer;
   });
 
@@ -318,7 +318,7 @@ async function findSimilarUngroupedItem(
   // Pick the first candidate (highest similarity, since RPC returns ordered)
   const bestMatch = candidates[0];
   const matchMetadata = bestMatch.metadata as Record<string, unknown> | null;
-  const matchLayer = (matchMetadata?.layer as string) || 'unassigned';
+  const matchLayer = (bestMatch as Record<string, unknown>).layer as string || (matchMetadata?.layer as string) || 'unassigned';
 
   const topicId = generateTopicId(domain, subtopic);
   const allLayers = getAllLayerKeys();

@@ -71,14 +71,22 @@ export async function PATCH(
       );
     }
 
+    // Also update the dedicated layer column (Phase 2 dual-write)
+    if ('layer' in newMetadata) {
+      await supabase
+        .from('content_items')
+        .update({ layer: newMetadata.layer as string | null } as Record<string, unknown>)
+        .eq('id', id);
+    }
+
     // Fetch updated metadata to return
     const { data: updated } = await supabase
       .from('content_items')
-      .select('metadata')
+      .select('metadata, layer')
       .eq('id', id)
       .single();
 
-    return NextResponse.json({ metadata: updated?.metadata ?? {} });
+    return NextResponse.json({ metadata: updated?.metadata ?? {}, layer: (updated as Record<string, unknown> | null)?.layer ?? null });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update metadata') },

@@ -104,7 +104,7 @@ export async function DELETE(
     const { count, error: countError } = await supabase
       .from('content_items')
       .select('id', { count: 'exact', head: true })
-      .eq('metadata->>layer', layer.key);
+      .eq('layer', layer.key);
 
     if (countError) {
       return NextResponse.json(

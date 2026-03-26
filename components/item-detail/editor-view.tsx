@@ -180,7 +180,7 @@ export function EditorView({
           <TopicLayerComparison
             currentItem={{
               id: item.id as string,
-              layer: (item.metadata?.layer as string) ?? '',
+              layer: item.layer ?? '',
               title: item.title ?? '',
               brief: item.brief ?? null,
               detail: item.detail ?? null,

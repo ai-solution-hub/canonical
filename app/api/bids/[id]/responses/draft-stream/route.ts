@@ -226,6 +226,8 @@ export async function POST(
             },
           };
 
+          // Write overall_score to both column and metadata for backward compat
+          const overallScore = qualityData?.overall_score ?? null;
           const { data: response, error: upsertError } = await supabase
             .from('bid_responses')
             .upsert(
@@ -237,7 +239,8 @@ export async function POST(
                 review_status: 'ai_drafted',
                 drafted_by: null,
                 updated_at: new Date().toISOString(),
-              },
+                overall_score: overallScore,
+              } as Record<string, unknown>,
               { onConflict: 'question_id' },
             )
             .select('id')
