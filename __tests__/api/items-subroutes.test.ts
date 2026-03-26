@@ -844,28 +844,51 @@ describe('PATCH /api/items/[id]/metadata', () => {
   it('returns 200 with updated metadata on success', async () => {
     configureRole(mockSupabase, 'editor');
 
+    // layer goes to column update, topic_id goes to JSONB merge
     mockSupabase.rpc.mockResolvedValueOnce({ data: null, error: null });
     // Route fetches updated metadata via .single()
     mockSupabase._chain.single.mockResolvedValueOnce({
-      data: { metadata: { layer: 'sales_brief', topic_id: 'test-topic' } },
+      data: { metadata: { topic_id: 'test-topic' }, layer: 'sales_brief' },
       error: null,
     });
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/metadata`, {
       method: 'PATCH',
-      body: { layer: 'sales_brief' },
+      body: { layer: 'sales_brief', topic_id: 'test-topic' },
     });
 
     const res = await metadataPatch(req, { params });
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.metadata.layer).toBe('sales_brief');
+    expect(body.layer).toBe('sales_brief');
 
+    // layer should NOT be in the RPC call (promoted to column)
     expect(mockSupabase.rpc).toHaveBeenCalledWith('merge_item_metadata', {
       p_item_id: VALID_UUID,
-      p_new_data: { layer: 'sales_brief' },
+      p_new_data: { topic_id: 'test-topic' },
     });
+  });
+
+  it('returns 200 when only layer is sent (no RPC call needed)', async () => {
+    configureRole(mockSupabase, 'editor');
+
+    // Only column update, no JSONB merge
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { metadata: {}, layer: 'bid_detail' },
+      error: null,
+    });
+
+    const req = createTestRequest(`/api/items/${VALID_UUID}/metadata`, {
+      method: 'PATCH',
+      body: { layer: 'bid_detail' },
+    });
+
+    const res = await metadataPatch(req, { params });
+    expect(res.status).toBe(200);
+
+    // RPC should NOT be called — only column update
+    expect(mockSupabase.rpc).not.toHaveBeenCalled();
   });
 
   it('returns 404 when RPC indicates item not found', async () => {
@@ -878,7 +901,7 @@ describe('PATCH /api/items/[id]/metadata', () => {
 
     const req = createTestRequest(`/api/items/${VALID_UUID}/metadata`, {
       method: 'PATCH',
-      body: { layer: 'bid_detail' },
+      body: { topic_id: 'some-topic' },
     });
 
     const res = await metadataPatch(req, { params });

@@ -41,41 +41,48 @@ export async function PATCH(
     }
 
     // Build metadata to merge — strip undefined values, keep nulls for deletion
+    // Promoted fields (layer) go to columns, not JSONB
     const newMetadata: Record<string, unknown> = {};
+    const columnUpdates: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(parsed.data)) {
       if (value !== undefined) {
-        newMetadata[key] = value;
+        if (key === 'layer') {
+          columnUpdates.layer = value;
+        } else {
+          newMetadata[key] = value;
+        }
       }
     }
 
-    // Use atomic merge RPC to avoid read-modify-write race conditions
-    const { error: mergeError } = await supabase.rpc('merge_item_metadata', {
-      p_item_id: id,
-      p_new_data: newMetadata as unknown as Json,
-    });
+    // Merge remaining JSONB metadata (excludes promoted fields)
+    if (Object.keys(newMetadata).length > 0) {
+      const { error: mergeError } = await supabase.rpc('merge_item_metadata', {
+        p_item_id: id,
+        p_new_data: newMetadata as unknown as Json,
+      });
 
-    if (mergeError) {
-      // RPC returns error if item not found (no rows updated)
-      const isNotFound =
-        mergeError.message?.includes('not found') ||
-        mergeError.code === 'PGRST116';
-      if (isNotFound) {
+      if (mergeError) {
+        const isNotFound =
+          mergeError.message?.includes('not found') ||
+          mergeError.code === 'PGRST116';
+        if (isNotFound) {
+          return NextResponse.json(
+            { error: 'Item not found' },
+            { status: 404 },
+          );
+        }
         return NextResponse.json(
-          { error: 'Item not found' },
-          { status: 404 },
+          { error: safeErrorMessage(mergeError, 'Failed to update metadata') },
+          { status: 500 },
         );
       }
-      return NextResponse.json(
-        { error: safeErrorMessage(mergeError, 'Failed to update metadata') },
-        { status: 500 },
-      );
     }
 
-    // Also update the dedicated layer column (Phase 2 dual-write)
-    if ('layer' in newMetadata) {
+    // Update promoted column fields directly
+    if (Object.keys(columnUpdates).length > 0) {
       await supabase
         .from('content_items')
-        .update({ layer: newMetadata.layer as string | null } as Record<string, unknown>)
+        .update(columnUpdates)
         .eq('id', id);
     }
 

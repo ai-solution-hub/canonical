@@ -248,12 +248,9 @@ export function useItemDetailData({
       (updater: (prev: Record<string, unknown> | null) => Record<string, unknown> | null) => {
         setItem((prev) => {
           const newMetadata = updater(prev.metadata);
-          // Sync the dedicated layer column with metadata.layer during Phase 2
-          const layerFromMetadata = newMetadata?.layer as string | null | undefined;
           return {
             ...prev,
             metadata: newMetadata,
-            layer: layerFromMetadata !== undefined ? (layerFromMetadata ?? null) : prev.layer,
           };
         });
       },
