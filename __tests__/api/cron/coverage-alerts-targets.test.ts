@@ -61,7 +61,6 @@ import { GET } from '@/app/api/cron/coverage-alerts/route';
 
 const ADMIN_ID_1 = '00000000-0000-4000-8000-000000000001';
 const ADMIN_ID_2 = '00000000-0000-4000-8000-000000000002';
-const DOMAIN_UUID = '00000000-0000-0000-0000-000000000000';
 
 interface CoverageSummaryRow {
   domain_name: string;
