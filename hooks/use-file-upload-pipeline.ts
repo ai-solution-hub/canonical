@@ -118,15 +118,11 @@ export interface UseFileUploadPipelineReturn {
 }
 
 // ---------------------------------------------------------------------------
-// File ID counter
+// File ID generation
 // ---------------------------------------------------------------------------
 
-let fileIdCounter = 0;
-
-/** Reset the counter — exposed for tests only */
-export function _resetFileIdCounter() {
-  fileIdCounter = 0;
-}
+/** Generate a unique file ID for upload tracking */
+const generateFileId = () => `upload-${crypto.randomUUID().slice(0, 8)}`;
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -204,7 +200,7 @@ export function useFileUploadPipeline(
   // Add files to the upload queue
   const handleFilesAdded = useCallback((newFiles: File[]) => {
     const uploadFiles: UploadFile[] = newFiles.map((file) => ({
-      id: `upload-${++fileIdCounter}`,
+      id: generateFileId(),
       file,
       status: 'pending' as const,
       progress: 0,

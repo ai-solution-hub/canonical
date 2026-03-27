@@ -128,6 +128,8 @@ export function useStreamCoordination({
   const streamTextRef = useRef<string>('');
   const rafRef = useRef<number | null>(null);
   const lastEditorUpdateRef = useRef<number>(0);
+  const fetchResponseRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const fetchBidDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   // Track whether we are actively streaming to lock the editor
   const isStreaming =
@@ -219,6 +221,10 @@ export function useStreamCoordination({
     fetchResponse();
   }, [fetchResponse]);
 
+  // Keep refs in sync so completion effect always calls latest versions
+  fetchResponseRef.current = fetchResponse;
+  fetchBidDataRef.current = fetchBidData;
+
   // ── Throttled editor update: accumulate text in ref, push to editor at ~60ms intervals ──
   useEffect(() => {
     if (stream.phase !== 'drafting') return;
@@ -262,14 +268,14 @@ export function useStreamCoordination({
         setEditorContent(responseToHtml(stream.text));
       }
       // Refresh data from database
-      void fetchResponse();
-      void fetchBidData();
+      void fetchResponseRef.current();
+      void fetchBidDataRef.current();
       const costMsg = stream.totalCost
         ? ` (cost: $${stream.totalCost.toFixed(4)})`
         : '';
       toast.success(`Response drafted successfully${costMsg}`);
     }
-  }, [stream.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [stream.phase, stream.text, stream.totalCost]);
 
   // Handle stream error
   useEffect(() => {

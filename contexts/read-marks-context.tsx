@@ -42,6 +42,7 @@ const ReadMarksContext = createContext<ReadMarksContextValue | null>(null);
 
 export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
   const [readItemIds, setReadItemIds] = useState<Set<string>>(new Set());
+  const readItemIdsRef = useRef<Set<string>>(readItemIds);
   const [readCount, setReadCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -57,6 +58,11 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       isMountedRef.current = false;
     };
   }, []);
+
+  // Keep ref in sync with state so toggleRead can read without impure updaters
+  useEffect(() => {
+    readItemIdsRef.current = readItemIds;
+  }, [readItemIds]);
 
   // Lazy-load counts (read count + total count). No longer fetches all read mark IDs.
   const loadReadMarks = useCallback(() => {
@@ -219,16 +225,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
   const toggleRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
-      // Use a ref-free check: attempt markUnread first via its updater;
-      // if the item wasn't read, markUnread is a no-op, so fall through to markRead.
-      // To avoid calling both, we read current state from the ref-stable readItemIdsRef.
-      // However, the simplest correct approach: check inside a synchronous setState call.
-      let isCurrentlyRead = false;
-      setReadItemIds((prev) => {
-        isCurrentlyRead = prev.has(itemId);
-        return prev; // no change — just reading
-      });
-      if (isCurrentlyRead) {
+      if (readItemIdsRef.current.has(itemId)) {
         await markUnread(itemId);
       } else {
         await markRead(itemId, source);
