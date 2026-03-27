@@ -9,14 +9,7 @@
  * Provides min (80% cache hit) and max (no caching) cost estimates.
  */
 
-// IMPORTANT: These rates are duplicated from the canonical source in lib/anthropic.ts.
-// Kept separate to avoid importing the Anthropic SDK (this module must work in
-// server + test contexts without the SDK). When updating rates, update BOTH files.
-const COST_PER_MILLION: Record<string, { input: number; output: number; cache_read: number }> = {
-  'claude-opus-4-6':   { input: 15, output: 75, cache_read: 1.5 },
-  'claude-sonnet-4-5': { input: 3,  output: 15, cache_read: 0.3 },
-  'claude-haiku-4-5':  { input: 0.8, output: 4, cache_read: 0.08 },
-};
+import { COST_PER_MILLION } from '@/lib/ai/pricing';
 
 // Model assignments per pipeline pass (mirrors lib/anthropic.ts MODEL_MAP)
 const PASS_MODELS = {

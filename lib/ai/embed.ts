@@ -61,7 +61,6 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   // Check cache
   const cached = embeddingCache.get(text);
   if (cached && Date.now() - cached.createdAt < CACHE_TTL_MS) {
-    console.log('[embed] cache hit');
     return cached.embedding;
   }
 
@@ -76,7 +75,6 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   // Store in cache
   evictCache();
   embeddingCache.set(text, { embedding, createdAt: Date.now() });
-  console.log(`[embed] cache miss (${embeddingCache.size}/${CACHE_MAX_ENTRIES} entries)`);
 
   return embedding;
 }

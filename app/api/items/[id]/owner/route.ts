@@ -39,10 +39,9 @@ export async function PATCH(
     const { owner_id } = parsed.data;
 
     // Fetch current item for history tracking
-    // content_owner_id column exists in DB but types not yet regenerated
     const { data: current, error: fetchError } = await supabase
       .from('content_items')
-      .select('id, title, content, content_owner_id' as 'id')
+      .select('id, title, content, content_owner_id')
       .eq('id', id)
       .single();
 
@@ -64,7 +63,6 @@ export async function PATCH(
     const previousOwnerId = currentData.content_owner_id;
 
     // Update content_owner_id
-    // Column exists in DB but types not yet regenerated
     const updateData = {
       content_owner_id: owner_id,
       updated_by: user.id,
@@ -72,7 +70,7 @@ export async function PATCH(
     };
     const { data: updated, error: updateError } = await supabase
       .from('content_items')
-      .update(updateData as typeof updateData & Record<string, unknown>)
+      .update(updateData)
       .eq('id', id)
       .select('id')
       .single();
@@ -120,7 +118,7 @@ export async function PATCH(
       try {
         await supabase.from('notifications').insert({
           user_id: owner_id,
-          type: 'owner_assignment' as 'quality_flag',
+          type: 'owner_assignment',
           entity_type: 'content_item',
           entity_id: id,
           title: 'You have been assigned as content owner',

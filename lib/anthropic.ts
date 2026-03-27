@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { COST_PER_MILLION } from '@/lib/ai/pricing';
 
 let client: Anthropic | null = null;
 
@@ -47,14 +48,6 @@ export interface TokenUsage {
   cache_creation_input_tokens?: number | null;
   cache_read_input_tokens?: number | null;
 }
-
-// Approximate per-token costs (USD) — updated March 2026
-// cache_write = 1.25x input price per Anthropic pricing
-const COST_PER_MILLION: Record<string, { input: number; output: number; cache_read: number; cache_write: number }> = {
-  'claude-opus-4-6':   { input: 15,  output: 75, cache_read: 1.5,  cache_write: 18.75 },
-  'claude-sonnet-4-5': { input: 3,   output: 15, cache_read: 0.3,  cache_write: 3.75 },
-  'claude-haiku-4-5':  { input: 0.8, output: 4,  cache_read: 0.08, cache_write: 1.0 },
-};
 
 /** Estimate cost in USD from model name and token usage */
 export function estimateCost(model: string, usage: TokenUsage): number {
