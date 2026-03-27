@@ -159,7 +159,7 @@ describe('GET /api/review/queue', () => {
     expect(json.total).toBe(1);
     expect(json.verified_count).toBe(5);
     expect(json.flagged_count).toBe(2);
-    expect(json.cursor).toBe('2026-01-01T00:00:00Z');
+    expect(json.has_more).toBe(false);
   });
 });
 

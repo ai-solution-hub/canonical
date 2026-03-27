@@ -18,7 +18,7 @@ const REVIEW_COLUMNS = 'id, title, suggested_title, ai_summary, primary_domain, 
  * GET /api/review/queue — fetch content items for the review workflow.
  *
  * Supports filtering by verification status (unverified/verified/flagged/all),
- * domain, content type, and source file. Returns cursor-based pagination.
+ * domain, content type, and source file. Returns offset-based pagination.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const validated = parseSearchParams(ReviewQueueParamsSchema, searchParams);
     if (!validated.success) return validated.response;
 
-    const { status, limit, cursor, sort } = validated.data;
+    const { status, limit, offset, sort } = validated.data;
     // Use getAll for repeated params (domain=a&domain=b) and fall back to
     // comma-separated single values (domain=a,b) for backwards compatibility.
     const domainParams = searchParams.getAll('domain').flatMap(v => v.split(',')).filter(Boolean);
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // This requires a two-step query: first find flagged IDs, then fetch items.
     if (status === 'flagged') {
       return await handleFlaggedQuery(
-        supabase, limit, cursor,
+        supabase, limit, offset,
         domainParams, contentTypeParams, sourceFileParam, sourceDocumentIdParam,
         sort,
       );
@@ -90,11 +90,6 @@ export async function GET(request: NextRequest) {
       query = query.eq('source_document_id', sourceDocumentIdParam);
     }
 
-    // Cursor-based pagination using created_at
-    if (cursor) {
-      query = query.lt('created_at', cursor);
-    }
-
     // Apply sort order
     if (sort === 'confidence_asc') {
       query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
@@ -103,7 +98,10 @@ export async function GET(request: NextRequest) {
     } else {
       query = query.order('created_at', { ascending: false });
     }
-    query = query.limit(limit);
+    // Tiebreaker for stable ordering when sort column values are equal or null
+    query = query.order('id', { ascending: true });
+    // Offset-based pagination
+    query = query.range(offset, offset + limit - 1);
 
     const { data, error, count } = await query;
 
@@ -116,7 +114,6 @@ export async function GET(request: NextRequest) {
     }
 
     const items = (data ?? []) as ContentItemRow[];
-    const lastItem = items.length > 0 ? items[items.length - 1] : null;
 
     // Fetch verified and flagged counts in parallel for the progress bar
     const [verifiedResult, flaggedResult] = await Promise.all([
@@ -144,7 +141,7 @@ export async function GET(request: NextRequest) {
       total: count ?? 0,
       verified_count: verifiedResult.count ?? 0,
       flagged_count: flaggedResult.count ?? 0,
-      cursor: lastItem?.created_at ?? undefined,
+      has_more: items.length === limit && (count ?? 0) > offset + items.length,
     };
 
     return NextResponse.json(response);
@@ -164,7 +161,7 @@ async function handleFlaggedQuery(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   limit: number,
-  cursor: string | undefined,
+  offset: number,
   domainParams: string[],
   contentTypeParams: string[],
   sourceFileParam: string | null,
@@ -223,10 +220,6 @@ async function handleFlaggedQuery(
     query = query.eq('source_document_id', sourceDocumentIdParam);
   }
 
-  if (cursor) {
-    query = query.lt('created_at', cursor);
-  }
-
   // Apply sort order
   if (sort === 'confidence_asc') {
     query = query.order('classification_confidence', { ascending: true, nullsFirst: true });
@@ -235,7 +228,10 @@ async function handleFlaggedQuery(
   } else {
     query = query.order('created_at', { ascending: false });
   }
-  query = query.limit(limit);
+  // Tiebreaker for stable ordering
+  query = query.order('id', { ascending: true });
+  // Offset-based pagination
+  query = query.range(offset, offset + limit - 1);
 
   const { data, error, count } = await query;
 
@@ -248,7 +244,6 @@ async function handleFlaggedQuery(
   }
 
   const items = (data ?? []) as ContentItemRow[];
-  const lastItem = items.length > 0 ? items[items.length - 1] : null;
 
   // Fetch verified and flagged counts for the progress bar
   const [verifiedResult, flaggedResult] = await Promise.all([
@@ -276,7 +271,7 @@ async function handleFlaggedQuery(
     total: count ?? 0,
     verified_count: verifiedResult.count ?? 0,
     flagged_count: flaggedResult.count ?? 0,
-    cursor: lastItem?.created_at ?? undefined,
+    has_more: items.length === limit && (count ?? 0) > offset + items.length,
   };
 
   return NextResponse.json(response);

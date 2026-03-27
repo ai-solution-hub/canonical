@@ -271,11 +271,12 @@ describe('EmbedBodySchema', () => {
 
 
 describe('ReviewQueueParamsSchema', () => {
-  it('should apply default limit when no fields provided', () => {
+  it('should apply default limit and offset when no fields provided', () => {
     const result = ReviewQueueParamsSchema.safeParse({});
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.limit).toBe(20);
+      expect(result.data.offset).toBe(0);
     }
   });
 

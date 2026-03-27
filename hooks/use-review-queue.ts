@@ -121,7 +121,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isActioning, setIsActioning] = useState(false);
-  const [cursor, setCursor] = useState<string | undefined>(undefined);
+  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
 
   // Progress state
@@ -282,9 +282,10 @@ export function useReviewQueue(): UseReviewQueueReturn {
   }, []);
 
   const fetchQueue = useCallback(
-    async (newCursor?: string) => {
+    async (pageOffset: number = 0) => {
       const params = new URLSearchParams();
       params.set('limit', String(BATCH_SIZE));
+      params.set('offset', String(pageOffset));
       if (filters.status) params.set('status', filters.status);
       if (filters.source_file) params.set('source_file', filters.source_file);
       if (filters.source_document_id) params.set('source_document_id', filters.source_document_id);
@@ -299,7 +300,6 @@ export function useReviewQueue(): UseReviewQueueReturn {
         }
       }
       if (serverSort) params.set('sort', serverSort);
-      if (newCursor) params.set('cursor', newCursor);
 
       const res = await fetch(`/api/review/queue?${params.toString()}`);
       if (!res.ok) {
@@ -318,16 +318,16 @@ export function useReviewQueue(): UseReviewQueueReturn {
       setIsLoading(true);
       setQueue([]);
       setCurrentIndex(0);
-      setCursor(undefined);
+      setOffset(0);
       setHasMore(false);
 
       try {
-        const data = await fetchQueue();
+        const data = await fetchQueue(0);
         if (cancelled) return;
 
         setQueue(data.items ?? []);
-        setCursor(data.cursor);
-        setHasMore(!!data.cursor);
+        setOffset(data.items?.length ?? 0);
+        setHasMore(data.has_more ?? false);
         setProgress((prev) => ({
           ...prev,
           total: data.total ?? prev.total,
@@ -416,18 +416,17 @@ export function useReviewQueue(): UseReviewQueueReturn {
       currentIndex >= PREFETCH_THRESHOLD &&
       currentIndex >= queue.length - (BATCH_SIZE - PREFETCH_THRESHOLD) &&
       hasMore &&
-      cursor &&
       !isPrefetchingRef.current
     ) {
       isPrefetchingRef.current = true;
 
-      fetchQueue(cursor)
+      fetchQueue(offset)
         .then((data) => {
           const newItems = data.items ?? [];
           if (newItems.length > 0) {
             setQueue((prev) => [...prev, ...newItems]);
-            setCursor(data.cursor);
-            setHasMore(!!data.cursor);
+            setOffset((prev) => prev + newItems.length);
+            setHasMore(data.has_more ?? false);
           } else {
             setHasMore(false);
           }
@@ -439,7 +438,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
           isPrefetchingRef.current = false;
         });
     }
-  }, [currentIndex, queue.length, hasMore, cursor, fetchQueue]);
+  }, [currentIndex, queue.length, hasMore, offset, fetchQueue]);
 
   // Focus management: focus the card and scroll to top after navigation
   useEffect(() => {

@@ -44,7 +44,9 @@ export function normaliseTextForHash(text: string): string {
 
 /**
  * Check for exact content duplicates by comparing MD5 hashes of normalised content.
- * Uses PostgreSQL md5() function to avoid transferring all content to the client.
+ * Computes the hash client-side for the input text, then uses the find_exact_duplicates
+ * RPC to match against the stored content_text_hash generated column.
+ * No content text is transferred -- only the 32-char hex hash is sent to the DB.
  */
 async function findExactDuplicates(
   supabase: SupabaseClient<Database>,
@@ -54,49 +56,25 @@ async function findExactDuplicates(
   const normalised = normaliseTextForHash(contentText);
   if (!normalised) return [];
 
-  // Use raw SQL via rpc to compute MD5 server-side and match
-  // We use a lightweight approach: compute the hash client-side and match via a filter
   const crypto = await import('crypto');
   const hash = crypto.createHash('md5').update(normalised).digest('hex');
 
-  // Query content_items where md5 of normalised content matches
-  // We use the Supabase PostgREST filter with a computed column approach
-  // Since there's no stored hash column, we'll fetch recent items and compare
-  // This is more efficient than scanning all rows for small-to-medium KBs (~250 items)
-  const query = supabase
-    .from('content_items')
-    .select('id, title, content')
-    .not('content', 'is', null)
-    .neq('content', '')
-    .limit(500);
+  const { data: results, error } = await supabase.rpc('find_exact_duplicates', {
+    p_content_hash: hash,
+    p_exclude_id: excludeId ?? null,
+  });
 
-  if (excludeId) {
-    query.neq('id', excludeId);
-  }
-
-  const { data: items, error } = await query;
-
-  if (error || !items) {
+  if (error || !results) {
     console.error('Exact dedup query failed:', error);
     return [];
   }
 
-  const matches: DuplicateMatch[] = [];
-  for (const item of items) {
-    if (!item.content) continue;
-    const itemNormalised = normaliseTextForHash(item.content);
-    const itemHash = crypto.createHash('md5').update(itemNormalised).digest('hex');
-    if (itemHash === hash) {
-      matches.push({
-        id: item.id,
-        title: item.title ?? 'Untitled',
-        similarity: 1.0,
-        match_type: 'exact',
-      });
-    }
-  }
-
-  return matches;
+  return (results as Array<{ id: string; title: string }>).map((r) => ({
+    id: r.id,
+    title: r.title ?? 'Untitled',
+    similarity: 1.0,
+    match_type: 'exact' as const,
+  }));
 }
 
 /**

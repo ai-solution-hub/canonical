@@ -71,10 +71,8 @@ describe('checkForDuplicates', () => {
   });
 
   it('returns no duplicates when DB has no matching content', async () => {
-    // Mock: from().select()...then() returns empty array
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
+    // Mock: find_exact_duplicates RPC returns empty array
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -88,19 +86,16 @@ describe('checkForDuplicates', () => {
   it('finds exact duplicates by normalised content hash', async () => {
     const contentText = 'This is some test content for deduplication.';
 
-    // Mock: DB returns an item with identical normalised content
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [
-          {
-            id: 'existing-item-id',
-            title: 'Existing Article',
-            content: contentText,  // Exact same content
-          },
-        ],
-        error: null,
-      }),
-    );
+    // Mock: find_exact_duplicates RPC returns a matching item
+    mockSupabase.rpc.mockResolvedValue({
+      data: [
+        {
+          id: 'existing-item-id',
+          title: 'Existing Article',
+        },
+      ],
+      error: null,
+    });
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -115,22 +110,26 @@ describe('checkForDuplicates', () => {
       similarity: 1.0,
       match_type: 'exact',
     });
+
+    // Verify RPC was called with correct parameters
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('find_exact_duplicates', {
+      p_content_hash: expect.any(String),
+      p_exclude_id: null,
+    });
   });
 
   it('detects exact match even with different punctuation and casing', async () => {
-    // Mock: DB returns an item whose normalised form matches
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [
-          {
-            id: 'existing-id',
-            title: 'Existing',
-            content: 'Hello, World!  How are you?',
-          },
-        ],
-        error: null,
-      }),
-    );
+    // Mock: find_exact_duplicates RPC returns a matching item
+    // (the DB generated column normalises identically to the client-side hash)
+    mockSupabase.rpc.mockResolvedValue({
+      data: [
+        {
+          id: 'existing-id',
+          title: 'Existing',
+        },
+      ],
+      error: null,
+    });
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -142,27 +141,25 @@ describe('checkForDuplicates', () => {
   });
 
   it('finds near-duplicates using embedding similarity', async () => {
-    // Mock: exact check returns nothing
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-
-    // Mock: RPC returns similar items
-    mockSupabase.rpc.mockResolvedValue({
-      data: [
-        {
-          id: 'similar-item-id',
-          title: 'Similar Article',
-          similarity: 0.95,
-          content: 'Similar content',
-          content_type: 'article',
-          platform: 'web',
-          source_domain: 'example.com',
-          author_name: 'Test',
-        },
-      ],
-      error: null,
-    });
+    // Mock: first RPC call (find_exact_duplicates) returns nothing,
+    // second RPC call (find_similar_content) returns similar items
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null })  // exact dedup
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'similar-item-id',
+            title: 'Similar Article',
+            similarity: 0.95,
+            content: 'Similar content',
+            content_type: 'article',
+            platform: 'web',
+            source_domain: 'example.com',
+            author_name: 'Test',
+          },
+        ],
+        error: null,
+      });
 
     const fakeEmbedding = new Array(1024).fill(0.1);
     const result = await checkForDuplicates(
@@ -189,16 +186,13 @@ describe('checkForDuplicates', () => {
   });
 
   it('excludes specified item ID from results', async () => {
-    // Mock: exact check returns items including the excluded one
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({
-        data: [
-          { id: 'exclude-me', title: 'Self', content: 'test content' },
-          { id: 'other-item', title: 'Other', content: 'test content' },
-        ],
-        error: null,
-      }),
-    );
+    // Mock: find_exact_duplicates RPC returns only the non-excluded item
+    mockSupabase.rpc.mockResolvedValue({
+      data: [
+        { id: 'other-item', title: 'Other' },
+      ],
+      error: null,
+    });
 
     await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -207,39 +201,40 @@ describe('checkForDuplicates', () => {
       { excludeId: 'exclude-me' },
     );
 
-    // The chain should have .neq called for excludeId
-    expect(mockSupabase._chain.neq).toHaveBeenCalled();
+    // The RPC should have been called with p_exclude_id
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('find_exact_duplicates', {
+      p_content_hash: expect.any(String),
+      p_exclude_id: 'exclude-me',
+    });
   });
 
   it('deduplicates exact and near matches for the same item', async () => {
     const contentText = 'Duplicate content here.';
 
-    // Mock: exact check finds one item
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({
+    // Mock: first RPC (find_exact_duplicates) finds one item,
+    // second RPC (find_similar_content) also returns the same item
+    mockSupabase.rpc
+      .mockResolvedValueOnce({
         data: [
-          { id: 'same-item', title: 'Same Article', content: contentText },
+          { id: 'same-item', title: 'Same Article' },
         ],
         error: null,
-      }),
-    );
-
-    // Mock: near-duplicate also returns the same item
-    mockSupabase.rpc.mockResolvedValue({
-      data: [
-        {
-          id: 'same-item',
-          title: 'Same Article',
-          similarity: 0.99,
-          content: contentText,
-          content_type: 'article',
-          platform: 'web',
-          source_domain: '',
-          author_name: '',
-        },
-      ],
-      error: null,
-    });
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'same-item',
+            title: 'Same Article',
+            similarity: 0.99,
+            content: contentText,
+            content_type: 'article',
+            platform: 'web',
+            source_domain: '',
+            author_name: '',
+          },
+        ],
+        error: null,
+      });
 
     const fakeEmbedding = new Array(1024).fill(0.1);
     const result = await checkForDuplicates(
@@ -254,10 +249,11 @@ describe('checkForDuplicates', () => {
   });
 
   it('uses custom near-duplicate threshold', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
+    // Mock: first RPC (find_exact_duplicates) returns nothing,
+    // second RPC (find_similar_content) returns nothing
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null });
 
     const fakeEmbedding = new Array(1024).fill(0.1);
     await checkForDuplicates(
@@ -275,9 +271,7 @@ describe('checkForDuplicates', () => {
   });
 
   it('handles exact dedup query failure gracefully', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: null, error: { message: 'DB error' } }),
-    );
+    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'DB error' } });
 
     const result = await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -290,10 +284,11 @@ describe('checkForDuplicates', () => {
   });
 
   it('handles near-duplicate RPC failure gracefully', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
-    mockSupabase.rpc.mockResolvedValue({ data: null, error: { message: 'RPC error' } });
+    // Mock: first RPC (find_exact_duplicates) succeeds with no results,
+    // second RPC (find_similar_content) fails
+    mockSupabase.rpc
+      .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'RPC error' } });
 
     const fakeEmbedding = new Array(1024).fill(0.1);
     const result = await checkForDuplicates(
@@ -308,9 +303,8 @@ describe('checkForDuplicates', () => {
   });
 
   it('skips near-duplicate check when no embedding provided', async () => {
-    mockSupabase._chain.then.mockImplementation(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
+    // Mock: find_exact_duplicates RPC returns nothing
+    mockSupabase.rpc.mockResolvedValue({ data: [], error: null });
 
     await checkForDuplicates(
       mockSupabase as unknown as Parameters<typeof checkForDuplicates>[0],
@@ -318,8 +312,9 @@ describe('checkForDuplicates', () => {
       // No embedding
     );
 
-    // RPC should not have been called
-    expect(mockSupabase.rpc).not.toHaveBeenCalled();
+    // RPC should have been called once (for exact dedup only), not for find_similar_content
+    expect(mockSupabase.rpc).toHaveBeenCalledTimes(1);
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('find_exact_duplicates', expect.any(Object));
   });
 });
 
