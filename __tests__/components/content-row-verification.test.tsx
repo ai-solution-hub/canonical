@@ -101,7 +101,7 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
   getLayerLabel: (key: string) => key,
 }));
 
-vi.mock('@/lib/highlight', () => ({
+vi.mock('@/components/highlight', () => ({
   highlightTerms: (text: string) => text,
 }));
 

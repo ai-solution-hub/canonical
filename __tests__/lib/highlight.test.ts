@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { highlightTerms } from '@/lib/highlight';
+import { highlightTerms } from '@/components/highlight';
 
 describe('highlightTerms', () => {
   it('returns original text when query is empty', () => {

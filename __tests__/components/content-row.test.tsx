@@ -110,7 +110,7 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
 }));
 
 // Mock highlight — pass through text unchanged
-vi.mock('@/lib/highlight', () => ({
+vi.mock('@/components/highlight', () => ({
   highlightTerms: (text: string) => text,
 }));
 

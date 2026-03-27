@@ -14,7 +14,7 @@ import { AlertTriangle, Copy } from 'lucide-react';
 import { FreshnessBadge } from '@/components/freshness-badge';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { highlightTerms } from '@/lib/highlight';
+import { highlightTerms } from '@/components/highlight';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
