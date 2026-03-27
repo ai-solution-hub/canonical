@@ -248,3 +248,11 @@ findings before merge, worktrees for parallel work, sequential merges only.
   `git status` on main and clean with `git checkout -- .` and `git clean -fd`.
 - **React compiler memoisation:** Destructure nested properties before using
   in `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
+- **Supabase CLI in Claude Code sandbox:** The CLI uses direct Postgres
+  connections via the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`)
+  which the sandbox blocks. Run `supabase migration new`, `supabase db push`,
+  and `supabase gen types` with `dangerouslyDisableSandbox: true`.
+  `SUPABASE_DB_PASSWORD` must be set as a shell env var (source from `.env`).
+- **Supabase default row limit:** Max Rows is set to 5000 (raised from 1000).
+  Scripts fetching large result sets should still paginate with `.range()` or
+  add explicit `.limit()` rather than relying on the default.
