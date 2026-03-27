@@ -150,7 +150,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
       });
 
       if (!res.ok) {
-        return { isDuplicate: false, matches: [] };
+        return { isDuplicate: false, matches: [], error: true };
       }
 
       const data = await res.json();
@@ -159,7 +159,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
         matches: data.matches ?? [],
       };
     } catch {
-      return { isDuplicate: false, matches: [] };
+      return { isDuplicate: false, matches: [], error: true };
     }
   }, []);
 

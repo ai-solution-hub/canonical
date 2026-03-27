@@ -111,6 +111,7 @@ export function DuplicateReview({
 
     let totalAffected = 0;
     let merged = 0;
+    let failed = 0;
 
     for (const group of remainingGroups) {
       const canonical = getCanonical(group);
@@ -132,16 +133,23 @@ export function DuplicateReview({
           totalAffected += data.affected ?? 0;
           merged++;
           setMergedGroups((prev) => new Set([...prev, group.canonical]));
+        } else {
+          failed++;
         }
       } catch {
-        // Continue with remaining groups
+        failed++;
       }
     }
 
     setMergingAll(false);
-    if (merged > 0) {
+    if (merged > 0 && failed === 0) {
       toast.success(
         `Merged ${merged} duplicate group${merged !== 1 ? 's' : ''} (${totalAffected} items updated)`,
+      );
+      onMergeComplete();
+    } else if (merged > 0 && failed > 0) {
+      toast.warning(
+        `Merged ${merged} group${merged !== 1 ? 's' : ''}, but ${failed} group${failed !== 1 ? 's' : ''} failed`,
       );
       onMergeComplete();
     } else {
