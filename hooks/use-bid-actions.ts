@@ -110,7 +110,7 @@ function useBidTransitions(
 
   async function handleStatusTransition(newStatus: BidState) {
     if (!bid) return;
-    const currentStatus = (bid.status ?? (bid.domain_metadata as BidMetadata).status) as BidState;
+    const currentStatus = bid.status as BidState;
     if (!canTransition(currentStatus, newStatus)) {
       toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
       return;
@@ -397,7 +397,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
   // Computed values
   const metadata = bid ? (bid.domain_metadata as BidMetadata) : null;
   const bidStatus = bid
-    ? ((bid.status ?? metadata?.status ?? 'draft') as BidState)
+    ? ((bid.status ?? 'draft') as BidState)
     : null;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);

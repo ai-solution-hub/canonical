@@ -79,8 +79,7 @@ export default function BidsPage() {
     const allowedStates = FILTER_STATES[statusFilter];
     const result = allowedStates
       ? bids.filter((bid) => {
-          const bidStatus = (bid.status ??
-            (bid.domain_metadata as BidMetadata).status) as BidState;
+          const bidStatus = bid.status as BidState;
           return allowedStates.includes(bidStatus);
         })
       : [...bids];
@@ -293,7 +292,7 @@ function EmptyState({ canEdit, onCreateClick }: { canEdit: boolean; onCreateClic
 
 function BidListRow({ bid }: { bid: Bid }) {
   const metadata = bid.domain_metadata as BidMetadata;
-  const bidStatus = (bid.status ?? metadata.status) as import('@/types/bid').BidState;
+  const bidStatus = bid.status as import('@/types/bid').BidState;
   const proximity = getDeadlineProximity(metadata.deadline);
 
   return (

@@ -748,7 +748,7 @@ describe('useBidActions', () => {
       expect(tabsById['responses'].count).toBeUndefined();
     });
 
-    it('bidStatus falls back to domain_metadata.status when bid.status is undefined', async () => {
+    it('bidStatus defaults to draft when bid.status is undefined', async () => {
       vi.stubGlobal(
         'fetch',
         vi.fn(async (url: string) => {
@@ -761,7 +761,8 @@ describe('useBidActions', () => {
       const { result } = renderHook(() => useBidActions({ id: 'bid-1' }));
       await waitFor(() => { expect(result.current.bid).not.toBeNull(); });
 
-      expect(result.current.bidStatus).toBe('drafting');
+      // S117 promoted status to a proper column — no JSONB metadata fallback
+      expect(result.current.bidStatus).toBe('draft');
     });
 
     it('availableTransitions uses getAvailableTransitions with current status', async () => {

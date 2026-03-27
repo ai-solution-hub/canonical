@@ -173,7 +173,7 @@ async function findExistingTopicGroup(
   for (const item of items) {
     const metadata = item.metadata as Record<string, unknown> | null;
     const topicId = metadata?.topic_id as string | undefined;
-    const layer = (item as Record<string, unknown>).layer as string | undefined ?? metadata?.layer as string | undefined;
+    const layer = (item as Record<string, unknown>).layer as string | undefined;
 
     if (!topicId || !layer) continue;
 
@@ -307,7 +307,7 @@ async function findSimilarUngroupedItem(
     if (metadata?.topic_id) return false;
 
     // Prefer items at a different layer (or without a layer)
-    const itemLayer = (item as Record<string, unknown>).layer as string | undefined ?? metadata?.layer as string | undefined;
+    const itemLayer = (item as Record<string, unknown>).layer as string | undefined;
     return !itemLayer || itemLayer !== suggestedLayer;
   });
 
@@ -317,8 +317,7 @@ async function findSimilarUngroupedItem(
 
   // Pick the first candidate (highest similarity, since RPC returns ordered)
   const bestMatch = candidates[0];
-  const matchMetadata = bestMatch.metadata as Record<string, unknown> | null;
-  const matchLayer = (bestMatch as Record<string, unknown>).layer as string || (matchMetadata?.layer as string) || 'unassigned';
+  const matchLayer = (bestMatch as Record<string, unknown>).layer as string || 'unassigned';
 
   const topicId = generateTopicId(domain, subtopic);
   const allLayers = getAllLayerKeys();

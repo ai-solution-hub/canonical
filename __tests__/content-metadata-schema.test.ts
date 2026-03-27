@@ -30,10 +30,8 @@ describe('ContentMetadataSchema', () => {
     table_count: 1,
     page_count: 12,
 
-    // User-facing state
-    layer: 'company_reference',
+    // User-facing state (layer and starred are now proper columns, not metadata)
     topic_id: 'data-security',
-    starred: true,
 
     // Import-specific context
     section_name: 'Information Security',
@@ -49,8 +47,6 @@ describe('ContentMetadataSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.source_file).toBe('docs/policies/data-protection.md');
-      expect(result.data.layer).toBe('company_reference');
-      expect(result.data.starred).toBe(true);
       expect(result.data.page_count).toBe(12);
       expect(result.data.table_count).toBe(1);
     }
@@ -63,8 +59,6 @@ describe('ContentMetadataSchema', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.source_file).toBeUndefined();
-      expect(result.data.layer).toBeUndefined();
-      expect(result.data.starred).toBeUndefined();
     }
   });
 
@@ -111,17 +105,13 @@ describe('ContentMetadataSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should accept layer + topic metadata only', () => {
+  it('should accept topic metadata only', () => {
     const result = ContentMetadataSchema.safeParse({
-      layer: 'sales_brief',
       topic_id: 'pricing',
-      starred: false,
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.layer).toBe('sales_brief');
       expect(result.data.topic_id).toBe('pricing');
-      expect(result.data.starred).toBe(false);
     }
   });
 
@@ -173,39 +163,11 @@ describe('ContentMetadataSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should reject non-boolean starred', () => {
-    const result = ContentMetadataSchema.safeParse({
-      starred: 'yes',
-    });
-    expect(result.success).toBe(false);
-  });
-
   it('should reject non-boolean has_standard', () => {
     const result = ContentMetadataSchema.safeParse({
       has_standard: 1,
     });
     expect(result.success).toBe(false);
-  });
-
-  it('should reject non-string layer', () => {
-    const result = ContentMetadataSchema.safeParse({
-      layer: 123,
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should reject layer exceeding max length', () => {
-    const result = ContentMetadataSchema.safeParse({
-      layer: 'a'.repeat(51),
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('should accept layer at exactly max length', () => {
-    const result = ContentMetadataSchema.safeParse({
-      layer: 'a'.repeat(50),
-    });
-    expect(result.success).toBe(true);
   });
 
   it('should reject non-array extracted_images', () => {
@@ -247,12 +209,10 @@ describe('ContentMetadataSchema', () => {
 describe('parseContentMetadata', () => {
   it('should return parsed metadata for valid input', () => {
     const result = parseContentMetadata({
-      layer: 'bid_detail',
-      starred: true,
+      topic_id: 'data-security',
     });
     expect(result).not.toBeNull();
-    expect(result!.layer).toBe('bid_detail');
-    expect(result!.starred).toBe(true);
+    expect(result!.topic_id).toBe('data-security');
   });
 
   it('should return parsed metadata for empty object', () => {
@@ -281,7 +241,7 @@ describe('parseContentMetadata', () => {
 
   it('should preserve unknown keys via passthrough', () => {
     const result = parseContentMetadata({
-      layer: 'research',
+      topic_id: 'research',
       custom_key: 'preserved',
     });
     expect(result).not.toBeNull();
