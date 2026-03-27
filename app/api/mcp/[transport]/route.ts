@@ -123,11 +123,35 @@ async function handleMcpRequest(request: Request): Promise<Response> {
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
-  return handleMcpRequest(request);
+  try {
+    return await handleMcpRequest(request);
+  } catch (err) {
+    console.error('MCP GET handler error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 }
 export async function POST(request: Request) {
-  return handleMcpRequest(request);
+  try {
+    return await handleMcpRequest(request);
+  } catch (err) {
+    console.error('MCP POST handler error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 }
 export async function DELETE(request: Request) {
-  return handleMcpRequest(request);
+  try {
+    return await handleMcpRequest(request);
+  } catch (err) {
+    console.error('MCP DELETE handler error:', err);
+    return new Response(
+      JSON.stringify({ error: 'Internal server error' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
 }

@@ -49,7 +49,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AIServiceError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json(
+        { error: safeErrorMessage(err, err.message) },
+        { status: err.status },
+      );
     }
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to generate digest') },

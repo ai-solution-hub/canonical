@@ -17,27 +17,34 @@ const RevokeSchema = z.object({
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
+  try {
+    const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => null);
+    const parsed = parseBody(RevokeSchema, body);
+    if (!parsed.success) return parsed.response;
+
+    const { error } = await supabase.auth.oauth.revokeGrant({
+      clientId: parsed.data.clientId,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: safeErrorMessage(error, 'Failed to revoke OAuth grant') }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'Failed to revoke OAuth grant') },
+      { status: 500 },
+    );
   }
-
-  const body = await request.json().catch(() => null);
-  const parsed = parseBody(RevokeSchema, body);
-  if (!parsed.success) return parsed.response;
-
-  const { error } = await supabase.auth.oauth.revokeGrant({
-    clientId: parsed.data.clientId,
-  });
-
-  if (error) {
-    return NextResponse.json({ error: safeErrorMessage(error, 'Failed to revoke OAuth grant') }, { status: 500 });
-  }
-
-  return NextResponse.json({ success: true });
 }

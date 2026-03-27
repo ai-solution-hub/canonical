@@ -14,40 +14,47 @@ import { safeErrorMessage } from '@/lib/error';
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const formData = await request.formData();
+  try {
+    const formData = await request.formData();
 
-  // Validate form data with Zod schema
-  const parsed = parseBody(OAuthDecisionBodySchema, {
-    decision: formData.get('decision'),
-    authorization_id: formData.get('authorization_id'),
-  });
-  if (!parsed.success) return parsed.response;
-  const { decision, authorization_id: authorizationId } = parsed.data;
+    // Validate form data with Zod schema
+    const parsed = parseBody(OAuthDecisionBodySchema, {
+      decision: formData.get('decision'),
+      authorization_id: formData.get('authorization_id'),
+    });
+    if (!parsed.success) return parsed.response;
+    const { decision, authorization_id: authorizationId } = parsed.data;
 
-  const supabase = await createClient();
+    const supabase = await createClient();
 
-  if (decision === 'approve') {
-    const { data, error } =
-      await supabase.auth.oauth.approveAuthorization(authorizationId, {
-        skipBrowserRedirect: true,
-      });
+    if (decision === 'approve') {
+      const { data, error } =
+        await supabase.auth.oauth.approveAuthorization(authorizationId, {
+          skipBrowserRedirect: true,
+        });
 
-    if (error) {
-      return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
+      if (error) {
+        return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
+      }
+
+      // 303 See Other — converts POST to GET for the callback redirect
+      return NextResponse.redirect(data.redirect_url, 303);
+    } else {
+      const { data, error } =
+        await supabase.auth.oauth.denyAuthorization(authorizationId, {
+          skipBrowserRedirect: true,
+        });
+
+      if (error) {
+        return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
+      }
+
+      return NextResponse.redirect(data.redirect_url, 303);
     }
-
-    // 303 See Other — converts POST to GET for the callback redirect
-    return NextResponse.redirect(data.redirect_url, 303);
-  } else {
-    const { data, error } =
-      await supabase.auth.oauth.denyAuthorization(authorizationId, {
-        skipBrowserRedirect: true,
-      });
-
-    if (error) {
-      return NextResponse.json({ error: safeErrorMessage(error, 'OAuth decision failed') }, { status: 400 });
-    }
-
-    return NextResponse.redirect(data.redirect_url, 303);
+  } catch (err) {
+    return NextResponse.json(
+      { error: safeErrorMessage(err, 'OAuth decision failed') },
+      { status: 500 },
+    );
   }
 }

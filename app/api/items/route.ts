@@ -161,8 +161,8 @@ export async function POST(request: NextRequest) {
       try {
         await classifyInBackground(newItem.id, user.id);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        warnings.push(`Classification failed: ${msg}`);
+        console.error('Classification failed during item creation:', err);
+        warnings.push('Classification failed');
       }
     }
 
@@ -170,8 +170,8 @@ export async function POST(request: NextRequest) {
       try {
         await summariseInBackground(newItem.id, user.id);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Unknown error';
-        warnings.push(`Summary generation failed: ${msg}`);
+        console.error('Summary generation failed during item creation:', err);
+        warnings.push('Summary generation failed');
       }
     }
 

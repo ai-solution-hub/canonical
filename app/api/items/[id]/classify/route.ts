@@ -52,7 +52,10 @@ export async function POST(
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AIServiceError) {
-      return NextResponse.json({ error: err.message }, { status: err.status });
+      return NextResponse.json(
+        { error: safeErrorMessage(err, err.message) },
+        { status: err.status },
+      );
     }
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to classify content item') },
