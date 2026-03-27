@@ -23,6 +23,7 @@ export interface DiffReviewEntry {
   old_content?: string;
   new_content?: string;
   similarity_score?: number;
+  section_header?: string;
   affected_item?: { id: string; title: string };
   status: string;
   reviewer_note?: string;
@@ -841,6 +842,16 @@ function FullTextDiffEntryCard({
 
         <StatusBadge status={entry.status} />
       </div>
+
+      {/* Section header context label */}
+      {entry.section_header && (
+        <p
+          className="mb-2 text-xs font-medium text-muted-foreground"
+          aria-label={`Section: ${entry.section_header}`}
+        >
+          Section: {entry.section_header}
+        </p>
+      )}
 
       {/* Content blocks */}
       <div className="space-y-3">

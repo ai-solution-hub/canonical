@@ -19,8 +19,12 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   computeDocumentDiff,
   computeFullTextDiff,
+  detectSectionHeader,
+  findLastHeadingInBlock,
+  annotateWithSectionHeaders,
   MAX_DIFF_ENTRIES,
 } from '@/lib/source-documents/document-diff';
+import type { DiffEntry } from '@/lib/source-documents/document-diff';
 
 const OLD_ID = '00000000-0000-0000-0000-000000000001';
 const NEW_ID = '00000000-0000-0000-0000-000000000002';
@@ -579,5 +583,309 @@ describe('Full-text diff — upload route compatibility', () => {
       expect(entry.old_question).toBeUndefined();
       expect(entry.new_question).toBeUndefined();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section heading detection — Phase 3
+// ---------------------------------------------------------------------------
+
+describe('detectSectionHeader', () => {
+  it('detects markdown h1 headings', () => {
+    expect(detectSectionHeader('# Introduction')).toBe('# Introduction');
+  });
+
+  it('detects markdown h2 headings', () => {
+    expect(detectSectionHeader('## Data Protection Policy')).toBe('## Data Protection Policy');
+  });
+
+  it('detects markdown h3 headings', () => {
+    expect(detectSectionHeader('### Sub-section Details')).toBe('### Sub-section Details');
+  });
+
+  it('detects markdown h6 headings', () => {
+    expect(detectSectionHeader('###### Deep Heading')).toBe('###### Deep Heading');
+  });
+
+  it('detects numbered sections: 1. Title', () => {
+    expect(detectSectionHeader('1. Introduction')).toBe('1. Introduction');
+  });
+
+  it('detects numbered sections: 1.1 Title', () => {
+    expect(detectSectionHeader('1.1 Scope')).toBe('1.1 Scope');
+  });
+
+  it('detects numbered sections: 1.1.1 Title', () => {
+    expect(detectSectionHeader('1.1.1 Detailed Requirements')).toBe('1.1.1 Detailed Requirements');
+  });
+
+  it('detects ALL CAPS headings', () => {
+    expect(detectSectionHeader('DATA PROTECTION')).toBe('DATA PROTECTION');
+  });
+
+  it('detects ALL CAPS headings with spaces', () => {
+    expect(detectSectionHeader('HEALTH AND SAFETY POLICY')).toBe('HEALTH AND SAFETY POLICY');
+  });
+
+  it('returns undefined for normal text', () => {
+    expect(detectSectionHeader('This is a normal sentence.')).toBeUndefined();
+  });
+
+  it('returns undefined for empty string', () => {
+    expect(detectSectionHeader('')).toBeUndefined();
+  });
+
+  it('returns undefined for whitespace-only', () => {
+    expect(detectSectionHeader('   ')).toBeUndefined();
+  });
+
+  it('trims whitespace before matching', () => {
+    expect(detectSectionHeader('  ## Indented Heading  ')).toBe('## Indented Heading');
+  });
+
+  it('does not match short ALL CAPS (2 chars or fewer) to avoid false positives', () => {
+    // "OK" is only 2 chars — should not match as a heading
+    expect(detectSectionHeader('OK')).toBeUndefined();
+  });
+
+  it('does not match lowercase text as headings', () => {
+    expect(detectSectionHeader('this is not a heading')).toBeUndefined();
+  });
+
+  it('does not match mixed case as ALL CAPS heading', () => {
+    expect(detectSectionHeader('Data Protection')).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// findLastHeadingInBlock
+// ---------------------------------------------------------------------------
+
+describe('findLastHeadingInBlock', () => {
+  it('finds the last heading in a multi-line block', () => {
+    const text = '# First Heading\nSome content here.\n## Second Heading\nMore content.';
+    expect(findLastHeadingInBlock(text)).toBe('## Second Heading');
+  });
+
+  it('returns undefined when no headings are present', () => {
+    const text = 'Just normal text.\nNo headings here.';
+    expect(findLastHeadingInBlock(text)).toBeUndefined();
+  });
+
+  it('finds a single heading in a block', () => {
+    const text = '# Only Heading';
+    expect(findLastHeadingInBlock(text)).toBe('# Only Heading');
+  });
+
+  it('finds numbered section headings', () => {
+    const text = 'Some text.\n1.2 Requirements\nMore details.';
+    expect(findLastHeadingInBlock(text)).toBe('1.2 Requirements');
+  });
+
+  it('finds ALL CAPS headings in blocks', () => {
+    const text = 'Intro text.\nPOLICY STATEMENT\nPolicy details here.';
+    expect(findLastHeadingInBlock(text)).toBe('POLICY STATEMENT');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// annotateWithSectionHeaders
+// ---------------------------------------------------------------------------
+
+describe('annotateWithSectionHeaders', () => {
+  it('annotates entries following a heading with the heading text', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: '# Introduction\nThis document covers our policies.',
+        new_content: '# Introduction\nThis document covers our policies.',
+      },
+      {
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: 'Old policy text.',
+        new_content: 'New policy text.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBe('# Introduction');
+    expect(entries[1].section_header).toBe('# Introduction');
+  });
+
+  it('updates heading context as new headings are encountered', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: '# Section One\nContent one.',
+        new_content: '# Section One\nContent one.',
+      },
+      {
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: 'Modified in section one.',
+        new_content: 'Updated in section one.',
+      },
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: '## Section Two\nContent two.',
+        new_content: '## Section Two\nContent two.',
+      },
+      {
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: 'New content in section two.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBe('# Section One');
+    expect(entries[1].section_header).toBe('# Section One');
+    expect(entries[2].section_header).toBe('## Section Two');
+    expect(entries[3].section_header).toBe('## Section Two');
+  });
+
+  it('leaves entries without heading context as undefined', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: 'Just text, no heading above.',
+        new_content: 'Updated text, still no heading.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBeUndefined();
+  });
+
+  it('handles empty entries array without error', () => {
+    const entries: DiffEntry[] = [];
+    expect(() => annotateWithSectionHeaders(entries)).not.toThrow();
+    expect(entries).toHaveLength(0);
+  });
+
+  it('detects headings within added entries', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: '## New Section\nNew content here.',
+      },
+      {
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: 'More content in the new section.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBe('## New Section');
+    expect(entries[1].section_header).toBe('## New Section');
+  });
+
+  it('detects numbered section headings', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: '1.1 Requirements\nThe following requirements apply.',
+        new_content: '1.1 Requirements\nThe following requirements apply.',
+      },
+      {
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: 'Old requirement details.',
+        new_content: 'Updated requirement details.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBe('1.1 Requirements');
+    expect(entries[1].section_header).toBe('1.1 Requirements');
+  });
+
+  it('detects ALL CAPS headings', () => {
+    const entries: DiffEntry[] = [
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: 'SCOPE AND APPLICATION\nThis policy applies to all staff.',
+        new_content: 'SCOPE AND APPLICATION\nThis policy applies to all staff.',
+      },
+      {
+        diff_type: 'removed',
+        diff_mode: 'full_text',
+        old_content: 'Old scope details.',
+      },
+    ];
+
+    annotateWithSectionHeaders(entries);
+
+    expect(entries[0].section_header).toBe('SCOPE AND APPLICATION');
+    expect(entries[1].section_header).toBe('SCOPE AND APPLICATION');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Integration: section headers in computeFullTextDiff
+// ---------------------------------------------------------------------------
+
+describe('computeFullTextDiff — section header integration', () => {
+  it('populates section_header on entries when headings are present', () => {
+    const oldText = '# Introduction\nThis is our policy.\n## Scope\nApplies to all staff.\nAll employees must comply.';
+    const newText = '# Introduction\nThis is our updated policy.\n## Scope\nApplies to all staff.\nAll employees must comply with new rules.';
+
+    const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
+
+    // At least some entries should have section headers populated
+    const withHeaders = result.entries.filter((e) => e.section_header);
+    expect(withHeaders.length).toBeGreaterThan(0);
+  });
+
+  it('does not populate section_header when no headings are present', () => {
+    const oldText = 'Simple paragraph one.\nSimple paragraph two.';
+    const newText = 'Simple paragraph one.\nSimple paragraph three.';
+
+    const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
+
+    // No entries should have section headers
+    const withHeaders = result.entries.filter((e) => e.section_header);
+    expect(withHeaders.length).toBe(0);
+  });
+
+  it('propagates heading context from unchanged blocks to subsequent changed entries', () => {
+    // The heading is in an unchanged block; the change is after it
+    const oldText = '# Policy Overview\nThis policy covers data protection.\nOld compliance statement here.';
+    const newText = '# Policy Overview\nThis policy covers data protection.\nNew compliance statement here.';
+
+    const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
+
+    // The modified/changed entry should inherit the heading from the preceding unchanged block
+    const changedEntries = result.entries.filter(
+      (e) => e.diff_type === 'modified' || e.diff_type === 'added' || e.diff_type === 'removed',
+    );
+    if (changedEntries.length > 0) {
+      expect(changedEntries[0].section_header).toBe('# Policy Overview');
+    }
+  });
+
+  it('documents without headings produce valid diffs (graceful fallback)', () => {
+    const oldText = 'Lorem ipsum dolor sit amet.';
+    const newText = 'Lorem ipsum dolor sit amet, updated version.';
+
+    const result = computeFullTextDiff(OLD_ID, NEW_ID, oldText, newText);
+
+    // Should produce valid entries without crashing
+    expect(result.entries.length).toBeGreaterThan(0);
+    expect(result.diff_mode).toBe('full_text');
   });
 });

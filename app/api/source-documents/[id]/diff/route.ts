@@ -114,7 +114,7 @@ export async function GET(
     const { data: entries, error: entriesErr } = await supabase
       .from('source_document_diffs')
       .select(
-        'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status, reviewer_note',
+        'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, section_header, affected_content_item_id, status, reviewer_note',
       )
       .eq('old_document_id', oldDoc.id)
       .eq('new_document_id', newDoc.id)
@@ -128,6 +128,7 @@ export async function GET(
           old_content: string | null;
           new_content: string | null;
           similarity_score: number | null;
+          section_header: string | null;
           affected_content_item_id: string | null;
           status: string;
           reviewer_note: string | null;
@@ -190,6 +191,7 @@ export async function GET(
       old_content: entry.old_content ?? undefined,
       new_content: entry.new_content ?? undefined,
       similarity_score: entry.similarity_score ?? undefined,
+      section_header: entry.section_header ?? undefined,
       affected_item: entry.affected_content_item_id
         ? {
             id: entry.affected_content_item_id,
@@ -330,6 +332,7 @@ export async function POST(
         old_question: entry.old_question ?? null,
         new_question: entry.new_question ?? null,
         similarity_score: entry.similarity_score ?? null,
+        section_header: entry.section_header ?? null,
         status: 'pending_review' as const,
       }));
 
