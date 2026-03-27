@@ -1376,5 +1376,180 @@ describe('SourceDocumentDiffReview', () => {
       ).toBeInTheDocument();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Full-text diff mode rendering
+  // -------------------------------------------------------------------------
+
+  describe('full-text diff mode', () => {
+    const FULL_TEXT_ADDED = makeEntry({
+      id: 'ft-1',
+      diff_type: 'added',
+      diff_mode: 'full_text' as const,
+      new_content: 'This is a newly added paragraph about compliance.',
+    });
+
+    const FULL_TEXT_REMOVED = makeEntry({
+      id: 'ft-2',
+      diff_type: 'removed',
+      diff_mode: 'full_text' as const,
+      old_content: 'This outdated paragraph has been removed.',
+    });
+
+    const FULL_TEXT_MODIFIED = makeEntry({
+      id: 'ft-3',
+      diff_type: 'modified',
+      diff_mode: 'full_text' as const,
+      old_content: 'The old version of this paragraph.',
+      new_content: 'The new version of this paragraph with updates.',
+    });
+
+    const FULL_TEXT_UNCHANGED = makeEntry({
+      id: 'ft-4',
+      diff_type: 'unchanged',
+      diff_mode: 'full_text' as const,
+      old_content: 'This paragraph has not changed.',
+      new_content: 'This paragraph has not changed.',
+    });
+
+    const FULL_TEXT_ENTRIES = [FULL_TEXT_ADDED, FULL_TEXT_REMOVED, FULL_TEXT_MODIFIED, FULL_TEXT_UNCHANGED];
+
+    const FULL_TEXT_SUMMARY = {
+      added: 1,
+      removed: 1,
+      modified: 1,
+      unchanged: 1,
+    };
+
+    it('detects full-text mode from diff_mode field', () => {
+      renderComponent({
+        entries: FULL_TEXT_ENTRIES,
+        summary: FULL_TEXT_SUMMARY,
+      });
+
+      // Full-text mode uses "Added:" label instead of "Answer:"
+      expect(screen.getByText('Added:')).toBeInTheDocument();
+    });
+
+    it('infers full-text mode when no entries have questions', () => {
+      // Entries without diff_mode field but also without questions
+      const noQuestionEntries = [
+        makeEntry({
+          id: 'nq-1',
+          diff_type: 'added',
+          new_content: 'Some new text block.',
+        }),
+        makeEntry({
+          id: 'nq-2',
+          diff_type: 'removed',
+          old_content: 'Some old text block.',
+        }),
+      ];
+
+      renderComponent({
+        entries: noQuestionEntries,
+        summary: { added: 1, removed: 1, modified: 0, unchanged: 0 },
+      });
+
+      // Should use full-text labels
+      expect(screen.getByText('Added:')).toBeInTheDocument();
+      expect(screen.getByText('Removed:')).toBeInTheDocument();
+    });
+
+    it('does not show "Q:" heading for full-text entries', () => {
+      renderComponent({
+        entries: FULL_TEXT_ENTRIES,
+        summary: FULL_TEXT_SUMMARY,
+      });
+
+      // No Q: prefix should appear
+      expect(screen.queryByText(/^Q:/)).not.toBeInTheDocument();
+    });
+
+    it('shows "Added:" label for added full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_ADDED],
+        summary: { added: 1, removed: 0, modified: 0, unchanged: 0 },
+      });
+
+      expect(screen.getByText('Added:')).toBeInTheDocument();
+      expect(screen.getByText('This is a newly added paragraph about compliance.')).toBeInTheDocument();
+    });
+
+    it('shows "Removed:" label for removed full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_REMOVED],
+        summary: { added: 0, removed: 1, modified: 0, unchanged: 0 },
+      });
+
+      expect(screen.getByText('Removed:')).toBeInTheDocument();
+      expect(screen.getByText('This outdated paragraph has been removed.')).toBeInTheDocument();
+    });
+
+    it('shows "Old version:" and "New version:" labels for modified full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_MODIFIED],
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      expect(screen.getByText('Old version:')).toBeInTheDocument();
+      expect(screen.getByText('New version:')).toBeInTheDocument();
+    });
+
+    it('applies green-tinted background for added full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_ADDED],
+        summary: { added: 1, removed: 0, modified: 0, unchanged: 0 },
+      });
+
+      // The FullTextDiffEntryCard for added entries has bg-quality-good-bg/30
+      const card = screen.getByLabelText('added text block');
+      expect(card.className).toContain('bg-quality-good-bg/30');
+    });
+
+    it('applies destructive-tinted background for removed full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_REMOVED],
+        summary: { added: 0, removed: 1, modified: 0, unchanged: 0 },
+      });
+
+      const card = screen.getByLabelText('removed text block');
+      expect(card.className).toContain('bg-destructive/5');
+    });
+
+    it('shows review controls (Apply/Dismiss) for full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_MODIFIED],
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      expect(screen.getByRole('button', { name: 'Apply this change' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Dismiss this change' })).toBeInTheDocument();
+    });
+
+    it('shows diff type badges for full-text entries', () => {
+      renderComponent({
+        entries: [FULL_TEXT_ADDED, FULL_TEXT_MODIFIED],
+        summary: { added: 1, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      expect(screen.getByLabelText('Diff type: Added')).toBeInTheDocument();
+      expect(screen.getByLabelText('Diff type: Modified')).toBeInTheDocument();
+    });
+
+    it('renders Q&A mode when entries have questions', () => {
+      // This should use the standard Q&A card, not full-text
+      renderComponent({
+        entries: [MODIFIED_ENTRY],
+        summary: { added: 0, removed: 0, modified: 1, unchanged: 0 },
+      });
+
+      // Q&A mode should show "Q:" heading
+      expect(screen.getByText('Q: What is your data protection policy?')).toBeInTheDocument();
+      // And "Old answer:" / "New answer:" labels
+      expect(screen.getByText('Old answer:')).toBeInTheDocument();
+      expect(screen.getByText('New answer:')).toBeInTheDocument();
+    });
+  });
 });
 

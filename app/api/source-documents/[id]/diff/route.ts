@@ -111,11 +111,10 @@ export async function GET(
     }
 
     // Fetch all diff entries for this document pair
-    // reviewer_note column added in migration 20260322192634 — not yet in generated types
     const { data: entries, error: entriesErr } = await supabase
       .from('source_document_diffs')
       .select(
-        'id, diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status, reviewer_note',
+        'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status, reviewer_note',
       )
       .eq('old_document_id', oldDoc.id)
       .eq('new_document_id', newDoc.id)
@@ -123,6 +122,7 @@ export async function GET(
         data: Array<{
           id: string;
           diff_type: string;
+          diff_mode: string | null;
           old_question: string | null;
           new_question: string | null;
           old_content: string | null;
@@ -184,6 +184,7 @@ export async function GET(
     const responseEntries = (entries ?? []).map((entry) => ({
       id: entry.id,
       diff_type: entry.diff_type,
+      diff_mode: (entry.diff_mode ?? 'qa') as 'qa' | 'full_text',
       old_question: entry.old_question ?? undefined,
       new_question: entry.new_question ?? undefined,
       old_content: entry.old_content ?? undefined,
@@ -323,6 +324,7 @@ export async function POST(
         old_document_id: oldDocumentId,
         new_document_id: newDocumentId,
         diff_type: entry.diff_type,
+        diff_mode: entry.diff_mode ?? diffResult.diff_mode,
         old_content: entry.old_content ?? null,
         new_content: entry.new_content ?? null,
         old_question: entry.old_question ?? null,

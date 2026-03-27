@@ -820,6 +820,7 @@ export async function POST(request: NextRequest) {
               old_document_id: oldDoc.id,
               new_document_id: sourceDocumentId,
               diff_type: entry.diff_type,
+              diff_mode: entry.diff_mode ?? diffResult.diff_mode,
               old_question: entry.old_question ?? null,
               new_question: entry.new_question ?? null,
               old_content: entry.old_content ?? null,
