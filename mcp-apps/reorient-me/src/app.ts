@@ -345,18 +345,19 @@ function buildTeamChangesSection(changes: TeamChange[]): HTMLElement {
     // "Sarah updated Data Protection Policy"
     const count = group.length;
     const entityLabel = first.entity_type === "bid_response" ? "response" : "item";
+    const escapedAction = escapeHtml(first.action);
     let titleStr = "";
 
     if (count > 1) {
       if (first.domain && first.entity_type === "content_item") {
-        titleStr = `${escapeHtml(name)} ${first.action} ${count} ${entityLabel}s in ${escapeHtml(first.domain)}`;
+        titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s in ${escapeHtml(first.domain)}`;
       } else if (first.entity_type === "bid_response") {
-        titleStr = `${escapeHtml(name)} ${first.action} ${count} ${entityLabel}s in ${escapeHtml(first.entity_title)} bid`;
+        titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s in ${escapeHtml(first.entity_title)} bid`;
       } else {
-        titleStr = `${escapeHtml(name)} ${first.action} ${count} ${entityLabel}s`;
+        titleStr = `${escapeHtml(name)} ${escapedAction} ${count} ${entityLabel}s`;
       }
     } else {
-      titleStr = `${escapeHtml(name)} ${first.action} "${escapeHtml(first.entity_title)}"`;
+      titleStr = `${escapeHtml(name)} ${escapedAction} "${escapeHtml(first.entity_title)}"`;
     }
 
     itemEl.innerHTML = `<div class="compact-list-item-content"><span class="compact-list-title">${titleStr}</span></div>`;
@@ -399,7 +400,7 @@ function buildRecentWorkSection(items: RecentWorkItem[]): HTMLElement {
 
     // Format relative date nicely (e.g., from 2026-03-08T09:00:00Z -> "a few minutes ago")
     // Use the API's date formatting for simplicity here, or just show the action.
-    const actionStr = item.action.charAt(0).toUpperCase() + item.action.slice(1);
+    const actionStr = escapeHtml(item.action.charAt(0).toUpperCase() + item.action.slice(1));
 
     itemEl.innerHTML = `
       <div class="compact-list-item-content">

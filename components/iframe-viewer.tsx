@@ -14,7 +14,8 @@ export function IframeViewer({ src, title = 'External content', height = '600px'
         src={src}
         title={title}
         className="h-full w-full border-0"
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        referrerPolicy="no-referrer"
       />
     </div>
   );
