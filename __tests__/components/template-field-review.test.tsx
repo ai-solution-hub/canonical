@@ -72,7 +72,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TemplateFieldReview } from '@/components/template-field-review';
+import { TemplateFieldReview } from '@/components/bid/template-field-review';
 import type { TemplateField, TemplateSummary } from '@/types/template';
 
 // ---------------------------------------------------------------------------

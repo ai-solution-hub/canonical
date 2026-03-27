@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Loader2, Settings, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DomainBadge } from '@/components/domain-badge';
+import { DomainBadge } from '@/components/shared/domain-badge';
 import { GuideSection } from '@/components/guide/guide-section';
 import { GuideProgressBar } from '@/components/guide/guide-progress-bar';
 import { GuideResearchFeed } from '@/components/guide/guide-research-feed';

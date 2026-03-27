@@ -4,12 +4,12 @@ import dynamic from 'next/dynamic';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import { ContentTypeHeader } from '@/components/content-type-header';
-import { AiProcessingIndicators } from '@/components/ai-processing-indicators';
-import { QAAnswerDisplay } from '@/components/qa-answer-display';
-import { ContentLayerSelector } from '@/components/content-layer-selector';
-import { TableOfContents } from '@/components/table-of-contents';
-import { TranscriptReader } from '@/components/transcript-reader';
+import { ContentTypeHeader } from '@/components/shared/content-type-header';
+import { AiProcessingIndicators } from '@/components/shared/ai-processing-indicators';
+import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
+import { ContentLayerSelector } from '@/components/content/content-layer-selector';
+import { TableOfContents } from '@/components/item-detail/table-of-contents';
+import { TranscriptReader } from '@/components/reader/transcript-reader';
 import { ToggleLeft, ToggleRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -22,7 +22,7 @@ import type {
 } from '@/types/content';
 
 const ImageGallery = dynamic(
-  () => import('@/components/image-gallery').then((mod) => mod.ImageGallery),
+  () => import('@/components/reader/image-gallery').then((mod) => mod.ImageGallery),
   { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-lg bg-accent" /> },
 );
 

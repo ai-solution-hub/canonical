@@ -19,7 +19,7 @@ const { mockToast } = vi.hoisted(() => ({
 
 vi.mock('sonner', () => ({ toast: mockToast }));
 
-import { WorkspaceSelector } from '@/components/workspace-selector';
+import { WorkspaceSelector } from '@/components/workspace/workspace-selector';
 
 // ---------------------------------------------------------------------------
 // Helpers

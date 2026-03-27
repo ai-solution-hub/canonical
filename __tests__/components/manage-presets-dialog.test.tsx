@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ManagePresetsDialog } from '@/components/manage-presets-dialog';
+import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import type { FilterPreset } from '@/types/filter-preset';
 
 // Mock sonner toast

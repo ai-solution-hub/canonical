@@ -51,7 +51,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { SourceDocumentHistory } from '@/components/source-document-history';
+import { SourceDocumentHistory } from '@/components/source-document/source-document-history';
 
 // ---------------------------------------------------------------------------
 // Helpers

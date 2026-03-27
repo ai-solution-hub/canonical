@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 
-import { ContentRenderer } from '@/components/content-renderer';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { FreshnessBadge } from '@/components/freshness-badge';
+import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { GuideSectionEmpty } from './guide-section-empty';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { CoverageHeatmapView } from '@/components/coverage-heatmap-view';
-import type { CoverageCellData } from '@/components/coverage-cell';
+import { CoverageHeatmapView } from '@/components/coverage/coverage-heatmap-view';
+import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // Mocks

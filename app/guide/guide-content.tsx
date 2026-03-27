@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { BookOpen, Loader2, FileText, Layers, Clock, Search, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { DomainBadge } from '@/components/domain-badge';
+import { DomainBadge } from '@/components/shared/domain-badge';
 import { Input } from '@/components/ui/input';
 import {
   Select,

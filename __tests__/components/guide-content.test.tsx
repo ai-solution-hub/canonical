@@ -45,7 +45,7 @@ vi.mock('@/components/guide/guide-table-of-contents', () => ({
   GuideTableOfContents: () => <div data-testid="guide-toc" />,
 }));
 
-vi.mock('@/components/domain-badge', () => ({
+vi.mock('@/components/shared/domain-badge', () => ({
   DomainBadge: ({ domain }: { domain: string }) => (
     <span data-testid="domain-badge">{domain}</span>
   ),

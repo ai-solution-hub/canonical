@@ -59,7 +59,7 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
   getLayerLabel: (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
 }));
 
-import { FilterBadges } from '@/components/filter-badges';
+import { FilterBadges } from '@/components/browse/filter-badges';
 
 // ---------------------------------------------------------------------------
 // Tests

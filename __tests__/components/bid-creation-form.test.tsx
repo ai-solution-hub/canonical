@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BidCreationForm } from '@/components/bid-creation-form';
+import { BidCreationForm } from '@/components/bid/bid-creation-form';
 
 describe('BidCreationForm', () => {
   const onOpenChange = vi.fn();

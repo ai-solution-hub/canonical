@@ -61,7 +61,7 @@ vi.mock('@/hooks/use-display-names', () => ({
 import {
   VerificationHistory,
   LatestVerificationNote,
-} from '@/components/verification-history';
+} from '@/components/item-detail/verification-history';
 
 // ---------------------------------------------------------------------------
 // Test data

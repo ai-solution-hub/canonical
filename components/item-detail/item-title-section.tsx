@@ -3,12 +3,12 @@
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { VerificationBadge } from '@/components/verification-badge';
-import { FreshnessBadge } from '@/components/freshness-badge';
+import { VerificationBadge } from '@/components/shared/verification-badge';
+import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { formatSmartDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useUserRole } from '@/hooks/use-user-role';
-import { LatestVerificationNote, VerificationHistory } from '@/components/verification-history';
+import { LatestVerificationNote, VerificationHistory } from '@/components/item-detail/verification-history';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 

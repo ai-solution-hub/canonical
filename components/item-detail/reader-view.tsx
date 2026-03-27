@@ -1,13 +1,13 @@
 'use client';
 
 import { Copy, BookOpen, ExternalLink, MoreHorizontal, FileText, ChevronDown } from 'lucide-react';
-import { Thumbnail } from '@/components/thumbnail';
-import { ContentTabs } from '@/components/content-tabs';
-import { MetadataSidebar } from '@/components/metadata-sidebar';
-import { EntityBadges } from '@/components/entity-badges';
-import { SourceDocumentInfo } from '@/components/source-document-info';
-import { VersionHistory } from '@/components/version-history';
-import { ReadToggleButton } from '@/components/read-toggle-button';
+import { Thumbnail } from '@/components/shared/thumbnail';
+import { ContentTabs } from '@/components/item-detail/content-tabs';
+import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
+import { EntityBadges } from '@/components/item-detail/entity-badges';
+import { SourceDocumentInfo } from '@/components/source-document/source-document-info';
+import { VersionHistory } from '@/components/item-detail/version-history';
+import { ReadToggleButton } from '@/components/shared/read-toggle-button';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -15,12 +15,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
-import { QAAnswerDisplay } from '@/components/qa-answer-display';
-import { ContentTypeHeader } from '@/components/content-type-header';
-import { TableOfContents } from '@/components/table-of-contents';
-import { TranscriptReader } from '@/components/transcript-reader';
-import { VerificationBadge } from '@/components/verification-badge';
-import { FreshnessBadge } from '@/components/freshness-badge';
+import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
+import { ContentTypeHeader } from '@/components/shared/content-type-header';
+import { TableOfContents } from '@/components/item-detail/table-of-contents';
+import { TranscriptReader } from '@/components/reader/transcript-reader';
+import { VerificationBadge } from '@/components/shared/verification-badge';
+import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { getDisplayTitle } from '@/lib/format';
 import dynamic from 'next/dynamic';
 
@@ -34,7 +34,7 @@ import type { ItemDetailData } from '@/hooks/use-item-detail-data';
 import type { ContentListItem } from '@/types/content';
 
 const PdfViewer = dynamic(
-  () => import('@/components/pdf-viewer').then((mod) => mod.PdfViewer),
+  () => import('@/components/reader/pdf-viewer').then((mod) => mod.PdfViewer),
   { ssr: false, loading: () => <div className="h-9 w-24 animate-pulse rounded bg-accent" /> },
 );
 

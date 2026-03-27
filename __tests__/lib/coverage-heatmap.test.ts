@@ -6,7 +6,7 @@ import {
   buildCellMap,
   type FreshnessLevel,
 } from '@/lib/coverage-heatmap';
-import type { CoverageCellData } from '@/components/coverage-cell';
+import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // computeHeatmapLevel

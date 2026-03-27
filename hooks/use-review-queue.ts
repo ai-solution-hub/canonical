@@ -10,7 +10,7 @@ import type {
   ReviewStatsResponse,
   ReviewQueueSortField,
 } from '@/types/review';
-import type { QueueSortField } from '@/components/review-queue-panel';
+import type { QueueSortField } from '@/components/review/review-queue-panel';
 import { useReviewShortcuts } from '@/hooks/use-review-shortcuts';
 
 const BATCH_SIZE = 20;

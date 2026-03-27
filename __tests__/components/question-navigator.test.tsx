@@ -18,8 +18,8 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionNavigator } from '@/components/question-navigator';
-import type { ConfidencePosture } from '@/components/question-navigator';
+import { QuestionNavigator } from '@/components/bid/question-navigator';
+import type { ConfidencePosture } from '@/components/bid/question-navigator';
 
 // ---------------------------------------------------------------------------
 // Data factories

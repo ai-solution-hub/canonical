@@ -8,7 +8,7 @@ import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { SortOption, ViewMode } from '@/components/filter-bar';
+import type { SortOption, ViewMode } from '@/components/browse/filter-bar';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -21,7 +21,7 @@ vi.mock('radix-ui', async (importOriginal) => {
 });
 
 // Import AFTER mocks
-import { FilterBar, getSortOptions } from '@/components/filter-bar';
+import { FilterBar, getSortOptions } from '@/components/browse/filter-bar';
 
 // ---------------------------------------------------------------------------
 // Factory

@@ -55,7 +55,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
-import { MetadataSidebar } from '@/components/metadata-sidebar';
+import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 // ---------------------------------------------------------------------------

@@ -36,7 +36,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
-import { EntityBadges } from '@/components/entity-badges';
+import { EntityBadges } from '@/components/item-detail/entity-badges';
 
 // ---------------------------------------------------------------------------
 // Helper: configure what the chain resolves to when awaited

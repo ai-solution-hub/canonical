@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
+import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
 
 const defaultMatches: DedupMatch[] = [
   {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { QualityBadge } from '@/components/quality-badge';
+import { QualityBadge } from '@/components/shared/quality-badge';
 import type { QualityScoreResult } from '@/lib/quality-score';
 
 // ---------------------------------------------------------------------------

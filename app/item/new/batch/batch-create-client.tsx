@@ -26,13 +26,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { BreadcrumbNav } from '@/components/breadcrumb-nav';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 import {
   BatchQAPreviewTable,
   parsePastedQA,
   type QAPair,
-} from '@/components/batch-qa-preview-table';
+} from '@/components/qa/batch-qa-preview-table';
 import { useBatchCreate, type DuplicateMatch } from '@/hooks/use-batch-create';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 

@@ -38,48 +38,48 @@ vi.mock('sonner', () => ({
 }));
 
 // Mock StarButton — uses Supabase client internally
-vi.mock('@/components/star-button', () => ({
+vi.mock('@/components/shared/star-button', () => ({
   StarButton: ({ itemId }: { itemId: string }) => (
     <button data-testid={`star-${itemId}`}>Star</button>
   ),
 }));
 
 // Mock ThumbnailSmall — uses Image and taxonomy context
-vi.mock('@/components/thumbnail', () => ({
+vi.mock('@/components/shared/thumbnail', () => ({
   ThumbnailSmall: ({ alt }: { alt: string }) => (
     <div data-testid="thumbnail-small">{alt}</div>
   ),
 }));
 
 // Mock FreshnessBadge
-vi.mock('@/components/freshness-badge', () => ({
+vi.mock('@/components/shared/freshness-badge', () => ({
   FreshnessBadge: ({ freshness }: { freshness: string }) => (
     <span data-testid="freshness-badge">{freshness}</span>
   ),
 }));
 
 // Mock SimilarityBadge
-vi.mock('@/components/similarity-badge', () => ({
+vi.mock('@/components/shared/similarity-badge', () => ({
   SimilarityBadge: ({ score }: { score: number }) => (
     <span data-testid="similarity-badge">{Math.round(score * 100)}%</span>
   ),
 }));
 
 // Mock PriorityBadge
-vi.mock('@/components/priority-selector', () => ({
+vi.mock('@/components/shared/priority-selector', () => ({
   PriorityBadge: ({ priority }: { priority: string | null }) =>
     priority ? <span data-testid="priority-badge">{priority}</span> : null,
 }));
 
 // Mock ContentTypeIcon
-vi.mock('@/components/content-type-icon', () => ({
+vi.mock('@/components/shared/content-type-icon', () => ({
   ContentTypeIcon: ({ contentType }: { contentType: string }) => (
     <span data-testid="content-type-icon">{contentType}</span>
   ),
 }));
 
 // Mock DomainBadge — keep simple render of domain name
-vi.mock('@/components/domain-badge', () => ({
+vi.mock('@/components/shared/domain-badge', () => ({
   DomainBadge: ({ domain }: { domain: string }) => (
     <span data-testid="domain-badge">{domain}</span>
   ),
@@ -110,12 +110,12 @@ vi.mock('@/lib/validation/layer-schemas', () => ({
 }));
 
 // Mock highlight — pass through text unchanged
-vi.mock('@/components/highlight', () => ({
+vi.mock('@/components/shared/highlight', () => ({
   highlightTerms: (text: string) => text,
 }));
 
 // Import AFTER mocks
-import { ContentRow } from '@/components/content-row';
+import { ContentRow } from '@/components/content/content-row';
 
 // ---------------------------------------------------------------------------
 // Factory

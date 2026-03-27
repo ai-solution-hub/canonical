@@ -83,7 +83,7 @@ vi.mock('@/components/guide/guide-research-feed', () => ({
   ),
 }));
 
-vi.mock('@/components/domain-badge', () => ({
+vi.mock('@/components/shared/domain-badge', () => ({
   DomainBadge: ({ domain }: { domain: string }) => (
     <span data-testid="domain-badge">{domain}</span>
   ),

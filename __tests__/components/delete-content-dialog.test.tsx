@@ -39,7 +39,7 @@ vi.mock('sonner', () => ({
 }));
 
 // Import AFTER mocks
-import { DeleteContentDialog } from '@/components/delete-content-dialog';
+import { DeleteContentDialog } from '@/components/content/delete-content-dialog';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------

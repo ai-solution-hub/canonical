@@ -6,9 +6,9 @@ import {
   Group as PanelGroup,
   Separator as PanelResizeHandle,
 } from 'react-resizable-panels';
-import { FloatingReader } from '@/components/floating-reader';
-import { ReaderPanel } from '@/components/reader-panel';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { FloatingReader } from '@/components/reader/floating-reader';
+import { ReaderPanel } from '@/components/reader/reader-panel';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 
 // Hooks
 import { useItemDetailData } from '@/hooks/use-item-detail-data';

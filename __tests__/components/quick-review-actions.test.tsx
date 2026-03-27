@@ -30,7 +30,7 @@ vi.mock('sonner', () => ({
   },
 }));
 
-import { QuickReviewActions } from '@/components/quick-review-actions';
+import { QuickReviewActions } from '@/components/content/quick-review-actions';
 
 // ---------------------------------------------------------------------------
 // Helpers

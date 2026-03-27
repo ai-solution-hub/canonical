@@ -14,7 +14,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { FileUpload, type UploadFile } from '@/components/file-upload';
+import { FileUpload, type UploadFile } from '@/components/create-content/file-upload';
 
 // ---------------------------------------------------------------------------
 // Factories

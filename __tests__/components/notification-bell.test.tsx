@@ -72,7 +72,7 @@ vi.mock('@/lib/format', () => ({
   },
 }));
 
-import { NotificationBell } from '@/components/notification-bell';
+import { NotificationBell } from '@/components/shell/notification-bell';
 
 // ---------------------------------------------------------------------------
 // Helpers

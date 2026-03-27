@@ -57,7 +57,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TenderUpload } from '@/components/tender-upload';
+import { TenderUpload } from '@/components/bid/tender-upload';
 
 // ---------------------------------------------------------------------------
 // Helpers

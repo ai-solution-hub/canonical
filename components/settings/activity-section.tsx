@@ -6,7 +6,7 @@ import {
   ActivityFeed,
   type ActivityEventFilter,
   type ActivityDateRange,
-} from '@/components/activity-feed';
+} from '@/components/dashboard/activity-feed';
 import {
   Select,
   SelectContent,

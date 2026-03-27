@@ -9,7 +9,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 // Mock ContentRenderer to avoid react-markdown complexity in jsdom
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),
@@ -29,7 +29,7 @@ vi.mock('@/components/review/review-history-section', () => ({
   ),
 }));
 
-import { ReviewCard } from '@/components/review-card';
+import { ReviewCard } from '@/components/review/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
 

@@ -11,7 +11,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Mock ContentRenderer to avoid react-markdown
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),
@@ -27,11 +27,11 @@ vi.mock('next/dynamic', () => ({
 }));
 
 // Mock reader components
-vi.mock('@/components/reader-view', () => ({
+vi.mock('@/components/reader/reader-view', () => ({
   ReaderView: () => <div data-testid="reader-view" />,
 }));
 
-vi.mock('@/components/iframe-viewer', () => ({
+vi.mock('@/components/reader/iframe-viewer', () => ({
   IframeViewer: () => <div data-testid="iframe-viewer" />,
 }));
 
@@ -57,7 +57,7 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-import { ContentTabs } from '@/components/content-tabs';
+import { ContentTabs } from '@/components/item-detail/content-tabs';
 import type { SummaryData } from '@/types/content';
 
 // ---------------------------------------------------------------------------

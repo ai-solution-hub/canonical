@@ -14,7 +14,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 // Mock ContentRenderer to avoid react-markdown complexity in jsdom
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),
@@ -25,7 +25,7 @@ vi.mock('@/hooks/use-display-names', () => ({
   useDisplayNames: () => new Map<string, string>(),
 }));
 
-import { ReviewCard } from '@/components/review-card';
+import { ReviewCard } from '@/components/review/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 
 // ---------------------------------------------------------------------------

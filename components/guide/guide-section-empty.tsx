@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 
 interface GuideSectionEmptyProps {
   domainFilter: string | null;

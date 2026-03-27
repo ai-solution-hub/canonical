@@ -67,7 +67,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
   }),
 }));
 
-import { RelatedByEntities } from '@/components/related-by-entities';
+import { RelatedByEntities } from '@/components/item-detail/related-by-entities';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -40,7 +40,7 @@ vi.mock('next/dynamic', () => ({
   },
 }));
 
-vi.mock('@/components/content-type-header', () => ({
+vi.mock('@/components/shared/content-type-header', () => ({
   ContentTypeHeader: (props: Record<string, unknown>) => (
     <div data-testid="content-type-header" data-content-type={props.contentType}>
       ContentTypeHeader
@@ -48,31 +48,31 @@ vi.mock('@/components/content-type-header', () => ({
   ),
 }));
 
-vi.mock('@/components/ai-processing-indicators', () => ({
+vi.mock('@/components/shared/ai-processing-indicators', () => ({
   AiProcessingIndicators: () => (
     <div data-testid="ai-processing-indicators">AiProcessingIndicators</div>
   ),
 }));
 
-vi.mock('@/components/qa-answer-display', () => ({
+vi.mock('@/components/qa/qa-answer-display', () => ({
   QAAnswerDisplay: () => (
     <div data-testid="qa-answer-display">QAAnswerDisplay</div>
   ),
 }));
 
-vi.mock('@/components/content-layer-selector', () => ({
+vi.mock('@/components/content/content-layer-selector', () => ({
   ContentLayerSelector: () => (
     <div data-testid="content-layer-selector">ContentLayerSelector</div>
   ),
 }));
 
-vi.mock('@/components/table-of-contents', () => ({
+vi.mock('@/components/item-detail/table-of-contents', () => ({
   TableOfContents: () => (
     <div data-testid="table-of-contents">TableOfContents</div>
   ),
 }));
 
-vi.mock('@/components/transcript-reader', () => ({
+vi.mock('@/components/reader/transcript-reader', () => ({
   TranscriptReader: () => (
     <div data-testid="transcript-reader">TranscriptReader</div>
   ),

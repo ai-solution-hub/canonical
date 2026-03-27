@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { CoverageTargetEditor } from '@/components/coverage-target-editor';
+import { CoverageTargetEditor } from '@/components/coverage/coverage-target-editor';
 import type { CoverageTargetRow } from '@/hooks/use-coverage-targets';
 
 // ---------------------------------------------------------------------------

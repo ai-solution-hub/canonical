@@ -13,7 +13,7 @@ import userEvent from '@testing-library/user-event';
 // Mock child components to isolate ReaderPanel logic
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/reader-view', () => ({
+vi.mock('@/components/reader/reader-view', () => ({
   ReaderView: ({ html, fontSize, maxWidth }: { html: string; fontSize?: string; maxWidth?: string }) => (
     <div data-testid="reader-view" data-font-size={fontSize} data-max-width={maxWidth}>
       {html}
@@ -21,7 +21,7 @@ vi.mock('@/components/reader-view', () => ({
   ),
 }));
 
-vi.mock('@/components/iframe-viewer', () => ({
+vi.mock('@/components/reader/iframe-viewer', () => ({
   IframeViewer: ({ src, title }: { src: string; title: string }) => (
     <iframe data-testid="iframe-viewer" src={src} title={title} />
   ),
@@ -50,7 +50,7 @@ vi.mock('@/components/reader-cards/transcript-reader-card', () => ({
 }));
 
 // Import AFTER mocks
-import { ReaderPanel } from '@/components/reader-panel';
+import { ReaderPanel } from '@/components/reader/reader-panel';
 import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/use-reader-preferences';
 
 // ---------------------------------------------------------------------------

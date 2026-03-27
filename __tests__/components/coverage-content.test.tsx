@@ -38,7 +38,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 // Stub child components
-vi.mock('@/components/coverage-summary-cards', () => ({
+vi.mock('@/components/coverage/coverage-summary-cards', () => ({
   CoverageSummaryCards: ({ summary }: { summary: unknown[] }) => (
     <div data-testid="coverage-summary-cards">
       {summary.length} summary rows
@@ -46,7 +46,7 @@ vi.mock('@/components/coverage-summary-cards', () => ({
   ),
 }));
 
-vi.mock('@/components/coverage-domain-section', () => ({
+vi.mock('@/components/coverage/coverage-domain-section', () => ({
   CoverageDomainSection: ({ domainName, defaultExpanded }: { domainName: string; defaultExpanded: boolean }) => (
     <div data-testid={`domain-section-${domainName}`} data-expanded={defaultExpanded}>
       Domain: {domainName}
@@ -54,7 +54,7 @@ vi.mock('@/components/coverage-domain-section', () => ({
   ),
 }));
 
-vi.mock('@/components/coverage-heatmap-view', () => ({
+vi.mock('@/components/coverage/coverage-heatmap-view', () => ({
   CoverageHeatmapView: ({ matrix, orderedDomains }: { matrix: unknown[]; orderedDomains: string[] }) => (
     <div data-testid="coverage-heatmap-view">
       Heatmap: {matrix.length} cells, {orderedDomains.length} domains
@@ -70,15 +70,15 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => ({ role: 'admin', canAdmin: true, canEdit: true, loading: false }),
 }));
 
-vi.mock('@/components/coverage-target-progress', () => ({
+vi.mock('@/components/coverage/coverage-target-progress', () => ({
   CoverageTargetProgress: () => null,
 }));
 
-vi.mock('@/components/coverage-target-editor', () => ({
+vi.mock('@/components/coverage/coverage-target-editor', () => ({
   CoverageTargetEditor: () => null,
 }));
 
-vi.mock('@/components/coverage-layer-filter', () => ({
+vi.mock('@/components/browse/coverage-layer-filter', () => ({
   CoverageLayerFilter: ({ value, onLayerChange }: { value: string | null; onLayerChange: (v: string | null) => void }) => (
     <select
       data-testid="layer-filter"

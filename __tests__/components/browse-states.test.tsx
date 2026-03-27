@@ -22,7 +22,7 @@ vi.mock('@/hooks/use-browse-filters', () => ({
   }),
 }));
 
-import { LoadingSkeleton, EmptyState } from '@/components/browse-states';
+import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
 
 // ---------------------------------------------------------------------------
 // Tests

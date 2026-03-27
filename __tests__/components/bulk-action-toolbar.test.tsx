@@ -9,7 +9,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { BulkActionToolbar, type BulkActionToolbarProps } from '@/components/bulk-action-toolbar';
+import { BulkActionToolbar, type BulkActionToolbarProps } from '@/components/browse/bulk-action-toolbar';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -2,7 +2,7 @@
 
 import { Play, Clock, User, Subtitles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { TranscriptReader } from '@/components/transcript-reader';
+import { TranscriptReader } from '@/components/reader/transcript-reader';
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/format';
 import type {

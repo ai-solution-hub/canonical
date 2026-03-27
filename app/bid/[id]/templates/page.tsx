@@ -6,11 +6,11 @@ import Link from 'next/link';
 import { ArrowLeft, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { TemplateUpload } from '@/components/template-upload';
-import { TemplateFieldReview } from '@/components/template-field-review';
-import { TemplateFillProgress } from '@/components/template-fill-progress';
-import { TemplateCompletionSummary } from '@/components/template-completion-summary';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { TemplateUpload } from '@/components/coverage/template-upload';
+import { TemplateFieldReview } from '@/components/bid/template-field-review';
+import { TemplateFillProgress } from '@/components/bid/template-fill-progress';
+import { TemplateCompletionSummary } from '@/components/bid/template-completion-summary';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 import type {
   FillResult,
   Template,

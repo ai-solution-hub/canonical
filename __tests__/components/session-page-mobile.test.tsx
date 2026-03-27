@@ -93,7 +93,7 @@ vi.mock('@/components/ui/separator', () => ({
 }));
 
 // Stub child components to isolate session page tests
-vi.mock('@/components/question-navigator', () => ({
+vi.mock('@/components/bid/question-navigator', () => ({
   QuestionNavigator: ({ questions, currentIndex, onNavigate }: { questions: unknown[]; currentIndex: number; onNavigate: (i: number) => void }) => (
     <div data-testid="question-navigator" data-current-index={currentIndex} data-count={questions.length}>
       <button onClick={() => onNavigate(0)}>Navigate to 0</button>
@@ -101,21 +101,21 @@ vi.mock('@/components/question-navigator', () => ({
   ),
 }));
 
-vi.mock('@/components/response-editor', () => ({
+vi.mock('@/components/bid/response-editor', () => ({
   ResponseEditor: ({ content, placeholder }: { content: string; placeholder: string }) => (
     <div data-testid="response-editor" data-content={content}>{placeholder}</div>
   ),
 }));
 
-vi.mock('@/components/citation-panel', () => ({
+vi.mock('@/components/content/citation-panel', () => ({
   CitationPanel: () => <div data-testid="citation-panel">Citations</div>,
 }));
 
-vi.mock('@/components/quality-score', () => ({
+vi.mock('@/components/shared/quality-score', () => ({
   QualityScore: () => <div data-testid="quality-score">Quality</div>,
 }));
 
-vi.mock('@/components/response-actions', () => ({
+vi.mock('@/components/bid/response-actions', () => ({
   ResponseActions: ({ nextUnansweredIndex, onNextUnanswered, hasDraft }: {
     nextUnansweredIndex?: number;
     onNextUnanswered?: () => void;
@@ -136,19 +136,19 @@ vi.mock('@/components/response-actions', () => ({
   ),
 }));
 
-vi.mock('@/components/streaming-phase-indicator', () => ({
+vi.mock('@/components/shared/streaming-phase-indicator', () => ({
   StreamingPhaseIndicator: () => <div data-testid="streaming-indicator">Streaming</div>,
 }));
 
-vi.mock('@/components/content-library-drawer', () => ({
+vi.mock('@/components/content/content-library-drawer', () => ({
   ContentLibraryDrawer: () => <div data-testid="content-library-drawer">Library</div>,
 }));
 
-vi.mock('@/components/response-version-history', () => ({
+vi.mock('@/components/bid/response-version-history', () => ({
   ResponseVersionHistory: () => <div data-testid="response-version-history">History</div>,
 }));
 
-vi.mock('@/components/bid-context-provider', () => ({
+vi.mock('@/components/bid/bid-context-provider', () => ({
   BidContextProvider: ({ children, bidId }: { children: React.ReactNode; bidId: string }) => (
     <div data-testid="bid-context-provider" data-bid-id={bidId}>{children}</div>
   ),

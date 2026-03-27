@@ -43,49 +43,49 @@ vi.mock('@/lib/claude-prompts', () => ({
   generateSummariseAndIngestPrompt: (title: string) => ({ prompt: `Summarise: ${title}` }),
 }));
 
-vi.mock('@/components/thumbnail', () => ({
+vi.mock('@/components/shared/thumbnail', () => ({
   Thumbnail: (props: Record<string, unknown>) => (
     <div data-testid="thumbnail" data-alt={props.alt}>Thumbnail</div>
   ),
 }));
 
-vi.mock('@/components/content-tabs', () => ({
+vi.mock('@/components/item-detail/content-tabs', () => ({
   ContentTabs: (props: Record<string, unknown>) => (
     <div data-testid="content-tabs" data-can-edit={props.canEdit}>ContentTabs</div>
   ),
 }));
 
-vi.mock('@/components/metadata-sidebar', () => ({
+vi.mock('@/components/item-detail/metadata-sidebar', () => ({
   MetadataSidebar: (props: Record<string, unknown>) => (
     <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>MetadataSidebar</div>
   ),
 }));
 
-vi.mock('@/components/organise-section', () => ({
+vi.mock('@/components/item-detail/organise-section', () => ({
   OrganiseSection: () => (
     <div data-testid="organise-section">OrganiseSection</div>
   ),
 }));
 
-vi.mock('@/components/entity-badges', () => ({
+vi.mock('@/components/item-detail/entity-badges', () => ({
   EntityBadges: () => (
     <div data-testid="entity-badges">EntityBadges</div>
   ),
 }));
 
-vi.mock('@/components/source-document-info', () => ({
+vi.mock('@/components/source-document/source-document-info', () => ({
   SourceDocumentInfo: () => (
     <div data-testid="source-document-info">SourceDocumentInfo</div>
   ),
 }));
 
-vi.mock('@/components/version-history', () => ({
+vi.mock('@/components/item-detail/version-history', () => ({
   VersionHistory: () => (
     <div data-testid="version-history">VersionHistory</div>
   ),
 }));
 
-vi.mock('@/components/item-action-bar', () => ({
+vi.mock('@/components/item-detail/item-action-bar', () => ({
   ItemActionBar: (props: Record<string, unknown>) => (
     <div data-testid="item-action-bar" data-can-edit={props.canEdit}>
       ItemActionBar
@@ -94,7 +94,7 @@ vi.mock('@/components/item-action-bar', () => ({
   ),
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: (props: Record<string, unknown>) => (
     <button data-testid="claude-prompt-button" data-label={props.label}>
       {props.label as string}
@@ -102,7 +102,7 @@ vi.mock('@/components/claude-prompt-button', () => ({
   ),
 }));
 
-vi.mock('@/components/topic-layer-comparison', () => ({
+vi.mock('@/components/browse/topic-layer-comparison', () => ({
   TopicLayerComparison: () => (
     <div data-testid="topic-layer-comparison">TopicLayerComparison</div>
   ),

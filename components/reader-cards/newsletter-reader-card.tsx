@@ -1,8 +1,8 @@
 'use client';
 
 import { Mail } from 'lucide-react';
-import { ReaderView } from '@/components/reader-view';
-import { ContentRenderer } from '@/components/content-renderer';
+import { ReaderView } from '@/components/reader/reader-view';
+import { ContentRenderer } from '@/components/item-detail/content-renderer';
 import { cn } from '@/lib/utils';
 import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/use-reader-preferences';
 

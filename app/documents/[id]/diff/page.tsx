@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import {
   SourceDocumentDiffReview,
   type DiffReviewEntry,
-} from '@/components/source-document-diff-review';
+} from '@/components/source-document/source-document-diff-review';
 
 // ---------------------------------------------------------------------------
 // Dynamic page title (Item 3: C5-QW-Diff-1)

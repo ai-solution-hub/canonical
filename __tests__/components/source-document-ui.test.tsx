@@ -42,9 +42,9 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { ReuploadBanner } from '@/components/reupload-banner';
-import { SourceDocumentHistory } from '@/components/source-document-history';
-import { SourceDocumentInfo } from '@/components/source-document-info';
+import { ReuploadBanner } from '@/components/source-document/reupload-banner';
+import { SourceDocumentHistory } from '@/components/source-document/source-document-history';
+import { SourceDocumentInfo } from '@/components/source-document/source-document-info';
 
 // ---------------------------------------------------------------------------
 // Helpers

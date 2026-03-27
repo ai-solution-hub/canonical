@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { SearchBar } from '@/components/search-bar';
+import { SearchBar } from '@/components/browse/search-bar';
 
 export default function NotFound() {
   return (

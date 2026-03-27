@@ -19,19 +19,19 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/components/workspace-selector', () => ({
+vi.mock('@/components/workspace/workspace-selector', () => ({
   WorkspaceSelector: ({ itemId }: { itemId: string }) => (
     <div data-testid="workspace-selector">{itemId}</div>
   ),
 }));
 
-vi.mock('@/components/user-tag-input', () => ({
+vi.mock('@/components/shared/user-tag-input', () => ({
   UserTagInput: ({ itemId }: { itemId: string }) => (
     <div data-testid="user-tag-input">{itemId}</div>
   ),
 }));
 
-import { OrganiseSection } from '@/components/organise-section';
+import { OrganiseSection } from '@/components/item-detail/organise-section';
 import type { Workspace } from '@/types/content';
 
 // ---------------------------------------------------------------------------

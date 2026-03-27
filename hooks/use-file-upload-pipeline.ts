@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { UploadFile } from '@/components/file-upload';
-import type { DedupMatch } from '@/components/dedup-warning';
-import type { IngestionStep } from '@/components/ingestion-progress';
-import type { UploadReviewItem } from '@/components/upload-review-step';
+import type { UploadFile } from '@/components/create-content/file-upload';
+import type { DedupMatch } from '@/components/shared/dedup-warning';
+import type { IngestionStep } from '@/components/create-content/ingestion-progress';
+import type { UploadReviewItem } from '@/components/create-content/upload-review-step';
 
 // ---------------------------------------------------------------------------
 // Constants

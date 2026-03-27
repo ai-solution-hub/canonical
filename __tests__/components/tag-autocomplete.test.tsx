@@ -9,7 +9,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { TagAutocomplete } from '@/components/tag-autocomplete';
+import { TagAutocomplete } from '@/components/shared/tag-autocomplete';
 
 // ---------------------------------------------------------------------------
 // Helpers

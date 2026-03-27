@@ -18,7 +18,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { TableOfContents } from '@/components/table-of-contents';
+import { TableOfContents } from '@/components/item-detail/table-of-contents';
 
 // ---------------------------------------------------------------------------
 // Helpers

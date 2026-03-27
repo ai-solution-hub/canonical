@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ExternalLink, Loader2, Newspaper } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { FreshnessBadge } from '@/components/freshness-badge';
+import { FreshnessBadge } from '@/components/shared/freshness-badge';
 
 // ---------------------------------------------------------------------------
 // Types

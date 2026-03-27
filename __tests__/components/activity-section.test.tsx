@@ -45,7 +45,7 @@ vi.mock('@/components/ui/select', () => ({
 }));
 
 // Stub the ActivityFeed to capture its props
-vi.mock('@/components/activity-feed', () => ({
+vi.mock('@/components/dashboard/activity-feed', () => ({
   ActivityFeed: (props: Record<string, unknown>) => {
     mockActivityFeedProps.value = props;
     return (

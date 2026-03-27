@@ -8,8 +8,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { QAAnswerDisplay } from '@/components/qa-answer-display';
-import type { QAAnswerDisplayProps } from '@/components/qa-answer-display';
+import { QAAnswerDisplay } from '@/components/qa/qa-answer-display';
+import type { QAAnswerDisplayProps } from '@/components/qa/qa-answer-display';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
 // ---------------------------------------------------------------------------

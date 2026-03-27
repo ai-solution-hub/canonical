@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 import type { ContentListItem, TranscriptChapter } from '@/types/content';
-import type { Priority } from '@/components/priority-selector';
+import type { Priority } from '@/components/shared/priority-selector';
 import type { UseInlineFieldEditReturn } from '@/hooks/use-inline-field-edit';
 import type { UseQAEditModeReturn } from '@/hooks/use-qa-edit-mode';
 import type { UseQAProvenanceReturn } from '@/hooks/use-qa-provenance';

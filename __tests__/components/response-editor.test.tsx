@@ -68,7 +68,7 @@ vi.mock('@tiptap/extension-link', () => ({
   default: { configure: vi.fn(() => 'LinkExt') },
 }));
 
-vi.mock('@/components/editor-toolbar', () => ({
+vi.mock('@/components/item-detail/editor-toolbar', () => ({
   EditorToolbar: ({ editor }: { editor: unknown }) => (
     <div data-testid="editor-toolbar">{editor ? 'Toolbar' : 'No toolbar'}</div>
   ),
@@ -79,7 +79,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { ResponseEditor } from '@/components/response-editor';
+import { ResponseEditor } from '@/components/bid/response-editor';
 
 // ---------------------------------------------------------------------------
 // Helpers

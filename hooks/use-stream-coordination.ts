@@ -7,8 +7,8 @@ import { insertLibraryContent } from '@/lib/drawer-insert';
 import { responseToHtml } from '@/lib/markdown-to-html';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
-import type { Editor } from '@/components/response-editor';
-import type { ResponseAction } from '@/components/response-actions';
+import type { Editor } from '@/components/bid/response-editor';
+import type { ResponseAction } from '@/components/bid/response-actions';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 

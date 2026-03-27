@@ -21,7 +21,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
   }),
 }));
 
-import { IngestionSuccessCard } from '@/components/ingestion-success-card';
+import { IngestionSuccessCard } from '@/components/create-content/ingestion-success-card';
 
 describe('IngestionSuccessCard', () => {
   const defaultProps = {

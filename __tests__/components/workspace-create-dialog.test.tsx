@@ -21,15 +21,15 @@ vi.mock('sonner', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }));
 
-vi.mock('@/components/workspace-colour-picker', () => ({
+vi.mock('@/components/workspace/workspace-colour-picker', () => ({
   WorkspaceColourPicker: () => <div data-testid="colour-picker" />,
 }));
 
-vi.mock('@/components/workspace-icon-picker', () => ({
+vi.mock('@/components/workspace/workspace-icon-picker', () => ({
   WorkspaceIconPicker: () => <div data-testid="icon-picker" />,
 }));
 
-import { WorkspaceCreateDialog } from '@/components/workspace-create-dialog';
+import { WorkspaceCreateDialog } from '@/components/workspace/workspace-create-dialog';
 
 // ---------------------------------------------------------------------------
 // Tests

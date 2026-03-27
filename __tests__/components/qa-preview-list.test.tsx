@@ -10,7 +10,7 @@ import {
   QAPreviewList,
   type QAPreviewListProps,
   type DedupCheckResult,
-} from '@/components/qa-preview-list';
+} from '@/components/qa/qa-preview-list';
 import type { QACreateInput } from '@/lib/qa-detection';
 
 // ---------------------------------------------------------------------------

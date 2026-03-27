@@ -112,46 +112,46 @@ vi.mock('react', async (importOriginal) => {
 });
 
 // Stub child components
-vi.mock('@/components/bid-state-indicator', () => ({
+vi.mock('@/components/bid/bid-state-indicator', () => ({
   BidStateBadge: ({ state }: { state: string }) => <span data-testid="bid-state-badge">{state}</span>,
   BidStateStepper: ({ state }: { state: string }) => <div data-testid="bid-state-stepper">{state}</div>,
 }));
 
-vi.mock('@/components/bid-export-menu', () => ({
+vi.mock('@/components/bid/bid-export-menu', () => ({
   BidExportMenu: () => <div data-testid="bid-export-menu">Export</div>,
 }));
 
-vi.mock('@/components/cost-estimate-dialog', () => ({
+vi.mock('@/components/coverage/cost-estimate-dialog', () => ({
   CostEstimateDialog: ({ open }: { open: boolean }) => open ? <div data-testid="cost-estimate-dialog">Cost Estimate</div> : null,
 }));
 
-vi.mock('@/components/bid-outcome', () => ({
+vi.mock('@/components/bid/bid-outcome', () => ({
   BidOutcomeDialog: ({ open }: { open: boolean }) => open ? <div data-testid="bid-outcome-dialog">Outcome</div> : null,
 }));
 
-vi.mock('@/components/kb-integration-review', () => ({
+vi.mock('@/components/bid/kb-integration-review', () => ({
   KBIntegrationReview: ({ open }: { open: boolean }) => open ? <div data-testid="kb-integration-review">KB Review</div> : null,
 }));
 
-vi.mock('@/components/confidence-badge', () => ({
+vi.mock('@/components/shared/confidence-badge', () => ({
   ConfidenceDot: ({ posture, count }: { posture: string; count: number }) => (
     <span data-testid={`confidence-dot-${posture}`}>{count}</span>
   ),
 }));
 
-vi.mock('@/components/question-list', () => ({
+vi.mock('@/components/bid/question-list', () => ({
   QuestionList: () => <div data-testid="question-list">QuestionList</div>,
 }));
 
-vi.mock('@/components/question-review', () => ({
+vi.mock('@/components/bid/question-review', () => ({
   QuestionReview: () => <div data-testid="question-review">QuestionReview</div>,
 }));
 
-vi.mock('@/components/tender-upload', () => ({
+vi.mock('@/components/bid/tender-upload', () => ({
   TenderUpload: () => <div data-testid="tender-upload">TenderUpload</div>,
 }));
 
-vi.mock('@/components/tender-metadata-prompt', () => ({
+vi.mock('@/components/bid/tender-metadata-prompt', () => ({
   TenderMetadataPrompt: () => <div data-testid="tender-metadata-prompt">MetadataPrompt</div>,
 }));
 

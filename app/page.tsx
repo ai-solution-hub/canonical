@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
-import { SearchBar } from '@/components/search-bar';
+import { SearchBar } from '@/components/browse/search-bar';
 import { ActiveBidsSection } from '@/components/dashboard/active-bids-section';
 import { QuickStatsStrip } from '@/components/dashboard/quick-stats-strip';
 import { DashboardActivityFeed } from '@/components/dashboard/dashboard-activity-feed';

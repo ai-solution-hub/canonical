@@ -1,20 +1,20 @@
 'use client';
 
-import { Thumbnail } from '@/components/thumbnail';
-import { ContentTabs } from '@/components/content-tabs';
-import { MetadataSidebar } from '@/components/metadata-sidebar';
-import { OrganiseSection } from '@/components/organise-section';
-import { EntityBadges } from '@/components/entity-badges';
-import { SourceDocumentInfo } from '@/components/source-document-info';
-import { VersionHistory } from '@/components/version-history';
+import { Thumbnail } from '@/components/shared/thumbnail';
+import { ContentTabs } from '@/components/item-detail/content-tabs';
+import { MetadataSidebar } from '@/components/item-detail/metadata-sidebar';
+import { OrganiseSection } from '@/components/item-detail/organise-section';
+import { EntityBadges } from '@/components/item-detail/entity-badges';
+import { SourceDocumentInfo } from '@/components/source-document/source-document-info';
+import { VersionHistory } from '@/components/item-detail/version-history';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { getDisplayTitle } from '@/lib/format';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import {
   generateIngestUrlPrompt,
   generateSummariseAndIngestPrompt,
 } from '@/lib/claude-prompts';
-import { ItemActionBar } from '@/components/item-action-bar';
+import { ItemActionBar } from '@/components/item-detail/item-action-bar';
 import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
 import { RelatedContentSection } from '@/components/item-detail/related-content-section';
 import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
@@ -22,7 +22,7 @@ import { ContentBody } from '@/components/item-detail/content-body';
 import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
 import { ItemTitleSection } from '@/components/item-detail/item-title-section';
 import { ItemBreadcrumb } from '@/components/item-detail/item-breadcrumb';
-import { TopicLayerComparison } from '@/components/topic-layer-comparison';
+import { TopicLayerComparison } from '@/components/browse/topic-layer-comparison';
 
 import type { ReactNode } from 'react';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';

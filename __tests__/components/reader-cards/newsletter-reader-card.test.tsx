@@ -12,13 +12,13 @@ import { render, screen } from '@testing-library/react';
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/reader-view', () => ({
+vi.mock('@/components/reader/reader-view', () => ({
   ReaderView: ({ html }: { html: string }) => (
     <div data-testid="reader-view">{html}</div>
   ),
 }));
 
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),

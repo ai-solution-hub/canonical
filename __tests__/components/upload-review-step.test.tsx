@@ -10,7 +10,7 @@ import {
   UploadReviewStep,
   type UploadReviewItem,
   type UploadReviewStepProps,
-} from '@/components/upload-review-step';
+} from '@/components/create-content/upload-review-step';
 
 // ---------------------------------------------------------------------------
 // Test data

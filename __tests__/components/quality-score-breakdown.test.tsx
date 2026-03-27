@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { QualityScoreBreakdown } from '@/components/quality-score-breakdown';
+import { QualityScoreBreakdown } from '@/components/shared/quality-score-breakdown';
 import type { QualityScoreInput } from '@/lib/quality-score';
 
 // ---------------------------------------------------------------------------

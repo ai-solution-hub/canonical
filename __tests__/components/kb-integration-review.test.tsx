@@ -39,7 +39,7 @@ vi.mock('@/lib/editor-utils', () => ({
 }));
 
 // Import AFTER mocks
-import { KBIntegrationReview } from '@/components/kb-integration-review';
+import { KBIntegrationReview } from '@/components/bid/kb-integration-review';
 
 // ---------------------------------------------------------------------------
 // Helpers

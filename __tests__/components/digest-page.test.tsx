@@ -62,7 +62,7 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-vi.mock('@/components/digest-view', () => ({
+vi.mock('@/components/digest/digest-view', () => ({
   DigestView: ({ digest }: { digest: { id: string } }) => (
     <div data-testid="digest-view">DigestView: {digest.id}</div>
   ),

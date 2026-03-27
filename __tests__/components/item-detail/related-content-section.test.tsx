@@ -12,19 +12,19 @@ import { render, screen } from '@testing-library/react';
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/content-card', () => ({
+vi.mock('@/components/content/content-card', () => ({
   ContentCard: ({ item }: { item: { id: string; title?: string | null } }) => (
     <div data-testid={`content-card-${item.id}`}>{item.title ?? 'Card'}</div>
   ),
 }));
 
-vi.mock('@/components/related-by-tags', () => ({
+vi.mock('@/components/item-detail/related-by-tags', () => ({
   RelatedByTags: ({ tags }: { tags: string[] }) => (
     <div data-testid="related-by-tags">Tags: {tags.join(', ')}</div>
   ),
 }));
 
-vi.mock('@/components/related-by-entities', () => ({
+vi.mock('@/components/item-detail/related-by-entities', () => ({
   RelatedByEntities: () => (
     <div data-testid="related-by-entities">RelatedByEntities</div>
   ),

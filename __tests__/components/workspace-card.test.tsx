@@ -12,7 +12,7 @@ vi.mock('@/lib/format', () => ({
   formatRelativeDate: (date: string) => date,
 }));
 
-import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace-card';
+import { WorkspaceCard, type WorkspaceWithCounts } from '@/components/workspace/workspace-card';
 
 // ---------------------------------------------------------------------------
 // Helpers

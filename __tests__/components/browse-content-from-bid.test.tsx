@@ -140,54 +140,54 @@ vi.mock('@/lib/claude-prompts', () => ({
 }));
 
 // Capture props passed to ContentGrid/ContentList
-vi.mock('@/components/content-grid', () => ({
+vi.mock('@/components/content/content-grid', () => ({
   ContentGrid: (props: Record<string, unknown>) => {
     capturedGridProps.fromBidId = props.fromBidId as string | undefined;
     return <div data-testid="content-grid" data-from-bid-id={props.fromBidId ?? ''} />;
   },
 }));
 
-vi.mock('@/components/content-list', () => ({
+vi.mock('@/components/content/content-list', () => ({
   ContentList: (props: Record<string, unknown>) => {
     capturedListProps.fromBidId = props.fromBidId as string | undefined;
     return <div data-testid="content-list" data-from-bid-id={props.fromBidId ?? ''} />;
   },
 }));
 
-vi.mock('@/components/filter-panel', () => ({
+vi.mock('@/components/browse/filter-panel', () => ({
   FilterPanel: () => null,
 }));
 
-vi.mock('@/components/filter-badges', () => ({
+vi.mock('@/components/browse/filter-badges', () => ({
   FilterBadges: () => null,
 }));
 
-vi.mock('@/components/filter-bar', () => ({
+vi.mock('@/components/browse/filter-bar', () => ({
   FilterBar: () => null,
 }));
 
-vi.mock('@/components/bulk-actions', () => ({
+vi.mock('@/components/browse/bulk-actions', () => ({
   BulkActions: () => null,
 }));
 
-vi.mock('@/components/browse-states', () => ({
+vi.mock('@/components/browse/browse-states', () => ({
   LoadingSkeleton: () => <div>Loading...</div>,
   EmptyState: () => <div>No items</div>,
 }));
 
-vi.mock('@/components/preset-bar', () => ({
+vi.mock('@/components/browse/preset-bar', () => ({
   PresetBar: () => null,
 }));
 
-vi.mock('@/components/save-preset-dialog', () => ({
+vi.mock('@/components/browse/save-preset-dialog', () => ({
   SavePresetDialog: () => null,
 }));
 
-vi.mock('@/components/manage-presets-dialog', () => ({
+vi.mock('@/components/browse/manage-presets-dialog', () => ({
   ManagePresetsDialog: () => null,
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: () => null,
 }));
 

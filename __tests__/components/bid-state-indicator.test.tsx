@@ -12,7 +12,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
+import { BidStateBadge, BidStateStepper } from '@/components/bid/bid-state-indicator';
 
 // ---------------------------------------------------------------------------
 // Tests

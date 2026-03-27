@@ -11,7 +11,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 // Import component (no external dependencies that need mocking)
-import { ReviewActionBar } from '@/components/review-action-bar';
+import { ReviewActionBar } from '@/components/review/review-action-bar';
 
 // ---------------------------------------------------------------------------
 // Factory

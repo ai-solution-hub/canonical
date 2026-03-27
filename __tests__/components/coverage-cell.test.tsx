@@ -7,7 +7,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import type { CoverageCellData } from '@/components/coverage-cell';
+import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -21,7 +21,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { CoverageCell } from '@/components/coverage-cell';
+import { CoverageCell } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // Factories

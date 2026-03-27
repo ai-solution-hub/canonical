@@ -40,7 +40,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
   }),
 }));
 
-import { ContentCard } from '@/components/content-card';
+import { ContentCard } from '@/components/content/content-card';
 
 // ---------------------------------------------------------------------------
 // Factory helpers

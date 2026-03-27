@@ -12,9 +12,9 @@
 import { describe, it, expect } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
-import { CoverageTargetProgress } from '@/components/coverage-target-progress';
+import { CoverageTargetProgress } from '@/components/coverage/coverage-target-progress';
 import type { CoverageTargetRow } from '@/hooks/use-coverage-targets';
-import type { CoverageSummaryRow } from '@/components/coverage-summary-cards';
+import type { CoverageSummaryRow } from '@/components/coverage/coverage-summary-cards';
 
 // ---------------------------------------------------------------------------
 // Test data factories

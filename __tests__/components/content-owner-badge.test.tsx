@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { ContentOwnerBadge } from '@/components/content-owner-badge';
+import { ContentOwnerBadge } from '@/components/content/content-owner-badge';
 
 describe('ContentOwnerBadge', () => {
   describe('sm size (default)', () => {

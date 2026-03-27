@@ -17,13 +17,13 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-vi.mock('@/components/domain-badge', () => ({
+vi.mock('@/components/shared/domain-badge', () => ({
   DomainBadge: ({ domain }: { domain: string }) => (
     <span data-testid="domain-badge">{domain}</span>
   ),
 }));
 
-vi.mock('@/components/similarity-badge', () => ({
+vi.mock('@/components/shared/similarity-badge', () => ({
   SimilarityBadge: ({ score }: { score: number }) => (
     <span data-testid="similarity-badge">{Math.round(score * 100)}%</span>
   ),
@@ -40,7 +40,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { ContentLibraryResult } from '@/components/content-library-result';
+import { ContentLibraryResult } from '@/components/content/content-library-result';
 import { toast } from 'sonner';
 import type { SearchResult } from '@/types/content';
 

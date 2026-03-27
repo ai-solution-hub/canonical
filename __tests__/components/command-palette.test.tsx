@@ -59,7 +59,7 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
 
-import { CommandPalette } from '@/components/command-palette';
+import { CommandPalette } from '@/components/shell/command-palette';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -23,7 +23,7 @@ const { mockUseDisplayNames, mockUseUserRole } = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock('@/components/verification-badge', () => ({
+vi.mock('@/components/shared/verification-badge', () => ({
   VerificationBadge: ({
     verified,
     verifiedByName,
@@ -44,7 +44,7 @@ vi.mock('@/components/verification-badge', () => ({
   ),
 }));
 
-vi.mock('@/components/freshness-badge', () => ({
+vi.mock('@/components/shared/freshness-badge', () => ({
   FreshnessBadge: ({ freshness }: { freshness: string }) => (
     <span data-testid="freshness-badge">{freshness}</span>
   ),

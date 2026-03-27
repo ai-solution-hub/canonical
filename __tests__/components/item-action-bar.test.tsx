@@ -25,25 +25,25 @@ const { mockToast } = vi.hoisted(() => ({
 vi.mock('sonner', () => ({ toast: mockToast }));
 
 // Stub heavy child components
-vi.mock('@/components/read-toggle-button', () => ({
+vi.mock('@/components/shared/read-toggle-button', () => ({
   ReadToggleButton: ({ itemId }: { itemId: string }) => (
     <button data-testid="read-toggle" data-item-id={itemId}>Read</button>
   ),
 }));
 
-vi.mock('@/components/star-button', () => ({
+vi.mock('@/components/shared/star-button', () => ({
   StarButton: ({ itemId }: { itemId: string }) => (
     <button data-testid="star-button" data-item-id={itemId}>Star</button>
   ),
 }));
 
-vi.mock('@/components/priority-selector', () => ({
+vi.mock('@/components/shared/priority-selector', () => ({
   PrioritySelector: ({ itemId }: { itemId: string }) => (
     <button data-testid="priority-selector" data-item-id={itemId}>Priority</button>
   ),
 }));
 
-vi.mock('@/components/delete-content-dialog', () => ({
+vi.mock('@/components/content/delete-content-dialog', () => ({
   DeleteContentDialog: ({ itemId }: { itemId: string }) => (
     <div data-testid="delete-dialog" data-item-id={itemId} />
   ),
@@ -57,7 +57,7 @@ vi.mock('next/dynamic', () => ({
   },
 }));
 
-import { ItemActionBar, type ItemActionBarProps } from '@/components/item-action-bar';
+import { ItemActionBar, type ItemActionBarProps } from '@/components/item-detail/item-action-bar';
 
 // ---------------------------------------------------------------------------
 // Helpers

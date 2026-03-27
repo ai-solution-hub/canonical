@@ -9,7 +9,7 @@ import { render, screen } from '@testing-library/react';
 import {
   IngestionProgress,
   type IngestionStep,
-} from '@/components/ingestion-progress';
+} from '@/components/create-content/ingestion-progress';
 
 function makeSteps(overrides: Partial<Record<number, Partial<IngestionStep>>> = {}): IngestionStep[] {
   const defaults: IngestionStep[] = [

@@ -42,7 +42,7 @@ vi.mock('@/hooks/use-modifier-key', () => ({
   useModifierKey: () => '\u2318',
 }));
 
-vi.mock('@/components/content-library-result', () => ({
+vi.mock('@/components/content/content-library-result', () => ({
   ContentLibraryResult: ({ result }: { result: { id: string; title: string } }) => (
     <div data-testid={`result-${result.id}`}>{result.title}</div>
   ),
@@ -52,7 +52,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
-import { ContentLibraryDrawer } from '@/components/content-library-drawer';
+import { ContentLibraryDrawer } from '@/components/content/content-library-drawer';
 
 // ---------------------------------------------------------------------------
 // Helpers

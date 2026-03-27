@@ -44,9 +44,9 @@ import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
 
 import { useLibraryFilters, type LibraryFilters, type GroupBy } from '@/hooks/use-library-filters';
 import { useLibraryBulkActions } from '@/hooks/use-library-bulk-actions';
-import { QARow } from '@/components/qa-row';
-import { BulkActionToolbar } from '@/components/bulk-action-toolbar';
-import { CollapsibleGroup, groupItems } from '@/components/collapsible-group';
+import { QARow } from '@/components/qa/qa-row';
+import { BulkActionToolbar } from '@/components/browse/bulk-action-toolbar';
+import { CollapsibleGroup, groupItems } from '@/components/shell/collapsible-group';
 
 // ---------------------------------------------------------------------------
 // VirtualisedQAList — renders the flat Q&A list with window-based virtualisation

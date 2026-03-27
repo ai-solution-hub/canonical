@@ -21,25 +21,25 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/file-upload', () => ({
+vi.mock('@/components/create-content/file-upload', () => ({
   FileUpload: ({ files }: { files: unknown[] }) => (
     <div data-testid="file-upload">FileUpload ({files.length} files)</div>
   ),
 }));
 
-vi.mock('@/components/ingestion-progress', () => ({
+vi.mock('@/components/create-content/ingestion-progress', () => ({
   IngestionProgress: () => <div data-testid="ingestion-progress">IngestionProgress</div>,
 }));
 
-vi.mock('@/components/dedup-warning', () => ({
+vi.mock('@/components/shared/dedup-warning', () => ({
   DedupWarning: () => <div data-testid="dedup-warning">DedupWarning</div>,
 }));
 
-vi.mock('@/components/reupload-banner', () => ({
+vi.mock('@/components/source-document/reupload-banner', () => ({
   ReuploadBanner: () => <div data-testid="reupload-banner">ReuploadBanner</div>,
 }));
 
-vi.mock('@/components/upload-review-step', () => ({
+vi.mock('@/components/create-content/upload-review-step', () => ({
   UploadReviewStep: ({ items, onDismiss }: { items: unknown[]; onDismiss: () => void }) => (
     <div data-testid="upload-review-step">
       UploadReviewStep ({(items as unknown[]).length} items)
@@ -50,11 +50,11 @@ vi.mock('@/components/upload-review-step', () => ({
   ),
 }));
 
-vi.mock('@/components/qa-preview-list', () => ({
+vi.mock('@/components/qa/qa-preview-list', () => ({
   QAPreviewList: () => <div data-testid="qa-preview-list">QAPreviewList</div>,
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: ({ label }: { label: string }) => (
     <button data-testid="claude-prompt-button">{label}</button>
   ),
@@ -121,7 +121,7 @@ vi.mock('@/hooks/use-file-upload-pipeline', () => ({
   useFileUploadPipeline: () => hookReturn,
 }));
 
-import { UploadTabContent } from '@/components/upload-tab-content';
+import { UploadTabContent } from '@/components/create-content/upload-tab-content';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------

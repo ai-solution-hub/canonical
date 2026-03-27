@@ -21,14 +21,14 @@ const { mockFetch } = vi.hoisted(() => ({
 // Module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock('@/components/coverage-guide-card', () => ({
+vi.mock('@/components/coverage/coverage-guide-card', () => ({
   CoverageGuideCard: ({ guide }: { guide: { id: string; title: string } }) => (
     <div data-testid={`guide-card-${guide.id}`}>{guide.title}</div>
   ),
 }));
 
 // Import AFTER mocks
-import { CoverageGuideTab } from '@/components/coverage-guide-tab';
+import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -34,7 +34,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { BidOutcomeDialog } from '@/components/bid-outcome';
+import { BidOutcomeDialog } from '@/components/bid/bid-outcome';
 
 // ---------------------------------------------------------------------------
 // Helpers

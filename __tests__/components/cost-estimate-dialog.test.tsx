@@ -19,7 +19,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
+import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
 
 // ---------------------------------------------------------------------------
 // Helpers

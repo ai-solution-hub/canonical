@@ -7,11 +7,11 @@ import {
   CertificationSummaryCard,
   type CertificationEntry,
   type RegistrationEntry,
-} from '@/components/certification-summary-card';
+} from '@/components/dashboard/certification-summary-card';
 import {
   FrameworkSummaryCard,
   type FrameworkEntry,
-} from '@/components/framework-summary-card';
+} from '@/components/dashboard/framework-summary-card';
 
 // ---------------------------------------------------------------------------
 // Types

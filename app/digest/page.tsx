@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DigestView } from '@/components/digest-view';
+import { DigestView } from '@/components/digest/digest-view';
 import { formatDate } from '@/lib/format';
 import { digestTypeLabel } from '@/lib/digest-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';

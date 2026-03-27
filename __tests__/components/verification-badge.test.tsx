@@ -11,7 +11,7 @@ import {
   VerificationBadge,
   getTrustLevel,
   formatRelativeTime,
-} from '@/components/verification-badge';
+} from '@/components/shared/verification-badge';
 
 // ---------------------------------------------------------------------------
 // getTrustLevel unit tests

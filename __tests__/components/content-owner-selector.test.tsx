@@ -28,7 +28,7 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-import { ContentOwnerSelector } from '@/components/content-owner-selector';
+import { ContentOwnerSelector } from '@/components/content/content-owner-selector';
 
 // ---------------------------------------------------------------------------
 // Helpers

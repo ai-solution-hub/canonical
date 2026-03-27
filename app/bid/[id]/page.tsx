@@ -47,17 +47,17 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { BidStateBadge, BidStateStepper } from '@/components/bid-state-indicator';
-import { BidExportMenu } from '@/components/bid-export-menu';
+import { BidStateBadge, BidStateStepper } from '@/components/bid/bid-state-indicator';
+import { BidExportMenu } from '@/components/bid/bid-export-menu';
 import { ReadinessChecklist, ReadinessBadge } from '@/components/bid/readiness-checklist';
-import { CostEstimateDialog } from '@/components/cost-estimate-dialog';
-import { BidOutcomeDialog } from '@/components/bid-outcome';
-import { KBIntegrationReview } from '@/components/kb-integration-review';
-import { ConfidenceDot } from '@/components/confidence-badge';
-import { QuestionList } from '@/components/question-list';
-import { QuestionReview } from '@/components/question-review';
-import { TenderUpload } from '@/components/tender-upload';
-import { TenderMetadataPrompt } from '@/components/tender-metadata-prompt';
+import { CostEstimateDialog } from '@/components/coverage/cost-estimate-dialog';
+import { BidOutcomeDialog } from '@/components/bid/bid-outcome';
+import { KBIntegrationReview } from '@/components/bid/kb-integration-review';
+import { ConfidenceDot } from '@/components/shared/confidence-badge';
+import { QuestionList } from '@/components/bid/question-list';
+import { QuestionReview } from '@/components/bid/question-review';
+import { TenderUpload } from '@/components/bid/tender-upload';
+import { TenderMetadataPrompt } from '@/components/bid/tender-metadata-prompt';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useBidActions } from '@/hooks/use-bid-actions';
 import { useBidExport } from '@/hooks/use-bid-export';

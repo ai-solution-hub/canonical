@@ -23,13 +23,13 @@ vi.mock('next/navigation', () => ({
 }));
 
 // Stub TemplateCoverageSection to isolate this component
-vi.mock('@/components/template-coverage-section', () => ({
+vi.mock('@/components/coverage/template-coverage-section', () => ({
   TemplateCoverageSection: ({ sectionRef, sectionName }: { sectionRef: string; sectionName: string }) => (
     <div data-testid={`template-section-${sectionRef}`}>{sectionName}</div>
   ),
 }));
 
-import { TemplateCoverageContent } from '@/components/template-coverage-content';
+import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
 
 // ---------------------------------------------------------------------------
 // Factories

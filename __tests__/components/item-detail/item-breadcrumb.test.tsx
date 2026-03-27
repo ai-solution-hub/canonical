@@ -18,7 +18,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/components/breadcrumb-nav', () => ({
+vi.mock('@/components/shell/breadcrumb-nav', () => ({
   BreadcrumbNav: ({ domain, title }: { domain: string | null; title: string }) => (
     <nav aria-label="Breadcrumb" data-testid="breadcrumb-nav" data-domain={domain} data-title={title}>
       BreadcrumbNav

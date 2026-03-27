@@ -14,7 +14,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
+import { StreamingPhaseIndicator } from '@/components/shared/streaming-phase-indicator';
 
 // ---------------------------------------------------------------------------
 // Tests

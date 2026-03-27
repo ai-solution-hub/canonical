@@ -9,16 +9,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   CoverageSummaryCards,
   type CoverageSummaryRow,
-} from '@/components/coverage-summary-cards';
-import { CoverageDomainSection } from '@/components/coverage-domain-section';
-import { CoverageLayerFilter } from '@/components/coverage-layer-filter';
-import { CoverageHeatmapView } from '@/components/coverage-heatmap-view';
-import { CoverageTargetProgress } from '@/components/coverage-target-progress';
-import { CoverageTargetEditor } from '@/components/coverage-target-editor';
+} from '@/components/coverage/coverage-summary-cards';
+import { CoverageDomainSection } from '@/components/coverage/coverage-domain-section';
+import { CoverageLayerFilter } from '@/components/browse/coverage-layer-filter';
+import { CoverageHeatmapView } from '@/components/coverage/coverage-heatmap-view';
+import { CoverageTargetProgress } from '@/components/coverage/coverage-target-progress';
+import { CoverageTargetEditor } from '@/components/coverage/coverage-target-editor';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useCoverageTargets } from '@/hooks/use-coverage-targets';
 import { useUserRole } from '@/hooks/use-user-role';
-import type { CoverageCellData } from '@/components/coverage-cell';
+import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // Types

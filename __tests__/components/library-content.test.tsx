@@ -154,18 +154,18 @@ vi.mock('sonner', () => ({
 }));
 
 // Stub child components
-vi.mock('@/components/qa-row', () => ({
+vi.mock('@/components/qa/qa-row', () => ({
   QARow: ({ item }: { item: { id: string; title: string } }) => (
     <div data-testid={`qa-row-${item.id}`}>{item.title}</div>
   ),
 }));
 
-vi.mock('@/components/bulk-action-toolbar', () => ({
+vi.mock('@/components/browse/bulk-action-toolbar', () => ({
   BulkActionToolbar: ({ selectedCount }: { selectedCount: number }) =>
     selectedCount > 0 ? <div data-testid="bulk-toolbar">Bulk: {selectedCount}</div> : null,
 }));
 
-vi.mock('@/components/collapsible-group', () => ({
+vi.mock('@/components/shell/collapsible-group', () => ({
   CollapsibleGroup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   groupItems: vi.fn(),
 }));

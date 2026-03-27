@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { AttentionItem } from '@/lib/attention';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 
 // ---------------------------------------------------------------------------
 // Types

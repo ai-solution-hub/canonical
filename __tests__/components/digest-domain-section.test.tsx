@@ -31,13 +31,13 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: (string | undefined | null | false)[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/domain-badge', () => ({
+vi.mock('@/components/shared/domain-badge', () => ({
   DomainBadge: ({ domain }: { domain: string }) => (
     <span data-testid="domain-badge">{domain}</span>
   ),
 }));
 
-vi.mock('@/components/content-type-icon', () => ({
+vi.mock('@/components/shared/content-type-icon', () => ({
   ContentTypeIcon: () => <span data-testid="content-type-icon" />,
 }));
 
@@ -48,7 +48,7 @@ vi.mock('@/components/ui/badge', () => ({
 }));
 
 // Import AFTER mocks
-import { DigestDomainSection } from '@/components/digest-domain-section';
+import { DigestDomainSection } from '@/components/digest/digest-domain-section';
 import type { DigestDomainSummary } from '@/types/digest';
 
 // ---------------------------------------------------------------------------

@@ -52,7 +52,7 @@ vi.mock('sonner', () => ({
   },
 }));
 
-vi.mock('@/components/breadcrumb-nav', () => ({
+vi.mock('@/components/shell/breadcrumb-nav', () => ({
   BreadcrumbNav: ({ title }: { title: string }) => (
     <nav data-testid="breadcrumb">{title}</nav>
   ),

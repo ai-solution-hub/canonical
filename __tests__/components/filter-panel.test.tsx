@@ -147,7 +147,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
-import { FilterPanel } from '@/components/filter-panel';
+import { FilterPanel } from '@/components/browse/filter-panel';
 
 // ---------------------------------------------------------------------------
 // Tests

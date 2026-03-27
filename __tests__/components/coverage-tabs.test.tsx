@@ -25,11 +25,11 @@ vi.mock('@/app/coverage/coverage-content', () => ({
   CoverageContent: () => <div data-testid="coverage-content">Taxonomy Content</div>,
 }));
 
-vi.mock('@/components/template-coverage-content', () => ({
+vi.mock('@/components/coverage/template-coverage-content', () => ({
   TemplateCoverageContent: () => <div data-testid="template-coverage-content">Template Content</div>,
 }));
 
-vi.mock('@/components/coverage-guide-tab', () => ({
+vi.mock('@/components/coverage/coverage-guide-tab', () => ({
   CoverageGuideTab: () => <div data-testid="coverage-guide-tab">Guide Content</div>,
 }));
 

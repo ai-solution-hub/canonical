@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { BarChart3, BookOpen, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
-import { TemplateCoverageContent } from '@/components/template-coverage-content';
-import { CoverageGuideTab } from '@/components/coverage-guide-tab';
+import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
+import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
 import type { GapSummary } from '@/lib/template-coverage';
 
 // ---------------------------------------------------------------------------

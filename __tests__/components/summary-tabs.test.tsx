@@ -23,19 +23,19 @@ vi.mock('sonner', () => ({
   toast: mockToast,
 }));
 
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),
 }));
 
-vi.mock('@/components/reader-view', () => ({
+vi.mock('@/components/reader/reader-view', () => ({
   ReaderView: ({ html }: { html: string }) => (
     <div data-testid="reader-view">{html.slice(0, 50)}</div>
   ),
 }));
 
-vi.mock('@/components/iframe-viewer', () => ({
+vi.mock('@/components/reader/iframe-viewer', () => ({
   IframeViewer: ({ src }: { src: string }) => (
     <div data-testid="iframe-viewer">{src}</div>
   ),
@@ -53,7 +53,7 @@ vi.mock('@/lib/format', () => ({
   formatDate: (d: string | null) => d ?? '',
 }));
 
-import { SummaryTabs } from '@/components/summary-tabs';
+import { SummaryTabs } from '@/components/item-detail/summary-tabs';
 
 // ---------------------------------------------------------------------------
 // Helpers

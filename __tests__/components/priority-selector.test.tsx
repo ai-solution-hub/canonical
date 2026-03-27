@@ -27,7 +27,7 @@ vi.mock('sonner', () => ({
 }));
 
 // Import AFTER mocks
-import { PrioritySelector, PriorityBadge } from '@/components/priority-selector';
+import { PrioritySelector, PriorityBadge } from '@/components/shared/priority-selector';
 
 // ---------------------------------------------------------------------------
 // Helpers

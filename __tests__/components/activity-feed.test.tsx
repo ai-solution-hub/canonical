@@ -33,7 +33,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { ActivityFeed } from '@/components/activity-feed';
+import { ActivityFeed } from '@/components/dashboard/activity-feed';
 
 // ---------------------------------------------------------------------------
 // Helpers

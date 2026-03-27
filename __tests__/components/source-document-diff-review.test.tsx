@@ -53,7 +53,7 @@ import {
   SourceDocumentDiffReview,
   type SourceDocumentDiffReviewProps,
   type DiffReviewEntry,
-} from '@/components/source-document-diff-review';
+} from '@/components/source-document/source-document-diff-review';
 
 // ---------------------------------------------------------------------------
 // Fetch mock

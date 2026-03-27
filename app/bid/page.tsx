@@ -12,16 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BidListCard } from '@/components/bid-list-card';
-import { BidStateBadge } from '@/components/bid-state-indicator';
-import { BidCreationWizard } from '@/components/bid-creation-wizard';
+import { BidListCard } from '@/components/bid/bid-list-card';
+import { BidStateBadge } from '@/components/bid/bid-state-indicator';
+import { BidCreationWizard } from '@/components/bid/bid-creation-wizard';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 import type { Bid, BidMetadata, BidState } from '@/types/bid';
 
 const BIDS_PER_PAGE = 20;

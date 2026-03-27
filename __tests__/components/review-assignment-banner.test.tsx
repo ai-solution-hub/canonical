@@ -111,7 +111,7 @@ vi.mock('sonner', () => ({
 }));
 
 // Stub child components to isolate banner tests
-vi.mock('@/components/review-card', () => ({
+vi.mock('@/components/review/review-card', () => ({
   ReviewCard: vi.fn().mockImplementation(
     ({ item, position, total }: { item: { title: string }; position: number; total: number }) => (
       <div data-testid="review-card">ReviewCard: {item.title} ({position}/{total})</div>
@@ -119,19 +119,19 @@ vi.mock('@/components/review-card', () => ({
   ),
 }));
 
-vi.mock('@/components/review-action-bar', () => ({
+vi.mock('@/components/review/review-action-bar', () => ({
   ReviewActionBar: () => <div data-testid="review-action-bar">ActionBar</div>,
 }));
 
-vi.mock('@/components/review-progress-bar', () => ({
+vi.mock('@/components/review/review-progress-bar', () => ({
   ReviewProgressBar: () => <div data-testid="review-progress-bar">ProgressBar</div>,
 }));
 
-vi.mock('@/components/review-filters', () => ({
+vi.mock('@/components/review/review-filters', () => ({
   ReviewFilters: () => <div data-testid="review-filters">Filters</div>,
 }));
 
-vi.mock('@/components/review-queue-panel', () => ({
+vi.mock('@/components/review/review-queue-panel', () => ({
   ReviewQueuePanel: () => <div data-testid="review-queue-panel">QueuePanel</div>,
 }));
 

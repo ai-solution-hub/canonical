@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { GuideSectionBanner } from '@/components/guide-section-banner';
+import { GuideSectionBanner } from '@/components/guide/guide-section-banner';
 import type { GuideSectionMatch } from '@/lib/guide-section-mapping';
 
 // ---------------------------------------------------------------------------

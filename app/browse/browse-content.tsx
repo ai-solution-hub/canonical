@@ -6,22 +6,22 @@ import { useRouter, useSearchParams } from 'next/navigation';
 
 import { toast } from 'sonner';
 import { Upload, Plus, Loader2, Search, AlertCircle } from 'lucide-react';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
-import { ContentGrid } from '@/components/content-grid';
-import { ContentList } from '@/components/content-list';
-import { FilterPanel } from '@/components/filter-panel';
-import { FilterBadges } from '@/components/filter-badges';
-import { FilterBar, type SortOption } from '@/components/filter-bar';
-import { BulkActions } from '@/components/bulk-actions';
-import { LoadingSkeleton, EmptyState } from '@/components/browse-states';
-import { PresetBar } from '@/components/preset-bar';
-import { SavePresetDialog } from '@/components/save-preset-dialog';
-import { ManagePresetsDialog } from '@/components/manage-presets-dialog';
+import { ContentGrid } from '@/components/content/content-grid';
+import { ContentList } from '@/components/content/content-list';
+import { FilterPanel } from '@/components/browse/filter-panel';
+import { FilterBadges } from '@/components/browse/filter-badges';
+import { FilterBar, type SortOption } from '@/components/browse/filter-bar';
+import { BulkActions } from '@/components/browse/bulk-actions';
+import { LoadingSkeleton, EmptyState } from '@/components/browse/browse-states';
+import { PresetBar } from '@/components/browse/preset-bar';
+import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
+import { ManagePresetsDialog } from '@/components/browse/manage-presets-dialog';
 import dynamic from 'next/dynamic';
 
 const FileUploadDialog = dynamic(
-  () => import('@/components/file-upload-dialog').then((mod) => mod.FileUploadDialog),
+  () => import('@/components/create-content/file-upload-dialog').then((mod) => mod.FileUploadDialog),
   { ssr: false },
 );
 import { Button } from '@/components/ui/button';

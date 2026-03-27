@@ -1,4 +1,4 @@
-import type { SortOption } from '@/components/filter-bar';
+import type { SortOption } from '@/components/browse/filter-bar';
 import type { ContentListItem } from '@/types/content';
 
 /** Sorts that use offset-based pagination instead of cursor-based. */

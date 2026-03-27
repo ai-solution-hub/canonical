@@ -4,7 +4,7 @@ import {
   CertificationSummaryCard,
   type CertificationEntry,
   type RegistrationEntry,
-} from '@/components/certification-summary-card';
+} from '@/components/dashboard/certification-summary-card';
 
 // ---------------------------------------------------------------------------
 // Mock clipboard and toast

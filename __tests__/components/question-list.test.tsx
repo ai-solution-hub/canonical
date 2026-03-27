@@ -34,7 +34,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/question-row', () => ({
+vi.mock('@/components/bid/question-row', () => ({
   QuestionRow: ({ question, index }: { question: BidQuestion; index: number }) => (
     <div data-testid={`question-row-${question.id}`} role="listitem">
       Q{index}: {question.question_text}
@@ -43,7 +43,7 @@ vi.mock('@/components/question-row', () => ({
 }));
 
 // Import AFTER mocks
-import { QuestionList } from '@/components/question-list';
+import { QuestionList } from '@/components/bid/question-list';
 
 // ---------------------------------------------------------------------------
 // Data factories

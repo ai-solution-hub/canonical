@@ -23,7 +23,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-vi.mock('@/components/file-upload', () => ({
+vi.mock('@/components/create-content/file-upload', () => ({
   FileUpload: ({ files, onFilesAdded }: { files: unknown[]; onFilesAdded: (f: File[]) => void }) => (
     <div data-testid="file-upload">
       FileUpload ({files.length} files)
@@ -34,7 +34,7 @@ vi.mock('@/components/file-upload', () => ({
   ),
 }));
 
-vi.mock('@/components/ingestion-progress', () => ({
+vi.mock('@/components/create-content/ingestion-progress', () => ({
   IngestionProgress: ({ steps, compact }: { steps: unknown[]; compact?: boolean }) => (
     <div data-testid="ingestion-progress" data-compact={compact}>
       IngestionProgress ({(steps as Array<{ label: string }>).length} steps)
@@ -42,17 +42,17 @@ vi.mock('@/components/ingestion-progress', () => ({
   ),
 }));
 
-vi.mock('@/components/dedup-warning', () => ({
+vi.mock('@/components/shared/dedup-warning', () => ({
   DedupWarning: ({ matches }: { matches: unknown[] }) => (
     <div data-testid="dedup-warning">DedupWarning ({matches.length} matches)</div>
   ),
 }));
 
-vi.mock('@/components/reupload-banner', () => ({
+vi.mock('@/components/source-document/reupload-banner', () => ({
   ReuploadBanner: () => <div data-testid="reupload-banner">ReuploadBanner</div>,
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: ({ label }: { label: string }) => (
     <button data-testid="claude-prompt-button">{label}</button>
   ),
@@ -121,7 +121,7 @@ vi.mock('@/hooks/use-file-upload-pipeline', () => ({
   },
 }));
 
-import { FileUploadDialog } from '@/components/file-upload-dialog';
+import { FileUploadDialog } from '@/components/create-content/file-upload-dialog';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------

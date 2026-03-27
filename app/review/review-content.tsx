@@ -10,11 +10,11 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { ReviewCard } from '@/components/review-card';
-import { ReviewActionBar } from '@/components/review-action-bar';
-import { ReviewProgressBar } from '@/components/review-progress-bar';
-import { ReviewFilters } from '@/components/review-filters';
-import { ReviewQueuePanel } from '@/components/review-queue-panel';
+import { ReviewCard } from '@/components/review/review-card';
+import { ReviewActionBar } from '@/components/review/review-action-bar';
+import { ReviewProgressBar } from '@/components/review/review-progress-bar';
+import { ReviewFilters } from '@/components/review/review-filters';
+import { ReviewQueuePanel } from '@/components/review/review-queue-panel';
 import { ReviewSessionSummary } from '@/components/review/review-session-summary';
 import type { ReviewSessionStats } from '@/components/review/review-session-summary';
 import { ReviewCadenceCard } from '@/components/review/review-cadence-card';

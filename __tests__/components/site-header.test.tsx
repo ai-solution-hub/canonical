@@ -41,24 +41,24 @@ vi.mock('@/hooks/use-user-role', () => ({
 }));
 
 // Stub complex child components to isolate SiteHeader logic
-vi.mock('@/components/search-bar', () => ({
+vi.mock('@/components/browse/search-bar', () => ({
   SearchBar: ({ variant }: { variant?: string }) => (
     <div data-testid="search-bar" data-variant={variant}>Search Bar</div>
   ),
 }));
 
-vi.mock('@/components/notification-bell', () => ({
+vi.mock('@/components/shell/notification-bell', () => ({
   NotificationBell: ({ mobile }: { mobile?: boolean }) => (
     <div data-testid={mobile ? 'notification-bell-mobile' : 'notification-bell'}>NotificationBell</div>
   ),
 }));
 
-vi.mock('@/components/theme-settings', () => ({
+vi.mock('@/components/shell/theme-settings', () => ({
   ThemeSettings: () => <div data-testid="theme-settings">ThemeSettings</div>,
 }));
 
 // Import AFTER mocks
-import { SiteHeader } from '@/components/site-header';
+import { SiteHeader } from '@/components/shell/site-header';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -9,7 +9,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ContentListItem } from '@/types/content';
 
-import { CollapsibleGroup, groupItems } from '@/components/collapsible-group';
+import { CollapsibleGroup, groupItems } from '@/components/shell/collapsible-group';
 
 // ---------------------------------------------------------------------------
 // Helpers

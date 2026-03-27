@@ -51,7 +51,7 @@ vi.mock('next/link', () => ({
 }));
 
 // Mock the child SourceDocumentHistory to isolate this component
-vi.mock('@/components/source-document-history', () => ({
+vi.mock('@/components/source-document/source-document-history', () => ({
   SourceDocumentHistory: ({ sourceDocumentId }: { sourceDocumentId: string }) => (
     <div data-testid="mock-history" data-source-document-id={sourceDocumentId}>
       Mock history
@@ -59,7 +59,7 @@ vi.mock('@/components/source-document-history', () => ({
   ),
 }));
 
-import { SourceDocumentInfo } from '@/components/source-document-info';
+import { SourceDocumentInfo } from '@/components/source-document/source-document-info';
 
 // ---------------------------------------------------------------------------
 // Helpers

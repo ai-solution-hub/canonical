@@ -30,7 +30,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { VersionDiff } from '@/components/version-diff';
+import { VersionDiff } from '@/components/item-detail/version-diff';
 
 // ---------------------------------------------------------------------------
 // Tests

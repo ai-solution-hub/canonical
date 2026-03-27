@@ -30,7 +30,7 @@ vi.mock('@/lib/claude-prompts', () => ({
   }),
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: ({ label }: { label: string }) => (
     <button>{label}</button>
   ),
@@ -40,13 +40,13 @@ vi.mock('@/components/claude-prompt-button', () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { CertificationSummaryCard } from '@/components/certification-summary-card';
+import { CertificationSummaryCard } from '@/components/dashboard/certification-summary-card';
 import type {
   CertificationEntry,
   RegistrationEntry,
-} from '@/components/certification-summary-card';
-import { ExpiryDateDisplay } from '@/components/expiry-date-display';
-import { TemporalReferencesSection } from '@/components/temporal-references-section';
+} from '@/components/dashboard/certification-summary-card';
+import { ExpiryDateDisplay } from '@/components/shared/expiry-date-display';
+import { TemporalReferencesSection } from '@/components/item-detail/temporal-references-section';
 
 // ---------------------------------------------------------------------------
 // Factories

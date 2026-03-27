@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { formatRelativeDate } from '@/lib/format';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { useHydrated } from '@/hooks/use-hydrated';
-import { ClaudePromptButton } from '@/components/claude-prompt-button';
+import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import type { ReorientData, UrgentItem, TeamChange, RecentWorkItem } from '@/types/reorient';
 

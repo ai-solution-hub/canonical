@@ -15,7 +15,7 @@ vi.mock('next/navigation', () => ({
   }),
 }));
 
-import { SearchBar } from '@/components/search-bar';
+import { SearchBar } from '@/components/browse/search-bar';
 
 describe('SearchBar', () => {
   beforeEach(() => {

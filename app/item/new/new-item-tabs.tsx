@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { PenLine, Globe, FileUp } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CreateContentClient } from './create-content-client';
-import { UrlIngestForm } from '@/components/url-ingest-form';
-import { UploadTabContent } from '@/components/upload-tab-content';
-import { FileUploadDialog } from '@/components/file-upload-dialog';
+import { UrlIngestForm } from '@/components/create-content/url-ingest-form';
+import { UploadTabContent } from '@/components/create-content/upload-tab-content';
+import { FileUploadDialog } from '@/components/create-content/file-upload-dialog';
 
 /**
  * Tabbed interface for creating new content items.

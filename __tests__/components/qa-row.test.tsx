@@ -30,7 +30,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { QARow } from '@/components/qa-row';
+import { QARow } from '@/components/qa/qa-row';
 
 // ---------------------------------------------------------------------------
 // Helpers

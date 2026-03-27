@@ -79,15 +79,15 @@ vi.mock('react-resizable-panels', () => ({
   Separator: () => <div data-testid="panel-separator" />,
 }));
 
-vi.mock('@/components/floating-reader', () => ({
+vi.mock('@/components/reader/floating-reader', () => ({
   FloatingReader: () => <div data-testid="floating-reader" />,
 }));
 
-vi.mock('@/components/reader-panel', () => ({
+vi.mock('@/components/reader/reader-panel', () => ({
   ReaderPanel: () => <div data-testid="reader-panel" />,
 }));
 
-vi.mock('@/components/error-boundary', () => ({
+vi.mock('@/components/shared/error-boundary', () => ({
   ErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 

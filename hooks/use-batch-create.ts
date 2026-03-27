@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { formatQAContent } from '@/components/batch-qa-preview-table';
+import { formatQAContent } from '@/components/qa/batch-qa-preview-table';
 
 // ---------------------------------------------------------------------------
 // Types

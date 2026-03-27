@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { PresetBar } from '@/components/preset-bar';
+import { PresetBar } from '@/components/browse/preset-bar';
 import type { FilterPreset } from '@/types/filter-preset';
 
 // ---------------------------------------------------------------------------

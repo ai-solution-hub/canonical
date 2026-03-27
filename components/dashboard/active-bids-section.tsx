@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Plus, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { BidListCard } from '@/components/bid-list-card';
+import { BidListCard } from '@/components/bid/bid-list-card';
 import { generateBidPrompt, generateBidDeadlinePrompt } from '@/lib/claude-prompts';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 import type { Bid, BidMetadata } from '@/types/bid';

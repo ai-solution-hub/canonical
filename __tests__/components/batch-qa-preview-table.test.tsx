@@ -13,7 +13,7 @@ import {
   parsePastedQA,
   formatQAContent,
   type QAPair,
-} from '@/components/batch-qa-preview-table';
+} from '@/components/qa/batch-qa-preview-table';
 
 // ---------------------------------------------------------------------------
 // parsePastedQA unit tests

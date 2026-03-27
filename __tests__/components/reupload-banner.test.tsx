@@ -27,7 +27,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-import { ReuploadBanner } from '@/components/reupload-banner';
+import { ReuploadBanner } from '@/components/source-document/reupload-banner';
 
 // ---------------------------------------------------------------------------
 // Identical match

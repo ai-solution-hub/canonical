@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ContentCard } from '@/components/content-card';
-import { RelatedByTags } from '@/components/related-by-tags';
-import { RelatedByEntities } from '@/components/related-by-entities';
+import { ContentCard } from '@/components/content/content-card';
+import { RelatedByTags } from '@/components/item-detail/related-by-tags';
+import { RelatedByEntities } from '@/components/item-detail/related-by-entities';
 
 import type { ContentListItem } from '@/types/content';
 

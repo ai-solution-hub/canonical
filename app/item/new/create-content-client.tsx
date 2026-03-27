@@ -21,10 +21,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { BreadcrumbNav } from '@/components/breadcrumb-nav';
-import { DedupWarning, type DedupMatch } from '@/components/dedup-warning';
-import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/layer-suggestion-banner';
-import { GuideSectionBanner } from '@/components/guide-section-banner';
+import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
+import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
+import { LayerSuggestionBanner, type LayerSuggestionData } from '@/components/content/layer-suggestion-banner';
+import { GuideSectionBanner } from '@/components/guide/guide-section-banner';
 import type { GuideSectionMatch } from '@/lib/guide-section-mapping';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import {
@@ -35,13 +35,13 @@ import {
   MobileStepIndicator,
   TemplateSelector,
 } from '@/components/create-content';
-import { ErrorBoundary } from '@/components/error-boundary';
+import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useContentTemplates } from '@/hooks/use-content-templates';
 import type { ContentTemplate } from '@/lib/content-templates';
 
 const ContentEditor = dynamic(
-  () => import('@/components/content-editor').then((mod) => mod.ContentEditor),
+  () => import('@/components/item-detail/content-editor').then((mod) => mod.ContentEditor),
   { ssr: false, loading: () => <div className="h-48 animate-pulse rounded-lg bg-accent" role="status" aria-label="Loading editor"><span className="sr-only">Loading editor...</span></div> },
 );
 import { toast } from 'sonner';

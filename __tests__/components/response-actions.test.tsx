@@ -18,7 +18,7 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 // Import AFTER mocks
-import { ResponseActions } from '@/components/response-actions';
+import { ResponseActions } from '@/components/bid/response-actions';
 
 // ---------------------------------------------------------------------------
 // Helpers

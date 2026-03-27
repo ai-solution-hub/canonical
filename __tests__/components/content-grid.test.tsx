@@ -30,7 +30,7 @@ vi.mock('@tanstack/react-virtual', () => ({
   useWindowVirtualizer: () => mockVirtualizer,
 }));
 
-vi.mock('@/components/content-card', () => ({
+vi.mock('@/components/content/content-card', () => ({
   ContentCard: ({ item, isRead, hasQualityFlag }: {
     item: ContentListItem;
     isRead?: boolean;
@@ -42,7 +42,7 @@ vi.mock('@/components/content-card', () => ({
   ),
 }));
 
-import { ContentGrid } from '@/components/content-grid';
+import { ContentGrid } from '@/components/content/content-grid';
 
 // ---------------------------------------------------------------------------
 // Helpers

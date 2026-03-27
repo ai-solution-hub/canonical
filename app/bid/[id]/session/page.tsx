@@ -14,15 +14,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { QuestionNavigator } from '@/components/question-navigator';
-import { ResponseEditor } from '@/components/response-editor';
-import { CitationPanel } from '@/components/citation-panel';
-import { QualityScore } from '@/components/quality-score';
-import { ResponseActions } from '@/components/response-actions';
-import { StreamingPhaseIndicator } from '@/components/streaming-phase-indicator';
-import { ContentLibraryDrawer } from '@/components/content-library-drawer';
-import { ResponseVersionHistory } from '@/components/response-version-history';
-import { BidContextProvider } from '@/components/bid-context-provider';
+import { QuestionNavigator } from '@/components/bid/question-navigator';
+import { ResponseEditor } from '@/components/bid/response-editor';
+import { CitationPanel } from '@/components/content/citation-panel';
+import { QualityScore } from '@/components/shared/quality-score';
+import { ResponseActions } from '@/components/bid/response-actions';
+import { StreamingPhaseIndicator } from '@/components/shared/streaming-phase-indicator';
+import { ContentLibraryDrawer } from '@/components/content/content-library-drawer';
+import { ResponseVersionHistory } from '@/components/bid/response-version-history';
+import { BidContextProvider } from '@/components/bid/bid-context-provider';
 import { DraftRecoveryDialog } from '@/components/bid/draft-recovery-dialog';
 import {
   Sheet,
@@ -38,7 +38,7 @@ import { useCitationOrphans } from '@/hooks/use-citation-orphans';
 import { useDraftRecovery } from '@/hooks/use-draft-recovery';
 import { useStreamCoordination } from '@/hooks/use-stream-coordination';
 import { cn } from '@/lib/utils';
-import type { Editor } from '@/components/response-editor';
+import type { Editor } from '@/components/bid/response-editor';
 
 /** Displays word count alongside word limit with colour-coded feedback */
 function WordCountIndicator({

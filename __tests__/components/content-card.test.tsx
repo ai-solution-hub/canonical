@@ -17,7 +17,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
 }));
 
 // Mock ContentRenderer to avoid react-markdown complexity in jsdom
-vi.mock('@/components/content-renderer', () => ({
+vi.mock('@/components/item-detail/content-renderer', () => ({
   ContentRenderer: ({ content }: { content: string }) => (
     <div data-testid="content-renderer">{content}</div>
   ),
@@ -46,7 +46,7 @@ vi.mock('@/contexts/layer-vocabulary-context', () => ({
   }),
 }));
 
-import { ContentCard } from '@/components/content-card';
+import { ContentCard } from '@/components/content/content-card';
 
 // ---------------------------------------------------------------------------
 // Mock data factory

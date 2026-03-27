@@ -112,7 +112,7 @@ vi.mock('lucide-react', () => ({
   ),
 }));
 
-vi.mock('@/components/claude-prompt-button', () => ({
+vi.mock('@/components/content/claude-prompt-button', () => ({
   ClaudePromptButton: ({ prompt }: { prompt: { label: string } }) => (
     <button data-testid="claude-prompt-button">{prompt.label}</button>
   ),
@@ -127,7 +127,7 @@ vi.mock('@/lib/claude-prompts', () => ({
   }),
 }));
 
-vi.mock('@/components/ingestion-progress', () => ({
+vi.mock('@/components/create-content/ingestion-progress', () => ({
   IngestionProgress: ({ steps }: { steps: Array<{ label: string; status: string }> }) => (
     <div data-testid="ingestion-progress">
       {steps.map((s, i) => (
@@ -139,7 +139,7 @@ vi.mock('@/components/ingestion-progress', () => ({
   ),
 }));
 
-vi.mock('@/components/ingestion-success-card', () => ({
+vi.mock('@/components/create-content/ingestion-success-card', () => ({
   IngestionSuccessCard: ({ itemId, title }: { itemId: string; title: string }) => (
     <div data-testid="success-card" data-item-id={itemId}>
       {title}
@@ -147,7 +147,7 @@ vi.mock('@/components/ingestion-success-card', () => ({
   ),
 }));
 
-vi.mock('@/components/dedup-warning', () => ({
+vi.mock('@/components/shared/dedup-warning', () => ({
   DedupWarning: ({
     matches,
     onDismiss,
@@ -165,7 +165,7 @@ vi.mock('@/components/dedup-warning', () => ({
 }));
 
 // Import AFTER mocks
-import { UrlIngestForm } from '@/components/url-ingest-form';
+import { UrlIngestForm } from '@/components/create-content/url-ingest-form';
 
 // ---------------------------------------------------------------------------
 // Setup and teardown

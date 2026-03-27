@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SavePresetDialog } from '@/components/save-preset-dialog';
+import { SavePresetDialog } from '@/components/browse/save-preset-dialog';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({

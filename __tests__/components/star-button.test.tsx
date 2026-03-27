@@ -23,7 +23,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
-import { StarButton } from '@/components/star-button';
+import { StarButton } from '@/components/shared/star-button';
 
 // ---------------------------------------------------------------------------
 // Tests

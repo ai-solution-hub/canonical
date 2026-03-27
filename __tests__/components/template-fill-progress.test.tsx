@@ -48,7 +48,7 @@ vi.mock('lucide-react', () => ({
 }));
 
 // Import AFTER mocks
-import { TemplateFillProgress } from '@/components/template-fill-progress';
+import { TemplateFillProgress } from '@/components/bid/template-fill-progress';
 
 // ---------------------------------------------------------------------------
 // Helpers

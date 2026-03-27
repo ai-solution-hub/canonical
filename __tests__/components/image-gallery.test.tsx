@@ -32,7 +32,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { ImageGallery } from '@/components/image-gallery';
+import { ImageGallery } from '@/components/reader/image-gallery';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------

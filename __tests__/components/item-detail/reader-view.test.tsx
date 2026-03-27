@@ -34,67 +34,67 @@ vi.mock('next/dynamic', () => ({
   },
 }));
 
-vi.mock('@/components/thumbnail', () => ({
+vi.mock('@/components/shared/thumbnail', () => ({
   Thumbnail: (props: Record<string, unknown>) => (
     <div data-testid="thumbnail" data-alt={props.alt}>Thumbnail</div>
   ),
 }));
 
-vi.mock('@/components/content-tabs', () => ({
+vi.mock('@/components/item-detail/content-tabs', () => ({
   ContentTabs: (props: Record<string, unknown>) => (
     <div data-testid="content-tabs" data-can-edit={props.canEdit}>ContentTabs</div>
   ),
 }));
 
-vi.mock('@/components/metadata-sidebar', () => ({
+vi.mock('@/components/item-detail/metadata-sidebar', () => ({
   MetadataSidebar: (props: Record<string, unknown>) => (
     <div data-testid="metadata-sidebar" data-read-only={props.readOnly}>MetadataSidebar</div>
   ),
 }));
 
-vi.mock('@/components/entity-badges', () => ({
+vi.mock('@/components/item-detail/entity-badges', () => ({
   EntityBadges: () => (
     <div data-testid="entity-badges">EntityBadges</div>
   ),
 }));
 
-vi.mock('@/components/source-document-info', () => ({
+vi.mock('@/components/source-document/source-document-info', () => ({
   SourceDocumentInfo: () => (
     <div data-testid="source-document-info">SourceDocumentInfo</div>
   ),
 }));
 
-vi.mock('@/components/version-history', () => ({
+vi.mock('@/components/item-detail/version-history', () => ({
   VersionHistory: () => (
     <div data-testid="version-history">VersionHistory</div>
   ),
 }));
 
-vi.mock('@/components/read-toggle-button', () => ({
+vi.mock('@/components/shared/read-toggle-button', () => ({
   ReadToggleButton: () => (
     <button data-testid="read-toggle-button">Read Toggle</button>
   ),
 }));
 
-vi.mock('@/components/qa-answer-display', () => ({
+vi.mock('@/components/qa/qa-answer-display', () => ({
   QAAnswerDisplay: () => (
     <div data-testid="qa-answer-display">QAAnswerDisplay</div>
   ),
 }));
 
-vi.mock('@/components/content-type-header', () => ({
+vi.mock('@/components/shared/content-type-header', () => ({
   ContentTypeHeader: () => (
     <div data-testid="content-type-header">ContentTypeHeader</div>
   ),
 }));
 
-vi.mock('@/components/table-of-contents', () => ({
+vi.mock('@/components/item-detail/table-of-contents', () => ({
   TableOfContents: () => (
     <div data-testid="table-of-contents">TableOfContents</div>
   ),
 }));
 
-vi.mock('@/components/transcript-reader', () => ({
+vi.mock('@/components/reader/transcript-reader', () => ({
   TranscriptReader: () => (
     <div data-testid="transcript-reader">TranscriptReader</div>
   ),
@@ -121,7 +121,7 @@ vi.mock('@/components/item-detail/item-breadcrumb', () => ({
   ItemBreadcrumb: () => <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">ItemBreadcrumb</nav>,
 }));
 
-vi.mock('@/components/verification-badge', () => ({
+vi.mock('@/components/shared/verification-badge', () => ({
   VerificationBadge: (props: Record<string, unknown>) => (
     <span data-testid="verification-badge" data-verified={props.verified}>
       {props.verified ? 'Verified' : 'Unverified'}
@@ -129,7 +129,7 @@ vi.mock('@/components/verification-badge', () => ({
   ),
 }));
 
-vi.mock('@/components/freshness-badge', () => ({
+vi.mock('@/components/shared/freshness-badge', () => ({
   FreshnessBadge: (props: Record<string, unknown>) => (
     <span data-testid="freshness-badge" data-freshness={props.freshness}>
       {props.freshness}

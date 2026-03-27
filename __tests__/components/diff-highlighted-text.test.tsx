@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import {
   DiffHighlightedText,
   exceedsLazyThreshold,
-} from '@/components/diff-highlighted-text';
+} from '@/components/source-document/diff-highlighted-text';
 
 describe('DiffHighlightedText', () => {
   describe('new side — added words', () => {

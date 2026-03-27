@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { BreadcrumbNav } from '@/components/breadcrumb-nav';
+import { BreadcrumbNav } from '@/components/shell/breadcrumb-nav';
 
 export interface ItemBreadcrumbProps {
   isQAPair: boolean;

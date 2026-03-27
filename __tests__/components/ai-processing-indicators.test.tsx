@@ -22,7 +22,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { AiProcessingIndicators } from '@/components/ai-processing-indicators';
+import { AiProcessingIndicators } from '@/components/shared/ai-processing-indicators';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------

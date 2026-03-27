@@ -128,7 +128,7 @@ vi.mock('sonner', () => ({
 }));
 
 // Stub child components
-vi.mock('@/components/review-card', () => ({
+vi.mock('@/components/review/review-card', () => ({
   ReviewCard: vi.fn().mockImplementation(
     ({ item, position, total }: { item: { title: string }; position: number; total: number }) => (
       <div data-testid="review-card">ReviewCard: {item.title} ({position}/{total})</div>
@@ -136,7 +136,7 @@ vi.mock('@/components/review-card', () => ({
   ),
 }));
 
-vi.mock('@/components/review-action-bar', () => ({
+vi.mock('@/components/review/review-action-bar', () => ({
   ReviewActionBar: ({ onVerify, onFlag, onSkip, onBack, onExit, onEdit, onPublish, onShowHelp, isDraft }: Record<string, unknown>) => (
     <div data-testid="review-action-bar">
       <button onClick={onVerify as () => void}>Verify</button>
@@ -151,19 +151,19 @@ vi.mock('@/components/review-action-bar', () => ({
   ),
 }));
 
-vi.mock('@/components/review-progress-bar', () => ({
+vi.mock('@/components/review/review-progress-bar', () => ({
   ReviewProgressBar: ({ progress }: { progress: { verified: number; total: number } }) => (
     <div data-testid="review-progress-bar">Progress: {progress.verified}/{progress.total}</div>
   ),
 }));
 
-vi.mock('@/components/review-filters', () => ({
+vi.mock('@/components/review/review-filters', () => ({
   ReviewFilters: () => (
     <div data-testid="review-filters">Filters</div>
   ),
 }));
 
-vi.mock('@/components/review-queue-panel', () => ({
+vi.mock('@/components/review/review-queue-panel', () => ({
   ReviewQueuePanel: ({ items }: { items: unknown[] }) => (
     <div data-testid="review-queue-panel">Queue: {items.length} items</div>
   ),

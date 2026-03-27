@@ -1,4 +1,4 @@
-import type { CoverageCellData } from '@/components/coverage-cell';
+import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------
 // Types
