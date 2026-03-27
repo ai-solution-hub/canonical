@@ -108,7 +108,7 @@ export async function PUT(request: NextRequest) {
       if (error) {
         console.error('Coverage target upsert error:', error);
         return NextResponse.json(
-          { error: `Failed to save target: ${error.message}` },
+          { error: 'Failed to save coverage target' },
           { status: 500 },
         );
       }

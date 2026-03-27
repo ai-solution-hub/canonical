@@ -404,8 +404,7 @@ describe('POST /api/items', () => {
     const body = await res.json();
     expect(body.id).toBe(VALID_UUID);
     expect(body.warnings).toHaveLength(1);
-    expect(body.warnings[0]).toContain('Classification failed');
-    expect(body.warnings[0]).toContain('Claude API quota exceeded');
+    expect(body.warnings[0]).toBe('Classification failed');
   });
 
   it('returns warnings when summarisation fails but still creates item', async () => {
@@ -435,8 +434,7 @@ describe('POST /api/items', () => {
     const body = await res.json();
     expect(body.id).toBe(VALID_UUID);
     expect(body.warnings).toHaveLength(1);
-    expect(body.warnings[0]).toContain('Summary generation failed');
-    expect(body.warnings[0]).toContain('Model overloaded');
+    expect(body.warnings[0]).toBe('Summary generation failed');
   });
 
   it('returns multiple warnings when both AI steps fail', async () => {
