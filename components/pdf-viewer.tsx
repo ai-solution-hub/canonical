@@ -202,7 +202,7 @@ export function PdfViewer({ sourceUrl, filePath, title }: PdfViewerProps) {
   return (
     <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
+        <Button variant="outline" size="sm" className="gap-1.5" data-pdf-trigger>
           <FileText className="size-3.5" />
           View PDF
         </Button>
