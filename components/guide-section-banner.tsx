@@ -73,7 +73,7 @@ function getStrengthBadge(strength: MatchStrength): {
  * semantic tokens). Unlike LayerSuggestionBanner, this has no Accept/Change
  * actions because guide sections are views, not assignments.
  *
- * Spec: docs/plans/guide-section-mapping-spec.md (Phase 3, section 4.7)
+ * Spec: docs/specs/guide-section-mapping-spec.md (Phase 3, section 4.7)
  */
 export function GuideSectionBanner({
   guideSections,

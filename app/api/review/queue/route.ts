@@ -194,6 +194,7 @@ async function handleFlaggedQuery(
       total: 0,
       verified_count: 0,
       flagged_count: 0,
+      has_more: false,
     };
     return NextResponse.json(response);
   }

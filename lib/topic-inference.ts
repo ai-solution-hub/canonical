@@ -9,7 +9,7 @@
  *   Pass 1: Exact domain + subtopic match with existing topic groups
  *   Pass 2: Similarity search for ungrouped items (requires embedding)
  *
- * Spec: docs/plans/layer-suggestion-spec.md (Section 4)
+ * Spec: docs/specs/layer-suggestion-spec.md (Section 4)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -52,7 +52,7 @@ const SIMILARITY_LIMIT = 5;
 /**
  * Generate a topic_id slug from domain and subtopic strings.
  *
- * Convention from `docs/plans/2026-03-12-topic-id-population.md`:
+ * Convention from `docs/specs/2026-03-12-topic-id-population.md`:
  *   - Lowercase, hyphen-separated
  *   - Domain prefix for namespacing
  *   - e.g. "Compliance" + "KCSIE" => "compliance-kcsie"

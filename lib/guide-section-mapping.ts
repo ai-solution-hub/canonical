@@ -9,7 +9,7 @@
  * The matching logic mirrors the `get_guide_content` RPC but in reverse:
  * given an item's classification, find which guide sections it would populate.
  *
- * Spec: docs/plans/guide-section-mapping-spec.md (Phase 1)
+ * Spec: docs/specs/guide-section-mapping-spec.md (Phase 1)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

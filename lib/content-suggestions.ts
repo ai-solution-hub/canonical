@@ -15,7 +15,7 @@
  *   4. Medium  — Thin coverage (< 3 items in a subtopic)
  *   5. Low     — Missing layer coverage
  *
- * Spec: docs/plans/content-lifecycle-spec.md §3
+ * Spec: docs/specs/content-lifecycle-spec.md §3
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

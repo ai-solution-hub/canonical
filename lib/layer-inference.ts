@@ -5,7 +5,7 @@
  * based on information known at creation time. No AI calls, no database
  * queries — evaluates rules in priority order and returns the first match.
  *
- * Spec: docs/plans/layer-suggestion-spec.md (Section 3)
+ * Spec: docs/specs/layer-suggestion-spec.md (Section 3)
  */
 
 

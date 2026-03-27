@@ -14,7 +14,7 @@
  *   freshness (30%), classification (20%), completeness (20%),
  *   summary (15%), citations (15%).
  *
- * Spec: docs/plans/quality-manager-enhancement-spec.md Phase 3
+ * Spec: docs/specs/quality-manager-enhancement-spec.md Phase 3
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

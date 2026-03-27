@@ -7,7 +7,7 @@
  *   2. Keyword overlap (requirement matching_keywords vs content ai_keywords)
  *   3. Semantic similarity (pre-computed embeddings, cosine distance)
  *
- * Spec: docs/plans/template-driven-completeness-spec.md §3
+ * Spec: docs/specs/template-driven-completeness-spec.md §3
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';

@@ -9,7 +9,7 @@
  * - Empty/absent when no guides match
  * - Failures are non-blocking (swallowed with console.error)
  *
- * Spec: docs/plans/guide-section-mapping-spec.md (Phase 2)
+ * Spec: docs/specs/guide-section-mapping-spec.md (Phase 2)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
