@@ -37,19 +37,25 @@ export function GuideRow({
   const [expanded, setExpanded] = useState(false);
   const [sections, setSections] = useState<GuideSection[]>([]);
   const [loadingSections, setLoadingSections] = useState(false);
+  const [sectionLoadError, setSectionLoadError] = useState(false);
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
   const [editingSection, setEditingSection] = useState<GuideSection | null>(null);
 
   const fetchSections = useCallback(async () => {
     setLoadingSections(true);
+    setSectionLoadError(false);
     try {
       const res = await fetch(`/api/guides/${encodeURIComponent(guide.slug)}/sections`);
       if (res.ok) {
         const data: GuideSection[] = await res.json();
         setSections(data);
+      } else {
+        setSectionLoadError(true);
+        toast.error('Failed to load sections');
       }
     } catch {
-      // Ignore
+      setSectionLoadError(true);
+      toast.error('Failed to load sections');
     } finally {
       setLoadingSections(false);
     }
@@ -196,6 +202,20 @@ export function GuideRow({
           {loadingSections ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : sectionLoadError ? (
+            <div className="flex items-center justify-center gap-2 py-4">
+              <p className="text-xs text-destructive">
+                Failed to load sections.
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs"
+                onClick={fetchSections}
+              >
+                Retry
+              </Button>
             </div>
           ) : (
             <>

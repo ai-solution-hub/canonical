@@ -21,7 +21,7 @@ import type { QACreateInput, DetectionSource, DetectionConfidence } from '@/lib/
 // ---------------------------------------------------------------------------
 
 /** Dedup check status for a single Q&A pair. */
-export type DedupStatus = 'pending' | 'checking' | 'clear' | 'duplicate';
+export type DedupStatus = 'pending' | 'checking' | 'clear' | 'duplicate' | 'error';
 
 /** A match returned from the dedup check endpoint. */
 export interface DedupCheckMatch {
@@ -34,6 +34,8 @@ export interface DedupCheckMatch {
 export interface DedupCheckResult {
   isDuplicate: boolean;
   matches: DedupCheckMatch[];
+  /** True when the dedup check itself failed (API error or network error). */
+  error?: boolean;
 }
 
 /** Props for the QAPreviewList component. */
@@ -119,6 +121,16 @@ function DedupStatusIndicator({
         >
           <CheckCircle className="size-3" aria-hidden="true" />
           No duplicates found
+        </span>
+      );
+    case 'error':
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+          data-testid="dedup-error"
+        >
+          <AlertTriangle className="size-3" aria-hidden="true" />
+          Duplicate check unavailable
         </span>
       );
     case 'duplicate':
@@ -369,15 +381,19 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
 
         try {
           const result = await onDedupCheck(pairs[idx].content);
-          setDedupStatuses((prev) =>
-            new Map(prev).set(idx, result.isDuplicate ? 'duplicate' : 'clear'),
-          );
-          if (result.matches.length > 0) {
-            setDedupMatches((prev) => new Map(prev).set(idx, result.matches));
+          if (result.error) {
+            setDedupStatuses((prev) => new Map(prev).set(idx, 'error'));
+          } else {
+            setDedupStatuses((prev) =>
+              new Map(prev).set(idx, result.isDuplicate ? 'duplicate' : 'clear'),
+            );
+            if (result.matches.length > 0) {
+              setDedupMatches((prev) => new Map(prev).set(idx, result.matches));
+            }
           }
         } catch {
-          // On error, mark as clear (dedup is advisory, not blocking)
-          setDedupStatuses((prev) => new Map(prev).set(idx, 'clear'));
+          // On error, mark as error (dedup is advisory, not blocking)
+          setDedupStatuses((prev) => new Map(prev).set(idx, 'error'));
         }
 
         active--;
