@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ExtractedEntity, ExtractedRelationship } from '@/lib/ai/classify';
-import { createMockSupabaseClient, type MockSupabaseClient } from './helpers/mock-supabase';
+import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
 
 // ──────────────────────────────────────────
 // Mock dependencies
