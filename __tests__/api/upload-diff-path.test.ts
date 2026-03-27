@@ -129,11 +129,12 @@ A: Our annual retention rate exceeds 95%.`;
 
     const diffResult = computeDocumentDiff('old-doc', 'new-doc', oldText, newText);
 
-    // Mirror the route's row construction logic (lines 725-735)
+    // Mirror the route's row construction logic (includes diff_mode)
     const diffRows = diffResult.entries.map((entry) => ({
       old_document_id: 'old-doc',
       new_document_id: 'new-doc',
       diff_type: entry.diff_type,
+      diff_mode: entry.diff_mode ?? diffResult.diff_mode,
       old_question: entry.old_question ?? null,
       new_question: entry.new_question ?? null,
       old_content: entry.old_content ?? null,
@@ -145,11 +146,12 @@ A: Our annual retention rate exceeds 95%.`;
     // Should have rows to insert
     expect(diffRows.length).toBeGreaterThan(0);
 
-    // Every row should have both document IDs
+    // Every row should have both document IDs and diff_mode
     for (const row of diffRows) {
       expect(row.old_document_id).toBe('old-doc');
       expect(row.new_document_id).toBe('new-doc');
       expect(row.status).toBe('pending_review');
+      expect(row.diff_mode).toBe('qa');
       expect(['added', 'removed', 'modified', 'unchanged']).toContain(
         row.diff_type,
       );
@@ -160,6 +162,32 @@ A: Our annual retention rate exceeds 95%.`;
     expect(addedRow).toBeTruthy();
     expect(addedRow!.new_question).toContain('staff retention rate');
     expect(addedRow!.old_question).toBeNull();
+  });
+
+  it('includes diff_mode: full_text for prose document diff rows', () => {
+    const diffResult = computeDocumentDiff(
+      'old-doc',
+      'new-doc',
+      'Original paragraph about compliance requirements.',
+      'Updated paragraph about compliance requirements and new regulations.',
+    );
+
+    const diffRows = diffResult.entries.map((entry) => ({
+      old_document_id: 'old-doc',
+      new_document_id: 'new-doc',
+      diff_type: entry.diff_type,
+      diff_mode: entry.diff_mode ?? diffResult.diff_mode,
+      old_content: entry.old_content ?? null,
+      new_content: entry.new_content ?? null,
+      status: 'pending_review',
+    }));
+
+    expect(diffRows.length).toBeGreaterThan(0);
+
+    // Every row should have diff_mode: full_text
+    for (const row of diffRows) {
+      expect(row.diff_mode).toBe('full_text');
+    }
   });
 });
 
@@ -378,6 +406,7 @@ A: Yes, our BCP is tested annually and covers all critical systems with an RTO o
           old_document_id: oldDocId,
           new_document_id: newDocId,
           diff_type: entry.diff_type,
+          diff_mode: entry.diff_mode ?? diffResult.diff_mode,
           old_question: entry.old_question ?? null,
           new_question: entry.new_question ?? null,
           old_content: entry.old_content ?? null,

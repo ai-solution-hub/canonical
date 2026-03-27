@@ -1304,6 +1304,7 @@ export type Database = {
           affected_content_item_id: string | null
           created_at: string | null
           created_by: string | null
+          diff_mode: string
           diff_type: string
           id: string
           new_content: string | null
@@ -1315,6 +1316,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           reviewer_note: string | null
+          section_header: string | null
           similarity_score: number | null
           status: string
           updated_at: string | null
@@ -1323,6 +1325,7 @@ export type Database = {
           affected_content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          diff_mode?: string
           diff_type: string
           id?: string
           new_content?: string | null
@@ -1334,6 +1337,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           reviewer_note?: string | null
+          section_header?: string | null
           similarity_score?: number | null
           status?: string
           updated_at?: string | null
@@ -1342,6 +1346,7 @@ export type Database = {
           affected_content_item_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          diff_mode?: string
           diff_type?: string
           id?: string
           new_content?: string | null
@@ -1353,6 +1358,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           reviewer_note?: string | null
+          section_header?: string | null
           similarity_score?: number | null
           status?: string
           updated_at?: string | null

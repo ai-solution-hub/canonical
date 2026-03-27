@@ -17,6 +17,7 @@ import {
 export interface DiffReviewEntry {
   id: string;
   diff_type: 'added' | 'removed' | 'modified' | 'unchanged';
+  diff_mode?: 'qa' | 'full_text';
   old_question?: string;
   new_question?: string;
   old_content?: string;
@@ -784,6 +785,161 @@ function DiffEntryCard({
 }
 
 // ---------------------------------------------------------------------------
+// Full-text diff entry card — no Q: heading, prose-appropriate labels
+// ---------------------------------------------------------------------------
+
+function FullTextDiffEntryCard({
+  entry,
+  onStatusChange,
+  onNoteChange,
+  isLoading,
+  viewMode,
+}: {
+  entry: DiffReviewEntry;
+  onStatusChange: (id: string, status: string) => void;
+  onNoteChange: (id: string, note: string) => void;
+  isLoading: boolean;
+  viewMode: 'card' | 'side-by-side';
+}) {
+  const [showCardDiff, setShowCardDiff] = useState(false);
+
+  const isModified = entry.diff_type === 'modified';
+  const oldContent = entry.old_content ?? '';
+  const newContent = entry.new_content ?? '';
+  const showDiffInCard = isModified && viewMode === 'card' && showCardDiff;
+
+  // Labels appropriate for full-text mode
+  const oldLabel = isModified ? 'Old version:' : 'Removed:';
+  const newLabel = isModified ? 'New version:' : 'Added:';
+
+  // Background tint for added/removed entries
+  const cardBg =
+    entry.diff_type === 'added'
+      ? 'bg-quality-good-bg/30'
+      : entry.diff_type === 'removed'
+        ? 'bg-destructive/5'
+        : '';
+
+  const ariaLabel = `${entry.diff_type} text block`;
+
+  return (
+    <div
+      className={cn('rounded-lg border border-border bg-card p-4 shadow-sm', cardBg)}
+      aria-label={ariaLabel}
+    >
+      {/* Header row: badge + actions + status */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <DiffTypeBadge diffType={entry.diff_type} />
+
+        <span className="flex-1" />
+
+        <DiffEntryActions
+          entry={entry}
+          onStatusChange={onStatusChange}
+          isLoading={isLoading}
+        />
+
+        <StatusBadge status={entry.status} />
+      </div>
+
+      {/* Content blocks */}
+      <div className="space-y-3">
+        {isModified && viewMode === 'side-by-side' ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-md bg-destructive/5 p-1">
+              <DiffContentBlock
+                label={oldLabel}
+                oldText={oldContent}
+                newText={newContent}
+                side="old"
+              />
+            </div>
+            <div className="rounded-md bg-quality-good-bg/50 p-1">
+              <DiffContentBlock
+                label={newLabel}
+                oldText={oldContent}
+                newText={newContent}
+                side="new"
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            {isModified && (
+              <>
+                {viewMode === 'card' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowCardDiff((prev) => !prev)}
+                    className="mb-2 rounded-md bg-muted px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                    aria-pressed={showCardDiff}
+                    aria-label={showCardDiff ? 'Hide inline changes' : 'Show inline changes'}
+                  >
+                    {showCardDiff ? 'Hide changes' : 'Show changes'}
+                  </button>
+                )}
+
+                {showDiffInCard ? (
+                  <>
+                    {oldContent && (
+                      <DiffContentBlock
+                        label={oldLabel}
+                        oldText={oldContent}
+                        newText={newContent}
+                        side="old"
+                      />
+                    )}
+                    {newContent && (
+                      <DiffContentBlock
+                        label={newLabel}
+                        oldText={oldContent}
+                        newText={newContent}
+                        side="new"
+                      />
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {oldContent && (
+                      <ContentBlock label={oldLabel} content={oldContent} />
+                    )}
+                    {newContent && (
+                      <ContentBlock label={newLabel} content={newContent} />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {entry.diff_type === 'added' && entry.new_content && (
+              <ContentBlock label={newLabel} content={entry.new_content} />
+            )}
+
+            {entry.diff_type === 'removed' && entry.old_content && (
+              <ContentBlock label={oldLabel} content={entry.old_content} />
+            )}
+
+            {entry.diff_type === 'unchanged' && entry.old_content && (
+              <ContentBlock label="Content:" content={entry.old_content} />
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Reviewer note */}
+      {entry.diff_type !== 'unchanged' && (
+        <ReviewerNoteInput
+          entryId={entry.id}
+          existingNote={entry.reviewer_note}
+          entryStatus={entry.status}
+          onNoteChange={onNoteChange}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -828,6 +984,14 @@ export function SourceDocumentDiffReview({
 
   // Per-entry note state — tracks notes that have been typed but not yet saved
   const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
+
+  // Detect diff mode from entries: explicit diff_mode field, or infer from content
+  const diffMode: 'qa' | 'full_text' =
+    entries.length > 0 && entries[0]?.diff_mode
+      ? entries[0].diff_mode
+      : entries.every((e) => !e.old_question && !e.new_question)
+        ? 'full_text'
+        : 'qa';
 
   function handleNoteChange(id: string, note: string) {
     setPendingNotes((prev) => ({ ...prev, [id]: note }));
@@ -1176,13 +1340,23 @@ export function SourceDocumentDiffReview({
                 aria-setsize={filteredEntries.length}
                 aria-posinset={index + 1}
               >
-                <DiffEntryCard
-                  entry={entry}
-                  onStatusChange={handleSingleStatusChange}
-                  onNoteChange={handleNoteChange}
-                  isLoading={loadingIds.has(entry.id)}
-                  viewMode={viewMode}
-                />
+                {diffMode === 'full_text' ? (
+                  <FullTextDiffEntryCard
+                    entry={entry}
+                    onStatusChange={handleSingleStatusChange}
+                    onNoteChange={handleNoteChange}
+                    isLoading={loadingIds.has(entry.id)}
+                    viewMode={viewMode}
+                  />
+                ) : (
+                  <DiffEntryCard
+                    entry={entry}
+                    onStatusChange={handleSingleStatusChange}
+                    onNoteChange={handleNoteChange}
+                    isLoading={loadingIds.has(entry.id)}
+                    viewMode={viewMode}
+                  />
+                )}
               </div>
             ))}
           </div>

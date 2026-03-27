@@ -733,7 +733,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'get_document_diff',
     {
       title: 'Get Source Document Diff',
-      description: 'Compare two versions of a source document. Shows added, modified, and removed Q&A pairs, plus which KB items are affected by the changes. Use when a client sends an updated document and you need to understand what changed.',
+      description: 'Compare two versions of a source document. Shows added, modified, and removed content blocks (Q&A pairs or full-text sections depending on document type), plus which KB items are affected by the changes. Use when a client sends an updated document and you need to understand what changed.',
       inputSchema: {
         document_id: z.string().uuid().describe('Source document ID \u2014 returns the latest diff for this document'),
         diff_id: z.string().uuid().optional().describe('Specific diff ID to retrieve (overrides document_id lookup)'),
@@ -850,7 +850,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Fetch diff entries
         const { data: diffs, error: diffError } = await supabase
           .from('source_document_diffs')
-          .select('diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status')
+          .select('diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status')
           .eq('old_document_id', oldDoc.id)
           .eq('new_document_id', newDoc.id);
 
@@ -887,9 +887,15 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         // Build formatter data
         const { formatDocumentDiff } = await import('@/lib/mcp/formatters');
 
-        const formatterData = {
+        // Determine overall diff mode from entries
+        const entryDiffMode = diffs.length > 0 && (diffs[0] as Record<string, unknown>).diff_mode
+          ? ((diffs[0] as Record<string, unknown>).diff_mode as string)
+          : 'qa';
+
+        const formatterData: import('@/lib/mcp/formatters').DocumentDiffData = {
           old_filename: oldDoc.filename,
           new_filename: newDoc.filename,
+          diff_mode: entryDiffMode as 'qa' | 'full_text',
           summary: {
             added: diffs.filter((d) => d.diff_type === 'added').length,
             removed: diffs.filter((d) => d.diff_type === 'removed').length,
@@ -900,6 +906,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           },
           entries: diffs.map((d) => ({
             diff_type: d.diff_type as 'added' | 'removed' | 'modified' | 'unchanged',
+            diff_mode: ((d as Record<string, unknown>).diff_mode as string ?? 'qa') as 'qa' | 'full_text',
             old_question: d.old_question ?? undefined,
             new_question: d.new_question ?? undefined,
             old_content: d.old_content ?? undefined,
