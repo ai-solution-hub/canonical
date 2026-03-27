@@ -71,7 +71,7 @@ export function ItemTitleSection({
           <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
         )}
         {/* Metadata strip — freshness, verification, and source at a glance */}
-        <div className="mt-2 flex flex-wrap items-center gap-3" role="status" aria-label="Content metadata">
+        <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Content metadata">
           {item.freshness && (
             <FreshnessBadge freshness={item.freshness as string} />
           )}
@@ -86,6 +86,7 @@ export function ItemTitleSection({
             }}
             showDetailedTrust={canEdit}
             size="md"
+            liveRegion
           />
           {item.updated_at && (
             <span className="text-xs text-muted-foreground">

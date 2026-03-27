@@ -159,7 +159,7 @@ export function VerificationBadge({
           className,
         )}
         role={liveRegion ? 'status' : 'img'}
-        aria-label={liveRegion ? undefined : 'Unverified'}
+        aria-label={liveRegion ? undefined : fullLabel}
       >
         <ShieldAlert className={cn(iconSize, 'shrink-0')} aria-hidden="true" />
         {showLabel && <span className="font-medium">Unverified</span>}

@@ -140,14 +140,11 @@ describe('VerificationBadge', () => {
     expect(screen.getByRole('img')).toBeInTheDocument();
   });
 
-  it('renders with role="status" when liveRegion is true', () => {
-    render(<VerificationBadge verified liveRegion />);
-    expect(screen.getByRole('status')).toBeInTheDocument();
-  });
-
   it('renders "Unverified" with verified=false', () => {
     render(<VerificationBadge verified={false} />);
     expect(screen.getByText('Unverified')).toBeInTheDocument();
+    // Default role is "img" for unverified too
+    expect(screen.getByRole('img')).toBeInTheDocument();
   });
 
   it('hides label text when showLabel=false', () => {
@@ -297,5 +294,60 @@ describe('VerificationBadge', () => {
   it('passes className to the outer span', () => {
     render(<VerificationBadge verified className="custom-class" />);
     expect(screen.getByRole('img')).toHaveClass('custom-class');
+  });
+
+  // --- liveRegion prop tests ---
+
+  describe('liveRegion prop', () => {
+    it('renders with role="status" when liveRegion is true', () => {
+      render(<VerificationBadge verified liveRegion />);
+      expect(screen.getByRole('status')).toBeInTheDocument();
+    });
+
+    it('uses role="img" with aria-label by default (liveRegion=false) for verified badge', () => {
+      render(<VerificationBadge verified verifiedAt="2026-03-22T12:00:00Z" />);
+      const badge = screen.getByRole('img');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('aria-label', 'Verified 3 days ago');
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('uses role="img" with aria-label by default (liveRegion=false) for unverified badge', () => {
+      render(<VerificationBadge verified={false} />);
+      const badge = screen.getByRole('img');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('aria-label', 'Unverified');
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('uses role="status" when liveRegion is true for verified badge', () => {
+      render(<VerificationBadge verified liveRegion />);
+      const badge = screen.getByRole('status');
+      expect(badge).toBeInTheDocument();
+      // Should NOT have aria-label when using role="status" (content is announced directly)
+      expect(badge).not.toHaveAttribute('aria-label');
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('uses role="status" when liveRegion is true for unverified badge', () => {
+      render(<VerificationBadge verified={false} liveRegion />);
+      const badge = screen.getByRole('status');
+      expect(badge).toBeInTheDocument();
+      expect(badge).not.toHaveAttribute('aria-label');
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('preserves existing badge behaviour with liveRegion=false', () => {
+      render(
+        <VerificationBadge
+          verified
+          verifiedByName="Jane"
+          verifiedAt="2026-03-24T12:00:00Z"
+        />,
+      );
+      expect(screen.getByText('Verified by Jane, 1 day ago')).toBeInTheDocument();
+      const badge = screen.getByRole('img');
+      expect(badge).toHaveAttribute('aria-label', 'Verified by Jane, 1 day ago');
+    });
   });
 });
