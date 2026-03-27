@@ -297,10 +297,19 @@ export function useItemDetailData({
     }));
     try {
       const supabase = createClient();
-      await supabase.rpc('toggle_star', {
+      const { error } = await supabase.rpc('toggle_star', {
         p_item_id: item.id,
         p_starred: newStarred,
       });
+      if (error) {
+        console.error('Failed to toggle star:', error.message);
+        setItem((prev) => ({
+          ...prev,
+          starred: !newStarred,
+        }));
+        toast.error('Failed to update star');
+        return;
+      }
       toast(newStarred ? 'Starred' : 'Unstarred', { duration: 1500 });
     } catch (err) {
       console.error('Failed to toggle star:', err);
@@ -308,6 +317,7 @@ export function useItemDetailData({
         ...prev,
         starred: !newStarred,
       }));
+      toast.error('Failed to update star');
     }
   }, [item.id, item.starred]);
 
