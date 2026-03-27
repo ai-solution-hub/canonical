@@ -357,6 +357,7 @@ export type Database = {
           classified_at: string | null
           content: string
           content_owner_id: string | null
+          content_text_hash: string | null
           content_type: string
           created_at: string
           created_by: string | null
@@ -420,6 +421,7 @@ export type Database = {
           classified_at?: string | null
           content: string
           content_owner_id?: string | null
+          content_text_hash?: string | null
           content_type: string
           created_at?: string
           created_by?: string | null
@@ -483,6 +485,7 @@ export type Database = {
           classified_at?: string | null
           content?: string
           content_owner_id?: string | null
+          content_text_hash?: string | null
           content_type?: string
           created_at?: string
           created_by?: string | null
@@ -2054,6 +2057,13 @@ export type Database = {
           total_usage: number
           variant_count: number
           variants: string[]
+        }[]
+      }
+      find_exact_duplicates: {
+        Args: { p_content_hash: string; p_exclude_id?: string }
+        Returns: {
+          id: string
+          title: string
         }[]
       }
       find_similar_content:
