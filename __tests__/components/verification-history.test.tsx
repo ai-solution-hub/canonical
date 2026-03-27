@@ -23,11 +23,19 @@ const { mockChain, mockFrom, mockDisplayNames } = vi.hoisted(() => {
   for (const m of methods) {
     chain[m] = vi.fn().mockReturnValue(chain);
   }
-  // Default: resolve to empty data
-  chain.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) =>
-    resolve({ data: [], error: null }),
-  );
-  chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  // Default: resolve to empty data (return object with .catch for chaining)
+  chain.catch = vi.fn().mockReturnValue(chain);
+  chain.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+    resolve({ data: [], error: null });
+    return { catch: vi.fn() };
+  });
+  chain.maybeSingle = vi.fn().mockReturnValue({
+    then: vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: null, error: null });
+      return { catch: vi.fn() };
+    }),
+    catch: vi.fn(),
+  });
 
   return {
     mockChain: chain,
@@ -102,10 +110,18 @@ function resetMocks() {
   for (const m of methods) {
     mockChain[m] = vi.fn().mockReturnValue(mockChain);
   }
-  mockChain.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) =>
-    resolve({ data: [], error: null }),
-  );
-  mockChain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+  mockChain.catch = vi.fn().mockReturnValue(mockChain);
+  mockChain.then = vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+    resolve({ data: [], error: null });
+    return { catch: vi.fn() };
+  });
+  mockChain.maybeSingle = vi.fn().mockReturnValue({
+    then: vi.fn().mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: null, error: null });
+      return { catch: vi.fn() };
+    }),
+    catch: vi.fn(),
+  });
   mockFrom.mockReturnValue(mockChain);
 
   // Default display names
@@ -185,9 +201,10 @@ describe('VerificationHistory', () => {
   });
 
   it('shows the count of history entries in the toggle button', async () => {
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -197,9 +214,10 @@ describe('VerificationHistory', () => {
   });
 
   it('is collapsed by default', async () => {
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -214,9 +232,10 @@ describe('VerificationHistory', () => {
   it('expands when the toggle button is clicked', async () => {
     const user = userEvent.setup();
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -234,9 +253,10 @@ describe('VerificationHistory', () => {
   it('renders all action types with correct labels', async () => {
     const user = userEvent.setup();
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -255,9 +275,10 @@ describe('VerificationHistory', () => {
   it('shows notes where present and omits for null notes', async () => {
     const user = userEvent.setup();
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -279,9 +300,10 @@ describe('VerificationHistory', () => {
   it('displays performer names from useDisplayNames', async () => {
     const user = userEvent.setup();
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -303,9 +325,10 @@ describe('VerificationHistory', () => {
     // Return empty display names
     mockDisplayNames.mockReturnValue(new Map());
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: [SAMPLE_ENTRIES[0]], error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: [SAMPLE_ENTRIES[0]], error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 
@@ -321,9 +344,10 @@ describe('VerificationHistory', () => {
   it('has correct aria-expanded attribute on toggle', async () => {
     const user = userEvent.setup();
 
-    mockChain.then.mockImplementation((resolve: (v: unknown) => void) =>
-      resolve({ data: SAMPLE_ENTRIES, error: null }),
-    );
+    mockChain.then.mockImplementation((resolve: (v: unknown) => void) => {
+      resolve({ data: SAMPLE_ENTRIES, error: null });
+      return { catch: vi.fn() };
+    });
 
     render(<VerificationHistory contentItemId={ITEM_ID} />);
 

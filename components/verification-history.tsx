@@ -74,10 +74,17 @@ export function LatestVerificationNote({
       .order('performed_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load latest verification note:', error.message);
+          return;
+        }
         if (data) {
           setLatest(data as VerificationHistoryEntry);
         }
+      })
+      .catch((err) => {
+        console.error('Failed to load latest verification note:', err);
       });
   }, [contentItemId]);
 
@@ -110,8 +117,17 @@ export function VerificationHistory({
       .select('id, content_item_id, action_type, note, performed_by, performed_at')
       .eq('content_item_id', contentItemId)
       .order('performed_at', { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('Failed to load verification history:', error.message);
+          setIsLoading(false);
+          return;
+        }
         setEntries((data as VerificationHistoryEntry[]) ?? []);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to load verification history:', err);
         setIsLoading(false);
       });
   }, [contentItemId]);
