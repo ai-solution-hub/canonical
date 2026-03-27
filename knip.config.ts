@@ -25,6 +25,10 @@ const config: KnipConfig = {
     'pdfjs-dist',
     'postcss',
     'postcss-load-config',
+    // Loaded via @plugin directive in globals.css, not JS imports
+    '@tailwindcss/typography',
+    // Core framework — loaded by Next.js/PostCSS, not direct imports
+    'tailwindcss',
   ],
 };
 

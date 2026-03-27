@@ -121,6 +121,22 @@ vi.mock('@/components/item-detail/item-breadcrumb', () => ({
   ItemBreadcrumb: () => <nav data-testid="item-breadcrumb" aria-label="Breadcrumb">ItemBreadcrumb</nav>,
 }));
 
+vi.mock('@/components/verification-badge', () => ({
+  VerificationBadge: (props: Record<string, unknown>) => (
+    <span data-testid="verification-badge" data-verified={props.verified}>
+      {props.verified ? 'Verified' : 'Unverified'}
+    </span>
+  ),
+}));
+
+vi.mock('@/components/freshness-badge', () => ({
+  FreshnessBadge: (props: Record<string, unknown>) => (
+    <span data-testid="freshness-badge" data-freshness={props.freshness}>
+      {props.freshness}
+    </span>
+  ),
+}));
+
 import { ReaderView } from '@/components/item-detail/reader-view';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
@@ -541,7 +557,7 @@ describe('ReaderView', () => {
   });
 
   describe('freshness and metadata display', () => {
-    it('displays freshness value when present', () => {
+    it('displays FreshnessBadge when freshness is present', () => {
       render(
         <ReaderView
           data={createMockData({
@@ -550,7 +566,37 @@ describe('ReaderView', () => {
           relatedItems={[]}
         />,
       );
-      expect(screen.getByText('fresh')).toBeInTheDocument();
+      const badge = screen.getByTestId('freshness-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('data-freshness', 'fresh');
+    });
+
+    it('renders VerificationBadge for verified items', () => {
+      render(
+        <ReaderView
+          data={createMockData({
+            item: createMockItem({ verified_at: '2026-01-20T10:00:00Z' }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      const badge = screen.getByTestId('verification-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('data-verified', 'true');
+    });
+
+    it('renders VerificationBadge as unverified when verified_at is null', () => {
+      render(
+        <ReaderView
+          data={createMockData({
+            item: createMockItem({ verified_at: undefined }),
+          })}
+          relatedItems={[]}
+        />,
+      );
+      const badge = screen.getByTestId('verification-badge');
+      expect(badge).toBeInTheDocument();
+      expect(badge).toHaveAttribute('data-verified', 'false');
     });
 
     it('displays updated date when present', () => {

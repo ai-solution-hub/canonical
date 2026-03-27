@@ -20,6 +20,7 @@ import { ContentTypeHeader } from '@/components/content-type-header';
 import { TableOfContents } from '@/components/table-of-contents';
 import { TranscriptReader } from '@/components/transcript-reader';
 import { VerificationBadge } from '@/components/verification-badge';
+import { FreshnessBadge } from '@/components/freshness-badge';
 import { getDisplayTitle } from '@/lib/format';
 import dynamic from 'next/dynamic';
 
@@ -162,9 +163,7 @@ export function ReaderView({
             {/* Metadata strip — freshness, verification, and source at a glance */}
             <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Content metadata">
               {item.freshness && (
-                <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                  {item.freshness}
-                </span>
+                <FreshnessBadge freshness={item.freshness as string} />
               )}
               <VerificationBadge
                 verified={!!item.verified_at}

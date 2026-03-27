@@ -551,6 +551,45 @@ describe('useItemDetailData', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Advanced text');
     });
 
+    it('shows success toast for verified items', async () => {
+      const { result } = renderHook(() =>
+        useItemDetailData(defaultOptions({
+          initialItem: createMockItem({
+            content: 'Some content',
+            verified_at: '2026-01-20T10:00:00Z',
+          }),
+        })),
+      );
+
+      await act(async () => {
+        await result.current.handleCopyAnswer();
+      });
+
+      expect(mockToast.success).toHaveBeenCalledWith('Answer copied');
+    });
+
+    it('shows warning toast for unverified items', async () => {
+      const { result } = renderHook(() =>
+        useItemDetailData(defaultOptions({
+          initialItem: createMockItem({
+            content: 'Some content',
+            verified_at: null,
+          }),
+        })),
+      );
+
+      await act(async () => {
+        await result.current.handleCopyAnswer();
+      });
+
+      expect(mockToast).toHaveBeenCalledWith('Answer copied', {
+        description: 'Unverified \u2014 consider reviewing before submitting',
+        duration: 4000,
+      });
+      // success should NOT have been called for unverified
+      expect(mockToast.success).not.toHaveBeenCalled();
+    });
+
     it('falls back to content when no variant specified', async () => {
       const { result } = renderHook(() =>
         useItemDetailData(defaultOptions({
