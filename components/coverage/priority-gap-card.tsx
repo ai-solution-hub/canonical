@@ -82,7 +82,7 @@ function PriorityBadge({ tier }: { tier: PriorityTier }) {
       )}
       data-testid={`priority-badge-${tier}`}
     >
-      <Icon className="size-3" aria-hidden="true" />
+      <Icon className="size-3" aria-hidden={true} />
       {config.label}
     </span>
   );
@@ -98,7 +98,7 @@ function SourceBadge({ source }: { source: 'taxonomy' | 'template' | 'guide' }) 
 
   return (
     <Badge variant="outline" className="gap-1">
-      <Icon className="size-3" aria-hidden="true" />
+      <Icon className="size-3" aria-hidden={true} />
       {config.label}
     </Badge>
   );
@@ -179,7 +179,7 @@ export function PriorityGapCard({ gap }: PriorityGapCardProps) {
           >
             <Link href={gap.action_href}>
               {gap.action_label}
-              <ArrowRight className="size-3.5" aria-hidden="true" />
+              <ArrowRight className="size-3.5" aria-hidden={true} />
             </Link>
           </Button>
         </div>
