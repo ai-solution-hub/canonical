@@ -55,6 +55,9 @@ interface VerificationBadgeProps {
   showLabel?: boolean;
   /** Show name in tooltip only (for compact list items) */
   tooltipOnly?: boolean;
+  /** When true, use role="status" (ARIA live region). Default false.
+   *  Only set to true for single page-level badges (e.g. ItemTitleSection). */
+  liveRegion?: boolean;
 }
 
 /**
@@ -125,6 +128,7 @@ export function VerificationBadge({
   size = 'sm',
   showLabel = true,
   tooltipOnly = false,
+  liveRegion = false,
 }: VerificationBadgeProps) {
   const iconSize = size === 'sm' ? 'size-3' : 'size-3.5';
   const trustLevel = getTrustLevel(verified, trustData);
@@ -154,7 +158,8 @@ export function VerificationBadge({
           'inline-flex items-center gap-1 text-muted-foreground text-xs',
           className,
         )}
-        role="status"
+        role={liveRegion ? 'status' : 'img'}
+        aria-label={liveRegion ? undefined : fullLabel}
       >
         <ShieldAlert className={cn(iconSize, 'shrink-0')} aria-hidden="true" />
         {showLabel && <span className="font-medium">Unverified</span>}
@@ -176,7 +181,8 @@ export function VerificationBadge({
         colourClass,
         className,
       )}
-      role="status"
+      role={liveRegion ? 'status' : 'img'}
+      aria-label={liveRegion ? undefined : fullLabel}
       title={tooltipText}
     >
       <Icon className={cn(iconSize, 'shrink-0')} aria-hidden="true" />

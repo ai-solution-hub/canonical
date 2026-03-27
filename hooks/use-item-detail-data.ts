@@ -354,16 +354,24 @@ export function useItemDetailData({
       }
       try {
         await navigator.clipboard.writeText(text);
-        toast.success(
-          variant
-            ? `${variant.charAt(0).toUpperCase() + variant.slice(1)} answer copied`
-            : 'Answer copied',
-        );
+        const isVerified = !!item.verified_at;
+        const label = variant
+          ? `${variant.charAt(0).toUpperCase() + variant.slice(1)} answer copied`
+          : 'Answer copied';
+
+        if (isVerified) {
+          toast.success(label);
+        } else {
+          toast(label, {
+            description: 'Unverified \u2014 consider reviewing before submitting',
+            duration: 4000,
+          });
+        }
       } catch {
         toast.error('Failed to copy answer');
       }
     },
-    [item.content, item.answer_standard, item.answer_advanced],
+    [item.content, item.answer_standard, item.answer_advanced, item.verified_at],
   );
 
   // --- Active tab content (for TableOfContents) ---
