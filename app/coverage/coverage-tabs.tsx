@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart3, BookOpen, FileText, AlertTriangle, XCircle, AlertCircle } from 'lucide-react';
+import { BarChart3, BookOpen, FileText, AlertTriangle, XCircle, AlertCircle, Target } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/template-coverage-content';
 import { CoverageGuideTab } from '@/components/coverage-guide-tab';
+import { PriorityGapsTab } from '@/components/coverage/priority-gaps-tab';
 import type { GapSummary } from '@/lib/template-coverage';
 
 // ---------------------------------------------------------------------------
@@ -143,7 +144,7 @@ function GapSummaryBanner({
 
 export function CoveragePageTabs() {
   const [gapSummary, setGapSummary] = useState<GapSummary | null>(null);
-  const [activeTab, setActiveTab] = useState('taxonomy');
+  const [activeTab, setActiveTab] = useState('priority-gaps');
 
   useEffect(() => {
     let cancelled = false;
@@ -179,6 +180,10 @@ export function CoveragePageTabs() {
         </div>
 
         <TabsList>
+          <TabsTrigger value="priority-gaps" className="gap-1.5">
+            <Target className="size-3.5" aria-hidden="true" />
+            Priority Gaps
+          </TabsTrigger>
           <TabsTrigger value="taxonomy" className="gap-1.5">
             <BarChart3 className="size-3.5" aria-hidden="true" />
             Domain Coverage
@@ -203,6 +208,10 @@ export function CoveragePageTabs() {
           />
         </div>
       )}
+
+      <TabsContent value="priority-gaps" className="mt-6">
+        <PriorityGapsTab />
+      </TabsContent>
 
       <TabsContent value="taxonomy" className="mt-6">
         <CoverageContent />
