@@ -7,7 +7,7 @@ import {
   canTransition,
   getAvailableTransitions,
   BID_STATE_LABELS,
-} from '@/lib/bid-state-machine';
+} from '@/lib/bid/bid-state-machine';
 import type {
   Bid,
   BidMetadata,

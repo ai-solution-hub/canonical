@@ -14,7 +14,7 @@ import { getModelForTier } from '@/lib/anthropic';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
 import type { QualityCheckQuestion } from '@/lib/ai/quality-check';
 import type { BidResponseMetadata } from '@/types/bid-metadata';
-import type { BidState } from '@/lib/bid-state-machine';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 120;

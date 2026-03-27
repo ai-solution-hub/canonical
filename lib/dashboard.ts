@@ -5,7 +5,7 @@ import type {
   RecentWorkItem,
   BidBriefing,
 } from '@/types/reorient';
-import { fetchActiveBidsWithStats } from '@/lib/bid-queries';
+import { fetchActiveBidsWithStats } from '@/lib/bid/bid-queries';
 import { formatRelativeDate } from '@/lib/format';
 
 // ---------------------------------------------------------------------------

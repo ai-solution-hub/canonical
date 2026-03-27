@@ -4,7 +4,7 @@ import {
   estimateQuestionCost,
   estimateBatchCost,
   formatCostUSD,
-} from '@/lib/cost-estimation';
+} from '@/lib/coverage/cost-estimation';
 
 // ──────────────────────────────────────────
 // estimateTokens

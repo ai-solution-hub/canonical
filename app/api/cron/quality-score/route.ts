@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth, getUsersByRole } from '@/lib/cron-auth';
 import { createServiceClient } from '@/lib/supabase/server';
-import { calculateAndRoundQualityScore } from '@/lib/quality-score';
+import { calculateAndRoundQualityScore } from '@/lib/quality/quality-score';
 import { createBulkNotifications } from '@/lib/notifications';
 import { safeErrorMessage } from '@/lib/error';
 import type { Json } from '@/supabase/types/database.types';

@@ -3,7 +3,7 @@ import {
   suggestQualityActions,
   getTopQualityActions,
   type QualityActionInput,
-} from '@/lib/quality-actions';
+} from '@/lib/quality/quality-actions';
 import { createMockSupabaseClient, type MockSupabaseClient } from '../helpers/mock-supabase';
 
 // ---------------------------------------------------------------------------

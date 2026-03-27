@@ -2,7 +2,7 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterSection } from '@/components/browse/filter-section';
-import { PLATFORMS } from '@/lib/taxonomy';
+import { PLATFORMS } from '@/lib/taxonomy/taxonomy';
 import { formatPlatform } from '@/lib/format';
 
 interface PlatformFilterProps {

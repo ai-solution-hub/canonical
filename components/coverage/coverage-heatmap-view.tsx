@@ -15,7 +15,7 @@ import {
   HEATMAP_LEVEL_CLASSES,
   buildHeatmapColumns,
   buildCellMap,
-} from '@/lib/coverage-heatmap';
+} from '@/lib/coverage/coverage-heatmap';
 import type { CoverageCellData } from '@/components/coverage/coverage-cell';
 
 // ---------------------------------------------------------------------------

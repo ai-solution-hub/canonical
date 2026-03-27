@@ -72,7 +72,7 @@ vi.mock('@/lib/format', () => ({
   formatDate: mockFormatDate,
 }));
 
-vi.mock('@/lib/digest-helpers', () => ({
+vi.mock('@/lib/digest/digest-helpers', () => ({
   digestTypeLabel: mockDigestTypeLabel,
 }));
 

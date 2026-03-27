@@ -16,7 +16,7 @@ import type {
   ExportQuestion,
   ExportBidMetadata,
   ExportCitation,
-} from '@/lib/bid-export-types';
+} from '@/lib/bid/bid-export-types';
 import type { BidResponseMetadata } from '@/types/bid-metadata';
 
 const UUID_RE =

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useContentTemplates } from '@/hooks/use-content-templates';
-import { CONTENT_TEMPLATES } from '@/lib/content-templates';
+import { CONTENT_TEMPLATES } from '@/lib/content/content-templates';
 
 describe('useContentTemplates', () => {
   it('returns templates array', () => {

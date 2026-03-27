@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   calculateQualityScore,
   type QualityScoreInput,
-} from '@/lib/quality-score';
+} from '@/lib/quality/quality-score';
 
 describe('calculateQualityScore', () => {
   // -------------------------------------------------------------------------

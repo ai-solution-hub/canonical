@@ -295,7 +295,7 @@ export async function POST(request: NextRequest) {
 
         // 6. Quality score
         try {
-          const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+          const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
 
           const { data: latestItem } = await serviceClient
             .from('content_items')

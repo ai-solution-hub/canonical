@@ -89,7 +89,7 @@ vi.mock('@/lib/layer-inference', () => ({
   inferLayer: mockInferLayer,
 }));
 
-vi.mock('@/lib/quality-score', () => ({
+vi.mock('@/lib/quality/quality-score', () => ({
   calculateAndRoundQualityScore: mockCalculateAndRoundQualityScore,
 }));
 

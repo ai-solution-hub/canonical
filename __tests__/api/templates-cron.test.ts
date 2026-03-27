@@ -65,11 +65,11 @@ vi.mock('@/lib/ai/classify', () => ({
   classifyContent: mockClassifyContent,
 }));
 
-vi.mock('@/lib/template-auto-map', () => ({
+vi.mock('@/lib/templates/template-auto-map', () => ({
   similarity: mockSimilarity,
 }));
 
-vi.mock('@/lib/template-coverage', () => ({
+vi.mock('@/lib/templates/template-coverage', () => ({
   fetchTemplateRequirements: mockFetchTemplateRequirements,
   fetchContentForMatching: mockFetchContentForMatching,
   computeTemplateCoverage: mockComputeTemplateCoverage,

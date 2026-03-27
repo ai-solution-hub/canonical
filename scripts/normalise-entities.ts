@@ -16,8 +16,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { canonicalise } from '@/lib/entity-dedup';
-import { resolveAlias, loadAliases } from '@/lib/entity-aliases';
+import { canonicalise } from '@/lib/entities/entity-dedup';
+import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 
 // ── Env loading ──────────────────────────────────────────────────────────────
 

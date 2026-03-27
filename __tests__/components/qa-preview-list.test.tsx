@@ -11,7 +11,7 @@ import {
   type QAPreviewListProps,
   type DedupCheckResult,
 } from '@/components/qa/qa-preview-list';
-import type { QACreateInput } from '@/lib/qa-detection';
+import type { QACreateInput } from '@/lib/quality/qa-detection';
 
 // ---------------------------------------------------------------------------
 // Test data

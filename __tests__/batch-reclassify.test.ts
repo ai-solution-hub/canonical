@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalise } from '@/lib/entity-dedup';
+import { canonicalise } from '@/lib/entities/entity-dedup';
 
 // ── Constants copied from scripts/batch_reclassify.ts ──
 // These must stay in sync with the source script. If the script changes,

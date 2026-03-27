@@ -35,7 +35,7 @@ vi.mock('sonner', () => ({
 const mockCanTransition = vi.fn(() => true);
 const mockGetAvailableTransitions = vi.fn(() => ['drafting', 'submitted']);
 
-vi.mock('@/lib/bid-state-machine', () => ({
+vi.mock('@/lib/bid/bid-state-machine', () => ({
   canTransition: (...args: unknown[]) => mockCanTransition(...args),
   getAvailableTransitions: (...args: unknown[]) => mockGetAvailableTransitions(...args),
   BID_STATE_LABELS: {

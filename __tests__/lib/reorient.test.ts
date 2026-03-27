@@ -57,7 +57,7 @@ const mockActiveBidsResult = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/lib/bid-queries', () => ({
+vi.mock('@/lib/bid/bid-queries', () => ({
   fetchActiveBidsWithStats: vi.fn(() =>
     Promise.resolve(mockActiveBidsResult.current),
   ),

@@ -42,8 +42,8 @@ export async function registerEntityTools(server: McpServer): Promise<void> {
         const supabase = createMcpClient(extra.authInfo);
 
         // Resolve entity name aliases before querying
-        const { canonicalise } = await import('@/lib/entity-dedup');
-        const { resolveAlias, loadAliases } = await import('@/lib/entity-aliases');
+        const { canonicalise } = await import('@/lib/entities/entity-dedup');
+        const { resolveAlias, loadAliases } = await import('@/lib/entities/entity-aliases');
         await loadAliases(supabase);
         const resolvedName = args.entity_name
           ? resolveAlias(canonicalise(args.entity_name))

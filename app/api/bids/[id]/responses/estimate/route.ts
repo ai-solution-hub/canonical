@@ -10,8 +10,8 @@ import {
   estimateTokens,
   estimateBatchCost,
   type BatchCostEstimate,
-} from '@/lib/cost-estimation';
-import type { BidState } from '@/lib/bid-state-machine';
+} from '@/lib/coverage/cost-estimation';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 
 export const maxDuration = 30;
 

@@ -5,7 +5,7 @@ import {
   fetchTemplateRequirements,
   fetchContentForMatching,
   computeTemplateCoverage,
-} from '@/lib/template-coverage';
+} from '@/lib/templates/template-coverage';
 
 export const maxDuration = 30;
 

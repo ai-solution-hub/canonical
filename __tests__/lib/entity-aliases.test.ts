@@ -5,8 +5,8 @@ import {
   loadAliases,
   clearAliasCache,
   setAliasCache,
-} from '@/lib/entity-aliases';
-import { canonicalise } from '@/lib/entity-dedup';
+} from '@/lib/entities/entity-aliases';
+import { canonicalise } from '@/lib/entities/entity-dedup';
 
 beforeEach(() => {
   clearAliasCache();

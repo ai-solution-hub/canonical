@@ -10,8 +10,8 @@ import { parseBody } from '@/lib/validation';
 import { ResponseDraftAllBodySchema } from '@/lib/validation/schemas';
 import { runDraftingPipeline } from '@/lib/ai/draft';
 import type { DraftableQuestion, DraftableContent } from '@/lib/ai/draft';
-import { canTransition } from '@/lib/bid-state-machine';
-import type { BidState } from '@/lib/bid-state-machine';
+import { canTransition } from '@/lib/bid/bid-state-machine';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 120;

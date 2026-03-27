@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { generateBidDocx } from '@/lib/bid-export-docx';
+import { generateBidDocx } from '@/lib/bid/bid-export-docx';
 import { DocxExportBodySchema } from '@/lib/validation/schemas';
-import { fetchBidExportData, sanitiseFilename } from '@/lib/bid-export-data';
+import { fetchBidExportData, sanitiseFilename } from '@/lib/bid/bid-export-data';
 
 export const maxDuration = 30;
 

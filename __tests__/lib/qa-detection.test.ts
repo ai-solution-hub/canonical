@@ -11,7 +11,7 @@ import {
   splitIntoQAPairs,
   normaliseHeader,
   type DetectedQAPair,
-} from '@/lib/qa-detection';
+} from '@/lib/quality/qa-detection';
 
 // ---------------------------------------------------------------------------
 // Helper to build HTML table strings for tests
@@ -818,12 +818,12 @@ describe('detectQAPairs — real-world HTML patterns', () => {
 
 describe('document-diff exports', () => {
   it('extractStructuredPairs is exported', async () => {
-    const { extractStructuredPairs } = await import('@/lib/document-diff');
+    const { extractStructuredPairs } = await import('@/lib/source-documents/document-diff');
     expect(typeof extractStructuredPairs).toBe('function');
   });
 
   it('extractTablePairs is exported', async () => {
-    const { extractTablePairs } = await import('@/lib/document-diff');
+    const { extractTablePairs } = await import('@/lib/source-documents/document-diff');
     expect(typeof extractTablePairs).toBe('function');
   });
 });

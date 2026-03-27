@@ -12,8 +12,8 @@ import { generateSearchQueries } from '@/lib/ai/extract-questions';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { deduplicateResults, assessConfidence } from '@/lib/ai/match';
 import type { MatchResult } from '@/lib/ai/match';
-import { canTransition } from '@/lib/bid-state-machine';
-import type { BidState } from '@/lib/bid-state-machine';
+import { canTransition } from '@/lib/bid/bid-state-machine';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 
 export const maxDuration = 120;
 

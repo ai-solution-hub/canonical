@@ -33,7 +33,7 @@ vi.mock('next/headers', () => ({
   cookies: mockCookies,
 }));
 
-vi.mock('@/lib/content-suggestions', () => ({
+vi.mock('@/lib/content/content-suggestions', () => ({
   generateContentSuggestions: mockGenerateContentSuggestions,
 }));
 

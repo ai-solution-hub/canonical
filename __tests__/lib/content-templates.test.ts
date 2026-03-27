@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CONTENT_TEMPLATES,
   type ContentTemplate,
-} from '@/lib/content-templates';
+} from '@/lib/content/content-templates';
 import { VALID_CONTENT_TYPES } from '@/lib/validation/schemas';
 
 describe('CONTENT_TEMPLATES', () => {

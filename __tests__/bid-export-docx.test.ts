@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { generateBidDocx } from '@/lib/bid-export-docx';
+import { generateBidDocx } from '@/lib/bid/bid-export-docx';
 import type {
   ExportQuestion,
   ExportBidMetadata,
-} from '@/lib/bid-export-types';
+} from '@/lib/bid/bid-export-types';
 
 // ---------------------------------------------------------------------------
 // Test fixtures

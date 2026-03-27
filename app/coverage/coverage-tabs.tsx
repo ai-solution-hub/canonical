@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CoverageContent } from './coverage-content';
 import { TemplateCoverageContent } from '@/components/coverage/template-coverage-content';
 import { CoverageGuideTab } from '@/components/coverage/coverage-guide-tab';
-import type { GapSummary } from '@/lib/template-coverage';
+import type { GapSummary } from '@/lib/templates/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Requirement type labels (UK English)

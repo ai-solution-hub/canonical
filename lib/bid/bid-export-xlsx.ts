@@ -11,7 +11,7 @@ import ExcelJS from 'exceljs';
 import { format } from 'date-fns';
 import { enGB } from 'date-fns/locale';
 import { htmlToPlainText, countWords, wordCountPercentage } from '@/lib/editor-utils';
-import type { ExportQuestion, ExportBidMetadata, XlsxExportOptions } from '@/lib/bid-export-types';
+import type { ExportQuestion, ExportBidMetadata, XlsxExportOptions } from '@/lib/bid/bid-export-types';
 
 // ---------------------------------------------------------------------------
 // Constants — styling

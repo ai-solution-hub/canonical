@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
-import { FALLBACK_COLOUR_MAP } from '@/lib/taxonomy-format';
+import { FALLBACK_COLOUR_MAP } from '@/lib/taxonomy/taxonomy-format';
 
 // Re-export formatting utilities so existing consumers don't break
-export { formatSubtopic, formatDomainName } from '@/lib/taxonomy-format';
+export { formatSubtopic, formatDomainName } from '@/lib/taxonomy/taxonomy-format';
 
 // ---------------------------------------------------------------------------
 // Types (mirror context types for server use)

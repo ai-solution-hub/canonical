@@ -8,7 +8,7 @@ import {
   BID_STATE_PROGRESSION,
   isTerminal,
   type BidState,
-} from '@/lib/bid-state-machine';
+} from '@/lib/bid/bid-state-machine';
 
 interface BidStateIndicatorProps {
   state: BidState;

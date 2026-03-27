@@ -41,7 +41,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { listAvailableTemplates } = await import('@/lib/template-coverage');
+        const { listAvailableTemplates } = await import('@/lib/templates/template-coverage');
         const templates = await listAvailableTemplates(supabase, args.template_type);
 
         const result: TemplateListData = {
@@ -91,7 +91,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
-          await import('@/lib/template-coverage');
+          await import('@/lib/templates/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
           supabase, args.template_name, args.template_version,
@@ -153,7 +153,7 @@ export async function registerTemplateTools(server: McpServer): Promise<void> {
       try {
         const supabase = createMcpClient(extra.authInfo);
         const { fetchTemplateRequirements, fetchContentForMatching, computeTemplateCoverage } =
-          await import('@/lib/template-coverage');
+          await import('@/lib/templates/template-coverage');
 
         const requirements = await fetchTemplateRequirements(
           supabase, args.template_name, args.template_version,

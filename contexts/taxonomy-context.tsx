@@ -14,7 +14,7 @@ import {
   formatSubtopic as formatSubtopicUtil,
   formatDomainName as formatDomainNameUtil,
   FALLBACK_COLOUR_MAP,
-} from '@/lib/taxonomy-format';
+} from '@/lib/taxonomy/taxonomy-format';
 
 // ---------------------------------------------------------------------------
 // Types

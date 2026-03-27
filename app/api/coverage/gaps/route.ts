@@ -19,8 +19,8 @@ import {
   fetchTemplateRequirements,
   fetchContentForMatching,
   computeTemplateCoverage,
-} from '@/lib/template-coverage';
-import { scoreGap } from '@/lib/gap-scoring';
+} from '@/lib/templates/template-coverage';
+import { scoreGap } from '@/lib/coverage/gap-scoring';
 import type {
   UnifiedGap,
   UnifiedGapSummary,

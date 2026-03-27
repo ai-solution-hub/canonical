@@ -3,7 +3,7 @@ import {
   createMockSupabaseClient,
   type MockSupabaseClient,
 } from '../helpers/mock-supabase';
-import { analyseDocumentImpact } from '@/lib/source-document-impact';
+import { analyseDocumentImpact } from '@/lib/source-documents/source-document-impact';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
 

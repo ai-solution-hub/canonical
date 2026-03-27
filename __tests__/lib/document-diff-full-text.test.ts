@@ -20,7 +20,7 @@ import {
   computeDocumentDiff,
   computeFullTextDiff,
   MAX_DIFF_ENTRIES,
-} from '@/lib/document-diff';
+} from '@/lib/source-documents/document-diff';
 
 const OLD_ID = '00000000-0000-0000-0000-000000000001';
 const NEW_ID = '00000000-0000-0000-0000-000000000002';

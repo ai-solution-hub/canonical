@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { listAvailableTemplates } from '@/lib/template-coverage';
+import { listAvailableTemplates } from '@/lib/templates/template-coverage';
 
 export const maxDuration = 30;
 

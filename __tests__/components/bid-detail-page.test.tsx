@@ -82,11 +82,11 @@ vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string) => mockFormatDateUK(d),
 }));
 
-vi.mock('@/lib/bid-helpers', () => ({
+vi.mock('@/lib/bid/bid-helpers', () => ({
   getDeadlineProximity: (d: string | null | undefined) => mockGetDeadlineProximity(d),
 }));
 
-vi.mock('@/lib/bid-state-machine', () => ({
+vi.mock('@/lib/bid/bid-state-machine', () => ({
   BID_STATE_LABELS: mockBidStateLabels,
   BID_STATE_SHORT_LABELS: mockBidStateShortLabels,
 }));

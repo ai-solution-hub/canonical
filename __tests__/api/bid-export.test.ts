@@ -36,11 +36,11 @@ vi.mock('next/headers', () => ({
 }));
 
 // Mock the export generation libraries — they produce binary output we don't need
-vi.mock('@/lib/bid-export-docx', () => ({
+vi.mock('@/lib/bid/bid-export-docx', () => ({
   generateBidDocx: vi.fn().mockResolvedValue(Buffer.from('mock-docx-content')),
 }));
 
-vi.mock('@/lib/bid-export-xlsx', () => ({
+vi.mock('@/lib/bid/bid-export-xlsx', () => ({
   generateBidXlsx: vi.fn().mockResolvedValue(Buffer.from('mock-xlsx-content')),
 }));
 

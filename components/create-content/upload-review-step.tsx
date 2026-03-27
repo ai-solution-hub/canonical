@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { QualityBadge } from '@/components/shared/quality-badge';
 import { DedupWarning, type DedupMatch } from '@/components/shared/dedup-warning';
-import { calculateQualityScore, type QualityScoreInput } from '@/lib/quality-score';
+import { calculateQualityScore, type QualityScoreInput } from '@/lib/quality/quality-score';
 
 // ---------------------------------------------------------------------------
 // Constants

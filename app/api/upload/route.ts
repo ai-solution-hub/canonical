@@ -656,7 +656,7 @@ export async function POST(request: NextRequest) {
     // Quality score — calculate and store after AI processing (classification + summary)
     if (extractedText) {
       try {
-        const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+        const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
 
         // Fetch the latest item state (classification and summary may have updated fields)
         const { data: latestItem } = await serviceClient
@@ -793,9 +793,9 @@ export async function POST(request: NextRequest) {
     let diffAvailable = false;
     if (reuploadInfo?.match_type === 'new_version' && sourceDocumentId) {
       try {
-        const { computeDocumentDiff } = await import('@/lib/document-diff');
+        const { computeDocumentDiff } = await import('@/lib/source-documents/document-diff');
         const { analyseDocumentImpact } = await import(
-          '@/lib/source-document-impact'
+          '@/lib/source-documents/source-document-impact'
         );
 
         // Get extracted text from old document
@@ -843,7 +843,7 @@ export async function POST(request: NextRequest) {
             // Send notifications to affected content owners
             if (impact.total_affected_items > 0) {
               const { sendSourceDocumentUpdateNotifications } = await import(
-                '@/lib/source-document-notifications'
+                '@/lib/source-documents/source-document-notifications'
               );
               await sendSourceDocumentUpdateNotifications(
                 serviceClient,

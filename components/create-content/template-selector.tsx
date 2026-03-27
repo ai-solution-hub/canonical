@@ -2,7 +2,7 @@
 
 import { FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ContentTemplate } from '@/lib/content-templates';
+import type { ContentTemplate } from '@/lib/content/content-templates';
 
 export interface TemplateSelectorProps {
   templates: ContentTemplate[];

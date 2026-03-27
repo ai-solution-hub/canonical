@@ -14,7 +14,7 @@ import { ContentTypeIcon } from '@/components/shared/content-type-icon';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import { GovernanceBadge } from '@/components/shared/governance-badge';
 import { QualityBadge } from '@/components/shared/quality-badge';
-import { calculateQualityScore } from '@/lib/quality-score';
+import { calculateQualityScore } from '@/lib/quality/quality-score';
 import { AlertTriangle, Copy, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';

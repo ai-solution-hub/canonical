@@ -28,7 +28,7 @@ import type {
   ExportQuestion,
   ExportBidMetadata,
   DocxExportOptions,
-} from '@/lib/bid-export-types';
+} from '@/lib/bid/bid-export-types';
 
 // ---------------------------------------------------------------------------
 // Internal types

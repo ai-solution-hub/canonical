@@ -3,7 +3,7 @@
 import {
   CONTENT_TEMPLATES,
   type ContentTemplate,
-} from '@/lib/content-templates';
+} from '@/lib/content/content-templates';
 
 /**
  * Hook returning available content creation templates.

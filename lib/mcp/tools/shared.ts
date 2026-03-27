@@ -50,7 +50,7 @@ export async function getDashboardModule() {
   return await import('@/lib/dashboard');
 }
 export async function getBidQueriesModule() {
-  return await import('@/lib/bid-queries');
+  return await import('@/lib/bid/bid-queries');
 }
 export async function getReorientModule() {
   return await import('@/lib/reorient');

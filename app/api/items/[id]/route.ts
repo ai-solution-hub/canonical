@@ -284,7 +284,7 @@ export async function PATCH(
     ];
     if (qualityRelevantFields.includes(field)) {
       try {
-        const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+        const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
 
         // Fetch the updated item's current state
         const { data: updatedForQuality } = await supabase

@@ -7,7 +7,7 @@ import {
   ArrowDown,
   Plus,
 } from 'lucide-react';
-import { formatDomainName, formatSubtopic } from '@/lib/taxonomy-format';
+import { formatDomainName, formatSubtopic } from '@/lib/taxonomy/taxonomy-format';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

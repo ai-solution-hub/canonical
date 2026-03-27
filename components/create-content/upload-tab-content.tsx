@@ -21,7 +21,7 @@ import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { generateIngestDocumentPrompt } from '@/lib/claude-prompts';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { useFileUploadPipeline } from '@/hooks/use-file-upload-pipeline';
-import type { QACreateInput } from '@/lib/qa-detection';
+import type { QACreateInput } from '@/lib/quality/qa-detection';
 import type { DedupCheckResult } from '@/components/qa/qa-preview-list';
 
 // ---------------------------------------------------------------------------

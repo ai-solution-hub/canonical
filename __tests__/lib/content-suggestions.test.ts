@@ -23,7 +23,7 @@ const mockSupabase = createMockSupabaseClient();
 // Import after mock setup
 // ---------------------------------------------------------------------------
 
-const { generateContentSuggestions } = await import('@/lib/content-suggestions');
+const { generateContentSuggestions } = await import('@/lib/content/content-suggestions');
 
 // ---------------------------------------------------------------------------
 // Test data factories

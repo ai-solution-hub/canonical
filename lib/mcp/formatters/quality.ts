@@ -2,7 +2,7 @@
  * Quality, coverage, audit, and quality actions formatters for MCP tool responses.
  */
 import { formatContentType } from '@/lib/format';
-import type { QualityActionsResult } from '@/lib/quality-actions';
+import type { QualityActionsResult } from '@/lib/quality/quality-actions';
 
 // ---------------------------------------------------------------------------
 // Quality summary
@@ -217,7 +217,7 @@ export function formatDuplicatePairs(data: DuplicatePairsResult): string {
 // Quality actions
 // ---------------------------------------------------------------------------
 
-export { type QualityAction, type QualityActionsResult } from '@/lib/quality-actions';
+export { type QualityAction, type QualityActionsResult } from '@/lib/quality/quality-actions';
 
 export function formatQualityActions(data: QualityActionsResult): string {
   const lines: string[] = [

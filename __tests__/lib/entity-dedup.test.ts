@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalise } from '@/lib/entity-dedup';
+import { canonicalise } from '@/lib/entities/entity-dedup';
 
 describe('canonicalise', () => {
   // ── Existing rules (regression) ────────────────────────────────────

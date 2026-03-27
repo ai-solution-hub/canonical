@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
-import type { CoverageStatus, RequirementType } from '@/lib/template-coverage';
+import type { CoverageStatus, RequirementType } from '@/lib/templates/template-coverage';
 
 // ---------------------------------------------------------------------------
 // Types

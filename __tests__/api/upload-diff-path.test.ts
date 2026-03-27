@@ -25,8 +25,8 @@ import {
 import {
   computeDocumentDiff,
   extractQAPairs,
-} from '@/lib/document-diff';
-import type { ImpactAnalysis } from '@/lib/source-document-impact';
+} from '@/lib/source-documents/document-diff';
+import type { ImpactAnalysis } from '@/lib/source-documents/source-document-impact';
 
 // ---------------------------------------------------------------------------
 // Test: computeDocumentDiff integration (mirrors upload route usage)
@@ -176,7 +176,7 @@ describe('Upload diff path — analyseDocumentImpact', () => {
 
   it('returns empty impact when document has no parent', async () => {
     const { analyseDocumentImpact } = await import(
-      '@/lib/source-document-impact'
+      '@/lib/source-documents/source-document-impact'
     );
 
     // source_documents.select().eq().single() → doc with no parent
@@ -197,7 +197,7 @@ describe('Upload diff path — analyseDocumentImpact', () => {
 
   it('returns empty impact when no diffs exist for the document pair', async () => {
     const { analyseDocumentImpact } = await import(
-      '@/lib/source-document-impact'
+      '@/lib/source-documents/source-document-impact'
     );
 
     // source_documents.select().eq().single() → doc with parent

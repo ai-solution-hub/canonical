@@ -5,7 +5,7 @@ import { Layers, FileText, Shield } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { DigestDomainSection } from '@/components/digest/digest-domain-section';
 import { formatDate } from '@/lib/format';
-import { digestTypeLabel } from '@/lib/digest-helpers';
+import { digestTypeLabel } from '@/lib/digest/digest-helpers';
 import { FreshnessBadge } from '@/components/shared/freshness-badge';
 import type { Digest, DigestGovernanceSummary } from '@/types/digest';
 import { cn } from '@/lib/utils';

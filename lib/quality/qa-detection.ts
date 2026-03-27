@@ -16,7 +16,7 @@
  */
 
 import { parse as parseHTML, type HTMLElement } from 'node-html-parser';
-import { stringSimilarity, extractStructuredPairs } from '@/lib/document-diff';
+import { stringSimilarity, extractStructuredPairs } from '@/lib/source-documents/document-diff';
 
 // ---------------------------------------------------------------------------
 // Public types — exported for Phase 2/3 consumption

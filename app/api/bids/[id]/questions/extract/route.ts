@@ -11,7 +11,7 @@ import { QuestionExtractBodySchema } from '@/lib/validation/schemas';
 import { extractPDFQuestions, extractDOCXQuestions, extractTenderMetadata } from '@/lib/ai/extract-questions';
 import mammoth from 'mammoth';
 import type { TenderExtractedMetadata } from '@/types/bid-metadata';
-import { canTransition, type BidState } from '@/lib/bid-state-machine';
+import { canTransition, type BidState } from '@/lib/bid/bid-state-machine';
 
 export const maxDuration = 120;
 

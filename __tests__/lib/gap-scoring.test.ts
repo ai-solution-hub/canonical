@@ -19,7 +19,7 @@ import {
   derivePriorityTier,
   getTemplateTypeWeight,
   scoreGap,
-} from '@/lib/gap-scoring';
+} from '@/lib/coverage/gap-scoring';
 import type { TaxonomyGap, TemplateGap, GuideGap } from '@/types/unified-gap';
 
 // ---------------------------------------------------------------------------

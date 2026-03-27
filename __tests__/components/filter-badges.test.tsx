@@ -45,7 +45,7 @@ vi.mock('@/hooks/use-browse-filters', () => ({
   }),
 }));
 
-vi.mock('@/lib/taxonomy-format', () => ({
+vi.mock('@/lib/taxonomy/taxonomy-format', () => ({
   formatSubtopic: (s: string) => s.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
 }));
 

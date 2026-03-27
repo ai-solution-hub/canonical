@@ -18,8 +18,8 @@ import type {
   Digest,
 } from '@/types/digest';
 import { AIServiceError } from '@/lib/ai/errors';
-import { generateContentSuggestions } from '@/lib/content-suggestions';
-import type { ContentSuggestion } from '@/lib/content-suggestions';
+import { generateContentSuggestions } from '@/lib/content/content-suggestions';
+import type { ContentSuggestion } from '@/lib/content/content-suggestions';
 
 // ──────────────────────────────────────────
 // Types

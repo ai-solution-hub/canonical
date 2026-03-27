@@ -9,7 +9,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TemplateSelector } from '@/components/create-content/template-selector';
-import type { ContentTemplate } from '@/lib/content-templates';
+import type { ContentTemplate } from '@/lib/content/content-templates';
 
 // ---------------------------------------------------------------------------
 // Test fixtures

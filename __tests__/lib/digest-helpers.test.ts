@@ -4,7 +4,7 @@
  * Tests the digestTypeLabel function with the "Change Report" vocabulary.
  */
 import { describe, it, expect } from 'vitest';
-import { digestTypeLabel } from '@/lib/digest-helpers';
+import { digestTypeLabel } from '@/lib/digest/digest-helpers';
 
 describe('digestTypeLabel', () => {
   it('returns "Weekly Change Report" for weekly type', () => {

@@ -10,7 +10,7 @@ import { parseBody } from '@/lib/validation';
 import { KBIntegrationBodySchema } from '@/lib/validation/schemas';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
-import type { BidState } from '@/lib/bid-state-machine';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 60;

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
-import { isActive } from '@/lib/bid-state-machine';
+import { isActive } from '@/lib/bid/bid-state-machine';
 import type { BidState } from '@/types/bid';
 import type { Workspace } from '@/types/content';
 

@@ -15,7 +15,7 @@ import {
   fetchTemplateRequirements,
   fetchContentForMatching,
   computeTemplateCoverage,
-} from '@/lib/template-coverage';
+} from '@/lib/templates/template-coverage';
 import {
   createBulkNotifications,
   getExistingNotificationIds,

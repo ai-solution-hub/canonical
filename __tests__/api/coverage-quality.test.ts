@@ -49,7 +49,7 @@ vi.mock('@/lib/dashboard', () => ({
   fetchDashboardData: mockFetchDashboardData,
 }));
 
-vi.mock('@/lib/template-coverage', () => ({
+vi.mock('@/lib/templates/template-coverage', () => ({
   listAvailableTemplates: mockListAvailableTemplates,
   fetchTemplateRequirements: mockFetchTemplateRequirements,
   computeTemplateCoverage: mockComputeTemplateCoverage,

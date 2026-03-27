@@ -18,7 +18,7 @@ import { BidCreationWizard } from '@/components/bid/bid-creation-wizard';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useViewMode } from '@/hooks/use-view-mode';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/bid-helpers';
+import { getDeadlineProximity } from '@/lib/bid/bid-helpers';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { ErrorBoundary } from '@/components/shared/error-boundary';

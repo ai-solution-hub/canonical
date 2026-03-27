@@ -11,8 +11,8 @@ import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
 import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
-import { canonicalise } from '@/lib/entity-dedup';
-import { resolveAlias, loadAliases } from '@/lib/entity-aliases';
+import { canonicalise } from '@/lib/entities/entity-dedup';
+import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
 import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 

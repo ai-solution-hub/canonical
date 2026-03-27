@@ -104,7 +104,7 @@ vi.mock('@/lib/topic-inference', () => ({
   suggestTopic: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('@/lib/quality-score', () => ({
+vi.mock('@/lib/quality/quality-score', () => ({
   calculateAndRoundQualityScore: vi.fn().mockReturnValue(65),
 }));
 

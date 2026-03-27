@@ -58,7 +58,7 @@ vi.mock('@/lib/ai/draft', () => ({
   draftResponseStreaming: mockDraftResponseStreaming,
 }));
 
-vi.mock('@/lib/cost-estimation', () => ({
+vi.mock('@/lib/coverage/cost-estimation', () => ({
   estimateBatchCost: mockEstimateBatchCost,
   estimateTokens: mockEstimateTokens,
 }));
@@ -75,7 +75,7 @@ vi.mock('@/lib/anthropic', () => ({
   getModelForTier: mockGetModelForTier,
 }));
 
-vi.mock('@/lib/bid-state-machine', () => ({
+vi.mock('@/lib/bid/bid-state-machine', () => ({
   canTransition: mockCanTransition,
 }));
 

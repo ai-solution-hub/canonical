@@ -439,7 +439,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { generateContentSuggestions } = await import('@/lib/content-suggestions');
+        const { generateContentSuggestions } = await import('@/lib/content/content-suggestions');
 
         const suggestions = await generateContentSuggestions({
           supabase,
@@ -769,7 +769,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
     async (args, extra: ToolExtra) => {
       try {
         const supabase = createMcpClient(extra.authInfo);
-        const { getTopQualityActions } = await import('@/lib/quality-actions');
+        const { getTopQualityActions } = await import('@/lib/quality/quality-actions');
 
         const result = await getTopQualityActions(supabase, {
           domain: args.domain || undefined,

@@ -196,7 +196,7 @@ interface QualityFlag {
 
 // ── Entity canonicalisation (shared module) ──
 
-import { canonicalise } from '@/lib/entity-dedup';
+import { canonicalise } from '@/lib/entities/entity-dedup';
 
 // ── Helpers ──
 

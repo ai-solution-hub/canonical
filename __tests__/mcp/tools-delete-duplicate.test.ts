@@ -49,7 +49,7 @@ vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
 }));
 vi.mock('@/lib/dashboard', () => ({ fetchDashboardData: vi.fn() }));
 vi.mock('@/lib/reorient', () => ({ fetchReorientData: vi.fn(), resolveDisplayNames: vi.fn() }));
-vi.mock('@/lib/bid-queries', () => ({ fetchBidSections: vi.fn() }));
+vi.mock('@/lib/bid/bid-queries', () => ({ fetchBidSections: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Mock McpServer

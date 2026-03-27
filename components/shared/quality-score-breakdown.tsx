@@ -7,7 +7,7 @@ import {
   calculateQualityScore,
   type QualityScoreInput,
   type QualityScoreResult,
-} from '@/lib/quality-score';
+} from '@/lib/quality/quality-score';
 
 // ---------------------------------------------------------------------------
 // Types

@@ -4,7 +4,7 @@ import {
   extractQAPairs,
   computeDocumentDiff,
   MAX_QA_PAIRS,
-} from '@/lib/document-diff';
+} from '@/lib/source-documents/document-diff';
 
 // ---------------------------------------------------------------------------
 // stringSimilarity

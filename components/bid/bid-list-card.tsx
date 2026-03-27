@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { BidStateBadge } from '@/components/bid/bid-state-indicator';
 import { ConfidenceDot } from '@/components/shared/confidence-badge';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/bid-helpers';
+import { getDeadlineProximity } from '@/lib/bid/bid-helpers';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import { parseBidMetadata } from '@/lib/validation/schemas';

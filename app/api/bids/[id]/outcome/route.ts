@@ -6,8 +6,8 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
 import { BidOutcomeBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
-import { canTransition } from '@/lib/bid-state-machine';
-import type { BidState } from '@/lib/bid-state-machine';
+import { canTransition } from '@/lib/bid/bid-state-machine';
+import type { BidState } from '@/lib/bid/bid-state-machine';
 
 export const maxDuration = 30;
 

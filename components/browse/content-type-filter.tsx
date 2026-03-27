@@ -3,7 +3,7 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { FilterSection } from '@/components/browse/filter-section';
 import { ContentTypeIcon } from '@/components/shared/content-type-icon';
-import { CONTENT_TYPES } from '@/lib/taxonomy';
+import { CONTENT_TYPES } from '@/lib/taxonomy/taxonomy';
 import { formatContentType } from '@/lib/format';
 
 interface ContentTypeFilterProps {

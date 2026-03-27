@@ -63,8 +63,8 @@ import { useBidActions } from '@/hooks/use-bid-actions';
 import { useBidExport } from '@/hooks/use-bid-export';
 import { useBidReadiness } from '@/hooks/use-bid-readiness';
 import { formatDateUK } from '@/lib/format';
-import { getDeadlineProximity } from '@/lib/bid-helpers';
-import { BID_STATE_LABELS } from '@/lib/bid-state-machine';
+import { getDeadlineProximity } from '@/lib/bid/bid-helpers';
+import { BID_STATE_LABELS } from '@/lib/bid/bid-state-machine';
 import { cn } from '@/lib/utils';
 import type { Bid, BidMetadata, BidQuestionStats, TenderDocument, ConfidencePosture, BidState, ExtractionResult } from '@/types/bid';
 

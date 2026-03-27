@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normaliseText, similarity } from '@/lib/template-auto-map';
+import { normaliseText, similarity } from '@/lib/templates/template-auto-map';
 
 // ---------------------------------------------------------------------------
 // normaliseText

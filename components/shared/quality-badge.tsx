@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { QualityScoreResult } from '@/lib/quality-score';
+import type { QualityScoreResult } from '@/lib/quality/quality-score';
 
 // ---------------------------------------------------------------------------
 // Types

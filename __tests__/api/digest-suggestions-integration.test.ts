@@ -30,7 +30,7 @@ vi.mock('next/headers', () => ({
 
 // Mock content suggestions engine
 const mockGenerateContentSuggestions = vi.fn();
-vi.mock('@/lib/content-suggestions', () => ({
+vi.mock('@/lib/content/content-suggestions', () => ({
   generateContentSuggestions: (...args: unknown[]) => mockGenerateContentSuggestions(...args),
 }));
 

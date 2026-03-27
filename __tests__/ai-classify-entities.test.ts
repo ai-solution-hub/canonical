@@ -27,8 +27,8 @@ vi.mock('@/lib/ai/skills/loader', () => ({
   loadSkill: vi.fn().mockResolvedValue(''),
 }));
 
-vi.mock('@/lib/entity-aliases', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/entity-aliases')>();
+vi.mock('@/lib/entities/entity-aliases', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/entities/entity-aliases')>();
   return {
     ...actual,
     loadAliases: vi.fn().mockResolvedValue({}),

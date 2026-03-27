@@ -2,7 +2,7 @@
  * Entity name canonicalisation for deduplication.
  *
  * Shared between the classification pipeline (lib/ai/classify.ts) and
- * batch entity extraction scripts. Import from '@/lib/entity-dedup'.
+ * batch entity extraction scripts. Import from '@/lib/entities/entity-dedup'.
  */
 
 /** Known abbreviations that should remain uppercase */

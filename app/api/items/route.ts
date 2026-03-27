@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     // Quality score — calculate and store after AI processing
     try {
-      const { calculateAndRoundQualityScore } = await import('@/lib/quality-score');
+      const { calculateAndRoundQualityScore } = await import('@/lib/quality/quality-score');
       const { createServiceClient } = await import('@/lib/supabase/server');
       const serviceClient = createServiceClient();
 

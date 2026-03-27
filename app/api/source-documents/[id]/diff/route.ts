@@ -6,7 +6,7 @@ import {
   unauthorisedResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { computeDocumentDiff } from '@/lib/document-diff';
+import { computeDocumentDiff } from '@/lib/source-documents/document-diff';
 
 export const maxDuration = 30;
 

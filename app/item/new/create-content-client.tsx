@@ -38,7 +38,7 @@ import {
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useContentTemplates } from '@/hooks/use-content-templates';
-import type { ContentTemplate } from '@/lib/content-templates';
+import type { ContentTemplate } from '@/lib/content/content-templates';
 
 const ContentEditor = dynamic(
   () => import('@/components/item-detail/content-editor').then((mod) => mod.ContentEditor),

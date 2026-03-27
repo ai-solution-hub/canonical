@@ -7,7 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { AutoMapBodySchema } from '@/lib/validation/template-schemas';
-import { similarity } from '@/lib/template-auto-map';
+import { similarity } from '@/lib/templates/template-auto-map';
 
 export const maxDuration = 30;
 
