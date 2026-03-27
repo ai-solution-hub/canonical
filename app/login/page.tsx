@@ -408,31 +408,29 @@ export default function LoginPage() {
           />
         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="stay-signed-in"
-              checked={staySignedIn}
-              onCheckedChange={(checked) => {
-                const value = checked === true;
-                setStaySignedIn(value);
-                localStorage.setItem('kh-stay-signed-in', String(value));
-              }}
-            />
-            <Label htmlFor="stay-signed-in" className="text-sm text-muted-foreground cursor-pointer">
-              Stay signed in
-            </Label>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleForgotPassword}
-            disabled={forgotStatus === 'sending'}
-            className="rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-          >
-            {forgotStatus === 'sending' ? 'Sending reset...' : 'Forgot password?'}
-          </button>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="stay-signed-in"
+            checked={staySignedIn}
+            onCheckedChange={(checked) => {
+              const value = checked === true;
+              setStaySignedIn(value);
+              localStorage.setItem('kh-stay-signed-in', String(value));
+            }}
+          />
+          <Label htmlFor="stay-signed-in" className="text-sm text-muted-foreground cursor-pointer">
+            Stay signed in
+          </Label>
         </div>
+
+        <button
+          type="button"
+          onClick={handleForgotPassword}
+          disabled={forgotStatus === 'sending'}
+          className="self-start rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+        >
+          {forgotStatus === 'sending' ? 'Sending reset...' : 'Forgot password?'}
+        </button>
 
         {error && (
           <p id="password-error" className="text-sm text-destructive" role="alert">
