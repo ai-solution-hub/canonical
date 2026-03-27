@@ -28,6 +28,7 @@ export interface DiffEntry {
   new_question?: string;
   new_content?: string; // new answer (Q&A) or new text block (full-text)
   similarity_score?: number;
+  section_header?: string; // nearest heading context for full-text entries
 }
 
 export interface DiffResult {
@@ -47,6 +48,107 @@ export interface DiffResult {
 
 /** Hard cap on diff entries to prevent DB bloat and slow UI rendering. */
 export const MAX_DIFF_ENTRIES = 2000;
+
+// ---------------------------------------------------------------------------
+// Section heading detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Patterns for detecting section headings in document text.
+ *
+ * Each pattern captures the heading text (or relevant parts of it).
+ * Tested against individual lines of text.
+ */
+export const HEADING_PATTERNS: RegExp[] = [
+  /^#{1,6}\s+(.+)$/,              // Markdown headings: # Heading, ## Sub, etc.
+  /^(\d+\.[\d.]*)\s+(.+)$/,       // Numbered sections: 1. / 1.1 / 1.1.1
+  /^([A-Z][A-Z\s]{2,})$/,         // ALL CAPS headings (min 3 chars to avoid false positives)
+];
+
+/**
+ * Detect whether a line of text is a section heading.
+ *
+ * Returns the full heading text if a match is found, or `undefined` otherwise.
+ * This checks individual lines, not multi-line blocks.
+ */
+export function detectSectionHeader(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return undefined;
+
+  for (const pattern of HEADING_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Scan a text block (potentially multi-line) and return the last section
+ * heading found within it, or `undefined` if none detected.
+ *
+ * This is used to find heading context within unchanged blocks that precede
+ * changed entries.
+ */
+export function findLastHeadingInBlock(text: string): string | undefined {
+  const lines = text.split('\n');
+  let lastHeading: string | undefined;
+
+  for (const line of lines) {
+    const heading = detectSectionHeader(line);
+    if (heading) {
+      lastHeading = heading;
+    }
+  }
+
+  return lastHeading;
+}
+
+/**
+ * Annotate diff entries with section heading context.
+ *
+ * Walks through entries in order, tracking the most recently seen heading.
+ * Headings can appear:
+ *  1. Within `unchanged` entries (scanning their text content)
+ *  2. Within `added` entries (the heading itself may be new content)
+ *  3. As the content of an entry that IS a heading line
+ *
+ * Each non-heading entry gets the most recent heading as its `section_header`.
+ * Entries that ARE headings also get the heading set on themselves.
+ */
+export function annotateWithSectionHeaders(entries: DiffEntry[]): DiffEntry[] {
+  let currentHeading: string | undefined;
+
+  for (const entry of entries) {
+    // Scan content for headings — check both old and new content
+    const textToScan = entry.new_content ?? entry.old_content ?? '';
+    const lines = textToScan.split('\n');
+
+    let entryHasHeading = false;
+    for (const line of lines) {
+      const heading = detectSectionHeader(line);
+      if (heading) {
+        currentHeading = heading;
+        entryHasHeading = true;
+      }
+    }
+
+    // Apply the current heading context to this entry
+    if (currentHeading) {
+      entry.section_header = currentHeading;
+    }
+
+    // For entries that contain only a heading (single line that IS a heading),
+    // the heading is still set — this provides context for the next entries
+    // and labels the heading entry itself
+    if (!entryHasHeading && !currentHeading) {
+      // No heading found yet — leave section_header undefined
+    }
+  }
+
+  return entries;
+}
 
 // ---------------------------------------------------------------------------
 // Q&A extraction
@@ -330,7 +432,10 @@ export function computeFullTextDiff(
     finalEntries = collapsed;
   }
 
-  // Step 5: Compute summary
+  // Step 5: Annotate entries with section heading context
+  annotateWithSectionHeaders(finalEntries);
+
+  // Step 6: Compute summary
   const oldLineCount = oldText.trim().length > 0 ? oldText.split('\n').length : 0;
   const newLineCount = newText.trim().length > 0 ? newText.split('\n').length : 0;
 

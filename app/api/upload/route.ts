@@ -826,6 +826,7 @@ export async function POST(request: NextRequest) {
               old_content: entry.old_content ?? null,
               new_content: entry.new_content ?? null,
               similarity_score: entry.similarity_score ?? null,
+              section_header: entry.section_header ?? null,
               status: 'pending_review',
             }));
 
