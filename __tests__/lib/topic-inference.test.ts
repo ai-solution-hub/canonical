@@ -90,17 +90,17 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
             {
               id: 'item-1',
               title: 'ISO Certification Guide',
+              layer: 'sales_brief',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'sales_brief',
               },
             },
             {
               id: 'item-2',
               title: 'Certification Policy',
+              layer: 'company_reference',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'company_reference',
               },
             },
           ],
@@ -130,17 +130,17 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
             {
               id: 'item-1',
               title: 'Brief Version',
+              layer: 'sales_brief',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'sales_brief',
               },
             },
             {
               id: 'item-2',
               title: 'Detail Version',
+              layer: 'bid_detail',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'bid_detail',
               },
             },
           ],
@@ -168,33 +168,33 @@ describe('suggestTopic — Pass 1: Existing topic groups', () => {
             {
               id: 'item-1',
               title: 'Brief',
+              layer: 'sales_brief',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'sales_brief',
               },
             },
             {
               id: 'item-2',
               title: 'Detail',
+              layer: 'bid_detail',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'bid_detail',
               },
             },
             {
               id: 'item-3',
               title: 'Reference',
+              layer: 'company_reference',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'company_reference',
               },
             },
             {
               id: 'item-4',
               title: 'Research',
+              layer: 'research',
               metadata: {
                 topic_id: 'compliance-certification',
-                layer: 'research',
               },
             },
           ],

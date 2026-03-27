@@ -910,12 +910,10 @@ export const ContentMetadataSchema = z.object({
   page_count: z.number().int().nonnegative().optional(),
 
   // ── 3. User-facing state ──────────────────
-  /** Content layer assignment (e.g. 'sales_brief', 'bid_detail') */
-  layer: z.string().max(50).optional(),
+  // Note: `layer` and `starred` were promoted to proper columns on
+  // content_items in S117 and are no longer stored in metadata JSONB.
   /** Topic group identifier for layer switcher navigation */
   topic_id: z.string().optional(),
-  /** Whether the item is starred by the user */
-  starred: z.boolean().optional(),
 
   // ── 4. Import-specific context ────────────
   /** Section name within the source document (bid library) */

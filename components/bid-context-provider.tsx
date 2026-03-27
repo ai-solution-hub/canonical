@@ -106,7 +106,7 @@ export function BidContextProvider({
         name: data.name,
         buyer: metadata.buyer ?? null,
         deadline: metadata.deadline ?? null,
-        status: data.status ?? metadata.status ?? 'draft',
+        status: data.status ?? 'draft',
         totalQuestions: stats?.total_questions ?? 0,
         draftedCount: stats?.drafted_count ?? 0,
         reviewedCount: 0, // Not tracked separately yet

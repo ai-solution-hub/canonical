@@ -39,7 +39,7 @@ interface BidListCardProps {
 
 export function BidListCard({ bid, className, claudePrompt }: BidListCardProps) {
   const metadata = (parseBidMetadata(bid.domain_metadata) ?? bid.domain_metadata) as BidMetadata;
-  const bidStatus = (bid.status ?? metadata.status) as BidMetadata['status'];
+  const bidStatus = bid.status as BidMetadata['status'];
   const stats = bid.question_stats;
   const totalQuestions = stats?.total_questions ?? 0;
   const completedCount = (stats?.drafted_count ?? 0) + (stats?.complete_count ?? 0);

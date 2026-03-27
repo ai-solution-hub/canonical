@@ -691,7 +691,7 @@ function OverviewTab({
   onRefreshReadiness: () => void;
 }) {
   const metadata = bid.domain_metadata as BidMetadata;
-  const overviewStatus = (bid.status ?? metadata.status) as BidState;
+  const overviewStatus = bid.status as BidState;
   const postureBreakdown = stats ? ([
     { posture: 'strong_match' as ConfidencePosture, count: stats.strong_match_count },
     { posture: 'partial_match' as ConfidencePosture, count: stats.partial_match_count },
