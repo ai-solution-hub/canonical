@@ -19,6 +19,7 @@ import { QAAnswerDisplay } from '@/components/qa-answer-display';
 import { ContentTypeHeader } from '@/components/content-type-header';
 import { TableOfContents } from '@/components/table-of-contents';
 import { TranscriptReader } from '@/components/transcript-reader';
+import { VerificationBadge } from '@/components/verification-badge';
 import { getDisplayTitle } from '@/lib/format';
 import dynamic from 'next/dynamic';
 
@@ -159,12 +160,20 @@ export function ReaderView({
           <div className="mb-2">
             <h1 className="text-fluid-xl font-bold leading-tight break-words">{title}</h1>
             {/* Metadata strip — freshness, verification, and source at a glance */}
-            <div className="mt-2 flex flex-wrap items-center gap-3" role="status" aria-label="Content metadata">
+            <div className="mt-2 flex flex-wrap items-center gap-3" role="group" aria-label="Content metadata">
               {item.freshness && (
                 <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
                   {item.freshness}
                 </span>
               )}
+              <VerificationBadge
+                verified={!!item.verified_at}
+                verifiedAt={item.verified_at}
+                size="md"
+                showLabel={true}
+                showDetailedTrust={false}
+                liveRegion={false}
+              />
               {item.updated_at && (
                 <span className="text-xs text-muted-foreground">
                   Updated {new Date(item.updated_at).toLocaleDateString('en-GB')}

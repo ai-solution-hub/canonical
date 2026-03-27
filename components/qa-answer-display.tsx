@@ -2,6 +2,8 @@
 
 import { Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { VerificationBadge } from '@/components/verification-badge';
+import { cn } from '@/lib/utils';
 
 import type { ItemData } from '@/app/item/[id]/item-detail-client';
 
@@ -26,14 +28,31 @@ export function QAAnswerDisplay({
   setEditDirty,
   handleCopyAnswer,
 }: QAAnswerDisplayProps) {
+  const isVerified = !!item.verified_at;
+  const borderClass = isVerified
+    ? 'border-l-[3px] border-l-[var(--color-status-success)]'
+    : 'border-l-[3px] border-l-[var(--color-status-warning)]';
+
   return (
     <div className="mb-6 space-y-4">
       {(item.answer_standard || isEditing) && (
-        <div className="rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+        <div className={cn(
+          "rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]",
+          borderClass,
+        )}>
           <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Standard Answer
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Standard Answer
+              </span>
+              <VerificationBadge
+                verified={isVerified}
+                verifiedAt={item.verified_at}
+                size="sm"
+                showLabel={true}
+                liveRegion={false}
+              />
+            </div>
             {!isEditing && (
               <Button
                 variant="ghost"
@@ -62,11 +81,23 @@ export function QAAnswerDisplay({
         </div>
       )}
       {(item.answer_advanced || isEditing) && (
-        <div className="rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]">
+        <div className={cn(
+          "rounded-xl border border-[var(--color-highlight-border)] bg-[var(--color-highlight-bg)]",
+          borderClass,
+        )}>
           <div className="flex items-center justify-between border-b border-[var(--color-highlight-border)] px-4 py-2.5">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Advanced Answer
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Advanced Answer
+              </span>
+              <VerificationBadge
+                verified={isVerified}
+                verifiedAt={item.verified_at}
+                size="sm"
+                showLabel={true}
+                liveRegion={false}
+              />
+            </div>
             {!isEditing && (
               <Button
                 variant="ghost"
