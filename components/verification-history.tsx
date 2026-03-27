@@ -67,13 +67,15 @@ export function LatestVerificationNote({
   useEffect(() => {
     const supabase = createClient();
 
-    supabase
-      .from('verification_history')
-      .select('id, content_item_id, action_type, note, performed_by, performed_at')
-      .eq('content_item_id', contentItemId)
-      .order('performed_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+    Promise.resolve(
+      supabase
+        .from('verification_history')
+        .select('id, content_item_id, action_type, note, performed_by, performed_at')
+        .eq('content_item_id', contentItemId)
+        .order('performed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    )
       .then(({ data, error }) => {
         if (error) {
           console.error('Failed to load latest verification note:', error.message);
@@ -112,11 +114,13 @@ export function VerificationHistory({
   useEffect(() => {
     const supabase = createClient();
 
-    supabase
-      .from('verification_history')
-      .select('id, content_item_id, action_type, note, performed_by, performed_at')
-      .eq('content_item_id', contentItemId)
-      .order('performed_at', { ascending: false })
+    Promise.resolve(
+      supabase
+        .from('verification_history')
+        .select('id, content_item_id, action_type, note, performed_by, performed_at')
+        .eq('content_item_id', contentItemId)
+        .order('performed_at', { ascending: false }),
+    )
       .then(({ data, error }) => {
         if (error) {
           console.error('Failed to load verification history:', error.message);

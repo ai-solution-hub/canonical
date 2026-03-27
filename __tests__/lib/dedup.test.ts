@@ -114,7 +114,7 @@ describe('checkForDuplicates', () => {
     // Verify RPC was called with correct parameters
     expect(mockSupabase.rpc).toHaveBeenCalledWith('find_exact_duplicates', {
       p_content_hash: expect.any(String),
-      p_exclude_id: null,
+      p_exclude_id: undefined,
     });
   });
 

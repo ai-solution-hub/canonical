@@ -61,7 +61,7 @@ async function findExactDuplicates(
 
   const { data: results, error } = await supabase.rpc('find_exact_duplicates', {
     p_content_hash: hash,
-    p_exclude_id: excludeId ?? null,
+    p_exclude_id: excludeId ?? undefined,
   });
 
   if (error || !results) {
