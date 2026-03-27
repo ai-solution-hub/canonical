@@ -24,9 +24,15 @@ renderLoading();
 
 // Host context handler
 function handleHostContextChanged(ctx: McpUiHostContext): void {
-  applyDocumentTheme(document, ctx);
-  applyHostStyleVariables(document.documentElement, ctx);
-  applyHostFonts(document.documentElement, ctx);
+  if (ctx.theme) {
+    applyDocumentTheme(ctx.theme);
+  }
+  if (ctx.styles?.variables) {
+    applyHostStyleVariables(ctx.styles.variables);
+  }
+  if (ctx.styles?.css?.fonts) {
+    applyHostFonts(ctx.styles.css.fonts);
+  }
 }
 
 // App event handlers
