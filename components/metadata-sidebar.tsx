@@ -31,6 +31,7 @@ import { TemporalReferencesSection } from '@/components/temporal-references-sect
 import { GovernanceBadge } from '@/components/governance-badge';
 import { ContentOwnerSelector } from '@/components/content-owner-selector';
 import { ContentOwnerBadge } from '@/components/content-owner-badge';
+import { QualityScoreBreakdown } from '@/components/quality-score-breakdown';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -326,6 +327,19 @@ export function MetadataSidebar({
               </div>
             );
           })()}
+
+          {/* Quality score breakdown */}
+          <QualityScoreBreakdown
+            item={{
+              freshness: item.freshness as string | null,
+              classification_confidence: item.classification_confidence as number | null,
+              brief: item.brief as string | null,
+              detail: item.detail as string | null,
+              reference: item.reference as string | null,
+              ai_summary: item.ai_summary as string | null,
+              citation_count: 0,
+            }}
+          />
 
           {/* Quality flags */}
           {qualityFlags.length > 0 && (
