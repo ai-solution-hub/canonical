@@ -20,6 +20,14 @@ vi.stubGlobal('fetch', mockFetch);
 
 vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string | null) => (d ? '15/03/2026' : ''),
+  formatFileSize: (bytes: number | null) => {
+    if (bytes === null || bytes === undefined) return 'Unknown';
+    if (bytes === 0) return '0 B';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  },
 }));
 
 vi.mock('next/link', () => ({

@@ -185,3 +185,17 @@ export function formatDuration(totalSeconds: number): string {
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
+
+/**
+ * Formats a byte count into a human-readable file size string.
+ * Uses SI-style KB/MB/GB units with 1024-byte boundaries.
+ */
+export function formatFileSize(bytes: number | null): string {
+  if (bytes === null || bytes === undefined) return 'Unknown';
+  if (bytes === 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}

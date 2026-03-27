@@ -5,6 +5,7 @@ import { useDropzone, type FileRejection } from 'react-dropzone';
 import { Upload, FileText, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatFileSize } from '@/lib/format';
 
 /** Maximum file size: 50 MB */
 const MAX_FILE_SIZE = 52_428_800;
@@ -36,12 +37,6 @@ export interface UploadFile {
   error?: string;
   resultId?: string;
   suggestedLayer?: UploadFileSuggestedLayer;
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getFileIcon(filename: string): string {

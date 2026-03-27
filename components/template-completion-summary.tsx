@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatFileSize } from '@/lib/format';
 import type { TemplateCompletion } from '@/types/template';
 
 interface FieldError {
@@ -35,13 +36,6 @@ interface CompletionSummaryProps {
   errors?: FieldError[];
   /** Handler for downloading the original template */
   onDownloadOriginal?: () => void;
-}
-
-function formatFileSize(bytes: number | null): string {
-  if (!bytes) return 'Unknown';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function TemplateCompletionSummary({

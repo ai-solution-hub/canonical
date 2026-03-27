@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { formatFileSize } from '@/lib/format';
 import type { Template } from '@/types/template';
 
 interface TemplateUploadProps {
@@ -20,12 +21,6 @@ const ALLOWED_MIME_TYPE =
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
 type UploadPhase = 'idle' | 'uploading' | 'complete' | 'error';
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 export function TemplateUpload({ bidId, onUploadComplete }: TemplateUploadProps) {
   const [phase, setPhase] = useState<UploadPhase>('idle');

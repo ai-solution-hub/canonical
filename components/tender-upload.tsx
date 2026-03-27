@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
+import { formatFileSize } from '@/lib/format';
 import type { ExtractionResult } from '@/types/bid';
 
 interface TenderUploadProps {
@@ -21,12 +22,6 @@ const ACCEPTED_EXTENSIONS = ['.docx', '.pdf'];
 const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 
 type UploadPhase = 'idle' | 'uploading' | 'extracting' | 'complete' | 'error';
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function hasValidExtension(filename: string): boolean {
   const lower = filename.toLowerCase();
