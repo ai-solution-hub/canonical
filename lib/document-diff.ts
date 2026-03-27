@@ -1,11 +1,19 @@
 /**
- * Q&A pair diff engine for source document version comparison.
+ * Document diff engine for source document version comparison.
  *
- * Uses deterministic string similarity (Dice coefficient / bigram overlap)
- * to match questions across document versions — no embeddings or AI required.
+ * Two modes:
+ *  - **Q&A mode**: Deterministic string similarity (Dice coefficient / bigram
+ *    overlap) to match Q&A pairs across document versions. No embeddings or AI.
+ *  - **Full-text mode**: Line-level diff using Myers algorithm (`diffLines`
+ *    from the `diff` package) for prose documents without Q&A structure.
  *
- * Phase 4.2 of Content Lifecycle spec.
+ * The engine tries Q&A extraction first. If both sides yield zero pairs, it
+ * falls back to full-text diff automatically.
+ *
+ * Phase 4.2 of Content Lifecycle spec + WP6 Full-Text Diff extension.
  */
+
+import { diffLines } from 'diff';
 
 export interface QAPair {
   question: string;
@@ -14,16 +22,18 @@ export interface QAPair {
 
 export interface DiffEntry {
   diff_type: 'added' | 'removed' | 'modified' | 'unchanged';
+  diff_mode: 'qa' | 'full_text';
   old_question?: string;
-  old_content?: string; // old answer
+  old_content?: string; // old answer (Q&A) or old text block (full-text)
   new_question?: string;
-  new_content?: string; // new answer
+  new_content?: string; // new answer (Q&A) or new text block (full-text)
   similarity_score?: number;
 }
 
 export interface DiffResult {
   old_document_id: string;
   new_document_id: string;
+  diff_mode: 'qa' | 'full_text';
   entries: DiffEntry[];
   summary: {
     added: number;
@@ -34,6 +44,9 @@ export interface DiffResult {
     total_new: number;
   };
 }
+
+/** Hard cap on diff entries to prevent DB bloat and slow UI rendering. */
+export const MAX_DIFF_ENTRIES = 2000;
 
 // ---------------------------------------------------------------------------
 // Q&A extraction
@@ -191,13 +204,165 @@ export function stringSimilarity(a: string, b: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Diff algorithm
+// Full-text diff algorithm
 // ---------------------------------------------------------------------------
 
 /**
- * Compare Q&A pairs from two document versions and produce a diff.
+ * Compute a line-level diff between two prose texts.
  *
- * Algorithm:
+ * Uses `diffLines()` from the `diff` package (Myers algorithm). Adjacent
+ * removed+added changes are merged into `modified` entries for better UX.
+ * Consecutive unchanged entries are collapsed. The result is capped at
+ * {@link MAX_DIFF_ENTRIES} entries.
+ *
+ * Full-text diff entries have `diff_mode: 'full_text'`, null questions,
+ * and `affected_content_item_id` will be NULL (no impact analysis match).
+ */
+export function computeFullTextDiff(
+  oldDocumentId: string,
+  newDocumentId: string,
+  oldText: string,
+  newText: string,
+): DiffResult {
+  // Both empty — return zeroed result
+  if ((!oldText || oldText.trim().length === 0) && (!newText || newText.trim().length === 0)) {
+    return {
+      old_document_id: oldDocumentId,
+      new_document_id: newDocumentId,
+      diff_mode: 'full_text',
+      entries: [],
+      summary: { added: 0, removed: 0, modified: 0, unchanged: 0, total_old: 0, total_new: 0 },
+    };
+  }
+
+  const changes = diffLines(oldText, newText);
+
+  // Step 1: Build raw entries from diffLines output
+  const rawEntries: DiffEntry[] = [];
+
+  for (const change of changes) {
+    const text = change.value.trimEnd();
+    if (text.length === 0) continue; // skip empty-line-only changes
+
+    if (change.added) {
+      rawEntries.push({
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: text,
+      });
+    } else if (change.removed) {
+      rawEntries.push({
+        diff_type: 'removed',
+        diff_mode: 'full_text',
+        old_content: text,
+      });
+    } else {
+      rawEntries.push({
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: text,
+        new_content: text,
+      });
+    }
+  }
+
+  // Step 2: Merge adjacent removed+added into modified
+  const merged: DiffEntry[] = [];
+  for (let i = 0; i < rawEntries.length; i++) {
+    const curr = rawEntries[i];
+    const next = rawEntries[i + 1];
+
+    if (
+      curr.diff_type === 'removed' &&
+      next?.diff_type === 'added'
+    ) {
+      merged.push({
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: curr.old_content,
+        new_content: next.new_content,
+      });
+      i++; // skip the 'added' entry we just merged
+    } else {
+      merged.push(curr);
+    }
+  }
+
+  // Step 3: Collapse consecutive unchanged entries
+  const collapsed: DiffEntry[] = [];
+  for (const entry of merged) {
+    const prev = collapsed[collapsed.length - 1];
+    if (
+      entry.diff_type === 'unchanged' &&
+      prev?.diff_type === 'unchanged'
+    ) {
+      // Combine text into the previous unchanged entry
+      prev.old_content = (prev.old_content ?? '') + '\n' + (entry.old_content ?? '');
+      prev.new_content = (prev.new_content ?? '') + '\n' + (entry.new_content ?? '');
+    } else {
+      collapsed.push(entry);
+    }
+  }
+
+  // Step 4: Enforce MAX_DIFF_ENTRIES cap
+  let finalEntries: DiffEntry[];
+  if (collapsed.length > MAX_DIFF_ENTRIES) {
+    const keepStart = 1000;
+    const keepEnd = 500;
+    const droppedCount = collapsed.length - keepStart - keepEnd;
+
+    console.warn(
+      `computeFullTextDiff: ${collapsed.length} entries exceed cap of ${MAX_DIFF_ENTRIES}. ` +
+      `Keeping first ${keepStart} and last ${keepEnd}, collapsing ${droppedCount} middle entries.`,
+    );
+
+    const startSlice = collapsed.slice(0, keepStart);
+    const endSlice = collapsed.slice(collapsed.length - keepEnd);
+    const syntheticEntry: DiffEntry = {
+      diff_type: 'unchanged',
+      diff_mode: 'full_text',
+      old_content: `[... ${droppedCount} unchanged blocks collapsed ...]`,
+      new_content: `[... ${droppedCount} unchanged blocks collapsed ...]`,
+    };
+
+    finalEntries = [...startSlice, syntheticEntry, ...endSlice];
+  } else {
+    finalEntries = collapsed;
+  }
+
+  // Step 5: Compute summary
+  const oldLineCount = oldText.trim().length > 0 ? oldText.split('\n').length : 0;
+  const newLineCount = newText.trim().length > 0 ? newText.split('\n').length : 0;
+
+  const summary = {
+    added: finalEntries.filter((e) => e.diff_type === 'added').length,
+    removed: finalEntries.filter((e) => e.diff_type === 'removed').length,
+    modified: finalEntries.filter((e) => e.diff_type === 'modified').length,
+    unchanged: finalEntries.filter((e) => e.diff_type === 'unchanged').length,
+    total_old: oldLineCount,
+    total_new: newLineCount,
+  };
+
+  return {
+    old_document_id: oldDocumentId,
+    new_document_id: newDocumentId,
+    diff_mode: 'full_text',
+    entries: finalEntries,
+    summary,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Q&A diff algorithm
+// ---------------------------------------------------------------------------
+
+/**
+ * Compare two document versions and produce a diff.
+ *
+ * Tries Q&A extraction first. If both sides yield zero Q&A pairs, falls
+ * back to line-level full-text diff using `diffLines()`.
+ *
+ * Q&A algorithm:
  *  1. Extract Q&A pairs from both documents.
  *  2. Exact match: identical question text -> 'unchanged' if answer identical,
  *     'modified' if answer different (similarity_score = 1.0).
@@ -206,7 +371,7 @@ export function stringSimilarity(a: string, b: string): number {
  *  4. Remaining old pairs -> 'removed'.
  *  5. Remaining new pairs -> 'added'.
  *
- * Time complexity: O(n*m) where n = old pairs, m = new pairs.
+ * Time complexity: O(n*m) where n = old pairs, m = new pairs (Q&A mode).
  */
 export function computeDocumentDiff(
   oldDocumentId: string,
@@ -221,6 +386,12 @@ export function computeDocumentDiff(
 
   const oldPairs = extractQAPairs(oldText);
   const newPairs = extractQAPairs(newText);
+
+  // Fallback: if no Q&A structure detected in either document,
+  // use line-level full-text diff
+  if (oldPairs.length === 0 && newPairs.length === 0) {
+    return computeFullTextDiff(oldDocumentId, newDocumentId, oldText, newText);
+  }
 
   const entries: DiffEntry[] = [];
 
@@ -247,6 +418,7 @@ export function computeDocumentDiff(
         if (oldPair.answer.trim() === newPair.answer.trim()) {
           entries.push({
             diff_type: 'unchanged',
+            diff_mode: 'qa',
             old_question: oldPair.question,
             old_content: oldPair.answer,
             new_question: newPair.question,
@@ -256,6 +428,7 @@ export function computeDocumentDiff(
         } else {
           entries.push({
             diff_type: 'modified',
+            diff_mode: 'qa',
             old_question: oldPair.question,
             old_content: oldPair.answer,
             new_question: newPair.question,
@@ -297,6 +470,7 @@ export function computeDocumentDiff(
       const newPair = newPairs[bestNewIndex];
       entries.push({
         diff_type: 'modified',
+        diff_mode: 'qa',
         old_question: oldPair.question,
         old_content: oldPair.answer,
         new_question: newPair.question,
@@ -314,6 +488,7 @@ export function computeDocumentDiff(
     const oldPair = oldPairs[oi];
     entries.push({
       diff_type: 'removed',
+      diff_mode: 'qa',
       old_question: oldPair.question,
       old_content: oldPair.answer,
     });
@@ -324,6 +499,7 @@ export function computeDocumentDiff(
     const newPair = newPairs[ni];
     entries.push({
       diff_type: 'added',
+      diff_mode: 'qa',
       new_question: newPair.question,
       new_content: newPair.answer,
     });
@@ -342,6 +518,7 @@ export function computeDocumentDiff(
   return {
     old_document_id: oldDocumentId,
     new_document_id: newDocumentId,
+    diff_mode: 'qa',
     entries,
     summary,
   };

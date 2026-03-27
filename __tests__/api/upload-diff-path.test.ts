@@ -61,7 +61,7 @@ A: We target net zero by 2030 through renewable energy and supply chain optimisa
     expect(result.summary.added).toBe(1); // carbon reduction strategy is new
   });
 
-  it('returns empty entries when neither document has Q&A pairs', () => {
+  it('produces full-text diff entries when neither document has Q&A pairs', () => {
     const result = computeDocumentDiff(
       'old-doc',
       'new-doc',
@@ -69,9 +69,10 @@ A: We target net zero by 2030 through renewable energy and supply chain optimisa
       'Another plain text document.',
     );
 
-    expect(result.entries).toHaveLength(0);
-    expect(result.summary.total_old).toBe(0);
-    expect(result.summary.total_new).toBe(0);
+    // Full-text fallback now produces entries for prose documents
+    expect(result.diff_mode).toBe('full_text');
+    expect(result.entries.length).toBeGreaterThan(0);
+    expect(result.entries.every((e) => e.diff_mode === 'full_text')).toBe(true);
   });
 
   it('identifies identical Q&A pairs as unchanged', () => {
@@ -235,7 +236,17 @@ describe('Upload diff path — graceful degradation', () => {
     ).not.toThrow();
   });
 
-  it('diff entries can be empty, preventing diff storage and notification', () => {
+  it('diff entries are empty only when both documents are empty', () => {
+    const result = computeDocumentDiff('old', 'new', '', '');
+
+    // Route only stores diffs when entries.length > 0
+    expect(result.entries.length).toBe(0);
+
+    // This means the route will skip the insert + impact + notification path
+    // (see upload route line 724: `if (diffResult.entries.length > 0)`)
+  });
+
+  it('prose documents now produce full-text diff entries', () => {
     const result = computeDocumentDiff(
       'old',
       'new',
@@ -243,11 +254,9 @@ describe('Upload diff path — graceful degradation', () => {
       'Also no Q&A pairs.',
     );
 
-    // Route only stores diffs when entries.length > 0
-    expect(result.entries.length).toBe(0);
-
-    // This means the route will skip the insert + impact + notification path
-    // (see upload route line 724: `if (diffResult.entries.length > 0)`)
+    // Full-text fallback produces entries for prose documents
+    expect(result.entries.length).toBeGreaterThan(0);
+    expect(result.diff_mode).toBe('full_text');
   });
 
   it('extractQAPairs returns empty array for empty input', () => {
