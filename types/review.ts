@@ -72,7 +72,7 @@ export interface ReviewQueueResponse {
   total: number;
   verified_count: number;
   flagged_count: number;
-  cursor?: string;
+  has_more: boolean;
 }
 
 export interface ReviewStatsResponse {

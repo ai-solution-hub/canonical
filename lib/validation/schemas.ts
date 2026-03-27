@@ -94,7 +94,7 @@ export const VALID_REVIEW_QUEUE_SORTS = [
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
   limit: z.number().int().min(1).max(100).default(20),
-  cursor: z.string().optional(),
+  offset: z.number().int().min(0).default(0),
   sort: z.enum(VALID_REVIEW_QUEUE_SORTS).default('created_at').optional(),
 });
 
