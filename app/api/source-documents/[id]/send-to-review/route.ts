@@ -6,6 +6,8 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { createNotification } from '@/lib/notifications';
 
+export const maxDuration = 30;
+
 /**
  * POST /api/source-documents/[id]/send-to-review — batch-send affected
  * content items to the governance review queue.
