@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { escapePostgrestValue } from '@/lib/supabase/escape';
 
 export const maxDuration = 30;
 
@@ -105,10 +106,12 @@ export async function GET(
     }
 
     // ── Fetch relationships ──────────────────────────────────────────
+    // Chain: escape PostgREST metacharacters first, then escape double-quotes for .eq."..." syntax
+    const escaped = escapePostgrestValue(decodedName).replace(/"/g, '\\"');
     const { data: relRows, error: relError } = await supabase
       .from('entity_relationships')
       .select('source_entity, relationship_type, target_entity, confidence')
-      .or(`source_entity.eq."${decodedName.replace(/"/g, '\\"')}",target_entity.eq."${decodedName.replace(/"/g, '\\"')}"`);
+      .or(`source_entity.eq."${escaped}",target_entity.eq."${escaped}"`);
 
     const relationships = (!relError && relRows)
       ? relRows.map((r) => ({
