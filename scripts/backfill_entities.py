@@ -50,22 +50,36 @@ def fetch_items_without_entities(limit: int = 1000) -> list:
     url_base = get_supabase_url()
     key = get_supabase_secret_key()
 
-    # Fetch all content item IDs that DO have entity mentions
-    mentions_url = (
-        f"{url_base}/rest/v1/entity_mentions"
-        "?select=content_item_id"
-    )
-    req = urllib.request.Request(mentions_url)
-    req.add_header("apikey", key)
-    req.add_header("Authorization", f"Bearer {key}")
+    # Fetch all content item IDs that DO have entity mentions (paginated)
+    items_with_entities: set[str] = set()
+    mention_offset = 0
+    mention_page_size = 5000
 
-    items_with_entities = set()
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            items_with_entities = {row["content_item_id"] for row in data if row.get("content_item_id")}
-    except Exception as e:
-        logger.warning("Failed to fetch entity_mentions IDs: %s", e)
+    while True:
+        mentions_url = (
+            f"{url_base}/rest/v1/entity_mentions"
+            "?select=content_item_id"
+        )
+        req = urllib.request.Request(mentions_url)
+        req.add_header("apikey", key)
+        req.add_header("Authorization", f"Bearer {key}")
+        req.add_header("Range", f"{mention_offset}-{mention_offset + mention_page_size - 1}")
+
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                if not data:
+                    break
+                for row in data:
+                    cid = row.get("content_item_id")
+                    if cid:
+                        items_with_entities.add(cid)
+                if len(data) < mention_page_size:
+                    break
+                mention_offset += mention_page_size
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            logger.error("Failed to fetch entity_mentions IDs (offset=%d): %s", mention_offset, e)
+            raise SystemExit(1)
 
     # Fetch all active content items
     all_items = []

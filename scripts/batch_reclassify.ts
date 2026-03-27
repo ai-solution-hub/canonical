@@ -503,14 +503,31 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Filter to items without entity mentions
-    const { data: mentionedItemIds } = await supabase
-      .from('entity_mentions')
-      .select('content_item_id');
+    // Paginate to fetch ALL entity_mentions content_item_ids
+    // (Supabase JS defaults to 1000 rows; entity_mentions can far exceed this)
+    const mentionedSet = new Set<string>();
+    let mentionOffset = 0;
+    const mentionPageSize = 5000;
+    while (true) {
+      const { data: mentionPage, error: mentionError } = await supabase
+        .from('entity_mentions')
+        .select('content_item_id')
+        .range(mentionOffset, mentionOffset + mentionPageSize - 1);
 
-    const mentionedSet = new Set(
-      (mentionedItemIds ?? []).map((r) => r.content_item_id),
-    );
+      if (mentionError) {
+        console.error('Failed to fetch entity_mentions:', mentionError.message);
+        process.exit(1);
+      }
+
+      if (!mentionPage || mentionPage.length === 0) break;
+
+      for (const r of mentionPage) {
+        mentionedSet.add(r.content_item_id);
+      }
+
+      if (mentionPage.length < mentionPageSize) break;
+      mentionOffset += mentionPageSize;
+    }
 
     candidates = (items as ContentRow[])
       .filter(
