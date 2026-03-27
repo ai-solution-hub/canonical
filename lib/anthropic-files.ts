@@ -55,16 +55,3 @@ export async function deleteAnthropicFile(fileId: string): Promise<void> {
   });
 }
 
-/**
- * Build a file content block for use in Claude messages.
- * The file must have been previously uploaded via uploadFileToAnthropic().
- */
-export function fileContentBlock(fileId: string) {
-  return {
-    type: 'document' as const,
-    source: {
-      type: 'file' as const,
-      file_id: fileId,
-    },
-  };
-}

@@ -17,9 +17,3 @@ export async function loadSkill(name: string): Promise<string> {
   return content;
 }
 
-/**
- * Clear the skill cache. Useful for testing or when skill files are updated.
- */
-export function clearSkillCache(): void {
-  skillCache.clear();
-}

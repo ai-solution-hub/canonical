@@ -12,9 +12,6 @@ import { formatDate } from '@/lib/format';
 import { digestTypeLabel } from '@/lib/digest-helpers';
 import type { Digest } from '@/types/digest';
 
-// Re-export so existing consumers that import from this module still work
-export { digestTypeLabel } from '@/lib/digest-helpers';
-
 /** Format a date string for filenames (e.g. "25-jan-2026") */
 function formatDateForFilename(dateString: string): string {
   try {
@@ -248,7 +245,7 @@ function inlineRuns(text: string): TextRun[] {
  * Uses `digestToMarkdown` internally then converts the Markdown blocks
  * into Word paragraphs via the `docx` package.
  */
-export async function generateDigestDocx(
+async function generateDigestDocx(
   digest: Digest,
   options?: DigestExportOptions
 ): Promise<Blob> {

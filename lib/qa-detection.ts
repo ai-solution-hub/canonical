@@ -855,5 +855,3 @@ export function splitIntoQAPairs(pairs: DetectedQAPair[]): QACreateInput[] {
   }));
 }
 
-// Re-export stringSimilarity for consumers that need dedup checks
-export { stringSimilarity } from '@/lib/document-diff';

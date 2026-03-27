@@ -15,7 +15,7 @@ export interface QualityCheckQuestion {
 }
 
 /** JSON schema for the AI quality check response (used with Structured Outputs) */
-export const qualityCheckSchema = {
+const qualityCheckSchema = {
   type: 'object',
   properties: {
     unsupported_claims: {
@@ -95,7 +95,7 @@ export function runDeterministicChecks(
  * Run the AI-assisted quality check using Haiku with Structured Outputs.
  * Returns unsupported claims, suggestions, and an overall score.
  */
-export async function runAIQualityCheck(
+async function runAIQualityCheck(
   question: QualityCheckQuestion,
   responseHtml: string,
   citations: CitationEntry[],

@@ -79,7 +79,7 @@ export function unauthorisedResponse() {
 }
 
 /** Standard 403 response for forbidden requests (authenticated but wrong role) */
-export function forbiddenResponse() {
+function forbiddenResponse() {
   return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 }
 

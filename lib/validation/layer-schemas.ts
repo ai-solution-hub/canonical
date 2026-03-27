@@ -27,7 +27,7 @@ export function getLayerSchema(layers?: LayerDefinition[]) {
  * Schema for metadata updates that include layer content.
  * Each layer key maps to an optional string field.
  */
-export function getMetadataUpdateBodySchema(layers?: LayerDefinition[]) {
+function getMetadataUpdateBodySchema(layers?: LayerDefinition[]) {
   const vocabulary = layers ?? FALLBACK_LAYERS;
   return z.object(
     Object.fromEntries(
