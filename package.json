@@ -95,6 +95,7 @@
     "eslint-config-next": "^16",
     "glob": "^13.0.6",
     "jsdom": "^28.1.0",
+    "knip": "^6.0.6",
     "prettier": "^3.8.1",
     "tailwindcss": "^4",
     "typescript": "^5",
