@@ -10,11 +10,11 @@
  * items with editorial notes in content.
  *
  * Usage:
- *   bun run scripts/batch_reclassify.ts --limit 20
- *   bun run scripts/batch_reclassify.ts --limit 50 --batch-size 3
- *   bun run scripts/batch_reclassify.ts --dry-run
- *   bun run scripts/batch_reclassify.ts --force
- *   bun run scripts/batch_reclassify.ts --entities-only --limit 10
+ *   bun run scripts/batch-reclassify.ts --limit 20
+ *   bun run scripts/batch-reclassify.ts --limit 50 --batch-size 3
+ *   bun run scripts/batch-reclassify.ts --dry-run
+ *   bun run scripts/batch-reclassify.ts --force
+ *   bun run scripts/batch-reclassify.ts --entities-only --limit 10
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';

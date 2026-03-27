@@ -29,7 +29,7 @@ development partner. All code is written through human-AI collaboration.
 | `python3 scripts/ingest.py --file urls.txt` | Batch ingest from file |
 | `python3 scripts/ingest_markdown.py <dir>` | Ingest .md files from directory (--dry-run, --limit, --skip-existing, --tag, --author) |
 | `bun run scripts/kb-search.ts "query"` | Semantic search CLI (--limit, --domain, --full, --json) |
-| `bun run scripts/batch_generate_summaries.ts` | Batch AI summary generation |
+| `bun run scripts/batch-generate-summaries.ts` | Batch AI summary generation |
 | `bun run scripts/backfill-reader-html.ts` | Backfill reader HTML for articles/blogs (--limit, --dry-run) |
 | `python3 scripts/import_bid_library.py <dir>` | Import Q&A pairs from client .docx files (--dry-run, --batch-tag) |
 | `python3 scripts/extract_docx_tables.py <file>` | Extract tables from .docx files |

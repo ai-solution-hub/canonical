@@ -13,7 +13,7 @@ import { AuthAwareChrome } from '@/components/shell/auth-aware-chrome';
 import { SessionGuard } from '@/components/shell/session-guard';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
-import './styles/a11y.css';
+import './a11y.css';
 
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
