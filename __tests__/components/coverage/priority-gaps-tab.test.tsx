@@ -218,7 +218,7 @@ describe('PriorityGapsTab', () => {
     });
     expect(
       screen.getByText(
-        /Your knowledge base fully covers all taxonomy areas/,
+        /Your knowledge base covers all taxonomy subtopics/,
       ),
     ).toBeInTheDocument();
   });
@@ -226,11 +226,10 @@ describe('PriorityGapsTab', () => {
   it('renders summary cards on success', async () => {
     render(<PriorityGapsTab />);
     await waitFor(() => {
-      expect(screen.getByText('Total gaps')).toBeInTheDocument();
+      expect(screen.getByText('Taxonomy gaps')).toBeInTheDocument();
     });
-    expect(screen.getByText('Taxonomy gaps')).toBeInTheDocument();
     expect(screen.getByText('Template gaps')).toBeInTheDocument();
-    expect(screen.getByText('Critical + High')).toBeInTheDocument();
+    expect(screen.getByText('Guide gaps')).toBeInTheDocument();
   });
 
   it('renders gap cards sorted by priority', async () => {

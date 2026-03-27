@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Grid3x3, FileText, BookOpen } from 'lucide-react';
+import { AlertTriangle, Grid3x3, FileText, BookOpen, ShieldAlert } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { UnifiedGapSummary } from '@/types/unified-gap';
@@ -51,8 +51,6 @@ interface PriorityGapsSummaryProps {
 }
 
 export function PriorityGapsSummary({ summary }: PriorityGapsSummaryProps) {
-  const criticalAndHigh = summary.critical + summary.high;
-
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <StatCard
@@ -75,8 +73,8 @@ export function PriorityGapsSummary({ summary }: PriorityGapsSummaryProps) {
       />
       <StatCard
         icon={BookOpen}
-        label="Critical + High"
-        value={criticalAndHigh}
+        label="Guide gaps"
+        value={summary.guide_gaps}
         colourClass="bg-freshness-expired"
       />
     </div>

@@ -52,8 +52,8 @@ function PriorityGapsEmpty() {
         No content gaps detected
       </h3>
       <p className="mt-1 text-sm text-muted-foreground">
-        Your knowledge base fully covers all taxonomy areas, templates, and
-        guides.
+        Your knowledge base covers all taxonomy subtopics, template
+        requirements, and guide sections.
       </p>
     </div>
   );
@@ -167,7 +167,7 @@ export function PriorityGapsTab() {
           </div>
         ) : (
           <>
-            <ul className="space-y-3" aria-label="Priority gaps">
+            <ul role="list" className="space-y-3" aria-label="Priority gaps">
               {visibleGaps.map((gap) => (
                 <PriorityGapCard key={gap.gap_key} gap={gap} />
               ))}
