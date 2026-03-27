@@ -29,6 +29,17 @@ const poorItem: QualityScoreInput = {
   citation_count: 0,
 };
 
+/** Good score: fresh, moderate confidence, two layers, summary, no citations */
+const goodItem: QualityScoreInput = {
+  freshness: 'fresh',
+  classification_confidence: 0.75,
+  brief: 'Brief content here',
+  detail: 'Detailed content here',
+  reference: null,
+  ai_summary: 'This is an AI summary.',
+  citation_count: 0,
+};
+
 /** Fair score: ageing, partial confidence, one layer, summary, no citations */
 const fairItem: QualityScoreInput = {
   freshness: 'ageing',
@@ -71,6 +82,11 @@ describe('QualityScoreBreakdown', () => {
   it('renders "Poor" label for a poor-scoring item', () => {
     render(<QualityScoreBreakdown item={poorItem} />);
     expect(screen.getByText('Poor')).toBeInTheDocument();
+  });
+
+  it('renders "Good" label for a good-scoring item', () => {
+    render(<QualityScoreBreakdown item={goodItem} />);
+    expect(screen.getByText('Good')).toBeInTheDocument();
   });
 
   it('renders "Fair" label for a fair-scoring item', () => {

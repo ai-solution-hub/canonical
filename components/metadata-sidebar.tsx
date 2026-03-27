@@ -337,7 +337,7 @@ export function MetadataSidebar({
               detail: item.detail as string | null,
               reference: item.reference as string | null,
               ai_summary: item.ai_summary as string | null,
-              citation_count: 0,
+              citation_count: item.citation_count ?? 0,
             }}
           />
 

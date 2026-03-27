@@ -73,6 +73,8 @@ export interface ItemData {
   layer?: string | null;
   /** Starred flag (promoted from metadata JSONB) */
   starred?: boolean;
+  /** Citation count for quality score calculation */
+  citation_count?: number | null;
 }
 
 export interface ItemDetailClientProps {

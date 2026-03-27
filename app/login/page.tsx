@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -409,15 +410,14 @@ export default function LoginPage() {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+            <Checkbox
               id="stay-signed-in"
               checked={staySignedIn}
-              onChange={(e) => {
-                setStaySignedIn(e.target.checked);
-                localStorage.setItem('kh-stay-signed-in', String(e.target.checked));
+              onCheckedChange={(checked) => {
+                const value = checked === true;
+                setStaySignedIn(value);
+                localStorage.setItem('kh-stay-signed-in', String(value));
               }}
-              className="size-4 rounded border-border accent-primary"
             />
             <Label htmlFor="stay-signed-in" className="text-sm text-muted-foreground cursor-pointer">
               Stay signed in
