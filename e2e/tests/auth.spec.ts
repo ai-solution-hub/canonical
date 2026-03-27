@@ -169,7 +169,7 @@ authTest.describe('Authentication — authenticated session', () => {
     await expect(nav.getByRole('link', { name: 'Browse' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Q&A Library' })).toBeVisible();
     await expect(nav.getByRole('link', { name: 'Coverage' })).toBeVisible();
-    await expect(nav.getByRole('link', { name: 'Bids' })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'Workspaces' })).toBeVisible();
 
     // On mobile, close the hamburger menu before checking the Settings button
     // which lives in the header behind the overlay
