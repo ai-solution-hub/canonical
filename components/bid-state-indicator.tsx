@@ -82,8 +82,8 @@ const COLOUR_CLASSES: Record<BidState, { bg: string; text: string; border: strin
  * Badge showing the current bid state with colour + text (WCAG 2.1 AA).
  */
 export function BidStateBadge({ state, className }: BidStateIndicatorProps) {
-  const colours = COLOUR_CLASSES[state];
-  const label = BID_STATE_LABELS[state];
+  const colours = COLOUR_CLASSES[state] ?? COLOUR_CLASSES.draft;
+  const label = BID_STATE_LABELS[state] ?? 'Unknown';
 
   return (
     <span

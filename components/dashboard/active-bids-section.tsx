@@ -12,6 +12,7 @@ function toBid(summary: ActiveBidSummary): Bid {
     id: summary.id,
     name: summary.name,
     description: null,
+    status: summary.status as BidMetadata['status'],
     domain_metadata: {
       buyer: summary.buyer ?? '',
       status: summary.status as BidMetadata['status'],
