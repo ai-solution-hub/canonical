@@ -10,6 +10,7 @@ import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
 import { AuthAwareChrome } from '@/components/auth-aware-chrome';
+import { SessionGuard } from '@/components/session-guard';
 import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 import './styles/a11y.css';
@@ -53,6 +54,7 @@ export default async function RootLayout({
                   </AuthAwareChrome>
                   <CommandPalette />
                   <KeyboardShortcutsProvider />
+                  <SessionGuard />
                   <Toaster
                     position="bottom-right"
                     toastOptions={{

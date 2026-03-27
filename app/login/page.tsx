@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +11,7 @@ import {
 } from '@/components/ui/card';
 import { ArrowLeft, ChevronRight, KeyRound, Mail, Loader2 } from 'lucide-react';
 
-type LoginStep = 'email' | 'method' | 'password' | 'magic-link-sent';
+type LoginStep = 'email' | 'method' | 'password' | 'magic-link-sent' | 'forgot-sent';
 
 export default function LoginPage() {
   // Read redirect param for post-login navigation (e.g. OAuth consent flow)
@@ -28,6 +27,12 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [resendStatus, setResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending'>('idle');
+  const [forgotResendStatus, setForgotResendStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [staySignedIn, setStaySignedIn] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('kh-stay-signed-in');
+    return stored === null ? true : stored === 'true';
+  });
 
   // --- Refs (for focus management) ---
   const emailInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +40,7 @@ export default function LoginPage() {
   const methodFirstRef = useRef<HTMLButtonElement>(null);
   const methodSecondRef = useRef<HTMLButtonElement>(null);
   const confirmHeadingRef = useRef<HTMLHeadingElement>(null);
+  const forgotHeadingRef = useRef<HTMLHeadingElement>(null);
 
   // --- Step navigation ---
   function goToStep(newStep: LoginStep) {
@@ -48,6 +54,8 @@ export default function LoginPage() {
       goToStep('email');
     } else if (step === 'password' || step === 'magic-link-sent') {
       goToStep('method');
+    } else if (step === 'forgot-sent') {
+      goToStep('password');
     }
   }
 
@@ -62,6 +70,8 @@ export default function LoginPage() {
         passwordInputRef.current?.focus();
       } else if (step === 'magic-link-sent') {
         confirmHeadingRef.current?.focus();
+      } else if (step === 'forgot-sent') {
+        forgotHeadingRef.current?.focus();
       }
     });
   }, [step]);
@@ -193,7 +203,30 @@ export default function LoginPage() {
     }
 
     setForgotStatus('idle');
-    toast.success('Password reset email sent. Check your inbox.');
+    setForgotResendStatus('idle');
+    goToStep('forgot-sent');
+  }
+
+  async function handleResendForgotPassword() {
+    setForgotResendStatus('sending');
+
+    const supabase = createClient();
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email,
+      { redirectTo: `${window.location.origin}/auth/callback` }
+    );
+
+    if (resetError) {
+      setError(
+        "We couldn't resend the reset link. Please try again."
+      );
+      setForgotResendStatus('idle');
+      return;
+    }
+
+    setForgotResendStatus('sent');
+    setTimeout(() => setForgotResendStatus('idle'), 3000);
   }
 
   // --- Back button ---
@@ -374,14 +407,32 @@ export default function LoginPage() {
           />
         </div>
 
-        <button
-          type="button"
-          onClick={handleForgotPassword}
-          disabled={forgotStatus === 'sending'}
-          className="self-start rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-        >
-          {forgotStatus === 'sending' ? 'Sending reset...' : 'Forgot password?'}
-        </button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="stay-signed-in"
+              checked={staySignedIn}
+              onChange={(e) => {
+                setStaySignedIn(e.target.checked);
+                localStorage.setItem('kh-stay-signed-in', String(e.target.checked));
+              }}
+              className="size-4 rounded border-border accent-primary"
+            />
+            <Label htmlFor="stay-signed-in" className="text-sm text-muted-foreground cursor-pointer">
+              Stay signed in
+            </Label>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={forgotStatus === 'sending'}
+            className="rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+          >
+            {forgotStatus === 'sending' ? 'Sending reset...' : 'Forgot password?'}
+          </button>
+        </div>
 
         {error && (
           <p id="password-error" className="text-sm text-destructive" role="alert">
@@ -456,6 +507,66 @@ export default function LoginPage() {
     );
   }
 
+  function renderForgotSentStep() {
+    return (
+      <div className="flex flex-col gap-4">
+        {renderBackButton()}
+
+        <div className="flex flex-col items-center gap-3 text-center">
+          <KeyRound className="size-10 text-primary" />
+          <h2
+            ref={forgotHeadingRef}
+            tabIndex={-1}
+            className="text-xl font-semibold text-foreground outline-none"
+          >
+            Check your email
+          </h2>
+          <p className="text-sm text-foreground">
+            We sent a password reset link to{' '}
+            <span className="font-medium">{email}</span>
+          </p>
+          <p className="text-sm text-muted-foreground">
+            The link expires in 60 minutes.
+          </p>
+        </div>
+
+        <div className="flex flex-col items-center gap-2 pt-2">
+          <p className="text-sm text-muted-foreground">
+            {"Didn't receive it?"}
+          </p>
+          <div className="flex items-center gap-3" aria-live="polite">
+            <button
+              type="button"
+              onClick={handleResendForgotPassword}
+              disabled={forgotResendStatus === 'sending'}
+              className="rounded-sm text-sm text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+            >
+              {forgotResendStatus === 'sending'
+                ? 'Resending...'
+                : forgotResendStatus === 'sent'
+                  ? 'Sent!'
+                  : 'Resend'}
+            </button>
+            <span className="text-sm text-muted-foreground" aria-hidden="true">|</span>
+            <button
+              type="button"
+              onClick={() => goToStep('password')}
+              className="rounded-sm text-sm text-primary transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Try signing in instead
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-background via-background to-accent/40 px-4" aria-label="Sign in to Knowledge Hub">
       <div>
@@ -480,6 +591,8 @@ export default function LoginPage() {
               {step === 'password' && 'Step 3 of 3: Enter your password'}
               {step === 'magic-link-sent' &&
                 'Step 3 of 3: Sign-in link sent. Check your email.'}
+              {step === 'forgot-sent' &&
+                'Password reset link sent. Check your email.'}
             </div>
 
             {/* Step content with enter animation */}
@@ -491,6 +604,7 @@ export default function LoginPage() {
               {step === 'method' && renderMethodStep()}
               {step === 'password' && renderPasswordStep()}
               {step === 'magic-link-sent' && renderMagicLinkSentStep()}
+              {step === 'forgot-sent' && renderForgotSentStep()}
             </div>
           </CardContent>
         </Card>
