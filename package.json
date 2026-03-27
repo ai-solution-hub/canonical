@@ -15,7 +15,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "bundle:mcp-apps": "bun run scripts/bundle-mcp-apps.ts",
-    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
+    "build:mcp-apps": "cd mcp-apps/coverage-matrix && bun install && INPUT=app.html bunx vite build && cd ../bid-dashboard && bun install && INPUT=app.html bunx vite build && cd ../reorient-me && bun install && INPUT=app.html bunx vite build && cd ../.. && bun scripts/bundle-mcp-apps.ts",
     "build:plugin": "bun run scripts/bundle-plugin.ts",
     "sync:plugin-taxonomy": "bun run scripts/sync-plugin-taxonomy.ts",
     "test:mcp-eval": "bun run scripts/mcp-eval/protocol-compliance.ts",

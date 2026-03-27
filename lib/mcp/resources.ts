@@ -851,7 +851,7 @@ export function registerPrompts(server: McpServer): void {
         role: 'user',
         content: {
           type: 'text',
-          text: KB_SYSTEM_CONTEXT + 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_dashboard_summary, get_quality_summary, and get_freshness_report tools.',
+          text: KB_SYSTEM_CONTEXT + 'Analyse the coverage of my knowledge base. Identify domains or topics with thin coverage and suggest specific content items to create to fill the gaps. Use the get_coverage_gaps tool to find prioritised gaps across taxonomy, templates, and guides, then use suggest_content_creation for actionable recommendations. Supplement with get_quality_summary and get_freshness_report for broader context.',
         },
       }],
     }),

@@ -237,7 +237,7 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         domain: z
           .string()
           .optional()
-          .describe('Filter content items by domain (e.g. "Information Governance")'),
+          .describe('Filter content items by domain (e.g. "compliance")'),
         include_entities: z
           .boolean()
           .optional()
