@@ -19,10 +19,10 @@ export default function DigestError({
     <div className="mx-auto flex max-w-7xl flex-col items-center justify-center px-4 py-24 text-center">
       <Newspaper className="mb-4 size-10 text-muted-foreground/50" aria-hidden="true" />
       <h2 className="mb-2 text-lg font-semibold text-foreground">
-        Couldn&apos;t load your digest
+        Couldn&apos;t load your change report
       </h2>
       <p className="mb-6 text-sm text-muted-foreground">
-        The digest may still be generating. Please try again shortly.
+        The report may still be generating. Please try again shortly.
       </p>
       <Button onClick={reset} variant="outline">
         Try again
