@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, Grid3x3, FileText, BookOpen, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Grid3x3, FileText, BookOpen } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import type { UnifiedGapSummary } from '@/types/unified-gap';
