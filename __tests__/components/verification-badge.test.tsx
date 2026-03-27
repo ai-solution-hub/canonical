@@ -136,6 +136,12 @@ describe('VerificationBadge', () => {
   it('renders "Verified" with just verified=true', () => {
     render(<VerificationBadge verified />);
     expect(screen.getByText('Verified')).toBeInTheDocument();
+    // Default liveRegion is false, so role is "img"
+    expect(screen.getByRole('img')).toBeInTheDocument();
+  });
+
+  it('renders with role="status" when liveRegion is true', () => {
+    render(<VerificationBadge verified liveRegion />);
     expect(screen.getByRole('status')).toBeInTheDocument();
   });
 
@@ -147,8 +153,8 @@ describe('VerificationBadge', () => {
   it('hides label text when showLabel=false', () => {
     render(<VerificationBadge verified showLabel={false} />);
     expect(screen.queryByText('Verified')).not.toBeInTheDocument();
-    // Icon is still rendered (with aria-hidden)
-    expect(screen.getByRole('status')).toBeInTheDocument();
+    // Icon is still rendered (with aria-hidden), badge uses role="img" by default
+    expect(screen.getByRole('img')).toBeInTheDocument();
   });
 
   // Verified by name
@@ -244,9 +250,9 @@ describe('VerificationBadge', () => {
     );
     // Short label shown inline
     expect(screen.getByText('Verified')).toBeInTheDocument();
-    // Full label in title attribute
-    const status = screen.getByRole('status');
-    expect(status).toHaveAttribute(
+    // Full label in title attribute (role is "img" by default)
+    const badge = screen.getByRole('img');
+    expect(badge).toHaveAttribute(
       'title',
       'Verified by Bob, 3 days ago',
     );
@@ -256,9 +262,9 @@ describe('VerificationBadge', () => {
   it('does not show tooltip when tooltipOnly but no extra info', () => {
     render(<VerificationBadge verified tooltipOnly />);
     expect(screen.getByText('Verified')).toBeInTheDocument();
-    const status = screen.getByRole('status');
+    const badge = screen.getByRole('img');
     // No title when full label equals short label
-    expect(status).not.toHaveAttribute('title');
+    expect(badge).not.toHaveAttribute('title');
   });
 
   // Unverified ignores name/date
@@ -290,6 +296,6 @@ describe('VerificationBadge', () => {
   // className pass-through
   it('passes className to the outer span', () => {
     render(<VerificationBadge verified className="custom-class" />);
-    expect(screen.getByRole('status')).toHaveClass('custom-class');
+    expect(screen.getByRole('img')).toHaveClass('custom-class');
   });
 });

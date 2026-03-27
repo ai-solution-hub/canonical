@@ -92,7 +92,7 @@ describe('ContentCard — Verification Badge', () => {
         item={makeItem({ verified_at: '2026-03-20T12:00:00Z' })}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
   });
@@ -101,7 +101,7 @@ describe('ContentCard — Verification Badge', () => {
     render(
       <ContentCard item={makeItem({ verified_at: null })} />,
     );
-    const badges = screen.queryAllByRole('status');
+    const badges = screen.queryAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeUndefined();
   });
@@ -118,7 +118,7 @@ describe('ContentCard — Verification Badge', () => {
       />,
     );
     // With tooltipOnly, inline text should just say "Verified", not "Verified by Jane Smith"
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     // The inline span should not contain "by Jane Smith"
@@ -138,7 +138,7 @@ describe('ContentCard — Verification Badge', () => {
         verifierNames={verifierNames}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     // The title attribute should contain the full attribution
@@ -156,7 +156,7 @@ describe('ContentCard — Verification Badge', () => {
         verifierNames={verifierNames}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     // Tooltip shows relative time but no name attribution
@@ -178,7 +178,7 @@ describe('ContentCard — Verification Badge', () => {
         verifierNames={new Map([['user-uuid-1', 'Jane Smith']])}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     expect(verifiedBadge!.getAttribute('title')).toMatch(/Verified by Jane Smith/);
@@ -196,7 +196,7 @@ describe('ContentCard — Verification Badge', () => {
         verifierNames={new Map([['user-uuid-2', 'Bob Jones']])}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     expect(verifiedBadge!.getAttribute('title')).toMatch(/Verified by Bob Jones/);
@@ -211,7 +211,7 @@ describe('ContentCard — Verification Badge', () => {
         })}
       />,
     );
-    const badges = screen.getAllByRole('status');
+    const badges = screen.getAllByRole('img');
     const verifiedBadge = badges.find((el) => el.textContent?.includes('Verified'));
     expect(verifiedBadge).toBeTruthy();
     // verifiedAt is still passed, so tooltip shows relative time

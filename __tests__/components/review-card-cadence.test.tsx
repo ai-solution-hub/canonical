@@ -125,12 +125,12 @@ describe('ReviewCard — days since review', () => {
     const item = makeReviewItem({ verified_at: daysAgo(5) });
     render(<ReviewCard item={item} position={1} total={10} />);
 
-    // Should show both the VerificationBadge (role="status") and "Last reviewed X days ago"
-    const statuses = screen.getAllByRole('status');
-    const verifiedStatus = statuses.find((el) =>
+    // Should show both the VerificationBadge (role="img") and "Last reviewed X days ago"
+    const imgElements = screen.getAllByRole('img');
+    const verifiedBadge = imgElements.find((el) =>
       el.textContent?.includes('Verified'),
     );
-    expect(verifiedStatus).toBeTruthy();
+    expect(verifiedBadge).toBeTruthy();
     expect(screen.getByText('Last reviewed 5 days ago')).toBeInTheDocument();
   });
 });

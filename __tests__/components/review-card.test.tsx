@@ -166,12 +166,12 @@ describe('ReviewCard', () => {
         total={1}
       />,
     );
-    // VerificationBadge renders with role="status" showing relative time
-    const statuses = screen.getAllByRole('status');
-    const verifiedStatus = statuses.find((el) =>
+    // VerificationBadge renders with role="img" by default (liveRegion=false)
+    const imgElements = screen.getAllByRole('img');
+    const verifiedBadge = imgElements.find((el) =>
       el.textContent?.includes('Verified'),
     );
-    expect(verifiedStatus).toBeTruthy();
+    expect(verifiedBadge).toBeTruthy();
   });
 
   it('does not show verification when not verified', () => {
