@@ -22,13 +22,10 @@ import { TranscriptReader } from '@/components/transcript-reader';
 import { getDisplayTitle } from '@/lib/format';
 import dynamic from 'next/dynamic';
 
-import {
-  CollapsibleSection,
-  RelatedContentSection,
-  QAUsedInBids,
-  QARelatedPairs,
-  ItemBreadcrumb,
-} from '@/components/item-detail';
+import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
+import { RelatedContentSection } from '@/components/item-detail/related-content-section';
+import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
+import { ItemBreadcrumb } from '@/components/item-detail/item-breadcrumb';
 
 import type { ReactNode } from 'react';
 import type { ItemDetailData } from '@/hooks/use-item-detail-data';

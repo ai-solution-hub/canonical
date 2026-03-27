@@ -15,16 +15,13 @@ import {
   generateSummariseAndIngestPrompt,
 } from '@/lib/claude-prompts';
 import { ItemActionBar } from '@/components/item-action-bar';
-import {
-  CollapsibleSection,
-  RelatedContentSection,
-  QAUsedInBids,
-  QARelatedPairs,
-  ContentBody,
-  LayerSwitcherNav,
-  ItemTitleSection,
-  ItemBreadcrumb,
-} from '@/components/item-detail';
+import { CollapsibleSection } from '@/components/item-detail/collapsible-section';
+import { RelatedContentSection } from '@/components/item-detail/related-content-section';
+import { QAUsedInBids, QARelatedPairs } from '@/components/item-detail/qa-provenance-sections';
+import { ContentBody } from '@/components/item-detail/content-body';
+import { LayerSwitcherNav } from '@/components/item-detail/layer-switcher-nav';
+import { ItemTitleSection } from '@/components/item-detail/item-title-section';
+import { ItemBreadcrumb } from '@/components/item-detail/item-breadcrumb';
 import { TopicLayerComparison } from '@/components/topic-layer-comparison';
 
 import type { ReactNode } from 'react';
