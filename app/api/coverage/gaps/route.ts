@@ -20,7 +20,7 @@ import {
   fetchContentForMatching,
   computeTemplateCoverage,
 } from '@/lib/template-coverage';
-import { scoreGap, derivePriorityTier } from '@/lib/gap-scoring';
+import { scoreGap } from '@/lib/gap-scoring';
 import type {
   UnifiedGap,
   UnifiedGapSummary,

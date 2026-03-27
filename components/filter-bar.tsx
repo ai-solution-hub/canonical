@@ -48,8 +48,6 @@ const RELEVANCE_SORT_OPTION: { value: SortOption; label: string; shortLabel: str
   value: 'relevance', label: 'Relevance', shortLabel: 'Relevance',
 };
 
-const SORT_OPTIONS = BASE_SORT_OPTIONS;
-
 /** Returns sort options including Relevance when a search query is active */
 export function getSortOptions(hasSearchQuery: boolean) {
   return hasSearchQuery

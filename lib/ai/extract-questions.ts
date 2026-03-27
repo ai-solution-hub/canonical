@@ -7,7 +7,7 @@ import mammoth from 'mammoth';
 /**
  * JSON Schema for tender question extraction from PDF documents.
  */
-const TENDER_QUESTIONS_SCHEMA = {
+const _TENDER_QUESTIONS_SCHEMA = {
   name: 'tender_questions',
   strict: true,
   schema: {
@@ -52,7 +52,7 @@ const TENDER_QUESTIONS_SCHEMA = {
 /**
  * JSON Schema for search query generation used in KB matching.
  */
-const SEARCH_QUERIES_SCHEMA = {
+const _SEARCH_QUERIES_SCHEMA = {
   name: 'search_queries',
   strict: true,
   schema: {

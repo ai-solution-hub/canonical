@@ -14,9 +14,6 @@
  */
 
 import type {
-  TaxonomyGap,
-  TemplateGap,
-  GuideGap,
   UnifiedGap,
   PriorityTier,
 } from '@/types/unified-gap';
