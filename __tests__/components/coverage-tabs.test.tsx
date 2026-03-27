@@ -33,6 +33,10 @@ vi.mock('@/components/coverage/coverage-guide-tab', () => ({
   CoverageGuideTab: () => <div data-testid="coverage-guide-tab">Guide Content</div>,
 }));
 
+vi.mock('@/components/coverage/priority-gaps-tab', () => ({
+  PriorityGapsTab: () => <div data-testid="priority-gaps-tab">Priority Gaps Content</div>,
+}));
+
 // Import AFTER mocks
 import { CoveragePageTabs } from '@/app/coverage/coverage-tabs';
 
@@ -74,10 +78,18 @@ describe('CoveragePageTabs', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders with Domain Coverage tab active by default', async () => {
+  it('renders with Priority Gaps tab active by default', async () => {
     render(<CoveragePageTabs />);
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
     expect(screen.getByText('Coverage Dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('priority-gaps-tab')).toBeInTheDocument();
+  });
+
+  it('switches to Domain Coverage tab on click', async () => {
+    const user = userEvent.setup();
+    render(<CoveragePageTabs />);
+    await waitFor(() => expect(mockFetch).toHaveBeenCalled());
+    await user.click(screen.getByRole('tab', { name: /Domain Coverage/ }));
     expect(screen.getByTestId('coverage-content')).toBeInTheDocument();
   });
 

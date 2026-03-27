@@ -150,6 +150,16 @@
   --color-confidence-low-bg: oklch(0.95 0.03 20);
   --color-confidence-low-border: oklch(0.82 0.06 20);
 
+  /* Priority tier badges */
+  --color-priority-tier-critical: oklch(0.55 0.20 20);
+  --color-priority-tier-critical-bg: oklch(0.95 0.03 20);
+  --color-priority-tier-high: oklch(0.60 0.14 70);
+  --color-priority-tier-high-bg: oklch(0.97 0.02 70);
+  --color-priority-tier-medium: oklch(0.55 0.12 240);
+  --color-priority-tier-medium-bg: oklch(0.95 0.02 240);
+  --color-priority-tier-low: oklch(0.55 0.014 48);
+  --color-priority-tier-low-bg: oklch(0.95 0.010 48);
+
   /* Gap summary banner */
   --color-gap-summary-bg: oklch(0.97 0.018 85);
   --color-gap-summary-border: oklch(0.87 0.050 85);
@@ -431,6 +441,16 @@
   --color-confidence-low-bg: oklch(0.25 0.05 20);
   --color-confidence-low-border: oklch(0.35 0.06 20);
 
+  /* Priority tier badges (dark) */
+  --color-priority-tier-critical: oklch(0.70 0.17 20);
+  --color-priority-tier-critical-bg: oklch(0.25 0.05 20);
+  --color-priority-tier-high: oklch(0.72 0.12 70);
+  --color-priority-tier-high-bg: oklch(0.25 0.04 70);
+  --color-priority-tier-medium: oklch(0.70 0.10 240);
+  --color-priority-tier-medium-bg: oklch(0.25 0.04 240);
+  --color-priority-tier-low: oklch(0.65 0.012 48);
+  --color-priority-tier-low-bg: oklch(0.25 0.016 48);
+
   /* Gap summary banner (dark) */
   --color-gap-summary-bg: oklch(0.20 0.016 85);
   --color-gap-summary-border: oklch(0.30 0.030 85 / 0.5);
@@ -639,6 +659,15 @@
   --color-confidence-low: var(--color-confidence-low);
   --color-confidence-low-bg: var(--color-confidence-low-bg);
   --color-confidence-low-border: var(--color-confidence-low-border);
+
+  --color-priority-tier-critical: var(--color-priority-tier-critical);
+  --color-priority-tier-critical-bg: var(--color-priority-tier-critical-bg);
+  --color-priority-tier-high: var(--color-priority-tier-high);
+  --color-priority-tier-high-bg: var(--color-priority-tier-high-bg);
+  --color-priority-tier-medium: var(--color-priority-tier-medium);
+  --color-priority-tier-medium-bg: var(--color-priority-tier-medium-bg);
+  --color-priority-tier-low: var(--color-priority-tier-low);
+  --color-priority-tier-low-bg: var(--color-priority-tier-low-bg);
 
   --color-gap-summary-bg: var(--color-gap-summary-bg);
   --color-gap-summary-border: var(--color-gap-summary-border);
