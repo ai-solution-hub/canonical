@@ -36,35 +36,65 @@ function setCachedName(id: string, name: string): void {
 }
 
 /**
- * Track in-flight fetches to avoid duplicate requests.
+ * Track in-flight fetches: maps each ID to the Promise that will resolve it.
+ * All callers awaiting the same ID share a single network request.
  */
-const pendingIds = new Set<string>();
+const pendingFetches = new Map<string, Promise<void>>();
 
 async function fetchDisplayNames(ids: string[]): Promise<void> {
-  // Filter out already-cached and already-pending IDs
-  const needed = ids.filter(
-    (id) => getCachedName(id) === undefined && !pendingIds.has(id),
-  );
+  // Filter out already-cached IDs
+  const needed = ids.filter((id) => getCachedName(id) === undefined);
   if (needed.length === 0) return;
 
-  needed.forEach((id) => pendingIds.add(id));
+  // For IDs already in-flight, collect their existing promises
+  const existingPromises: Promise<void>[] = [];
+  const toFetch: string[] = [];
 
-  try {
-    const res = await fetch('/api/users/display-names', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: needed }),
-    });
+  for (const id of needed) {
+    const existing = pendingFetches.get(id);
+    if (existing) {
+      existingPromises.push(existing);
+    } else {
+      toFetch.push(id);
+    }
+  }
 
-    if (res.ok) {
-      const data: Record<string, string> = await res.json();
-      for (const [id, name] of Object.entries(data)) {
-        setCachedName(id, name);
+  // If all needed IDs are already being fetched, just await those
+  if (toFetch.length === 0) {
+    await Promise.all(existingPromises);
+    return;
+  }
+
+  // Create a single promise for the batch of new IDs
+  const fetchPromise = (async () => {
+    try {
+      const res = await fetch('/api/users/display-names', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: toFetch }),
+      });
+
+      if (res.ok) {
+        const data: Record<string, string> = await res.json();
+        for (const [id, name] of Object.entries(data)) {
+          setCachedName(id, name);
+        }
+      }
+    } finally {
+      // Clean up: remove our IDs from the pending map
+      for (const id of toFetch) {
+        pendingFetches.delete(id);
       }
     }
-  } finally {
-    needed.forEach((id) => pendingIds.delete(id));
+  })();
+
+  // Register the promise for each ID we're fetching
+  for (const id of toFetch) {
+    pendingFetches.set(id, fetchPromise);
   }
+
+  // Await both the new fetch and any existing in-flight fetches for our IDs
+  await Promise.all([fetchPromise, ...existingPromises]);
 }
 
 /**
@@ -90,6 +120,7 @@ export function useDisplayNames(
 
   useEffect(() => {
     if (validIds.length === 0) return;
+    let cancelled = false;
 
     // Build map from cache for the current set of IDs
     const buildFromCache = () => {
@@ -104,9 +135,10 @@ export function useDisplayNames(
     // Check if all are already cached
     const allCached = validIds.every((id) => getCachedName(id) !== undefined);
     if (allCached) {
-      // Defer state update to avoid setting state directly in effect
-      queueMicrotask(() => setNames(buildFromCache()));
-      return;
+      queueMicrotask(() => {
+        if (!cancelled) setNames(buildFromCache());
+      });
+      return () => { cancelled = true; };
     }
 
     // Skip if we already fetched these exact IDs
@@ -114,10 +146,12 @@ export function useDisplayNames(
     idsRef.current = idsKey;
 
     fetchDisplayNames(validIds).then(() => {
-      setNames(buildFromCache());
+      if (!cancelled) setNames(buildFromCache());
     }).catch((err) => {
       console.error('Failed to fetch display names:', err);
     });
+
+    return () => { cancelled = true; };
   }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return names;

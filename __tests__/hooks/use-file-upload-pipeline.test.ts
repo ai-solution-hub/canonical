@@ -21,7 +21,6 @@ global.fetch = mockFetch;
 import {
   useFileUploadPipeline,
   SKIP_REVIEW_KEY,
-  _resetFileIdCounter,
 } from '@/hooks/use-file-upload-pipeline';
 
 // ---------------------------------------------------------------------------
@@ -74,7 +73,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockFetch.mockReset();
   localStorage.clear();
-  _resetFileIdCounter();
 });
 
 afterEach(() => {

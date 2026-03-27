@@ -94,12 +94,25 @@ export function WorkspaceDetailSheet({
   // Fetch recent items when sheet opens
   useEffect(() => {
     if (!open || !workspace) return;
+
+    let cancelled = false;
     setLoadingItems(true);
+
     fetch(`/api/workspaces/${workspace.id}/items?limit=10`)
       .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setItems(data))
-      .catch(() => setItems([]))
-      .finally(() => setLoadingItems(false));
+      .then((data) => {
+        if (!cancelled) setItems(data);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingItems(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open, workspace]);
 
   const patchWorkspace = useCallback(
