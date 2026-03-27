@@ -514,6 +514,8 @@ export function useReviewQueue(): UseReviewQueueReturn {
     const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
     const wasAlreadyVerified = !!currentItem.verified_at;
     const previousIndex = currentIndex;
+    const isLastItem = currentIndex >= queue.length - 1;
+    const nextDisplayPosition = isLastItem ? currentIndex + 1 : currentIndex + 2;
 
     // Optimistic update
     setProgress((prev) => ({
@@ -531,9 +533,13 @@ export function useReviewQueue(): UseReviewQueueReturn {
     advanceToNext();
 
     setAnnouncement(
-      wasAlreadyVerified
-        ? `Re-verified. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`
-        : `Verified. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`,
+      isLastItem
+        ? (wasAlreadyVerified
+          ? `Re-verified. Last item in queue.`
+          : `Verified. Last item in queue.`)
+        : (wasAlreadyVerified
+          ? `Re-verified. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`
+          : `Verified. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`),
     );
 
     // Undo toast
@@ -579,7 +585,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
     } finally {
       setIsActioning(false);
     }
-  }, [currentItem, isActioning, currentIndex, progress.total, advanceToNext, handleUndo]);
+  }, [currentItem, isActioning, currentIndex, queue.length, progress.total, advanceToNext, handleUndo]);
 
   const handlePublish = useCallback(async () => {
     if (!currentItem || isActioning) return;
@@ -629,6 +635,8 @@ export function useReviewQueue(): UseReviewQueueReturn {
 
       const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
       const previousIndex = currentIndex;
+      const isLastItem = currentIndex >= queue.length - 1;
+      const nextDisplayPosition = isLastItem ? currentIndex + 1 : currentIndex + 2;
 
       // Track flagged items
       flaggedThisSessionRef.current.add(currentItem.id);
@@ -642,7 +650,9 @@ export function useReviewQueue(): UseReviewQueueReturn {
       advanceToNext();
 
       setAnnouncement(
-        `Flagged for review. Item ${currentIndex + 2} of ${progress.total}. ${itemTitle}.`,
+        isLastItem
+          ? `Flagged for review. Last item in queue.`
+          : `Flagged for review. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`,
       );
 
       // Undo toast
@@ -689,7 +699,7 @@ export function useReviewQueue(): UseReviewQueueReturn {
         setIsActioning(false);
       }
     },
-    [currentItem, isActioning, currentIndex, progress.total, advanceToNext, handleUndo],
+    [currentItem, isActioning, currentIndex, queue.length, progress.total, advanceToNext, handleUndo],
   );
 
   const handleFlag = useCallback(() => {

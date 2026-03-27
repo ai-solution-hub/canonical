@@ -347,21 +347,33 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
   // Ref to track if dedup checking has been initiated
   const dedupStartedRef = useRef(false);
 
+  // Track which pairs have been edited and need dedup re-check
+  const editedIndicesRef = useRef<Set<number>>(new Set());
+
   // ---------------------------------------------------------------------------
   // Dedup checking — throttled to MAX_CONCURRENT_DEDUP concurrent requests
   // ---------------------------------------------------------------------------
 
   const runDedupChecks = useCallback(async () => {
-    if (!onDedupCheck || dedupStartedRef.current) return;
-    dedupStartedRef.current = true;
+    if (!onDedupCheck) return;
 
-    const indices = pairs.map((_, i) => i).filter((i) => !removed.has(i));
+    // Determine which indices to check:
+    // - On first run, check all non-removed indices
+    // - On subsequent runs, only check indices that were edited
+    const indicesToCheck = dedupStartedRef.current
+      ? Array.from(editedIndicesRef.current).filter((i) => !removed.has(i))
+      : pairs.map((_, i) => i).filter((i) => !removed.has(i));
+
+    if (indicesToCheck.length === 0) return;
+
+    dedupStartedRef.current = true;
+    editedIndicesRef.current.clear();
     let active = 0;
     let nextIdx = 0;
 
     const checkNext = async (): Promise<void> => {
-      while (nextIdx < indices.length && active < MAX_CONCURRENT_DEDUP) {
-        const idx = indices[nextIdx++];
+      while (nextIdx < indicesToCheck.length && active < MAX_CONCURRENT_DEDUP) {
+        const idx = indicesToCheck[nextIdx++];
         active++;
 
         // Mark as checking
@@ -454,6 +466,11 @@ export function QAPreviewList({ pairs: initialPairs, onConfirm, onSkip, onDedupC
         updated[index] = pair;
         return updated;
       });
+
+      // Mark this pair for dedup re-check
+      editedIndicesRef.current.add(index);
+      // Reset the dedup status for this pair to pending
+      setDedupStatuses((prev) => new Map(prev).set(index, 'pending'));
     },
     [],
   );

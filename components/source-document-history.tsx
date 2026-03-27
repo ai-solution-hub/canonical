@@ -11,7 +11,7 @@ import {
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { formatDateUK } from '@/lib/format';
+import { formatDateUK, formatFileSize } from '@/lib/format';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,19 +43,6 @@ export interface SourceDocumentHistoryProps {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Formats a byte count into a human-readable file size string.
- * Uses SI-style KB/MB/GB units with 1024-byte boundaries.
- */
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
 
 // ---------------------------------------------------------------------------
 // Component
