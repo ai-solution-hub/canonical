@@ -14,8 +14,3 @@ export function isMacPlatform(): boolean {
   return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
 }
 
-/** Returns the platform-appropriate modifier key label */
-export function getModifierKey(): string {
-  return isMacPlatform() ? '\u2318' : 'Ctrl';
-}
-

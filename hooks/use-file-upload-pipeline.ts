@@ -11,7 +11,7 @@ import type { UploadReviewItem } from '@/components/upload-review-step';
 // ---------------------------------------------------------------------------
 
 /** Per-file pipeline steps matching the upload route's 5-step pipeline */
-export const UPLOAD_STEPS: IngestionStep[] = [
+const UPLOAD_STEPS: IngestionStep[] = [
   { label: 'Uploading file', status: 'pending' },
   { label: 'Extracting text', status: 'pending' },
   { label: 'Generating embedding', status: 'pending' },

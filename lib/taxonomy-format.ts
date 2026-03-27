@@ -11,7 +11,7 @@
 // Abbreviations — words that should be fully uppercased in display strings
 // ---------------------------------------------------------------------------
 
-export const ABBREVIATIONS = new Set([
+const ABBREVIATIONS = new Set([
   'ai',
   'ux',
   'gtd',

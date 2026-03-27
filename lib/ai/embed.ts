@@ -47,10 +47,6 @@ function evictCache(): void {
   }
 }
 
-export function clearEmbeddingCache(): void {
-  embeddingCache.clear();
-}
-
 /**
  * Generate an embedding vector for the given text.
  * Uses OpenAI text-embedding-3-large with 1024 dimensions (Matryoshka shortening).

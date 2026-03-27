@@ -7,7 +7,7 @@ import mammoth from 'mammoth';
 /**
  * JSON Schema for tender question extraction from PDF documents.
  */
-export const TENDER_QUESTIONS_SCHEMA = {
+const TENDER_QUESTIONS_SCHEMA = {
   name: 'tender_questions',
   strict: true,
   schema: {
@@ -52,7 +52,7 @@ export const TENDER_QUESTIONS_SCHEMA = {
 /**
  * JSON Schema for search query generation used in KB matching.
  */
-export const SEARCH_QUERIES_SCHEMA = {
+const SEARCH_QUERIES_SCHEMA = {
   name: 'search_queries',
   strict: true,
   schema: {
@@ -257,7 +257,7 @@ You MUST call the extract_questions tool with your results.`,
 // ──────────────────────────────────────────
 
 /** Tool definition for tender metadata extraction. */
-export const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
+const TENDER_METADATA_TOOL: Anthropic.Messages.Tool = {
   name: 'extract_tender_metadata',
   description: 'Extract bid metadata (buyer, deadline, reference, value) from a tender document.',
   input_schema: {

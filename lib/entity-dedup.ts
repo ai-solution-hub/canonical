@@ -6,7 +6,7 @@
  */
 
 /** Known abbreviations that should remain uppercase */
-export const ABBREVIATIONS: Record<string, string> = {
+const ABBREVIATIONS: Record<string, string> = {
   gdpr: 'GDPR',
   ico: 'ICO',
   owasp: 'OWASP',

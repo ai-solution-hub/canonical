@@ -96,20 +96,6 @@ export interface SummaryData {
   tokens_used?: number;
 }
 
-/** Normalise SummaryData from JSONB */
-export function normaliseSummaryData(
-  raw: Record<string, unknown>,
-): SummaryData {
-  return {
-    executive: (raw.executive ?? '') as string,
-    detailed: (raw.detailed ?? '') as string,
-    takeaways: (raw.takeaways ?? []) as string[],
-    generated_at: (raw.generated_at ?? '') as string,
-    model: (raw.model ?? '') as string,
-    tokens_used: raw.tokens_used as number | undefined,
-  };
-}
-
 /** Transcript chapter from metadata */
 export interface TranscriptChapter {
   title: string;

@@ -9,7 +9,6 @@
  */
 
 import type { ActiveBidSummary } from '@/lib/dashboard';
-import type { ContentSuggestion } from '@/lib/content-suggestions';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,46 +23,6 @@ export interface ClaudePrompt {
   description: string;
   /** Category for grouping */
   category: 'governance' | 'quality' | 'freshness' | 'bid' | 'coverage' | 'general' | 'ingestion' | 'compliance';
-}
-
-// ---------------------------------------------------------------------------
-// Attention item prompts
-// ---------------------------------------------------------------------------
-
-export function generateGovernancePrompt(count: number): ClaudePrompt {
-  return {
-    label: 'Triage reviews',
-    prompt: `Show me the ${count} ${count === 1 ? 'item' : 'items'} pending governance review and help me triage ${count === 1 ? 'it' : 'them'}. For each, summarise the content and recommend whether to approve or request changes.`,
-    description: `${count} governance ${count === 1 ? 'review' : 'reviews'} pending`,
-    category: 'governance',
-  };
-}
-
-export function generateUnverifiedPrompt(count: number): ClaudePrompt {
-  return {
-    label: 'Audit unverified',
-    prompt: `Audit the ${count} unverified content ${count === 1 ? 'item' : 'items'}. Check ${count === 1 ? 'its' : 'their'} classification confidence and recommend which to verify and which need manual review.`,
-    description: `${count} unverified ${count === 1 ? 'item' : 'items'}`,
-    category: 'quality',
-  };
-}
-
-export function generateStaleContentPrompt(count: number): ClaudePrompt {
-  return {
-    label: 'Review stale content',
-    prompt: `Show me the ${count} stale and expired content ${count === 1 ? 'item' : 'items'}. For each, suggest whether it needs refreshing, merging with newer content, or archiving.`,
-    description: `${count} ${count === 1 ? 'item needs' : 'items need'} refreshing`,
-    category: 'freshness',
-  };
-}
-
-export function generateQualityFlagPrompt(count: number): ClaudePrompt {
-  return {
-    label: 'Fix quality issues',
-    prompt: `Show me the ${count} ${count === 1 ? 'item' : 'items'} with quality flags. Identify each issue type and help me fix them, starting with the most severe.`,
-    description: `${count} ${count === 1 ? 'item has' : 'items have'} quality issues`,
-    category: 'quality',
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -133,22 +92,6 @@ export function generateCoverageGapPrompt(
 }
 
 // ---------------------------------------------------------------------------
-// Guide section prompts
-// ---------------------------------------------------------------------------
-
-export function generateGuideGapPrompt(
-  guideName: string,
-  sectionName: string,
-): ClaudePrompt {
-  return {
-    label: 'Create content',
-    prompt: `We need content for the "${sectionName}" section in the "${guideName}" guide. Search the KB for any related content, then help me draft material to fill this section.`,
-    description: `Create content for ${sectionName}`,
-    category: 'coverage',
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Ingestion prompts
 // ---------------------------------------------------------------------------
 
@@ -200,45 +143,6 @@ export function generateBulkIngestPrompt(context?: string): ClaudePrompt {
     category: 'ingestion',
   };
 }
-
-// ---------------------------------------------------------------------------
-// Content suggestion prompts
-// ---------------------------------------------------------------------------
-
-export function generateContentSuggestionPrompt(
-  suggestion: ContentSuggestion,
-): ClaudePrompt {
-  const contentType = suggestion.suggested_content_type ?? 'well-structured item';
-  const formattedDomain = suggestion.domain.replace(/-/g, ' ');
-  const formattedSubtopic = suggestion.subtopic.replace(/-/g, ' ');
-
-  return {
-    label: `Create ${contentType} for ${formattedSubtopic}`,
-    prompt: `We have a content gap in ${formattedDomain} / ${formattedSubtopic} (${suggestion.description}). Search the KB for any related content in this domain, then help me create a ${contentType} to fill this gap. Classify it under ${formattedDomain} / ${formattedSubtopic}.`,
-    description: suggestion.title,
-    category: 'coverage',
-  };
-}
-
-export function generateBulkGapFillingPrompt(
-  suggestions: ContentSuggestion[],
-): ClaudePrompt {
-  const gapList = suggestions
-    .slice(0, 5)
-    .map((s) => `- ${s.domain} / ${s.subtopic} (${s.suggestion_type.replace(/_/g, ' ')})`)
-    .join('\n');
-
-  return {
-    label: 'Fill content gaps',
-    prompt: `We have ${suggestions.length} content ${suggestions.length === 1 ? 'gap' : 'gaps'} in the Knowledge Base. The highest priority gaps are:\n\n${gapList}\n\nHelp me create content to fill these gaps, starting with the most critical. For each, search the KB for related content and draft a new item.`,
-    description: `${suggestions.length} ${suggestions.length === 1 ? 'gap' : 'gaps'} identified`,
-    category: 'coverage',
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Certification review prompts
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // Document diff review prompts

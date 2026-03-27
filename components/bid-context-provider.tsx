@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  useContext,
   useState,
   useEffect,
   useCallback,
@@ -60,14 +59,6 @@ interface BidContextValue {
 }
 
 const BidContext = createContext<BidContextValue | null>(null);
-
-export function useBidContext() {
-  const ctx = useContext(BidContext);
-  if (!ctx) {
-    throw new Error('useBidContext must be used within BidContextProvider');
-  }
-  return ctx;
-}
 
 // ────────────────────────────────────────────
 // Provider

@@ -1,4 +1,3 @@
-import { generateEmbedding } from '@/lib/ai/embed';
 import type { ConfidencePosture } from '@/types/bid';
 
 // Configurable similarity thresholds
@@ -42,9 +41,3 @@ export function deduplicateResults(results: MatchResult[]): MatchResult[] {
   return Array.from(seen.values()).sort((a, b) => b.similarity - a.similarity);
 }
 
-/**
- * Generate an embedding for a query text. Wrapper around the shared embedding utility.
- */
-export async function generateQueryEmbedding(queryText: string): Promise<number[]> {
-  return generateEmbedding(queryText);
-}

@@ -271,7 +271,7 @@ function CardFooter({ item, hasQualityFlag, simplifiedQuality, badgeSlot, action
 // ---------------------------------------------------------------------------
 
 /** Content types that use compact card layout (no thumbnail, 4px left border only) */
-export const COMPACT_CONTENT_TYPES = new Set([
+const COMPACT_CONTENT_TYPES = new Set([
   'q_a_pair', 'policy', 'certification', 'compliance',
   'methodology', 'capability', 'product_description', 'case_study',
 ]);

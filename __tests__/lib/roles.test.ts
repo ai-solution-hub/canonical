@@ -1,9 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
-
-// roles.ts imports createClient at module level — mock it to avoid server deps
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(),
-}));
+import { describe, it, expect } from 'vitest';
 
 import { canEdit, canAdmin } from '@/lib/roles';
 

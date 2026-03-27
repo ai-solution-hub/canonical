@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useMemo } from 'react';
 import {
   CLIENT_CONFIG,
   isFeatureEnabled,
@@ -49,15 +49,3 @@ export function ClientFeaturesProvider({
   );
 }
 
-/**
- * Access client feature configuration from any client component.
- * Must be used within ClientFeaturesProvider.
- */
-export function useClientFeatures(): ClientFeaturesContextValue {
-  const ctx = useContext(ClientFeaturesContext);
-  if (!ctx)
-    throw new Error(
-      'useClientFeatures must be used within ClientFeaturesProvider',
-    );
-  return ctx;
-}

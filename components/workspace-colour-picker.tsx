@@ -37,7 +37,7 @@ const COLOUR_GROUPS = [
 ];
 
 /** Flat list for backward compatibility and keyboard navigation */
-export const WORKSPACE_COLOURS = COLOUR_GROUPS.flatMap((g) => g.colours);
+const WORKSPACE_COLOURS = COLOUR_GROUPS.flatMap((g) => g.colours);
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
