@@ -304,6 +304,88 @@ describe('formatDocumentDiff', () => {
     expect(result).toContain('1 Q&A pair changed');
     expect(result).toContain('1 Q&A pair identical');
   });
+
+  // ── Full-text mode tests ────────────────────────────────────────────────
+
+  const fullTextDiff: DocumentDiffData = {
+    old_filename: 'policy-v1.pdf',
+    new_filename: 'policy-v2.pdf',
+    diff_mode: 'full_text',
+    summary: {
+      added: 2,
+      removed: 1,
+      modified: 1,
+      unchanged: 1,
+      total_old: 3,
+      total_new: 4,
+    },
+    entries: [
+      {
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: 'New paragraph about data retention requirements.',
+      },
+      {
+        diff_type: 'added',
+        diff_mode: 'full_text',
+        new_content: 'Additional compliance clause added in section 4.',
+      },
+      {
+        diff_type: 'modified',
+        diff_mode: 'full_text',
+        old_content: 'Staff must complete training annually.',
+        new_content: 'All staff must complete mandatory training every 12 months.',
+      },
+      {
+        diff_type: 'removed',
+        diff_mode: 'full_text',
+        old_content: 'Outdated procedure for manual reporting.',
+      },
+      {
+        diff_type: 'unchanged',
+        diff_mode: 'full_text',
+        old_content: 'Company overview section.',
+        new_content: 'Company overview section.',
+      },
+    ],
+  };
+
+  it('uses "blocks" not "Q&A pairs" in full-text mode summary', () => {
+    const result = formatDocumentDiff(fullTextDiff);
+    expect(result).toContain('blocks');
+    expect(result).not.toContain('Q&A pair');
+  });
+
+  it('shows "Mode: Full-text diff" for full-text mode', () => {
+    const result = formatDocumentDiff(fullTextDiff);
+    expect(result).toContain('**Mode:** Full-text diff');
+  });
+
+  it('uses "Text block" column headers for full-text added entries', () => {
+    const result = formatDocumentDiff(fullTextDiff);
+    expect(result).toContain('Text block');
+    expect(result).not.toContain('Question | Answer');
+  });
+
+  it('renders full-text added entries correctly', () => {
+    const result = formatDocumentDiff(fullTextDiff);
+    expect(result).toContain('New paragraph about data retention requirements.');
+    expect(result).toContain('Additional compliance clause added in section 4.');
+  });
+
+  it('renders full-text modified entries with old and new text', () => {
+    const result = formatDocumentDiff(fullTextDiff);
+    expect(result).toContain('Staff must complete training annually.');
+    expect(result).toContain('All staff must complete mandatory training every 12 months.');
+  });
+
+  it('Q&A fixtures still produce Q&A-specific language (regression guard)', () => {
+    const result = formatDocumentDiff(fullDiff);
+    expect(result).toContain('Q&A pair');
+    expect(result).toContain('Question');
+    expect(result).toContain('Answer');
+    expect(result).not.toContain('Mode: Full-text diff');
+  });
 });
 
 // ──────────────────────────────────────────

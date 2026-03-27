@@ -150,7 +150,7 @@ export default async function DocumentDiffPage({
   const { data: entries, error: entriesErr } = await supabase
     .from('source_document_diffs')
     .select(
-      'id, diff_type, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
+      'id, diff_type, diff_mode, old_question, new_question, old_content, new_content, similarity_score, affected_content_item_id, status',
     )
     .eq('old_document_id', oldDoc.id)
     .eq('new_document_id', newDoc.id)
@@ -200,6 +200,7 @@ export default async function DocumentDiffPage({
   const reviewEntries: DiffReviewEntry[] = (entries ?? []).map((entry) => ({
     id: entry.id,
     diff_type: entry.diff_type as DiffReviewEntry['diff_type'],
+    diff_mode: (entry.diff_mode ?? 'qa') as DiffReviewEntry['diff_mode'],
     old_question: entry.old_question ?? undefined,
     new_question: entry.new_question ?? undefined,
     old_content: entry.old_content ?? undefined,
