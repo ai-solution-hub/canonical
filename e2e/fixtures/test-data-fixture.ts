@@ -213,6 +213,7 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
         await supabase
           .from('workspaces')
           .update({
+            status: state,
             domain_metadata: { ...currentMetadata, status: state },
           })
           .eq('id', bidId)

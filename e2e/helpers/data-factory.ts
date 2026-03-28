@@ -344,17 +344,17 @@ export async function advanceBidState(
 
   const supabase = createServiceClient();
 
-  // Get current state
+  // Get current state — read from the status column (not domain_metadata)
   const { data: current } = await supabase
     .from('workspaces')
-    .select('domain_metadata')
+    .select('status, domain_metadata')
     .eq('id', bidId)
     .single()
     .throwOnError();
 
   const currentMetadata =
     (current?.domain_metadata as Record<string, unknown>) ?? {};
-  const currentState = (currentMetadata.status as string) ?? 'draft';
+  const currentState = (current?.status as string) ?? 'draft';
 
   const currentIndex = stateOrder.indexOf(currentState);
   const targetIndex = stateOrder.indexOf(targetState);
@@ -378,6 +378,7 @@ export async function advanceBidState(
     await supabase
       .from('workspaces')
       .update({
+        status: stateOrder[i],
         domain_metadata: { ...latestMetadata, status: stateOrder[i] },
       })
       .eq('id', bidId)

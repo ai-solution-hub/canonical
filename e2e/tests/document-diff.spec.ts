@@ -78,7 +78,11 @@ async function createTestDiffPair(prefix: string): Promise<{
 
   const newDocId = newDoc!.id;
 
-  // Create diff entries covering all types
+  // Create diff entries covering all types.
+  // NOTE: Seeded data does not include `section_header` values. The diff review
+  // component supports section headers for grouping entries, but this is not
+  // testable with the current seed data. A future enhancement could add
+  // section_header values to exercise that rendering path.
   const diffEntries = [
     {
       old_document_id: oldDocId,
@@ -167,7 +171,11 @@ test.describe('Document diff page', () => {
     try {
       await page.goto(`/documents/${oldDocId}/diff`);
 
-      // Wait for the diff review section to load
+      // Wait for the diff review section to load.
+      // L4 note: .first() is retained because the server-rendered page may
+      // briefly render two section[aria-label="Document diff review"] elements
+      // (e.g. error state + content state during hydration/navigation). Using
+      // .first() targets the visible one reliably.
       const diffSection = page.locator('section[aria-label="Document diff review"]').first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
@@ -316,6 +324,12 @@ test.describe('Document diff page', () => {
       const diffSection = page.locator('section[aria-label="Document diff review"]').first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
+      // Capture the initial pending count from the bulk toolbar
+      const toolbar = diffSection.locator('[role="toolbar"][aria-label="Bulk review actions"]');
+      await expect(toolbar).toBeVisible();
+      const initialStatusText = await toolbar.locator('[aria-live="polite"]').textContent();
+      const initialPending = parseInt(initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0', 10);
+
       // Find the first Apply button (scoped within diffSection)
       const applyButton = diffSection.locator('[aria-label="Apply this change"]').first();
       await expect(applyButton).toBeVisible();
@@ -332,6 +346,12 @@ test.describe('Document diff page', () => {
       await expect(
         diffSection.locator('[aria-label="Reset to pending review"]').first(),
       ).toBeVisible();
+
+      // Pending count in the bulk toolbar should have decreased by 1
+      await expect(toolbar.locator('[aria-live="polite"]')).toHaveText(
+        new RegExp(`${initialPending - 1} pending`),
+        { timeout: 5000 },
+      );
     } finally {
       await cleanupTestDiffPair(oldDocId, newDocId, diffEntryIds);
     }
@@ -351,6 +371,12 @@ test.describe('Document diff page', () => {
       const diffSection = page.locator('section[aria-label="Document diff review"]').first();
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
+      // Capture the initial pending count from the bulk toolbar
+      const toolbar = diffSection.locator('[role="toolbar"][aria-label="Bulk review actions"]');
+      await expect(toolbar).toBeVisible();
+      const initialStatusText = await toolbar.locator('[aria-live="polite"]').textContent();
+      const initialPending = parseInt(initialStatusText?.match(/(\d+) pending/)?.[1] ?? '0', 10);
+
       // Find the first Dismiss button (scoped within diffSection)
       const dismissButton = diffSection.locator('[aria-label="Dismiss this change"]').first();
       await expect(dismissButton).toBeVisible();
@@ -367,6 +393,12 @@ test.describe('Document diff page', () => {
       await expect(
         diffSection.locator('[aria-label="Reset to pending review"]').first(),
       ).toBeVisible();
+
+      // Pending count in the bulk toolbar should have decreased by 1
+      await expect(toolbar.locator('[aria-live="polite"]')).toHaveText(
+        new RegExp(`${initialPending - 1} pending`),
+        { timeout: 5000 },
+      );
     } finally {
       await cleanupTestDiffPair(oldDocId, newDocId, diffEntryIds);
     }

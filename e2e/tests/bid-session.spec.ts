@@ -21,7 +21,7 @@ async function gotoSession(page: import('@playwright/test').Page, bidId: string)
   // Session page loads data CLIENT-SIDE and may need compilation on first hit.
   // Use a generous timeout to handle both cold starts and data fetching.
   const sessionArea = page.locator('[aria-label="Bid drafting session"]');
-  await expect(sessionArea).toBeVisible({ timeout: 30000 });
+  await expect(sessionArea).toBeVisible({ timeout: 20000 });
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +165,12 @@ test.describe('Bid session question navigation', () => {
 
     // Question counter (Q1 of 4)
     await expect(aside.getByText(/Q1 of 4/)).toBeVisible();
+
+    // At least one question text snippet is visible in the navigator
+    // The navigator buttons show "Q2: Experience" (section name) for the next question
+    await expect(
+      aside.getByRole('button').filter({ hasText: /Q2/ }),
+    ).toBeVisible();
   });
 
   test('next question button navigates to next question', async ({
@@ -232,6 +238,36 @@ test.describe('Bid session question navigation', () => {
     // Should now show Q2/4
     await expect(page.getByText('Q2/4')).toBeVisible();
   });
+
+  test('mobile All button opens question sheet', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    // Only run on mobile
+    if (!isMobileViewport(page)) {
+      test.skip();
+      return;
+    }
+
+    await gotoSession(page, workerData.bidId);
+
+    // Click the "All" button in the compact question bar
+    const allButton = page.getByRole('button', { name: 'All' });
+    await expect(allButton).toBeVisible({ timeout: 10000 });
+    await allButton.click();
+
+    // Sheet should open with "Questions" heading
+    const dialog = page.locator('[role="dialog"]');
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await expect(
+      dialog.getByRole('heading', { name: 'Questions' }),
+    ).toBeVisible();
+
+    // Sheet description shows question count
+    await expect(
+      dialog.getByText(/4 questions/),
+    ).toBeVisible();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -252,6 +288,11 @@ test.describe('Bid session response actions', () => {
     // Library button should be visible for editors
     await expect(
       page.getByRole('button', { name: /Library/i }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // History button should be visible when a response exists (first question has a seeded response)
+    await expect(
+      page.getByRole('button', { name: /History/i }),
     ).toBeVisible({ timeout: 10000 });
   });
 
@@ -309,14 +350,10 @@ test.describe('Bid session role gating', () => {
   }) => {
     await gotoSession(page, workerData.bidId);
 
-    // Click "Back to bid" link — on mobile may need force click
+    // Click "Back to bid" link
     const backLink = page.getByRole('link', { name: /Back to bid/i });
     await expect(backLink).toBeVisible();
-    if (isMobileViewport(page)) {
-      await backLink.click({ force: true });
-    } else {
-      await backLink.click();
-    }
+    await backLink.click();
 
     await expect(page).toHaveURL(`/bid/${workerData.bidId}`, { timeout: 10000 });
   });

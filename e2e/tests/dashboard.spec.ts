@@ -145,8 +145,10 @@ test.describe('Dashboard -- content health stats', () => {
     const bidsSection = page.locator('section[aria-label="Active bids"]').first();
     await expect(bidsSection).toBeVisible({ timeout: 15000 });
 
-    // Content health section
-    const healthSection = page.locator('section[aria-label="Content health"]').first();
+    // Content health section — only one QuickStatsStrip is rendered on the
+    // dashboard (app/page.tsx), so no .first() needed. If strict mode fails
+    // here, it indicates duplicate sections in the DOM (a real bug).
+    const healthSection = page.locator('section[aria-label="Content health"]');
     await expect(healthSection).toBeVisible({ timeout: 10000 });
 
     // Heading
@@ -155,10 +157,18 @@ test.describe('Dashboard -- content health stats', () => {
     // At least one "Fresh" stat label (worker seeds fresh items)
     await expect(healthSection.getByText('Fresh')).toBeVisible();
 
-    // Active bids label with a value (worker data seeds at least 1 active bid)
-    await expect(
-      healthSection.getByText(/Active bids?/),
-    ).toBeVisible();
+    // Active bids label with a non-zero numeric value (worker data seeds at
+    // least 1 active bid). The StatItem component renders:
+    //   <span>{value}</span> <span>{label}</span>
+    // We locate the label, then check the sibling value span is not "0".
+    const activeBidsLabel = healthSection.getByText(/Active bids?/);
+    await expect(activeBidsLabel).toBeVisible();
+
+    // The value <span> is the immediately preceding sibling of the label <span>
+    const activeBidsValue = activeBidsLabel.locator('xpath=preceding-sibling::span');
+    await expect(activeBidsValue).toBeVisible();
+    const valueText = await activeBidsValue.textContent();
+    expect(Number(valueText)).toBeGreaterThan(0);
   });
 
   test('quick stats strip shows unhealthy content indicators', async ({
@@ -166,19 +176,24 @@ test.describe('Dashboard -- content health stats', () => {
   }) => {
     await page.goto('/');
 
-    // Wait for content health section
-    const healthSection = page.locator('section[aria-label="Content health"]').first();
+    // Wait for content health section — single instance, no .first() needed
+    const healthSection = page.locator('section[aria-label="Content health"]');
     await expect(healthSection).toBeVisible({ timeout: 15000 });
 
     // Worker data seeds stale (items[3]), expired (items[4]), and aging
     // (items[8], items[11]) items. At least one unhealthy label should appear.
     // Dashboard aggregates ALL data, so there could be more from other sources.
+    //
+    // Visibility implies non-zero because the QuickStatsStrip component
+    // conditionally renders Aging/Stale/Expired labels ONLY when their
+    // respective counts are > 0 (see quick-stats-strip.tsx lines 72-74).
     const agingLabel = healthSection.getByText('Aging');
     const staleLabel = healthSection.getByText('Stale');
     const expiredLabel = healthSection.getByText('Expired');
 
-    // At least one of the unhealthy indicators should be present
+    // At least one of the unhealthy indicators should be present.
     // Multiple may exist, so use .first() to avoid strict mode violation
+    // on the .or() chain (which unions the locators).
     await expect(
       agingLabel.or(staleLabel).or(expiredLabel).first(),
     ).toBeVisible({ timeout: 10000 });

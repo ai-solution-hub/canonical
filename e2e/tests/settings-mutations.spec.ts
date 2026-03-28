@@ -48,6 +48,45 @@ test.describe('Settings -- Team management', () => {
     expect(foundRole).toBe(true);
   });
 
+  test('non-current-user row has role dropdown with Admin/Editor/Viewer options', async ({
+    authenticatedPage: page,
+  }) => {
+    await page.goto('/settings?section=team');
+    await expect(
+      page.getByRole('heading', { name: 'Settings' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    const main = page.locator('main');
+    await expect(
+      main.getByRole('heading', { name: /team members/i }),
+    ).toBeVisible({ timeout: 15000 });
+
+    // The desktop table renders a <select> (via SelectTrigger) for non-current-user rows.
+    // The current user row shows a static Badge instead. Find a SelectTrigger in the
+    // team table (desktop view) — its presence confirms a non-self user row.
+    const tableArea = main.locator('table');
+    const roleDropdowns = tableArea.locator('button[role="combobox"]');
+    const dropdownCount = await roleDropdowns.count();
+
+    if (dropdownCount === 0) {
+      test.skip(true, 'No non-current-user rows found — cannot test role dropdown');
+      return;
+    }
+
+    // Click the first role dropdown to open it
+    await roleDropdowns.first().click();
+
+    // Verify the three role options are present in the listbox
+    const listbox = page.getByRole('listbox');
+    await expect(listbox).toBeVisible({ timeout: 5000 });
+    await expect(listbox.getByRole('option', { name: 'Admin' })).toBeVisible();
+    await expect(listbox.getByRole('option', { name: 'Editor' })).toBeVisible();
+    await expect(listbox.getByRole('option', { name: 'Viewer' })).toBeVisible();
+
+    // Close dropdown
+    await page.keyboard.press('Escape');
+  });
+
   test('invite user dialog opens and validates email', async ({
     authenticatedPage: page,
   }) => {
@@ -84,11 +123,16 @@ test.describe('Settings -- Team management', () => {
     const roleSelector = dialog.getByText(/role/i).or(dialog.getByRole('combobox'));
     await expect(roleSelector.first()).toBeVisible();
 
+    // The email input has the HTML `required` attribute and type="email",
+    // so the browser validates on submit without a custom error message.
+    await expect(emailInput).toHaveAttribute('required', '');
+    await expect(emailInput).toHaveAttribute('type', 'email');
+
     // Try to submit — validation should prevent it
     const submitButton = dialog.getByRole('button', { name: /invite|add|send/i }).last();
     await submitButton.click();
 
-    // Dialog should still be visible (invalid submission blocked)
+    // Dialog should still be visible (invalid submission blocked by browser validation)
     await expect(dialog).toBeVisible();
   });
 });
@@ -107,6 +151,11 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
     ).toBeVisible({ timeout: 10000 });
 
     const main = page.locator('main');
+
+    // Verify the Content Organisation heading is visible
+    await expect(
+      main.getByRole('heading', { name: /Content Organisation/i }),
+    ).toBeVisible({ timeout: 15000 });
 
     // Wait for the "Add Domain" button to confirm the taxonomy section loaded
     await expect(
@@ -204,6 +253,40 @@ test.describe('Settings -- Quality Review (Governance)', () => {
     await expect(
       main.locator('#governance-config-heading'),
     ).toBeVisible({ timeout: 15000 });
+
+    // Verify the heading text matches "Quality Review Rules"
+    await expect(
+      main.locator('#governance-config-heading'),
+    ).toHaveText(/Quality Review Rules/);
+
+    // Check for domain configuration rows or the empty state.
+    // The component renders a role="list" with listitem rows when configs exist,
+    // or an empty state with "No governance rules configured" text.
+    const configList = main.locator('[role="list"][aria-labelledby="governance-config-heading"]');
+    const emptyState = main.getByText('No governance rules configured');
+
+    if (await configList.isVisible({ timeout: 3000 }).catch(() => false)) {
+      // At least one domain row should exist
+      const listItems = configList.locator('[role="listitem"]');
+      const itemCount = await listItems.count();
+      expect(itemCount).toBeGreaterThan(0);
+
+      // Each row has a domain name (text-sm font-medium) and posture badge
+      const firstItem = listItems.first();
+      await expect(firstItem.locator('.text-sm.font-medium')).toBeVisible();
+      await expect(firstItem.locator('.text-xs.text-muted-foreground').first()).toBeVisible();
+    } else {
+      // Empty state is acceptable — verify its content
+      await expect(emptyState).toBeVisible();
+      await expect(
+        main.getByText(/Open.*posture by default/),
+      ).toBeVisible();
+    }
+
+    // "Content Freshness" section should also be visible below governance config
+    await expect(
+      main.getByRole('heading', { name: /Content Freshness/i }),
+    ).toBeVisible();
   });
 });
 

@@ -301,8 +301,12 @@ test.describe('Content creation -- form submission', () => {
       await editor.click();
       await page.keyboard.type('This is test content created by E2E tests.');
 
-      // Wait briefly for the form state to update (react-hook-form watches the editor)
-      await page.waitForTimeout(500);
+      // Wait for the form state to update: react-hook-form watches the editor
+      // content and updates `canSave` (requires title + content + contentType).
+      // The Save button becomes enabled once the editor content propagates, so
+      // we wait for that instead of using an arbitrary timeout.
+      const saveButton = page.getByRole('button', { name: 'Save', exact: true });
+      await expect(saveButton).toBeEnabled({ timeout: 5000 });
 
       // Uncheck auto-classify and auto-summarise to avoid slow AI API calls
       // during the E2E test — we're testing the save flow, not the AI pipeline
@@ -315,8 +319,8 @@ test.describe('Content creation -- form submission', () => {
         await autoSummarise.uncheck();
       }
 
-      // Click the save button — SaveActionsBar has type="submit" button with text "Save"
-      const saveButton = page.getByRole('button', { name: 'Save', exact: true });
+      // Click the save button — SaveActionsBar has type="submit" button with
+      // text "Save". It should still be enabled after unchecking the options.
       await expect(saveButton).toBeEnabled({ timeout: 5000 });
       await saveButton.click();
 
@@ -361,5 +365,9 @@ test.describe('Content creation -- mobile', () => {
 
     // Content type selector is visible
     await expect(page.getByLabel(/content type/i)).toBeVisible();
+
+    // Note: MobileStepIndicator may be visible on mobile viewports but is not
+    // explicitly checked here. The spec marks it as optional ("may be visible")
+    // and the component is a progressive enhancement, not a critical path.
   });
 });

@@ -228,7 +228,11 @@ test.describe('Bid export -- mobile actions', () => {
       page.getByRole('heading', { name: /IT Support Services/ }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Click the "Actions" button (mobile action menu trigger)
+    // Click the "Actions" button (mobile action menu trigger).
+    // force: true is needed on Pixel 5 mobile viewport because the button
+    // may be partially obscured by the sticky header. This is a known
+    // limitation documented in CLAUDE.md (E2E mobile gotcha) and the
+    // e2e-expansion-batch1-spec.md Known Risks section.
     const actionsButton = page.getByRole('button', { name: 'Actions' });
     await expect(actionsButton).toBeVisible();
     await actionsButton.click({ force: true });
@@ -237,7 +241,8 @@ test.describe('Bid export -- mobile actions', () => {
     const exportSubmenu = page.getByRole('menuitem', { name: 'Export' });
     await expect(exportSubmenu).toBeVisible({ timeout: 5000 });
 
-    // Click Export to reveal sub-menu options
+    // Click Export to reveal sub-menu options.
+    // force: true for same mobile viewport overlap reason as above.
     await exportSubmenu.click({ force: true });
 
     // Sub-menu should show Word and Excel options

@@ -61,17 +61,14 @@ test.describe('Guides index page', () => {
       });
       await expect(typeBadge.first()).toBeVisible();
 
-      // First card contains section coverage text
+      // Coverage text and progress bar are rendered when the guide has sections
+      // (stats.total_sections > 0). Since production guides should have sections,
+      // these assertions are mandatory — not optional.
       const coverageText = guideCard.getByText(/\d+\/\d+ sections populated/);
-      if (await coverageText.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await expect(coverageText).toBeVisible();
-      }
+      await expect(coverageText).toBeVisible({ timeout: 5000 });
 
-      // First card contains a progress bar
       const progressBar = guideCard.getByRole('progressbar');
-      if (await progressBar.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await expect(progressBar).toBeVisible();
-      }
+      await expect(progressBar).toBeVisible();
     } else {
       // Empty state
       await expect(emptyState).toBeVisible();
@@ -123,6 +120,15 @@ test.describe('Guides index page', () => {
       // Filtered count should be <= total count
       const filteredCount = await guideCards.count();
       expect(filteredCount).toBeLessThanOrEqual(totalCount);
+
+      // Verify all visible cards have the matching type badge
+      if (filteredCount > 0) {
+        for (let i = 0; i < filteredCount; i++) {
+          const card = guideCards.nth(i);
+          const typeBadge = card.locator('span').filter({ hasText: /^Sector$/ });
+          await expect(typeBadge).toBeVisible();
+        }
+      }
     } else {
       // Close dropdown and skip -- only one type exists
       await page.keyboard.press('Escape');
@@ -160,6 +166,10 @@ test.describe('Guides index page', () => {
 
         // Filtered results should include the guide
         await expect(guideCards.first()).toBeVisible({ timeout: 5000 });
+
+        // Verify the first visible card's name contains the search term
+        const firstCardName = await guideCards.first().locator('h3').first().textContent();
+        expect(firstCardName?.toLowerCase()).toContain(searchTerm.toLowerCase());
       }
     } else {
       test.skip();
@@ -169,30 +179,50 @@ test.describe('Guides index page', () => {
   test('clear filters button resets all filters', async ({
     authenticatedPage: page,
   }) => {
+    // First, load the unfiltered page to capture the baseline card count
+    await page.goto('/guide');
+    await expect(
+      page.getByRole('heading', { name: 'Guides' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    const guideCardsAll = page.locator('a[href^="/guide/"]');
+    const emptyState = page.getByText('No guides published yet');
+    await expect(guideCardsAll.first().or(emptyState)).toBeVisible({ timeout: 15000 });
+    const baselineCount = await guideCardsAll.count();
+
+    // Now navigate with filters applied
     await page.goto('/guide?q=test&type=sector');
 
     await expect(
       page.getByRole('heading', { name: 'Guides' }),
     ).toBeVisible({ timeout: 10000 });
 
-    // If "Clear all filters" button is visible, click it
-    const clearButton = page.locator('[aria-label="Clear all filters"]');
+    // Wait for the page to settle: either guide cards, the clear button, or the no-results state
+    const clearButton = page.locator('button[aria-label="Clear all filters"]');
     const noResultsText = page.getByText('No guides match your filters');
+    const guideCardsFiltered = page.locator('a[href^="/guide/"]');
 
-    // Wait for either the clear button or guides to load
-    await page.waitForTimeout(2000);
+    // Wait for the filter results to appear (guides, clear button, or no-results)
+    await expect(
+      guideCardsFiltered.first().or(noResultsText),
+    ).toBeVisible({ timeout: 10000 });
 
+    // Find the clear mechanism: the filter bar's clear button or the no-results clear link
     if (await clearButton.isVisible({ timeout: 3000 }).catch(() => false)) {
       await clearButton.click();
-
-      // After clearing, URL should have no q or type params
       await expect(page).toHaveURL('/guide', { timeout: 5000 });
     } else if (await noResultsText.isVisible({ timeout: 2000 }).catch(() => false)) {
-      // "Clear all filters" button within no results state
+      // "Clear all filters" link within no results state
       const clearLink = page.getByText('Clear all filters');
       await clearLink.click();
-
       await expect(page).toHaveURL('/guide', { timeout: 5000 });
+    }
+
+    // Verify full list is restored: card count should be >= baseline
+    if (baselineCount > 0) {
+      await expect(guideCardsAll.first()).toBeVisible({ timeout: 5000 });
+      const restoredCount = await guideCardsAll.count();
+      expect(restoredCount).toBeGreaterThanOrEqual(baselineCount);
     }
   });
 });

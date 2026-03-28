@@ -39,7 +39,7 @@ test.describe('Workspaces page', () => {
     ).toBeVisible({ timeout: 10000 });
 
     // The Bids card is a link with aria-label starting with "Bids"
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first().first();
+    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
     await expect(bidsCard).toBeVisible();
 
     // Card contains heading "Bids"
@@ -67,7 +67,7 @@ test.describe('Workspaces page', () => {
       page.getByRole('heading', { name: 'Workspaces' }),
     ).toBeVisible({ timeout: 10000 });
 
-    const bidsCard = page.locator('a[aria-label^="Bids"]').first().first();
+    const bidsCard = page.locator('a[aria-label^="Bids"]').first();
     await expect(bidsCard).toBeVisible();
 
     await bidsCard.click();

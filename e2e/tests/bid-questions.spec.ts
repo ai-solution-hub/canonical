@@ -1,4 +1,5 @@
 import { test, expect } from '../fixtures';
+import { isMobileViewport } from '../helpers/responsive';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
@@ -135,21 +136,12 @@ test.describe('Bid questions list', () => {
       page.getByRole('heading', { name: '4 Questions' }),
     ).toBeVisible({ timeout: 10000 });
 
-    // At least one status indicator should be visible
-    // The seeded questions have either "Not Started" or a response status
-    const statusLabels = ['Not Started', 'AI Drafted', 'In Progress', 'Needs Review', 'Complete'];
-    const statusElements = statusLabels.map(label => page.getByText(label, { exact: true }));
-
-    // At least one status indicator should be visible
-    let foundStatus = false;
-    for (const el of statusElements) {
-      if (await el.first().isVisible({ timeout: 2000 }).catch(() => false)) {
-        foundStatus = true;
-        break;
-      }
-    }
-
-    expect(foundStatus).toBe(true);
+    // The seeded data has 4 questions: 2 have responses (Q1 approved, Q2 draft),
+    // and 2 have no responses (Q3, Q4 = "Not Started").
+    // Status indicators are rendered as spans with the status label text.
+    // Assert that "Not Started" appears for questions without responses.
+    const notStartedIndicators = page.getByText('Not Started', { exact: true });
+    await expect(notStartedIndicators.first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -279,8 +271,8 @@ test.describe('Bid add question dialog', () => {
       page.getByRole('heading', { name: '4 Questions' }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Click "Add Question" button
-    await page.getByRole('button', { name: 'Add Question' }).first().click();
+    // Click "Add Question" button (the trigger button outside the dialog)
+    await page.getByRole('button', { name: 'Add Question' }).click();
 
     // Dialog should appear
     const dialog = page.getByRole('dialog');
@@ -321,8 +313,8 @@ test.describe('Bid add question dialog', () => {
     const uniqueText = `E2E test question ${Date.now()}`;
 
     try {
-      // Click "Add Question" button
-      await page.getByRole('button', { name: 'Add Question' }).first().click();
+      // Click "Add Question" button (the trigger button outside the dialog)
+      await page.getByRole('button', { name: 'Add Question' }).click();
 
       const dialog = page.getByRole('dialog');
       await expect(dialog).toBeVisible();
@@ -479,5 +471,123 @@ test.describe('Bid questions role gating', () => {
     await expect(
       page.getByRole('button', { name: /^Delete$/ }),
     ).not.toBeVisible();
+  });
+
+  test('editor can access Questions tab and see Add Question button', async ({
+    editorPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Questions tab
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    await tabNav.getByRole('tab', { name: 'Questions' }).click();
+
+    // Questions should load
+    await expect(
+      page.getByRole('heading', { name: '4 Questions' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Editor should see Add Question button
+    await expect(
+      page.getByRole('button', { name: 'Add Question' }),
+    ).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Tab Badge and Bulk Actions
+// ---------------------------------------------------------------------------
+
+test.describe('Bid questions tab badge and bulk actions', () => {
+  test('Questions tab shows count badge with 4', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // The Questions tab should show a count badge
+    // Tab structure: <button role="tab">Questions <span>4</span></button>
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    const questionsTab = tabNav.getByRole('tab', { name: 'Questions' });
+    await expect(questionsTab).toBeVisible();
+
+    // The tab contains a badge span with the count "4"
+    await expect(questionsTab.locator('span').filter({ hasText: '4' })).toBeVisible();
+  });
+
+  test('bulk action buttons are visible when questions have no matches', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Questions tab
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    await tabNav.getByRole('tab', { name: 'Questions' }).click();
+
+    await expect(
+      page.getByRole('heading', { name: '4 Questions' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // All 4 seeded questions are unmatched, so "Find answers" bulk action should be visible
+    await expect(
+      page.getByRole('button', { name: /Find answers/i }),
+    ).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Mobile
+// ---------------------------------------------------------------------------
+
+test.describe('Bid questions mobile', () => {
+  test('questions tab loads on mobile viewport without horizontal overflow', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    // Only run on mobile
+    if (!isMobileViewport(page)) {
+      test.skip();
+      return;
+    }
+
+    await page.goto(`/bid/${workerData.bidId}`);
+
+    await expect(
+      page.getByRole('heading', { name: /IT Support Services/ }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Navigate to Questions tab
+    const tabNav = page.getByRole('tablist', { name: 'Bid sections' });
+    await tabNav.getByRole('tab', { name: 'Questions' }).click();
+
+    // Questions should load
+    await expect(
+      page.getByRole('heading', { name: '4 Questions' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Verify no horizontal overflow: document scrollWidth should equal clientWidth
+    const hasOverflow = await page.evaluate(() => {
+      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
+    });
+    expect(hasOverflow).toBe(false);
+
+    // First question text should be visible on mobile
+    await expect(
+      page.getByText('Describe your approach to providing IT support services.'),
+    ).toBeVisible();
   });
 });
