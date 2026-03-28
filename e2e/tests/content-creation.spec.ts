@@ -239,23 +239,23 @@ test.describe('Content creation -- classification fields', () => {
     const firstDomain = domainListbox.getByRole('option').first();
     await firstDomain.click();
 
-    // Now check for the subtopic selector
+    // The subtopic selector is always rendered but disabled until a domain
+    // is selected. After domain selection it should be enabled and visible.
     const subtopicSelect = page.getByLabel(/subtopic/i).first();
+    await expect(subtopicSelect).toBeVisible({ timeout: 10000 });
 
-    // Subtopic selector should be visible after domain selection
-    if (await subtopicSelect.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await subtopicSelect.click();
+    // Open the subtopic dropdown
+    await subtopicSelect.click();
 
-      const subtopicListbox = page.getByRole('listbox');
-      await expect(subtopicListbox).toBeVisible({ timeout: 5000 });
+    const subtopicListbox = page.getByRole('listbox');
+    await expect(subtopicListbox).toBeVisible({ timeout: 5000 });
 
-      // Should have at least one subtopic option
-      await expect(
-        subtopicListbox.getByRole('option').first(),
-      ).toBeVisible();
+    // Should have at least one subtopic option
+    await expect(
+      subtopicListbox.getByRole('option').first(),
+    ).toBeVisible();
 
-      await page.keyboard.press('Escape');
-    }
+    await page.keyboard.press('Escape');
   });
 });
 
@@ -326,10 +326,8 @@ test.describe('Content creation -- form submission', () => {
         page.getByText(/Content created/),
       ).toBeVisible({ timeout: 15000 });
 
-      // After save, URL should change away from /item/new
-      // The redirect goes to /item/{uuid} but there can be a brief 404 if the
-      // detail page loads before the item is readable, so just verify we left /item/new
-      await expect(page).not.toHaveURL(/\/item\/new/, { timeout: 10000 });
+      // After save, the redirect should go to /item/{uuid} (the new item's detail page)
+      await expect(page).toHaveURL(/\/item\/[a-f0-9-]+/, { timeout: 15000 });
     } finally {
       // Clean up: delete any items matching the title via service client
       const supabase = createServiceClient();

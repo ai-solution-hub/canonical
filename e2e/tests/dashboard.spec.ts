@@ -270,7 +270,28 @@ test.describe('Dashboard -- recent activity', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. Mobile Layout
+// 7. Viewer Role
+// ---------------------------------------------------------------------------
+
+test.describe('Dashboard -- viewer role', () => {
+  test('dashboard loads for viewer role without admin-only features', async ({
+    viewerPage: page,
+  }) => {
+    await page.goto('/');
+
+    // Knowledge Hub heading is visible — viewer can access the dashboard
+    await expect(
+      page.getByRole('heading', { name: 'Knowledge Hub' }),
+    ).toBeVisible({ timeout: 10000 });
+
+    // Hero search is available for viewer
+    const searchSection = page.locator('section[aria-label="Search"]');
+    await expect(searchSection).toBeVisible();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Mobile Layout
 // ---------------------------------------------------------------------------
 
 test.describe('Dashboard -- mobile layout', () => {

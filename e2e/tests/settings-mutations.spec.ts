@@ -63,7 +63,8 @@ test.describe('Settings -- Team management', () => {
 
     // Find the invite/add button
     const inviteButton = main.getByRole('button', { name: /invite|add/i }).first();
-    if (!await inviteButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    const isVisible = await inviteButton.isVisible({ timeout: 5000 });
+    if (!isVisible) {
       test.skip(true, 'Invite button not found — invite flow may not be implemented yet');
       return;
     }
@@ -169,11 +170,17 @@ test.describe('Settings -- Content Organisation (Taxonomy)', () => {
       main.getByText(/tags/i).first(),
     ).toBeVisible({ timeout: 15000 });
 
-    // Either tags are listed or an empty state is shown — wait for either
-    const tagContent = main.getByRole('listitem').first()
-      .or(main.getByText(/no tags/i))
-      .or(main.getByText(/add/i));
-    await expect(tagContent).toBeVisible({ timeout: 15000 });
+    // The tags section renders sub-tabs: "Duplicates", "By Domain", "All Tags".
+    // Verify the tag health stats loaded (confirms tags data fetched)
+    // and that the sub-tab navigation is rendered.
+    await expect(
+      main.getByText('Tag Health'),
+    ).toBeVisible({ timeout: 15000 });
+
+    // At least one sub-tab should be visible (the section uses its own internal Tabs)
+    await expect(
+      main.getByRole('tab', { name: /All Tags/ }),
+    ).toBeVisible();
   });
 });
 

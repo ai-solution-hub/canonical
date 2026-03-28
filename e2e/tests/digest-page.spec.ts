@@ -138,22 +138,22 @@ test.describe('Change Reports page', () => {
     const presetTab = page.locator('#tab-preset');
     await expect(presetTab).toHaveAttribute('aria-selected', 'true');
 
-    // Click the period select trigger (within the tabpanel)
+    // Click the period select trigger (within the tabpanel).
+    // The period selector should ALWAYS be visible on the default Period tab.
     const tabpanel = page.locator('#digest-content-panel');
     const selectTrigger = tabpanel.getByRole('combobox').first();
+    await expect(selectTrigger).toBeVisible({ timeout: 10000 });
 
-    if (await selectTrigger.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await selectTrigger.click();
+    await selectTrigger.click();
 
-      // Dropdown listbox appears with period options
-      const listbox = page.getByRole('listbox');
-      await expect(listbox.getByText('Last 7 days')).toBeVisible();
-      await expect(listbox.getByText('Last 14 days')).toBeVisible();
-      await expect(listbox.getByText('Last 30 days')).toBeVisible();
+    // Dropdown listbox appears with period options
+    const listbox = page.getByRole('listbox');
+    await expect(listbox.getByText('Last 7 days')).toBeVisible();
+    await expect(listbox.getByText('Last 14 days')).toBeVisible();
+    await expect(listbox.getByText('Last 30 days')).toBeVisible();
 
-      // Close dropdown
-      await page.keyboard.press('Escape');
-    }
+    // Close dropdown
+    await page.keyboard.press('Escape');
   });
 
   test('generate button is present and clickable', async ({

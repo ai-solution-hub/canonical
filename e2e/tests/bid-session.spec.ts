@@ -62,7 +62,7 @@ test.describe('Bid session page load', () => {
     }
   });
 
-  test('session page shows response editor area', async ({
+  test('session page shows response editor area with content', async ({
     authenticatedPage: page,
     workerData,
   }) => {
@@ -71,6 +71,15 @@ test.describe('Bid session page load', () => {
     // Response editor area
     const editorArea = page.locator('main[aria-label="Response editor"]');
     await expect(editorArea).toBeVisible();
+
+    // Wait for loading spinner to disappear (response loads async)
+    const loadingSpinner = editorArea.locator('[aria-label="Loading response"]');
+    await expect(loadingSpinner).not.toBeVisible({ timeout: 15000 });
+
+    // After loading, the ProseMirror editor should be rendered inside the editor area.
+    // This confirms the response data loaded and the editor initialised — not just an empty shell.
+    const editor = editorArea.locator('.ProseMirror');
+    await expect(editor).toBeVisible({ timeout: 10000 });
   });
 
   test('session page shows current question text', async ({
@@ -97,6 +106,36 @@ test.describe('Bid session page load', () => {
       await expect(
         detailsBlock.getByText('Describe your approach to providing IT support services.'),
       ).toBeVisible({ timeout: 10000 });
+    }
+  });
+
+  test('session page shows word count indicator for current question', async ({
+    authenticatedPage: page,
+    workerData,
+  }) => {
+    await gotoSession(page, workerData.bidId);
+
+    if (!isMobileViewport(page)) {
+      // Desktop: word count is in the question sidebar panel
+      const aside = page.locator('aside[aria-label="Question navigation"]');
+      await expect(aside).toBeVisible({ timeout: 10000 });
+
+      // WordCountIndicator renders as role="status" with "X / Y words" text
+      // The seeded question has word_limit: 500
+      const wordCountStatus = aside.locator('[role="status"]').filter({
+        hasText: /\d+ \/ \d+ words/,
+      });
+      await expect(wordCountStatus).toBeVisible({ timeout: 10000 });
+    } else {
+      // Mobile: word count is inside the collapsible <details> element
+      const summary = page.locator('details summary');
+      await expect(summary.first()).toBeVisible({ timeout: 5000 });
+      await summary.first().click();
+
+      const wordCountStatus = page.locator('details [role="status"]').filter({
+        hasText: /\d+ \/ \d+ words/,
+      });
+      await expect(wordCountStatus).toBeVisible({ timeout: 10000 });
     }
   });
 });

@@ -283,11 +283,12 @@ test.describe('Document diff page', () => {
       const statusBadge = diffSection.locator('[aria-label="Status: Needs Review"]');
       await expect(statusBadge.first()).toBeVisible();
 
-      // Similarity score may be visible for modified entries (only shown in Q&A mode, not full_text)
+      // NOTE: Similarity score is only rendered by the Q&A mode DiffEntryCard,
+      // not by FullTextDiffEntryCard. Since the seeded data uses full_text mode,
+      // the similarity score (0.85) is stored in the DB but never displayed.
+      // To test similarity rendering, a Q&A mode diff entry would need to be seeded.
       const similarityText = diffSection.getByText(/similarity: 85%/);
-      if (await similarityText.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await expect(similarityText).toBeVisible();
-      }
+      await expect(similarityText).not.toBeVisible();
 
       // Apply and Dismiss buttons should be visible
       await expect(
@@ -421,20 +422,19 @@ test.describe('Document diff page', () => {
       await expect(diffSection).toBeVisible({ timeout: 15000 });
 
       // Full-text entries should use "Added:", "Removed:", "Old version:", "New version:" labels
-      // not "Q:" labels used for Q&A mode
+      // not "Q:" labels used for Q&A mode.
+      // The seeded data guarantees full_text mode entries, so these must be mandatory.
 
       // For an added entry, "Added:" label should be present (scoped within diffSection)
       const addedEntry = diffSection.locator('[aria-label="added text block"]');
-      if (await addedEntry.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expect(addedEntry.getByText('Added:')).toBeVisible();
-      }
+      await expect(addedEntry).toBeVisible({ timeout: 5000 });
+      await expect(addedEntry.getByText('Added:')).toBeVisible();
 
       // For a modified entry, "Old version:" and "New version:" labels should be present
       const modifiedCard = diffSection.locator('[aria-label="modified text block"]');
-      if (await modifiedCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-        await expect(modifiedCard.getByText('Old version:')).toBeVisible();
-        await expect(modifiedCard.getByText('New version:')).toBeVisible();
-      }
+      await expect(modifiedCard).toBeVisible({ timeout: 5000 });
+      await expect(modifiedCard.getByText('Old version:')).toBeVisible();
+      await expect(modifiedCard.getByText('New version:')).toBeVisible();
 
       // "Q:" label should NOT appear (that is Q&A mode)
       const qaLabel = diffSection.getByText(/^Q: /);
