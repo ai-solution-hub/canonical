@@ -1,33 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { FALLBACK_COLOUR_MAP } from '@/lib/taxonomy/taxonomy-format';
+import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 
 // Re-export formatting utilities so existing consumers don't break
 export { formatSubtopic, formatDomainName } from '@/lib/taxonomy/taxonomy-format';
 
-// ---------------------------------------------------------------------------
-// Types (mirror context types for server use)
-// ---------------------------------------------------------------------------
-
-export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
-
-export interface TaxonomyDomain {
-  id: string;
-  name: string;
-  display_order: number;
-  colour: string | null;
-  is_active: boolean;
-  provenance: TaxonomyProvenance;
-}
-
-export interface TaxonomySubtopic {
-  id: string;
-  domain_id: string;
-  name: string;
-  display_order: number;
-  is_active: boolean;
-  provenance: TaxonomyProvenance;
-  description: string | null;
-}
+// Re-export shared types so existing `import { TaxonomyDomain } from '@/lib/taxonomy/taxonomy-server'`
+// continues to work.
+export type { TaxonomyProvenance, TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 
 // ---------------------------------------------------------------------------
 // Server-side taxonomy loading
@@ -92,5 +72,44 @@ export function getDomainColourKey(
   const domain = domains.find((d) => d.name === domainName);
   if (domain?.colour) return domain.colour;
   return FALLBACK_COLOUR_MAP[domainName] ?? 'corporate';
+}
+
+// ---------------------------------------------------------------------------
+// Utility loaders — convenience wrappers over loadTaxonomy()
+// ---------------------------------------------------------------------------
+
+/**
+ * Load taxonomy formatted as a prompt string for AI classification.
+ *
+ * Returns one line per domain in the format:
+ *   - domain-name: subtopic-a, subtopic-b, subtopic-c
+ */
+export async function loadTaxonomyForPrompt(): Promise<string> {
+  const { domains, subtopics } = await loadTaxonomy();
+  return domains
+    .map((d) => {
+      const subs = subtopics
+        .filter((s) => s.domain_id === d.id)
+        .map((s) => s.name);
+      return `- ${d.name}: ${subs.join(', ')}`;
+    })
+    .join('\n');
+}
+
+/**
+ * Load taxonomy as flat name arrays for validation use.
+ *
+ * Returns `{ domains: string[], subtopics: string[] }` containing only active
+ * domain and subtopic names.
+ */
+export async function loadTaxonomyFlat(): Promise<{
+  domains: string[];
+  subtopics: string[];
+}> {
+  const { domains, subtopics } = await loadTaxonomy();
+  return {
+    domains: domains.map((d) => d.name),
+    subtopics: subtopics.map((s) => s.name),
+  };
 }
 

@@ -20,6 +20,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/supabase/types/database.types';
+import type { TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 import { createHash } from 'crypto';
 
 // ---------------------------------------------------------------------------
@@ -56,19 +57,6 @@ export interface SuggestionParams {
 // ---------------------------------------------------------------------------
 // Internal types
 // ---------------------------------------------------------------------------
-
-interface TaxonomyDomain {
-  id: string;
-  name: string;
-  display_order: number;
-}
-
-interface TaxonomySubtopic {
-  id: string;
-  name: string;
-  domain_id: string;
-  display_order: number;
-}
 
 interface ContentItemRow {
   primary_domain: string | null;

@@ -15,31 +15,14 @@ import {
   formatDomainName as formatDomainNameUtil,
   FALLBACK_COLOUR_MAP,
 } from '@/lib/taxonomy/taxonomy-format';
+import type {
+  TaxonomyDomain,
+  TaxonomySubtopic,
+} from '@/types/taxonomy';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
-
-export interface TaxonomyDomain {
-  id: string;
-  name: string;
-  display_order: number;
-  colour: string | null;
-  is_active: boolean;
-  provenance: TaxonomyProvenance;
-}
-
-export interface TaxonomySubtopic {
-  id: string;
-  domain_id: string;
-  name: string;
-  display_order: number;
-  is_active: boolean;
-  provenance: TaxonomyProvenance;
-  description: string | null;
-}
+// Re-export shared types so existing `import { TaxonomyDomain } from '@/contexts/taxonomy-context'`
+// continues to work (even though no external file currently does this).
+export type { TaxonomyProvenance, TaxonomyDomain, TaxonomySubtopic } from '@/types/taxonomy';
 
 interface TaxonomyContextValue {
   /** All active taxonomy domains, ordered by display_order */
