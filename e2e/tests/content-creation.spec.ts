@@ -304,6 +304,17 @@ test.describe('Content creation -- form submission', () => {
       // Wait briefly for the form state to update (react-hook-form watches the editor)
       await page.waitForTimeout(500);
 
+      // Uncheck auto-classify and auto-summarise to avoid slow AI API calls
+      // during the E2E test — we're testing the save flow, not the AI pipeline
+      const autoClassify = page.getByLabel('Classify automatically');
+      if (await autoClassify.isChecked()) {
+        await autoClassify.uncheck();
+      }
+      const autoSummarise = page.getByLabel('Generate summary');
+      if (await autoSummarise.isChecked()) {
+        await autoSummarise.uncheck();
+      }
+
       // Click the save button — SaveActionsBar has type="submit" button with text "Save"
       const saveButton = page.getByRole('button', { name: 'Save', exact: true });
       await expect(saveButton).toBeEnabled({ timeout: 5000 });
