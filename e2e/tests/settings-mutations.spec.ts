@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures';
-import { getSettingsNav, navigateToSettingsSection } from '../helpers/responsive';
+import { getSettingsNav } from '../helpers/responsive';
 
 /**
  * Flow: Settings Mutations

@@ -87,7 +87,6 @@ test.describe('Dashboard -- attention and bids sections', () => {
 
   test('active bids section shows seeded bid card', async ({
     authenticatedPage: page,
-    workerData,
   }) => {
     await page.goto('/');
 

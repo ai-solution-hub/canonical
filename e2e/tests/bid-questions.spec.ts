@@ -1,5 +1,4 @@
 import { test, expect } from '../fixtures';
-import { isMobileViewport } from '../helpers/responsive';
 import { createServiceClient } from '../fixtures/supabase';
 
 /**
