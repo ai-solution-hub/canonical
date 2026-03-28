@@ -58,12 +58,12 @@ Key directories:
 
 | Directory | Contents |
 |-----------|----------|
-| `proxy.ts` | Next.js auth middleware (project root) — `publicRoutes` allowlist |
+| `proxy.ts` | Next.js 16 convention file (auto-discovered, not imported) — auth middleware, `publicRoutes` allowlist |
 | `app/` | Next.js 16 App Router — API routes, page routes |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | 20 domain dirs (bid, browse, content, coverage, dashboard, digest, item-detail, qa, reader, review, shell, shared, ui/shadcn, etc.) |
+| `components/` | 20 domain subdirs — new components go in their domain dir, never at root |
 | `contexts/` | React contexts (read-marks, taxonomy, client-features, layer-vocabulary) |
-| `hooks/` | Custom React hooks (46 files — browse-filters, keyboard-shortcuts, draft-stream, etc.) |
+| `hooks/` | Custom React hooks — 5 domain subdirs (bid, browse, review, streaming, ui) + general hooks at root |
 | `lib/` | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
 | `types/` | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
@@ -126,8 +126,7 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 - **Python tests:** `python3 -m pytest scripts/tests/`
 - **E2E:** Playwright — specs in `e2e/tests/`. Worker-scoped fixtures,
   multi-role auth (admin/editor/viewer).
-- **Strategy:** `.planning/specs/testing-strategy-spec.md` (original) +
-  `.planning/specs/testing-expansion-spec.md` (all waves complete)
+- **Strategy:** Archived in `.planning/.archive/.specs/` (all waves complete)
 - **Agent escalation rule:** When test agents encounter unexpected production
   behaviour (e.g. a component renders incorrectly, a function returns wrong
   data, dead code paths, or tests that can only pass by not actually testing
@@ -190,7 +189,7 @@ Consult these references when adding or modifying UI elements.
 | Auto-generated stats | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
 | Documentation inventory | `docs/reference/documentation-inventory.md` |
 | Session handoffs | `docs/continuation-prompts/` |
-| Classification framework | `docs/reference/classification-framework.md` |
+| Classification prompt | `docs/reference/classification-prompt.md` |
 | Roadmap | `docs/reference/post-mvp-roadmap.md` |
 
 Historical planning documents are in `.planning/`.
@@ -260,3 +259,9 @@ findings before merge, worktrees for parallel work, sequential merges only.
 - **Supabase default row limit:** Max Rows is set to 5000 (raised from 1000).
   Scripts fetching large result sets should still paginate with `.range()` or
   add explicit `.limit()` rather than relying on the default.
+- **`getAuthorisedClient()` discriminated union:** Returns
+  `{ success: boolean }` — check `auth.success` not `auth.authorised`.
+- **No barrel re-exports:** Always use direct file imports
+  (`@/lib/bid/helpers`), never import from index files.
+- **"Change Reports" not "Digest":** User-facing label is "Change Reports".
+  Internal code, types, routes, and file names still use "digest".
