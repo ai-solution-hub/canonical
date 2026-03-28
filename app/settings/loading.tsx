@@ -1,6 +1,6 @@
 export default function SettingsLoading() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+    <div role="status" aria-label="Loading settings" className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       {/* Header skeleton */}
       <div className="mb-6 flex items-center gap-3">
         <div className="size-6 animate-pulse rounded bg-accent" />
