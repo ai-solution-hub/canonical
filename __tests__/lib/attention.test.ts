@@ -23,6 +23,40 @@ import type { AttentionItem, AttentionSourceData } from '@/lib/attention';
 import type { ActiveBidSummary } from '@/lib/dashboard';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeBid(overrides: Partial<ActiveBidSummary> = {}): ActiveBidSummary {
+  return {
+    id: 'bid-1',
+    name: 'Test Bid',
+    buyer: 'Acme Corp',
+    status: 'in_progress',
+    deadline: null,
+    days_until_deadline: null,
+    total_questions: 10,
+    answered_questions: 5,
+    approved_questions: 3,
+    ...overrides,
+  };
+}
+
+function emptySourceData(): AttentionSourceData {
+  return {
+    governance_review_count: 0,
+    stale_content_count: 0,
+    expired_content_count: 0,
+    quality_flag_count: 0,
+    unverified_count: 0,
+    active_bids: [],
+    expiring_cert_count: 0,
+    expiring_content_date_count: 0,
+    unread_notification_count: 0,
+    coverage_gap_count: 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Producer tests
 // ---------------------------------------------------------------------------
 
@@ -48,6 +82,27 @@ describe('produceGovernanceReviewItems', () => {
   it('uses plural grammar for count > 1', () => {
     const items = produceGovernanceReviewItems(5);
     expect(items[0].title).toContain('5 governance reviews pending');
+  });
+
+  it('includes action_url pointing to /review', () => {
+    const items = produceGovernanceReviewItems(3);
+    expect(items[0].action_url).toBe('/review');
+  });
+
+  it('includes a claude_prompt', () => {
+    const items = produceGovernanceReviewItems(2);
+    expect(items[0].claude_prompt).toBeDefined();
+    expect(items[0].claude_prompt).toContain('2');
+  });
+
+  it('uses singular grammar in detail for count of 1', () => {
+    const items = produceGovernanceReviewItems(1);
+    expect(items[0].detail).toContain('1 content item needs');
+  });
+
+  it('uses plural grammar in detail for count > 1', () => {
+    const items = produceGovernanceReviewItems(5);
+    expect(items[0].detail).toContain('5 content items need');
   });
 });
 
@@ -96,6 +151,12 @@ describe('produceQualityFlagItems', () => {
     expect(items[0].severity).toBe('high');
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
   });
+
+  it('sets type to quality_flag with correct count', () => {
+    const items = produceQualityFlagItems(4);
+    expect(items[0].type).toBe('quality_flag');
+    expect(items[0].count).toBe(4);
+  });
 });
 
 describe('produceUnverifiedItems', () => {
@@ -108,6 +169,12 @@ describe('produceUnverifiedItems', () => {
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('medium');
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
+  });
+
+  it('sets type to unverified_content with correct count', () => {
+    const items = produceUnverifiedItems(12);
+    expect(items[0].type).toBe('unverified_content');
+    expect(items[0].count).toBe(12);
   });
 });
 
@@ -160,6 +227,86 @@ describe('produceBidDeadlineItems', () => {
     const items = produceBidDeadlineItems([bid]);
     expect(items[0].role_visibility).toEqual(['admin', 'editor', 'viewer']);
   });
+
+  it('returns empty array for bids with no deadline', () => {
+    const bids = [makeBid({ deadline: null })];
+    expect(produceBidDeadlineItems(bids)).toEqual([]);
+  });
+
+  it('maps approaching bids (< 14 days) to medium severity', () => {
+    const approachingDate = new Date();
+    approachingDate.setDate(approachingDate.getDate() + 7);
+    const bids = [makeBid({
+      deadline: approachingDate.toISOString(),
+      days_until_deadline: 7,
+    })];
+    const items = produceBidDeadlineItems(bids);
+    expect(items).toHaveLength(1);
+    expect(items[0].severity).toBe('medium');
+  });
+
+  it('includes bid name and deadline info in title', () => {
+    const soonDate = new Date();
+    soonDate.setDate(soonDate.getDate() + 2);
+    const bids = [makeBid({
+      name: 'Acme Bid',
+      deadline: soonDate.toISOString(),
+      days_until_deadline: 2,
+    })];
+    const items = produceBidDeadlineItems(bids);
+    expect(items[0].title).toContain('Acme Bid');
+    expect(items[0].title).toContain('2 days remaining');
+  });
+
+  it('handles "due today" for 0 days remaining', () => {
+    const todayDate = new Date();
+    todayDate.setHours(todayDate.getHours() + 6);
+    const bids = [makeBid({
+      deadline: todayDate.toISOString(),
+      days_until_deadline: 0,
+    })];
+    const items = produceBidDeadlineItems(bids);
+    expect(items).toHaveLength(1);
+    expect(items[0].title).toContain('due today');
+  });
+
+  it('includes buyer in detail when present', () => {
+    const soonDate = new Date();
+    soonDate.setDate(soonDate.getDate() + 1);
+    const bids = [makeBid({
+      buyer: 'Widget Co',
+      deadline: soonDate.toISOString(),
+      days_until_deadline: 1,
+    })];
+    const items = produceBidDeadlineItems(bids);
+    expect(items[0].detail).toContain('Widget Co');
+  });
+
+  it('sets entity_type to workspace with bid id', () => {
+    const soonDate = new Date();
+    soonDate.setDate(soonDate.getDate() + 1);
+    const bids = [makeBid({
+      id: 'bid-abc-123',
+      deadline: soonDate.toISOString(),
+    })];
+    const items = produceBidDeadlineItems(bids);
+    expect(items[0].entity_type).toBe('workspace');
+    expect(items[0].entity_id).toBe('bid-abc-123');
+    expect(items[0].action_url).toBe('/bids/bid-abc-123');
+  });
+
+  it('produces multiple items for multiple urgent bids', () => {
+    const soonDate = new Date();
+    soonDate.setDate(soonDate.getDate() + 1);
+    const bids = [
+      makeBid({ id: 'bid-1', name: 'Bid A', deadline: soonDate.toISOString() }),
+      makeBid({ id: 'bid-2', name: 'Bid B', deadline: soonDate.toISOString() }),
+    ];
+    const items = produceBidDeadlineItems(bids);
+    expect(items).toHaveLength(2);
+    expect(items[0].id).toBe('attention-bid-bid-1');
+    expect(items[1].id).toBe('attention-bid-bid-2');
+  });
 });
 
 describe('produceExpiringCertItems', () => {
@@ -172,6 +319,16 @@ describe('produceExpiringCertItems', () => {
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('info');
     expect(items[0].type).toBe('expiring_certification');
+  });
+
+  it('links to /compliance', () => {
+    const items = produceExpiringCertItems(2);
+    expect(items[0].action_url).toBe('/compliance');
+  });
+
+  it('uses singular grammar for 1 certification', () => {
+    const items = produceExpiringCertItems(1);
+    expect(items[0].title).toBe('1 certification expiring soon');
   });
 });
 
@@ -186,11 +343,18 @@ describe('produceExpiringContentDateItems', () => {
     expect(items[0].severity).toBe('medium');
     expect(items[0].role_visibility).toEqual(['admin', 'editor', 'viewer']);
   });
+
+  it('sets type to expiring_content_date with correct count', () => {
+    const items = produceExpiringContentDateItems(7);
+    expect(items[0].type).toBe('expiring_content_date');
+    expect(items[0].count).toBe(7);
+  });
 });
 
 describe('produceUnreadNotificationItems', () => {
   it('returns empty for counts below threshold (5)', () => {
     expect(produceUnreadNotificationItems(0)).toEqual([]);
+    expect(produceUnreadNotificationItems(1)).toEqual([]);
     expect(produceUnreadNotificationItems(4)).toEqual([]);
   });
 
@@ -218,6 +382,12 @@ describe('produceCoverageGapItems', () => {
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('info');
     expect(items[0].role_visibility).toEqual(['admin', 'editor']);
+  });
+
+  it('sets type to coverage_gap with action_url to /coverage', () => {
+    const items = produceCoverageGapItems(5);
+    expect(items[0].type).toBe('coverage_gap');
+    expect(items[0].action_url).toBe('/coverage');
   });
 });
 
@@ -279,6 +449,10 @@ describe('sortAttentionItems', () => {
     expect(sorted).not.toBe(items);
     expect(items[0].severity).toBe('info');
   });
+
+  it('returns empty array for empty input', () => {
+    expect(sortAttentionItems([])).toEqual([]);
+  });
 });
 
 describe('filterByRole', () => {
@@ -327,6 +501,10 @@ describe('filterByRole', () => {
   it('unknown role sees nothing', () => {
     const filtered = filterByRole([adminOnly, allRoles], 'unknown');
     expect(filtered).toHaveLength(0);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(filterByRole([], 'admin')).toEqual([]);
   });
 });
 
@@ -411,5 +589,94 @@ describe('buildAttentionItems', () => {
     expect(items[0].severity).toBe('critical');
     // Last should be info (certs or coverage)
     expect(items[items.length - 1].severity).toBe('info');
+  });
+
+  it('aggregates items from all producers including bids', () => {
+    const urgentDate = new Date();
+    urgentDate.setDate(urgentDate.getDate() + 1);
+    const data: AttentionSourceData = {
+      governance_review_count: 2,
+      stale_content_count: 3,
+      expired_content_count: 1,
+      quality_flag_count: 4,
+      unverified_count: 10,
+      active_bids: [makeBid({ deadline: urgentDate.toISOString() })],
+      expiring_cert_count: 1,
+      expiring_content_date_count: 2,
+      unread_notification_count: 8,
+      coverage_gap_count: 5,
+    };
+    const items = buildAttentionItems(data);
+
+    const types = new Set(items.map((i) => i.type));
+    expect(types.has('governance_review')).toBe(true);
+    expect(types.has('stale_content')).toBe(true);
+    expect(types.has('expired_content')).toBe(true);
+    expect(types.has('quality_flag')).toBe(true);
+    expect(types.has('unverified_content')).toBe(true);
+    expect(types.has('bid_deadline')).toBe(true);
+    expect(types.has('expiring_certification')).toBe(true);
+    expect(types.has('expiring_content_date')).toBe(true);
+    expect(types.has('unread_notifications')).toBe(true);
+    expect(types.has('coverage_gap')).toBe(true);
+  });
+
+  it('returns items sorted by severity with no lower before higher', () => {
+    const urgentDate = new Date();
+    urgentDate.setDate(urgentDate.getDate() + 1);
+    const data: AttentionSourceData = {
+      governance_review_count: 1, // critical
+      stale_content_count: 1, // high
+      expired_content_count: 0,
+      quality_flag_count: 0,
+      unverified_count: 1, // medium
+      active_bids: [makeBid({ deadline: urgentDate.toISOString() })], // high
+      expiring_cert_count: 1, // info
+      expiring_content_date_count: 0,
+      unread_notification_count: 0,
+      coverage_gap_count: 0,
+    };
+    const items = buildAttentionItems(data);
+    const severities = items.map((i) => i.severity);
+
+    for (let i = 1; i < severities.length; i++) {
+      const order = ['critical', 'high', 'medium', 'info'];
+      expect(order.indexOf(severities[i])).toBeGreaterThanOrEqual(
+        order.indexOf(severities[i - 1]),
+      );
+    }
+  });
+
+  it('does not include notification items below threshold', () => {
+    const data: AttentionSourceData = {
+      ...emptySourceData(),
+      unread_notification_count: 3, // below threshold of 5
+    };
+    const items = buildAttentionItems(data);
+    expect(items).toEqual([]);
+  });
+
+  it('includes notification items at threshold', () => {
+    const data: AttentionSourceData = {
+      ...emptySourceData(),
+      unread_notification_count: 5,
+    };
+    const items = buildAttentionItems(data);
+    expect(items).toHaveLength(1);
+    expect(items[0].type).toBe('unread_notifications');
+  });
+
+  it('skips bids with no deadline or normal urgency', () => {
+    const farDate = new Date();
+    farDate.setDate(farDate.getDate() + 60);
+    const data: AttentionSourceData = {
+      ...emptySourceData(),
+      active_bids: [
+        makeBid({ id: 'bid-1', deadline: null }),
+        makeBid({ id: 'bid-2', deadline: farDate.toISOString() }),
+      ],
+    };
+    const items = buildAttentionItems(data);
+    expect(items).toEqual([]);
   });
 });
