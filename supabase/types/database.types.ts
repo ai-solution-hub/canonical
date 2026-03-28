@@ -317,24 +317,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "content_item_projects_content_item_id_fkey"
-            columns: ["content_item_id"]
-            isOneToOne: false
-            referencedRelation: "content_items"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "content_item_projects_project_id_fkey"
-            columns: ["workspace_id"]
-            isOneToOne: false
-            referencedRelation: "workspaces"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "content_item_workspaces_content_item_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_item_workspaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]
@@ -1404,7 +1397,7 @@ export type Database = {
           pipeline_run_id: string | null
           status: string
           storage_path: string
-          uploaded_by: string
+          uploaded_by: string | null
           version: number
           workspace_id: string | null
         }
@@ -1424,7 +1417,7 @@ export type Database = {
           pipeline_run_id?: string | null
           status?: string
           storage_path: string
-          uploaded_by: string
+          uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
         }
@@ -1444,7 +1437,7 @@ export type Database = {
           pipeline_run_id?: string | null
           status?: string
           storage_path?: string
-          uploaded_by?: string
+          uploaded_by?: string | null
           version?: number
           workspace_id?: string | null
         }
