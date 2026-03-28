@@ -38,6 +38,9 @@ development partner. All code is written through human-AI collaboration.
 | `bun run format:check` | Check Prettier formatting |
 | `bun run build:mcp-apps` | Build MCP Apps (Vite) + generate inline bundles for Vercel |
 | `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
+| `bun run test:e2e` | Run Playwright E2E tests |
+| `bun run test:watch` | Vitest in watch mode |
+| `bun run sync:plugin-taxonomy` | Sync plugin taxonomy from DB |
 | `bun run test:mcp-eval` | Run MCP eval Layer 1 (protocol compliance, 42 checks) |
 | `bun run test:mcp-eval:rq` | Run MCP eval Layer 3 (response quality, 17 checks) |
 | `bun run test:mcp-eval:fc` | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB) |
@@ -55,16 +58,17 @@ Key directories:
 
 | Directory | Contents |
 |-----------|----------|
-| `app/` | Next.js 16 App Router — API routes, page routes, `proxy.ts` auth middleware |
+| `proxy.ts` | Next.js auth middleware (project root) — `publicRoutes` allowlist |
+| `app/` | Next.js 16 App Router — API routes, page routes |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
-| `components/` | Custom components + `reader-cards/` + `ui/` (shadcn) |
-| `contexts/` | React contexts (read-marks, taxonomy, client-features) |
-| `hooks/` | Custom hooks (browse-filters, keyboard-shortcuts, draft-stream, etc.) |
-| `lib/` | Utility modules — includes `mcp/` (tools, resources, prompts), `ai/` (service layer), `claude-prompts.ts` |
-| `types/` | TypeScript types (content, bid, bid-metadata, digest, review, template, css.d) |
+| `components/` | 20 domain dirs (bid, browse, content, coverage, dashboard, digest, item-detail, qa, reader, review, shell, shared, ui/shadcn, etc.) |
+| `contexts/` | React contexts (read-marks, taxonomy, client-features, layer-vocabulary) |
+| `hooks/` | Custom React hooks (46 files — browse-filters, keyboard-shortcuts, draft-stream, etc.) |
+| `lib/` | Core modules — `ai/`, `mcp/` (tools, resources, prompts), `bid/`, `content/`, `coverage/`, `digest/`, `entities/`, `extraction/`, `quality/`, `source-documents/`, `supabase/`, `taxonomy/`, `templates/`, `validation/`, plus standalone utils |
+| `types/` | TypeScript types (content, bid, bid-metadata, digest, review, template, owner, reorient, unified-gap, filter-preset, css.d) |
 | `scripts/` | Python pipeline (`kb_pipeline/`), ingestion CLIs, search CLI, batch scripts |
 | `supabase/` | Migrations + auto-generated types (`database.types.ts` — never edit manually) |
-| `__tests__/` | Vitest test files |
+| `__tests__/` | Vitest tests — mirrors source structure (api, app, components, contexts, hooks, lib, mcp, scripts, validation) |
 | `e2e/` | Playwright E2E specs. Config: `playwright.config.ts` |
 | `docs/` | Reference docs, continuation prompts, design system |
 
@@ -221,7 +225,7 @@ findings before merge, worktrees for parallel work, sequential merges only.
 - **Concurrent Claude sessions:** Two sessions on same working tree destroy each
   other's files. Use git worktrees or sequence sessions.
 - **Proxy blocks non-API public routes:** New public endpoints must be added to
-  `publicRoutes` in `proxy.ts` or they silently redirect to `/login`.
+  `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
 - **mcp-handler breaks on Vercel:** Use MCP SDK's
   `WebStandardStreamableHTTPServerTransport` directly, not `createMcpHandler`.
   Fresh server + transport per request. `mcp-handler` only for `.well-known`.
