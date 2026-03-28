@@ -352,8 +352,6 @@ export async function advanceBidState(
     .single()
     .throwOnError();
 
-  const currentMetadata =
-    (current?.domain_metadata as Record<string, unknown>) ?? {};
   const currentState = (current?.status as string) ?? 'draft';
 
   const currentIndex = stateOrder.indexOf(currentState);
