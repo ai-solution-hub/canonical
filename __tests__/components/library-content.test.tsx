@@ -116,7 +116,7 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => mockUserRole,
 }));
 
-vi.mock('@/hooks/use-library-filters', () => ({
+vi.mock('@/hooks/browse/use-library-filters', () => ({
   useLibraryFilters: () => ({
     filters: mockFilters.value,
     setFilters: mockSetFilters,

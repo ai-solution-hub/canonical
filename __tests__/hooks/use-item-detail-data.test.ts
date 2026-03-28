@@ -59,7 +59,7 @@ vi.mock('@/hooks/use-transcript', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-reader-preferences', () => ({
+vi.mock('@/hooks/ui/use-reader-preferences', () => ({
   useReaderPreferences: () => ({
     fontSize: 'medium',
     maxWidth: 'medium',

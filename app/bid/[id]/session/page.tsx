@@ -32,11 +32,11 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useModifierKey } from '@/hooks/use-modifier-key';
+import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 import { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
-import { useDraftRecovery } from '@/hooks/use-draft-recovery';
-import { useStreamCoordination } from '@/hooks/use-stream-coordination';
+import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
+import { useStreamCoordination } from '@/hooks/streaming/use-stream-coordination';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@/components/bid/response-editor';
 

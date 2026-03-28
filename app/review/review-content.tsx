@@ -18,8 +18,8 @@ import { ReviewQueuePanel } from '@/components/review/review-queue-panel';
 import { ReviewSessionSummary } from '@/components/review/review-session-summary';
 import type { ReviewSessionStats } from '@/components/review/review-session-summary';
 import { ReviewCadenceCard } from '@/components/review/review-cadence-card';
-import { useReviewQueue } from '@/hooks/use-review-queue';
-import { useReviewHistory } from '@/hooks/use-review-history';
+import { useReviewQueue } from '@/hooks/review/use-review-queue';
+import { useReviewHistory } from '@/hooks/review/use-review-history';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {

@@ -3,7 +3,7 @@
 import { Archive, SearchX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useBrowseFilters } from '@/hooks/use-browse-filters';
+import { useBrowseFilters } from '@/hooks/browse/use-browse-filters';
 import type { ViewMode } from '@/components/browse/filter-bar';
 
 export function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {

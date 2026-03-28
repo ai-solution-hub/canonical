@@ -53,7 +53,7 @@ vi.mock('@/lib/bid/bid-state-machine', () => ({
 }));
 
 import { toast } from 'sonner';
-import { useBidActions } from '@/hooks/use-bid-actions';
+import { useBidActions } from '@/hooks/bid/use-bid-actions';
 
 // ---------------------------------------------------------------------------
 // Helpers

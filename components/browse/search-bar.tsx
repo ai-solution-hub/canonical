@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, Clock } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import { useModifierKey } from '@/hooks/use-modifier-key';
+import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 
 const MAX_RECENT_SEARCHES = 10;
 const STORAGE_KEY = 'kb-recent-searches';

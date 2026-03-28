@@ -65,7 +65,7 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => mockUseUserRole,
 }));
 
-vi.mock('@/hooks/use-modifier-key', () => ({
+vi.mock('@/hooks/ui/use-modifier-key', () => ({
   useModifierKey: () => mockUseModifierKey(),
 }));
 
@@ -77,7 +77,7 @@ vi.mock('@/hooks/use-citation-orphans', () => ({
   useCitationOrphans: () => mockUseCitationOrphans(),
 }));
 
-vi.mock('@/hooks/use-stream-coordination', () => ({
+vi.mock('@/hooks/streaming/use-stream-coordination', () => ({
   useStreamCoordination: () => mockUseStreamCoordination(),
 }));
 

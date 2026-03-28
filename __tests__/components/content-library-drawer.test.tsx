@@ -38,7 +38,7 @@ vi.mock('@/hooks/use-search', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-modifier-key', () => ({
+vi.mock('@/hooks/ui/use-modifier-key', () => ({
   useModifierKey: () => '\u2318',
 }));
 

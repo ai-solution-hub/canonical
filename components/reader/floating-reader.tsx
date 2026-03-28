@@ -10,11 +10,11 @@ import type {
   ReaderMaxWidth,
   FloatingPosition,
   FloatingSize,
-} from '@/hooks/use-reader-preferences';
+} from '@/hooks/ui/use-reader-preferences';
 import {
   getDefaultFloatingPosition,
   getDefaultFloatingSize,
-} from '@/hooks/use-reader-preferences';
+} from '@/hooks/ui/use-reader-preferences';
 import type {
   TranscriptChapter,
   TranscriptSegment,

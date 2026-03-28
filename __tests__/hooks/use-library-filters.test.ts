@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/qa-library',
 }));
 
-import { useLibraryFilters } from '@/hooks/use-library-filters';
+import { useLibraryFilters } from '@/hooks/browse/use-library-filters';
 
 // ---------------------------------------------------------------------------
 // Tests

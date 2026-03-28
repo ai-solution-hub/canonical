@@ -119,7 +119,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/hooks/use-review-queue', () => ({
+vi.mock('@/hooks/review/use-review-queue', () => ({
   useReviewQueue: () => mockUseReviewQueue(),
 }));
 

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 import { toast } from 'sonner';
-import type { DetailMode } from '@/hooks/use-detail-mode';
+import type { DetailMode } from '@/hooks/ui/use-detail-mode';
 
 interface UseItemDetailShortcutsParams {
   itemId: string;

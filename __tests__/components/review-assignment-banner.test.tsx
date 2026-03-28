@@ -98,11 +98,11 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/hooks/use-review-queue', () => ({
+vi.mock('@/hooks/review/use-review-queue', () => ({
   useReviewQueue: () => mockUseReviewQueue(),
 }));
 
-vi.mock('@/hooks/use-review-history', () => ({
+vi.mock('@/hooks/review/use-review-history', () => ({
   useReviewHistory: () => ({ history: [], isLoading: false }),
 }));
 

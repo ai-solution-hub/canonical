@@ -34,7 +34,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-import { useDetailMode } from '@/hooks/use-detail-mode';
+import { useDetailMode } from '@/hooks/ui/use-detail-mode';
 
 // ---------------------------------------------------------------------------
 // Tests — Viewer behaviour

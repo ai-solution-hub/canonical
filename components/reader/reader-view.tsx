@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { cn } from '@/lib/utils';
-import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/use-reader-preferences';
+import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/ui/use-reader-preferences';
 
 interface ReaderViewProps {
   html: string;

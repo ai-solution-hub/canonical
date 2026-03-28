@@ -18,7 +18,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/browse',
 }));
 
-import { useBrowseFilters } from '@/hooks/use-browse-filters';
+import { useBrowseFilters } from '@/hooks/browse/use-browse-filters';
 
 describe('useBrowseFilters', () => {
   beforeEach(() => {

@@ -19,9 +19,9 @@ describe('useKeyboardShortcuts', () => {
 
   // Dynamically import after mocks are set up (no external module mocks needed)
   async function renderShortcuts(
-    overrides: Partial<Parameters<typeof import('@/hooks/use-keyboard-shortcuts')['useKeyboardShortcuts']>[0]> = {},
+    overrides: Partial<Parameters<typeof import('@/hooks/ui/use-keyboard-shortcuts')['useKeyboardShortcuts']>[0]> = {},
   ) {
-    const { useKeyboardShortcuts } = await import('@/hooks/use-keyboard-shortcuts');
+    const { useKeyboardShortcuts } = await import('@/hooks/ui/use-keyboard-shortcuts');
     return renderHook(() =>
       useKeyboardShortcuts({
         onFocusSearch,

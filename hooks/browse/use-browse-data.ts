@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, type RefCallback } from 'react';
-import { useBrowseFilters } from '@/hooks/use-browse-filters';
+import { useBrowseFilters } from '@/hooks/browse/use-browse-filters';
 import { createClient } from '@/lib/supabase/client';
 import { getCursorFromItem, isOffsetSort } from '@/lib/browse-helpers';
 import { escapePostgrestValue } from '@/lib/supabase/escape';

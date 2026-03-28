@@ -17,7 +17,7 @@ import {
   ReadinessChecklist,
   ReadinessBadge,
 } from '@/components/bid/readiness-checklist';
-import type { ReadinessData } from '@/hooks/use-bid-readiness';
+import type { ReadinessData } from '@/hooks/bid/use-bid-readiness';
 
 // ---------------------------------------------------------------------------
 // Test data

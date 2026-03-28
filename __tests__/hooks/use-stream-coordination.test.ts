@@ -47,7 +47,7 @@ const mockStreamReturn = {
   startDraft: mockStartDraft,
   cancel: mockCancel,
 };
-vi.mock('@/hooks/use-draft-stream', () => ({
+vi.mock('@/hooks/streaming/use-draft-stream', () => ({
   useDraftStream: () => mockStreamReturn,
 }));
 
@@ -63,7 +63,7 @@ import { toast } from 'sonner';
 import {
   useStreamCoordination,
   type BidResponse,
-} from '@/hooks/use-stream-coordination';
+} from '@/hooks/streaming/use-stream-coordination';
 
 // ---------------------------------------------------------------------------
 // Global mocks

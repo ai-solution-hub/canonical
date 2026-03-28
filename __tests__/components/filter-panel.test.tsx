@@ -90,7 +90,7 @@ vi.mock('@/contexts/taxonomy-context', () => ({
   useTaxonomy: () => mockTaxonomyContext(),
 }));
 
-vi.mock('@/hooks/use-browse-filters', () => ({
+vi.mock('@/hooks/browse/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     filters: mockFilters.value,
     activeFilterCount: mockActiveFilterCount.value,
@@ -101,7 +101,7 @@ vi.mock('@/hooks/use-browse-filters', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-filter-data', () => ({
+vi.mock('@/hooks/browse/use-filter-data', () => ({
   useFilterData: () => ({
     counts: mockCounts.value,
     authorSearch: mockAuthorSearch.value,

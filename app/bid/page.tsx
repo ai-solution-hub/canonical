@@ -16,7 +16,7 @@ import { BidListCard } from '@/components/bid/bid-list-card';
 import { BidStateBadge } from '@/components/bid/bid-state-indicator';
 import { BidCreationWizard } from '@/components/bid/bid-creation-wizard';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useViewMode } from '@/hooks/use-view-mode';
+import { useViewMode } from '@/hooks/ui/use-view-mode';
 import { formatDateUK } from '@/lib/format';
 import { getDeadlineProximity } from '@/lib/bid/bid-helpers';
 import { cn } from '@/lib/utils';

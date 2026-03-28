@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ContentLibraryResult } from '@/components/content/content-library-result';
 import { useSearch } from '@/hooks/use-search';
-import { useModifierKey } from '@/hooks/use-modifier-key';
+import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 import type { SearchResult } from '@/types/content';
 
 interface ContentLibraryDrawerProps {

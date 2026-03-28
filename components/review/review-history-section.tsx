@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AlertTriangle, Check, ChevronDown, ChevronRight, History } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDateUK } from '@/lib/format';
-import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
+import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
 /** Human-readable labels for quality flag types */
 function formatFlagType(flagType: string): string {

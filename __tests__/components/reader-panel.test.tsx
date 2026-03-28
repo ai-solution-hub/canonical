@@ -51,7 +51,7 @@ vi.mock('@/components/reader-cards/transcript-reader-card', () => ({
 
 // Import AFTER mocks
 import { ReaderPanel } from '@/components/reader/reader-panel';
-import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/use-reader-preferences';
+import type { ReaderFontSize, ReaderMaxWidth } from '@/hooks/ui/use-reader-preferences';
 
 // ---------------------------------------------------------------------------
 // Default props factory

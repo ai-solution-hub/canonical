@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { useReviewHistory } from '@/hooks/use-review-history';
+import { useReviewHistory } from '@/hooks/review/use-review-history';
 
 // ─── Mock fetch ─────────────────────────────────────────────────────────────
 

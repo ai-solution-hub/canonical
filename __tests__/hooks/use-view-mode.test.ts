@@ -25,7 +25,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-import { useViewMode } from '@/hooks/use-view-mode';
+import { useViewMode } from '@/hooks/ui/use-view-mode';
 
 // ---------------------------------------------------------------------------
 // Tests

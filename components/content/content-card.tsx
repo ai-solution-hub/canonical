@@ -23,7 +23,7 @@ import { isFeatureEnabled } from '@/lib/client-config';
 import { useLayerVocabulary } from '@/contexts/layer-vocabulary-context';
 import { Badge } from '@/components/ui/badge';
 import type { ContentListItem, SearchResult } from '@/types/content';
-import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { QuickReviewActions } from '@/components/content/quick-review-actions';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 import { QuickAssignButton } from '@/components/content/quick-assign-button';

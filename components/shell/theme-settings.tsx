@@ -22,12 +22,12 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
-import { useThemeMode } from '@/hooks/use-theme-mode';
+import { useThemeMode } from '@/hooks/ui/use-theme-mode';
 import {
   useAccessibility,
   type A11yMode,
   type A11yFont,
-} from '@/hooks/use-accessibility';
+} from '@/hooks/ui/use-accessibility';
 
 const COLOUR_MODE_OPTIONS = [
   { value: 'light', label: 'Light', icon: Sun },

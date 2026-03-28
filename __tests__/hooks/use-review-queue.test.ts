@@ -31,7 +31,7 @@ vi.mock('sonner', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-review-shortcuts', () => ({
+vi.mock('@/hooks/review/use-review-shortcuts', () => ({
   useReviewShortcuts: vi.fn(() => ({
     showHelp: false,
     setShowHelp: vi.fn(),
@@ -39,7 +39,7 @@ vi.mock('@/hooks/use-review-shortcuts', () => ({
 }));
 
 import { toast } from 'sonner';
-import { useReviewQueue } from '@/hooks/use-review-queue';
+import { useReviewQueue } from '@/hooks/review/use-review-queue';
 
 // ---------------------------------------------------------------------------
 // Global mocks

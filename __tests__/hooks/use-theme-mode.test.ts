@@ -17,7 +17,7 @@ vi.mock('next-themes', () => ({
   }),
 }));
 
-import { useThemeMode } from '@/hooks/use-theme-mode';
+import { useThemeMode } from '@/hooks/ui/use-theme-mode';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -41,7 +41,7 @@ vi.mock('@/lib/supabase/client', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-browse-filters', () => ({
+vi.mock('@/hooks/browse/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     filters: mockFilters,
     activeFilterCount: 0,
@@ -69,7 +69,7 @@ vi.mock('@/types/content', async (importOriginal) => {
   };
 });
 
-import { useBrowseData } from '@/hooks/use-browse-data';
+import { useBrowseData } from '@/hooks/browse/use-browse-data';
 
 // ---------------------------------------------------------------------------
 // Helpers

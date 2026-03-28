@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useDraftStream } from '@/hooks/use-draft-stream';
+import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
 import { insertLibraryContent } from '@/lib/drawer-insert';
 import { responseToHtml } from '@/lib/markdown-to-html';
 import { toast } from 'sonner';

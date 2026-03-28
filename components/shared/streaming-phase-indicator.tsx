@@ -3,7 +3,7 @@
 import { Loader2, Search, PenLine, ShieldCheck, Save, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { StreamPhase } from '@/hooks/use-draft-stream';
+import type { StreamPhase } from '@/hooks/streaming/use-draft-stream';
 
 const PHASE_CONFIG: Record<
   Exclude<StreamPhase, 'idle'>,

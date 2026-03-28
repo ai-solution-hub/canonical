@@ -3,7 +3,7 @@
 import { X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useBrowseFilters } from '@/hooks/use-browse-filters';
+import { useBrowseFilters } from '@/hooks/browse/use-browse-filters';
 import { formatSubtopic } from '@/lib/taxonomy/taxonomy-format';
 import { formatContentType, formatPlatform, formatDateUK } from '@/lib/format';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';

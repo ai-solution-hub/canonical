@@ -17,7 +17,7 @@ vi.mock('sonner', () => ({
   },
 }));
 
-import { useQuickReview } from '@/hooks/use-quick-review';
+import { useQuickReview } from '@/hooks/review/use-quick-review';
 
 // ---------------------------------------------------------------------------
 // Helpers

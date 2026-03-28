@@ -8,7 +8,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { DetailMode } from '@/hooks/use-detail-mode';
+import type { DetailMode } from '@/hooks/ui/use-detail-mode';
 
 // ---------------------------------------------------------------------------
 // Types

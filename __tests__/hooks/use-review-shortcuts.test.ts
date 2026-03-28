@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, fireEvent } from '@testing-library/react';
-import { useReviewShortcuts } from '@/hooks/use-review-shortcuts';
+import { useReviewShortcuts } from '@/hooks/review/use-review-shortcuts';
 
 describe('useReviewShortcuts', () => {
   const handlers = {

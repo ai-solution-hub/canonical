@@ -42,7 +42,7 @@ afterEach(() => {
   document.documentElement.removeAttribute('data-a11y-font');
 });
 
-import { useAccessibility } from '@/hooks/use-accessibility';
+import { useAccessibility } from '@/hooks/ui/use-accessibility';
 
 // ---------------------------------------------------------------------------
 // Tests

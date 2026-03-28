@@ -37,7 +37,7 @@ vi.mock('@/hooks/use-item-detail-data', () => ({
   useItemDetailData: mockUseItemDetailData,
 }));
 
-vi.mock('@/hooks/use-detail-mode', () => ({
+vi.mock('@/hooks/ui/use-detail-mode', () => ({
   useDetailMode: mockUseDetailMode,
 }));
 

@@ -4,7 +4,7 @@ import { useRef, useState, useEffect } from 'react';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentRow } from '@/components/content/content-row';
 import type { ContentListItem, SearchResult } from '@/types/content';
-import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 interface ContentListProps {

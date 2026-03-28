@@ -14,7 +14,7 @@ vi.mock('@/lib/utils', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
-import { useModifierKey } from '@/hooks/use-modifier-key';
+import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useBidReadiness } from '@/hooks/use-bid-readiness';
+import { useBidReadiness } from '@/hooks/bid/use-bid-readiness';
 
 // ---------------------------------------------------------------------------
 // Mock fetch

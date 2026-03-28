@@ -25,7 +25,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-import { useReaderPreferences } from '@/hooks/use-reader-preferences';
+import { useReaderPreferences } from '@/hooks/ui/use-reader-preferences';
 
 // ---------------------------------------------------------------------------
 // Tests

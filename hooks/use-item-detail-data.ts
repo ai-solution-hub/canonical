@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTranscript } from '@/hooks/use-transcript';
-import { useReaderPreferences } from '@/hooks/use-reader-preferences';
+import { useReaderPreferences } from '@/hooks/ui/use-reader-preferences';
 import { useUserRole } from '@/hooks/use-user-role';
 import { useInlineFieldEdit } from '@/hooks/use-inline-field-edit';
 import { useQAEditMode } from '@/hooks/use-qa-edit-mode';
@@ -28,7 +28,7 @@ import type {
   PanelLayout,
   FloatingPosition,
   FloatingSize,
-} from '@/hooks/use-reader-preferences';
+} from '@/hooks/ui/use-reader-preferences';
 import type { TranscriptSegment, TranscriptHighlight } from '@/types/content';
 import type { LayerContentMap } from '@/hooks/use-topic-layer-content';
 import type { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useFilterDraft } from '@/hooks/use-filter-draft';
+import { useFilterDraft } from '@/hooks/browse/use-filter-draft';
 import type { BrowseFilters } from '@/types/content';
 
 // ---------------------------------------------------------------------------

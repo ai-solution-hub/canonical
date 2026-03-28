@@ -26,7 +26,7 @@ vi.mock('@/lib/validation/jsonb', () => ({
   AuthorCountSchema: {},
 }));
 
-import { useFilterData } from '@/hooks/use-filter-data';
+import { useFilterData } from '@/hooks/browse/use-filter-data';
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { useDraftRecovery } from '@/hooks/use-draft-recovery';
+import { useDraftRecovery } from '@/hooks/streaming/use-draft-recovery';
 
 describe('useDraftRecovery', () => {
   const bidId = 'bid-123';

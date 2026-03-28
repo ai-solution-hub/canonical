@@ -134,7 +134,7 @@ vi.mock('@/hooks/use-display-names', () => ({
   useDisplayNames: mockUseDisplayNames,
 }));
 
-vi.mock('@/hooks/use-browse-data', () => ({
+vi.mock('@/hooks/browse/use-browse-data', () => ({
   useBrowseData: mockUseBrowseData,
 }));
 
@@ -164,15 +164,15 @@ vi.mock('@/hooks/use-user-role', () => ({
   }),
 }));
 
-vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
+vi.mock('@/hooks/ui/use-keyboard-shortcuts', () => ({
   useKeyboardShortcuts: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-view-mode', () => ({
+vi.mock('@/hooks/ui/use-view-mode', () => ({
   useViewMode: () => ({ viewMode: 'grid', setViewMode: vi.fn() }),
 }));
 
-vi.mock('@/hooks/use-filter-presets', () => ({
+vi.mock('@/hooks/browse/use-filter-presets', () => ({
   useFilterPresets: () => ({
     presets: [],
     activePreset: null,

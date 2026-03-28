@@ -12,7 +12,7 @@ import { ErrorBoundary } from '@/components/shared/error-boundary';
 
 // Hooks
 import { useItemDetailData } from '@/hooks/use-item-detail-data';
-import { useDetailMode } from '@/hooks/use-detail-mode';
+import { useDetailMode } from '@/hooks/ui/use-detail-mode';
 import { useItemDetailShortcuts } from '@/hooks/use-item-detail-shortcuts';
 
 // Views

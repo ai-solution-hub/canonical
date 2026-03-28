@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ReviewHistorySection } from '@/components/review/review-history-section';
-import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
+import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
 // ─── Test data ──────────────────────────────────────────────────────────────
 

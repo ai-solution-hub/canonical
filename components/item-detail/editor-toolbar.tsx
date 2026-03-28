@@ -23,7 +23,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useCallback, useMemo, useState } from 'react';
-import { useModifierKey } from '@/hooks/use-modifier-key';
+import { useModifierKey } from '@/hooks/ui/use-modifier-key';
 
 interface EditorToolbarProps {
   editor: Editor | null;

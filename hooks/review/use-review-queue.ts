@@ -11,7 +11,7 @@ import type {
   ReviewQueueSortField,
 } from '@/types/review';
 import type { QueueSortField } from '@/components/review/review-queue-panel';
-import { useReviewShortcuts } from '@/hooks/use-review-shortcuts';
+import { useReviewShortcuts } from '@/hooks/review/use-review-shortcuts';
 
 const BATCH_SIZE = 20;
 const PREFETCH_THRESHOLD = 15;

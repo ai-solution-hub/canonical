@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useBidExport } from '@/hooks/use-bid-export';
+import { useBidExport } from '@/hooks/bid/use-bid-export';
 
 interface BidExportMenuProps {
   bidId: string;

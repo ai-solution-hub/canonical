@@ -16,7 +16,7 @@ const { mockClearFilters } = vi.hoisted(() => ({
   mockClearFilters: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-browse-filters', () => ({
+vi.mock('@/hooks/browse/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     clearFilters: mockClearFilters,
   }),

@@ -33,7 +33,7 @@ const {
   mockClearSearchQuery: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-browse-filters', () => ({
+vi.mock('@/hooks/browse/use-browse-filters', () => ({
   useBrowseFilters: () => ({
     filters: mockFilters.value,
     activeFilterCount: mockActiveFilterCount.value,

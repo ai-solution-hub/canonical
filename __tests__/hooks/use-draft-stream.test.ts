@@ -61,7 +61,7 @@ global.fetch = mockFetch;
 // Import under test — after global mocks are in place
 // ---------------------------------------------------------------------------
 
-import { useDraftStream, type StreamPhase } from '@/hooks/use-draft-stream';
+import { useDraftStream, type StreamPhase } from '@/hooks/streaming/use-draft-stream';
 
 // ---------------------------------------------------------------------------
 // Test setup

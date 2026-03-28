@@ -31,7 +31,7 @@ vi.stubGlobal('crypto', {
   },
 });
 
-import { useFilterPresets, normaliseParams } from '@/hooks/use-filter-presets';
+import { useFilterPresets, normaliseParams } from '@/hooks/browse/use-filter-presets';
 
 // ---------------------------------------------------------------------------
 // Helpers

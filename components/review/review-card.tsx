@@ -13,7 +13,7 @@ import { getDisplayTitle, formatDateUK, getConfidenceDisplay } from '@/lib/forma
 import { useDisplayNames } from '@/hooks/use-display-names';
 import { ReviewHistorySection } from '@/components/review/review-history-section';
 import type { ReviewQueueItem } from '@/types/review';
-import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
+import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
 interface ReviewCardProps {
   item: ReviewQueueItem;

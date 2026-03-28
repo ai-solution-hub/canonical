@@ -95,11 +95,11 @@ vi.mock('sonner', () => ({
   },
 }));
 
-vi.mock('@/hooks/use-browse-data', () => ({
+vi.mock('@/hooks/browse/use-browse-data', () => ({
   useBrowseData: () => mockBrowseData,
 }));
 
-vi.mock('@/hooks/use-filter-presets', () => ({
+vi.mock('@/hooks/browse/use-filter-presets', () => ({
   useFilterPresets: () => mockFilterPresets,
 }));
 
@@ -107,11 +107,11 @@ vi.mock('@/hooks/use-quick-assign', () => ({
   useQuickAssign: () => mockQuickAssign,
 }));
 
-vi.mock('@/hooks/use-keyboard-shortcuts', () => ({
+vi.mock('@/hooks/ui/use-keyboard-shortcuts', () => ({
   useKeyboardShortcuts: vi.fn(),
 }));
 
-vi.mock('@/hooks/use-view-mode', () => ({
+vi.mock('@/hooks/ui/use-view-mode', () => ({
   useViewMode: () => ({ viewMode: 'grid', setViewMode: vi.fn() }),
 }));
 

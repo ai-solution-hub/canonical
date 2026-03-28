@@ -42,7 +42,7 @@ import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
 import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
 
-import { useLibraryFilters, type LibraryFilters, type GroupBy } from '@/hooks/use-library-filters';
+import { useLibraryFilters, type LibraryFilters, type GroupBy } from '@/hooks/browse/use-library-filters';
 import { useLibraryBulkActions } from '@/hooks/use-library-bulk-actions';
 import { QARow } from '@/components/qa/qa-row';
 import { BulkActionToolbar } from '@/components/browse/bulk-action-toolbar';

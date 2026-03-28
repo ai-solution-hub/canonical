@@ -26,13 +26,13 @@ const FileUploadDialog = dynamic(
 );
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
-import { useViewMode } from '@/hooks/use-view-mode';
+import { useKeyboardShortcuts } from '@/hooks/ui/use-keyboard-shortcuts';
+import { useViewMode } from '@/hooks/ui/use-view-mode';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useUserRole } from '@/hooks/use-user-role';
-import { useBrowseData } from '@/hooks/use-browse-data';
-import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
-import { useFilterPresets } from '@/hooks/use-filter-presets';
+import { useBrowseData } from '@/hooks/browse/use-browse-data';
+import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
+import { useFilterPresets } from '@/hooks/browse/use-filter-presets';
 import { useQuickAssign } from '@/hooks/use-quick-assign';
 import { useDisplayNames } from '@/hooks/use-display-names';
 import {

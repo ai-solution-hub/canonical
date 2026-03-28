@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { ShieldCheck, Flag, Loader2 } from 'lucide-react';
-import { useQuickReview, type OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import { useQuickReview, type OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import { useUserRole } from '@/hooks/use-user-role';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';

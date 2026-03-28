@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import type {
   ReaderFontSize,
   ReaderMaxWidth,
-} from '@/hooks/use-reader-preferences';
+} from '@/hooks/ui/use-reader-preferences';
 import type {
   TranscriptChapter,
   TranscriptSegment,

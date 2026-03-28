@@ -74,7 +74,7 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => mockUseUserRole,
 }));
 
-vi.mock('@/hooks/use-bid-actions', () => ({
+vi.mock('@/hooks/bid/use-bid-actions', () => ({
   useBidActions: (args: { id: string }) => mockUseBidActions(args),
 }));
 

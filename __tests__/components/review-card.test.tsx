@@ -31,7 +31,7 @@ vi.mock('@/components/review/review-history-section', () => ({
 
 import { ReviewCard } from '@/components/review/review-card';
 import type { ReviewQueueItem } from '@/types/review';
-import type { ReviewHistoryEntry } from '@/hooks/use-review-history';
+import type { ReviewHistoryEntry } from '@/hooks/review/use-review-history';
 
 function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
   return {

@@ -5,7 +5,7 @@ import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { ContentCard } from '@/components/content/content-card';
 import { cn } from '@/lib/utils';
 import type { ContentListItem, SearchResult } from '@/types/content';
-import type { OnOptimisticUpdate } from '@/hooks/use-quick-review';
+import type { OnOptimisticUpdate } from '@/hooks/review/use-quick-review';
 import type { ActiveBidWorkspace } from '@/hooks/use-quick-assign';
 
 const MIN_CARD_WIDTH = 280;
