@@ -1,6 +1,6 @@
 export default function BidLoading() {
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+    <div role="status" aria-label="Loading bids" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header skeleton */}
       <div className="flex items-center justify-between">
         <div className="h-7 w-48 animate-pulse rounded-md bg-accent" />
