@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DomainBadge } from '@/components/shared/domain-badge';
 import { SimilarityBadge } from '@/components/shared/similarity-badge';
+import { VerificationBadge } from '@/components/shared/verification-badge';
 import { getDisplayTitle, formatContentType } from '@/lib/format';
 import { toast } from 'sonner';
 import type { SearchResult } from '@/types/content';
@@ -30,6 +31,7 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
   const title = getDisplayTitle(result);
   const isQAPair = result.content_type === 'q_a_pair';
   const qaParts = extractQAParts(result);
+  const isVerified = !!result.verified_at;
 
   const sourceDocument = result.source_file
     ?? (result.metadata as Record<string, unknown> | null)?.source_file as string | undefined
@@ -44,7 +46,14 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
     if (!copyText) return;
     navigator.clipboard.writeText(copyText).then(
       () => {
-        toast.success('Copied to clipboard');
+        if (isVerified) {
+          toast.success('Copied to clipboard');
+        } else {
+          toast('Copied to clipboard', {
+            description: 'Unverified \u2014 consider reviewing before submitting',
+            duration: 4000,
+          });
+        }
         onCopy(copyText);
       },
       () => toast.error('Failed to copy to clipboard'),
@@ -67,6 +76,13 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
           {result.primary_domain && (
             <DomainBadge domain={result.primary_domain} />
           )}
+          <VerificationBadge
+            verified={isVerified}
+            verifiedAt={result.verified_at}
+            size="sm"
+            showLabel={true}
+            liveRegion={false}
+          />
           {result.similarity > 0 && (
             <SimilarityBadge score={result.similarity} className="ml-auto" />
           )}
@@ -156,6 +172,13 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
         {result.primary_domain && (
           <DomainBadge domain={result.primary_domain} />
         )}
+        <VerificationBadge
+          verified={isVerified}
+          verifiedAt={result.verified_at}
+          size="sm"
+          showLabel={true}
+          liveRegion={false}
+        />
         {result.similarity > 0 && (
           <SimilarityBadge score={result.similarity} className="ml-auto" />
         )}

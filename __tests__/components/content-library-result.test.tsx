@@ -2,7 +2,8 @@
  * ContentLibraryResult Component Tests
  *
  * Tests generic and Q&A result rendering, badges, similarity score,
- * copy/insert/view actions, and source document display.
+ * copy/insert/view actions, source document display, verification badge,
+ * and verification-aware copy toasts.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
@@ -13,8 +14,17 @@ import userEvent from '@testing-library/user-event';
 // Mocks
 // ---------------------------------------------------------------------------
 
+const { toastFn } = vi.hoisted(() => {
+  const toastFn = Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+  });
+  return { toastFn };
+});
+
 vi.mock('sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  toast: toastFn,
 }));
 
 vi.mock('@/components/shared/domain-badge', () => ({
@@ -26,6 +36,12 @@ vi.mock('@/components/shared/domain-badge', () => ({
 vi.mock('@/components/shared/similarity-badge', () => ({
   SimilarityBadge: ({ score }: { score: number }) => (
     <span data-testid="similarity-badge">{Math.round(score * 100)}%</span>
+  ),
+}));
+
+vi.mock('@/components/shared/verification-badge', () => ({
+  VerificationBadge: ({ verified }: { verified: boolean }) => (
+    <span data-testid="verification-badge">{verified ? 'Verified' : 'Unverified'}</span>
   ),
 }));
 
@@ -41,7 +57,6 @@ vi.mock('@/lib/utils', () => ({
 }));
 
 import { ContentLibraryResult } from '@/components/content/content-library-result';
-import { toast } from 'sonner';
 import type { SearchResult } from '@/types/content';
 
 // ---------------------------------------------------------------------------
@@ -139,20 +154,23 @@ describe('ContentLibraryResult', () => {
     expect(screen.getByTestId('similarity-badge')).toHaveTextContent('93%');
   });
 
-  it('copy button copies text to clipboard', async () => {
+  it('copy button copies verified text to clipboard with success toast', async () => {
     const user = userEvent.setup();
     const mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
     vi.stubGlobal('navigator', { clipboard: mockClipboard });
 
     render(
-      <ContentLibraryResult result={createResult()} onCopy={mockOnCopy} />,
+      <ContentLibraryResult
+        result={createResult({ verified_at: '2026-01-15T10:00:00Z' })}
+        onCopy={mockOnCopy}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /copy/i }));
 
     await waitFor(() => {
       expect(mockClipboard.writeText).toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith('Copied to clipboard');
+      expect(toastFn.success).toHaveBeenCalledWith('Copied to clipboard');
     });
   });
 
@@ -204,5 +222,96 @@ describe('ContentLibraryResult', () => {
     );
 
     expect(screen.getByText('tender-2026.docx')).toBeInTheDocument();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Verification badge tests
+  // ---------------------------------------------------------------------------
+
+  it('shows verification badge as verified when verified_at is set', () => {
+    render(
+      <ContentLibraryResult
+        result={createResult({ verified_at: '2026-01-15T10:00:00Z' })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveTextContent('Verified');
+  });
+
+  it('shows verification badge as unverified when verified_at is null', () => {
+    render(
+      <ContentLibraryResult
+        result={createResult({ verified_at: null })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveTextContent('Unverified');
+  });
+
+  it('shows verification badge on Q&A pair results', () => {
+    render(
+      <ContentLibraryResult
+        result={createResult({
+          content_type: 'q_a_pair',
+          content: 'Answer',
+          metadata: { question: 'Q?' },
+          verified_at: '2026-02-01T12:00:00Z',
+        })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    const badge = screen.getByTestId('verification-badge');
+    expect(badge).toHaveTextContent('Verified');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Verification-aware copy toast tests
+  // ---------------------------------------------------------------------------
+
+  it('copy toast shows warning for unverified content', async () => {
+    const user = userEvent.setup();
+    const mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+    vi.stubGlobal('navigator', { clipboard: mockClipboard });
+
+    render(
+      <ContentLibraryResult
+        result={createResult({ verified_at: null })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /copy/i }));
+
+    await waitFor(() => {
+      expect(toastFn).toHaveBeenCalledWith('Copied to clipboard', {
+        description: 'Unverified \u2014 consider reviewing before submitting',
+        duration: 4000,
+      });
+    });
+  });
+
+  it('copy toast shows clean success for verified content', async () => {
+    const user = userEvent.setup();
+    const mockClipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+    vi.stubGlobal('navigator', { clipboard: mockClipboard });
+
+    render(
+      <ContentLibraryResult
+        result={createResult({ verified_at: '2026-01-15T10:00:00Z' })}
+        onCopy={mockOnCopy}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /copy/i }));
+
+    await waitFor(() => {
+      expect(toastFn.success).toHaveBeenCalledWith('Copied to clipboard');
+      expect(toastFn).not.toHaveBeenCalled();
+    });
   });
 });
