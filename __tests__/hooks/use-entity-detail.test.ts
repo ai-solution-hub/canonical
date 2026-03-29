@@ -82,7 +82,7 @@ describe('useEntityDetail', () => {
       const { useEntityDetail } = await importHook();
 
       renderHook(() => useEntityDetail('ISO 27001', false), {
-        wrapper: createQueryWrapper(),
+        wrapper: createQueryWrapper().Wrapper,
       });
 
       // Give a tick for any async work
@@ -95,7 +95,7 @@ describe('useEntityDetail', () => {
       const { useEntityDetail } = await importHook();
 
       renderHook(() => useEntityDetail(null, true), {
-        wrapper: createQueryWrapper(),
+        wrapper: createQueryWrapper().Wrapper,
       });
 
       await new Promise((r) => setTimeout(r, 50));
@@ -113,7 +113,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       // Initially loading
@@ -143,7 +143,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -165,7 +165,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -189,7 +189,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -251,7 +251,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
@@ -291,7 +291,7 @@ describe('useEntityDetail', () => {
 
       const { result } = renderHook(
         () => useEntityDetail('ISO 27001', true),
-        { wrapper: createQueryWrapper() },
+        { wrapper: createQueryWrapper().Wrapper },
       );
 
       await waitFor(() => {
