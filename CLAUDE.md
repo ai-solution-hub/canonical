@@ -265,3 +265,12 @@ findings before merge, worktrees for parallel work, sequential merges only.
   (`@/lib/bid/helpers`), never import from index files.
 - **"Change Reports" not "Digest":** User-facing label is "Change Reports".
   Internal code, types, routes, and file names still use "digest".
+- **Taxonomy changes require `bun run sync:taxonomy`:** After adding/editing
+  domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
+  classification prompt and plugin files. DB is the single source of truth.
+- **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122
+  (version nibble = 4, variant nibble in `[89ab]`). Test UUIDs like
+  `00000000-0000-0000-0000-000000000001` will fail — use v4-compliant values.
+- **Date-sensitive tests need pinned time:** Tests that compute "days ago"
+  must use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()`
+  buffer pattern — `setDate()` rounding causes midnight-boundary flakiness.
