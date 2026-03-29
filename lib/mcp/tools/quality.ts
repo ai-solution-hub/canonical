@@ -352,7 +352,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
       inputSchema: {
         threshold: z.number().min(0.7).max(0.99).optional().describe('Similarity threshold (default: 0.95)'),
         domain: z.string().optional().describe('Filter by primary domain'),
-        limit: z.number().min(1).max(200).optional().describe('Maximum pairs to return (default: 50, max: 200)'),
+        limit: z.number().optional().transform(v => v != null ? Math.max(1, Math.min(200, v)) : v).describe('Maximum pairs to return (default: 50, max: 200)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -427,7 +427,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
       description: 'Analyse coverage gaps and suggest specific content to create. Returns prioritised suggestions based on empty subtopics, thin coverage, stale content, and template gaps. Use this to identify what content the knowledge base most needs.',
       inputSchema: {
         domain: z.string().optional().describe('Filter suggestions to a specific domain'),
-        limit: z.number().min(1).max(20).optional().describe('Maximum suggestions to return (default: 10)'),
+        limit: z.number().optional().transform(v => v != null ? Math.max(1, Math.min(20, v)) : v).describe('Maximum suggestions to return (default: 10)'),
       },
       annotations: {
         readOnlyHint: true,
@@ -558,7 +558,7 @@ export async function registerQualityTools(server: McpServer): Promise<void> {
       description: 'Get prioritised, actionable quality improvement suggestions for existing content items. Analyses items below the quality threshold and identifies specific deficiencies: stale freshness, low classification confidence, missing summaries, incomplete depth layers, and zero citations. Use this to understand what existing content needs attention and how to improve quality scores.',
       inputSchema: {
         domain: z.string().optional().describe('Filter to a specific domain'),
-        limit: z.number().min(1).max(50).optional().describe('Maximum actions to return (default: 15)'),
+        limit: z.number().optional().transform(v => v != null ? Math.max(1, Math.min(50, v)) : v).describe('Maximum actions to return (default: 15)'),
         score_threshold: z.number().min(0).max(100).optional().describe('Override quality threshold (default: from governance config or 40)'),
       },
       annotations: {
