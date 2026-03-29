@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { queryKeys } from '@/lib/query/query-keys';
 import type { ContentListItem } from '@/types/content';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +25,8 @@ export interface BulkProgress {
 export interface UseLibraryBulkActionsParams {
   items: ContentListItem[];
   filterDeps: unknown[];
-  onRefetch: () => void;
+  /** @deprecated No longer needed — bulk actions invalidate queries directly */
+  onRefetch?: () => void;
 }
 
 export interface UseLibraryBulkActionsReturn {
@@ -68,8 +71,9 @@ export interface UseLibraryBulkActionsReturn {
 export function useLibraryBulkActions({
   items,
   filterDeps,
-  onRefetch,
 }: UseLibraryBulkActionsParams): UseLibraryBulkActionsReturn {
+  const queryClient = useQueryClient();
+
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOperating, setBulkOperating] = useState(false);
@@ -148,7 +152,9 @@ export function useLibraryBulkActions({
       setBulkOperating(false);
       setBulkProgress({ current: 0, total: 0, label: '' });
       setSelectedIds(new Set());
-      onRefetch();
+
+      // Invalidate library queries so TanStack Query refetches automatically
+      await queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
 
       if (errorCount > 0) {
         toast.error(`${errorCount} item${errorCount !== 1 ? 's' : ''} failed during ${label.toLowerCase()}`);
@@ -156,7 +162,7 @@ export function useLibraryBulkActions({
 
       return successCount;
     },
-    [selectedIds, items, onRefetch],
+    [selectedIds, items, queryClient],
   );
 
   // Bulk re-classify

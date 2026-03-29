@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import type { ContentListItem } from '@/types/content';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -58,9 +59,14 @@ function defaultParams(
   return {
     items: [makeItem({ id: 'a1' }), makeItem({ id: 'a2' }), makeItem({ id: 'a3' })],
     filterDeps: [],
-    onRefetch: vi.fn(),
     ...overrides,
   };
+}
+
+/** Wrapper providing TanStack Query context for hook tests */
+function hookWrapper() {
+  const { Wrapper } = createQueryWrapper();
+  return { wrapper: Wrapper };
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +84,7 @@ describe('useLibraryBulkActions', () => {
   // -------------------------------------------------------------------------
 
   it('returns empty selection and idle progress on mount', () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     expect(result.current.selectedIds.size).toBe(0);
     expect(result.current.bulkOperating).toBe(false);
@@ -92,7 +98,7 @@ describe('useLibraryBulkActions', () => {
   // -------------------------------------------------------------------------
 
   it('toggleSelect adds and removes an item from selection', () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     expect(result.current.selectedIds.has('a1')).toBe(true);
@@ -105,7 +111,7 @@ describe('useLibraryBulkActions', () => {
 
   it('toggleSelectAll selects all items then deselects all', () => {
     const params = defaultParams();
-    const { result } = renderHook(() => useLibraryBulkActions(params));
+    const { result } = renderHook(() => useLibraryBulkActions(params), hookWrapper());
 
     act(() => { result.current.toggleSelectAll(); });
     expect(result.current.selectedIds.size).toBe(3);
@@ -118,7 +124,7 @@ describe('useLibraryBulkActions', () => {
   });
 
   it('clearSelection empties the selection', () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     act(() => { result.current.toggleSelect('a2'); });
@@ -131,9 +137,10 @@ describe('useLibraryBulkActions', () => {
   it('clears selection when filterDeps change', () => {
     let deps = ['domain=Technical'];
     const params = defaultParams({ filterDeps: deps });
+    const { wrapper } = hookWrapper();
     const { result, rerender } = renderHook(
       (props) => useLibraryBulkActions(props),
-      { initialProps: params },
+      { initialProps: params, wrapper },
     );
 
     act(() => { result.current.toggleSelect('a1'); });
@@ -151,9 +158,9 @@ describe('useLibraryBulkActions', () => {
 
   it('handleBulkDelete calls DELETE for each selected item and shows success toast', async () => {
     mockFetch.mockResolvedValue({ ok: true });
-    const onRefetch = vi.fn();
     const { result } = renderHook(() =>
-      useLibraryBulkActions(defaultParams({ onRefetch })),
+      useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
     );
 
     act(() => { result.current.toggleSelect('a1'); });
@@ -167,7 +174,6 @@ describe('useLibraryBulkActions', () => {
     expect(mockFetch).toHaveBeenCalledWith('/api/items/a2', { method: 'DELETE' });
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(toast.success).toHaveBeenCalledWith('Deleted 2 items');
-    expect(onRefetch).toHaveBeenCalled();
     expect(result.current.selectedIds.size).toBe(0);
   });
 
@@ -175,7 +181,7 @@ describe('useLibraryBulkActions', () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true })
       .mockResolvedValueOnce({ ok: false });
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     act(() => { result.current.toggleSelect('a2'); });
@@ -195,7 +201,7 @@ describe('useLibraryBulkActions', () => {
 
   it('handleBulkReclassify posts to /api/items/:id/classify with force=true', async () => {
     mockFetch.mockResolvedValue({ ok: true });
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
 
@@ -216,7 +222,7 @@ describe('useLibraryBulkActions', () => {
   // -------------------------------------------------------------------------
 
   it('handleBulkTagOpen resets tag input and opens dialog', () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.setTagInput('leftover'); });
     act(() => { result.current.handleBulkTagOpen(); });
@@ -233,6 +239,7 @@ describe('useLibraryBulkActions', () => {
     ];
     const { result } = renderHook(() =>
       useLibraryBulkActions(defaultParams({ items })),
+      hookWrapper(),
     );
 
     act(() => { result.current.toggleSelect('a1'); });
@@ -265,7 +272,7 @@ describe('useLibraryBulkActions', () => {
   });
 
   it('handleBulkTagConfirm shows error when tags are empty', async () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     act(() => { result.current.setTagInput('   '); });
@@ -292,7 +299,7 @@ describe('useLibraryBulkActions', () => {
       json: vi.fn().mockResolvedValue(workspacesData),
     });
 
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     await act(async () => {
       await result.current.handleBulkAssignOpen();
@@ -309,7 +316,7 @@ describe('useLibraryBulkActions', () => {
   });
 
   it('handleBulkAssignConfirm shows error when no workspace is selected', async () => {
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     await act(async () => {
       await result.current.handleBulkAssignConfirm();
@@ -327,9 +334,9 @@ describe('useLibraryBulkActions', () => {
       json: vi.fn().mockResolvedValue(workspacesData),
     });
 
-    const onRefetch = vi.fn();
     const { result } = renderHook(() =>
-      useLibraryBulkActions(defaultParams({ onRefetch })),
+      useLibraryBulkActions(defaultParams()),
+      hookWrapper(),
     );
 
     // Open assign dialog to load workspaces
@@ -355,7 +362,6 @@ describe('useLibraryBulkActions', () => {
       body: JSON.stringify({ workspace_id: 'ws-1', action: 'assign' }),
     });
     expect(toast.success).toHaveBeenCalledWith('Assigned 1 item to "KB Section X"');
-    expect(onRefetch).toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
@@ -364,7 +370,7 @@ describe('useLibraryBulkActions', () => {
 
   it('handleBulkVerify posts to /api/review/action for each selected item', async () => {
     mockFetch.mockResolvedValue({ ok: true });
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     act(() => { result.current.toggleSelect('a3'); });
@@ -394,7 +400,7 @@ describe('useLibraryBulkActions', () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true })
       .mockRejectedValueOnce(new Error('Network error'));
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     act(() => { result.current.toggleSelect('a1'); });
     act(() => { result.current.toggleSelect('a2'); });
@@ -416,7 +422,7 @@ describe('useLibraryBulkActions', () => {
 
   it('handleBulkAssignOpen shows error toast when workspace fetch fails', async () => {
     mockFetch.mockRejectedValue(new Error('Network failure'));
-    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()));
+    const { result } = renderHook(() => useLibraryBulkActions(defaultParams()), hookWrapper());
 
     await act(async () => {
       await result.current.handleBulkAssignOpen();

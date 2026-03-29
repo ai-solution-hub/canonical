@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import {
   Search,
@@ -37,12 +36,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { createClient as createBrowserClient } from '@/lib/supabase/client';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
 import { useUserRole } from '@/hooks/use-user-role';
-import { CONTENT_LIST_COLUMNS, type ContentListItem } from '@/types/content';
+import type { ContentListItem } from '@/types/content';
 
 import { useLibraryFilters, type LibraryFilters, type GroupBy } from '@/hooks/browse/use-library-filters';
+import { useLibraryData } from '@/hooks/use-library-data';
 import { useLibraryBulkActions } from '@/hooks/use-library-bulk-actions';
 import { QARow } from '@/components/qa/qa-row';
 import { BulkActionToolbar } from '@/components/browse/bulk-action-toolbar';
@@ -114,112 +113,18 @@ function VirtualisedQAList({
 // ---------------------------------------------------------------------------
 
 export function LibraryContent() {
-  const supabase = useMemo(() => createBrowserClient(), []);
   const { filters, setFilters, clearFilters, activeCount, groupBy, setGroupBy } = useLibraryFilters();
   const { domains } = useTaxonomy();
   const { canAdmin } = useUserRole();
 
-  const [items, setItems] = useState<ContentListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [sourceFiles, setSourceFiles] = useState<string[]>([]);
-
-  // Trigger for re-fetching data after bulk operations
-  const [fetchTrigger, setFetchTrigger] = useState(0);
+  // Data fetching via TanStack Query
+  const { items, isLoading, sourceFiles } = useLibraryData(filters);
 
   // Bulk actions hook
   const bulk = useLibraryBulkActions({
     items,
     filterDeps: [filters.domain, filters.source_file, filters.variant, filters.search, filters.freshness, filters.verified],
-    onRefetch: useCallback(() => setFetchTrigger((prev) => prev + 1), []),
   });
-
-  // Fetch Q&A pairs
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-
-      let query = supabase
-        .from('content_items')
-        .select(CONTENT_LIST_COLUMNS.trim())
-        .eq('content_type', 'q_a_pair')
-        .or('governance_review_status.is.null,governance_review_status.neq.draft')
-        .order('primary_domain', { ascending: true })
-        .order('title', { ascending: true });
-
-      if (filters.domain) {
-        query = query.eq('primary_domain', filters.domain);
-      }
-
-      if (filters.source_file) {
-        query = query.eq('source_file', filters.source_file);
-      }
-
-      if (filters.variant === 'both') {
-        query = query.not('answer_standard', 'is', null).not('answer_advanced', 'is', null);
-      } else if (filters.variant === 'standard_only') {
-        query = query.not('answer_standard', 'is', null).is('answer_advanced', null);
-      } else if (filters.variant === 'advanced_only') {
-        query = query.is('answer_standard', null).not('answer_advanced', 'is', null);
-      } else if (filters.variant === 'neither') {
-        query = query.is('answer_standard', null).is('answer_advanced', null);
-      }
-
-      if (filters.freshness) {
-        query = query.eq('freshness', filters.freshness);
-      }
-
-      if (filters.verified === 'verified') {
-        query = query.not('verified_at', 'is', null);
-      } else if (filters.verified === 'unverified') {
-        query = query.is('verified_at', null);
-      }
-
-      if (filters.search) {
-        const escaped = escapePostgrestValue(filters.search);
-        query = query.or(
-          `title.ilike.%${escaped}%,content.ilike.%${escaped}%`,
-        );
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Failed to fetch Q&A pairs:', error);
-        setIsLoading(false);
-        return;
-      }
-
-      const fetched = Array.isArray(data) ? (data as unknown as ContentListItem[]) : [];
-      setItems(fetched);
-      setIsLoading(false);
-    };
-
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.domain, filters.source_file, filters.variant, filters.search, filters.freshness, filters.verified, fetchTrigger]);
-
-  // Fetch distinct source files for filter dropdown
-  useEffect(() => {
-    const fetchSources = async () => {
-      const { data } = await supabase
-        .from('content_items')
-        .select('source_file')
-        .eq('content_type', 'q_a_pair')
-        .not('source_file', 'is', null)
-        .neq('source_file', '');
-
-      if (data) {
-        const unique = [
-          ...new Set(
-            (data as Array<{ source_file: string }>).map((r) => r.source_file).filter(Boolean),
-          ),
-        ].sort();
-        setSourceFiles(unique);
-      }
-    };
-    fetchSources();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Stats
   const standardCount = items.filter((i) => i.answer_standard).length;

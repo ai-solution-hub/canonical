@@ -9,6 +9,7 @@ import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -23,7 +24,7 @@ const {
   mockSetGroupBy,
   mockBulk,
   mockUserRole,
-  mockSupabaseQuery,
+  mockLibraryData,
 } = vi.hoisted(() => ({
   mockFilters: {
     value: {
@@ -66,29 +67,12 @@ const {
     handleBulkAssignConfirm: vi.fn(),
   },
   mockUserRole: { role: 'editor' as string | null, loading: false, canEdit: true, canAdmin: false },
-  mockSupabaseQuery: {
-    data: null as unknown[] | null,
-    error: null as { message: string } | null,
-    resolveImmediately: true,
+  mockLibraryData: {
+    items: [] as unknown[],
+    isLoading: false,
+    sourceFiles: [] as string[],
   },
 }));
-
-// Chainable Supabase query builder
-function createChainableQuery() {
-  const builder: Record<string, unknown> = {};
-  const chainMethods = ['select', 'eq', 'or', 'not', 'is', 'order', 'ilike', 'neq', 'trim'];
-  for (const method of chainMethods) {
-    builder[method] = vi.fn().mockReturnValue(builder);
-  }
-  // The terminal call — returns data/error via thenable
-  builder.then = vi.fn((resolve: (v: unknown) => void) => {
-    resolve({ data: mockSupabaseQuery.data, error: mockSupabaseQuery.error });
-    return Promise.resolve({ data: mockSupabaseQuery.data, error: mockSupabaseQuery.error });
-  });
-  // Make it awaitable
-  Object.defineProperty(builder, Symbol.toStringTag, { value: 'Promise' });
-  return builder;
-}
 
 vi.mock('next/link', () => ({
   default: ({ children, href, ...props }: Record<string, unknown>) => (
@@ -100,12 +84,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
   usePathname: () => '/library',
   useSearchParams: () => new URLSearchParams(),
-}));
-
-vi.mock('@/lib/supabase/client', () => ({
-  createClient: () => ({
-    from: vi.fn().mockReturnValue(createChainableQuery()),
-  }),
 }));
 
 vi.mock('@/contexts/taxonomy-context', () => ({
@@ -125,6 +103,10 @@ vi.mock('@/hooks/browse/use-library-filters', () => ({
     groupBy: mockGroupBy.value,
     setGroupBy: mockSetGroupBy,
   }),
+}));
+
+vi.mock('@/hooks/use-library-data', () => ({
+  useLibraryData: () => mockLibraryData,
 }));
 
 vi.mock('@/hooks/use-library-bulk-actions', () => ({
@@ -206,6 +188,14 @@ function createQAItem(overrides: Partial<{ id: string; title: string; answer_sta
   };
 }
 
+/**
+ * Render helper that wraps LibraryContent in the TanStack Query provider.
+ */
+function renderLibraryContent() {
+  const { Wrapper } = createQueryWrapper();
+  return render(<LibraryContent />, { wrapper: Wrapper });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -227,8 +217,9 @@ describe('LibraryContent', () => {
     mockBulk.tagDialogOpen = false;
     mockBulk.tagInput = '';
     mockBulk.assignDialogOpen = false;
-    mockSupabaseQuery.data = [];
-    mockSupabaseQuery.error = null;
+    mockLibraryData.items = [];
+    mockLibraryData.isLoading = false;
+    mockLibraryData.sourceFiles = [];
   });
 
   afterEach(() => {
@@ -236,26 +227,24 @@ describe('LibraryContent', () => {
   });
 
   it('renders header with "Q&A Library" title', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Q&A Library' })).toBeInTheDocument();
     });
   });
 
   it('shows loading skeletons while fetching', () => {
-    // On first render, isLoading starts as true before the useEffect resolves.
-    // We can observe the initial loading state synchronously.
-    mockSupabaseQuery.data = null;
+    mockLibraryData.isLoading = true;
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     // Loading skeletons are animate-pulse divs rendered while isLoading=true
     const skeletons = document.querySelectorAll('.animate-pulse');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it('shows empty state when no items returned', async () => {
-    mockSupabaseQuery.data = [];
-    render(<LibraryContent />);
+    mockLibraryData.items = [];
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('No Q&A pairs yet')).toBeInTheDocument();
     });
@@ -263,36 +252,36 @@ describe('LibraryContent', () => {
 
   it('shows "No matching Q&A pairs" when filters active but no results', async () => {
     mockActiveCount.value = 1;
-    mockSupabaseQuery.data = [];
-    render(<LibraryContent />);
+    mockLibraryData.items = [];
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('No matching Q&A pairs')).toBeInTheDocument();
     });
   });
 
   it('renders search input with aria-label', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByLabelText('Search Q&A pairs')).toBeInTheDocument();
     });
   });
 
   it('renders domain filter select with taxonomy domains', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByLabelText('Filter by domain')).toBeInTheDocument();
     });
   });
 
   it('renders freshness filter select', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByLabelText('Filter by freshness')).toBeInTheDocument();
     });
   });
 
   it('shows secondary filters popover', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('More filters')).toBeInTheDocument();
     });
@@ -303,9 +292,9 @@ describe('LibraryContent', () => {
       createQAItem({ id: 'qa-1', title: 'First question' }),
       createQAItem({ id: 'qa-2', title: 'Second question' }),
     ];
-    mockSupabaseQuery.data = items;
+    mockLibraryData.items = items;
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByTestId('qa-row-qa-1')).toBeInTheDocument();
       expect(screen.getByTestId('qa-row-qa-2')).toBeInTheDocument();
@@ -317,9 +306,9 @@ describe('LibraryContent', () => {
       createQAItem({ id: 'qa-1', answer_standard: 'Yes', answer_advanced: null }),
       createQAItem({ id: 'qa-2', answer_standard: 'Yes', answer_advanced: 'Detailed' }),
     ];
-    mockSupabaseQuery.data = items;
+    mockLibraryData.items = items;
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText(/2 Q&A pairs/)).toBeInTheDocument();
     });
@@ -327,9 +316,9 @@ describe('LibraryContent', () => {
 
   it('select all checkbox toggles bulk selection', async () => {
     const items = [createQAItem({ id: 'qa-1' })];
-    mockSupabaseQuery.data = items;
+    mockLibraryData.items = items;
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('Select all')).toBeInTheDocument();
     });
@@ -339,10 +328,10 @@ describe('LibraryContent', () => {
 
   it('BulkActionToolbar appears when items selected', async () => {
     const items = [createQAItem({ id: 'qa-1' })];
-    mockSupabaseQuery.data = items;
+    mockLibraryData.items = items;
     mockBulk.selectedIds = new Set(['qa-1']);
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByTestId('bulk-toolbar')).toBeInTheDocument();
       expect(screen.getByText('Bulk: 1')).toBeInTheDocument();
@@ -352,9 +341,9 @@ describe('LibraryContent', () => {
   it('tag dialog opens with correct selected count', async () => {
     mockBulk.selectedIds = new Set(['qa-1', 'qa-2', 'qa-3']);
     mockBulk.tagDialogOpen = true;
-    mockSupabaseQuery.data = [createQAItem({ id: 'qa-1' })];
+    mockLibraryData.items = [createQAItem({ id: 'qa-1' })];
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('Add tags to 3 items')).toBeInTheDocument();
     });
@@ -362,10 +351,10 @@ describe('LibraryContent', () => {
 
   it('clear all filters button resets filters', async () => {
     mockActiveCount.value = 2;
-    mockSupabaseQuery.data = [];
+    mockLibraryData.items = [];
 
     const user = userEvent.setup();
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('Clear all')).toBeInTheDocument();
     });
@@ -381,9 +370,9 @@ describe('LibraryContent', () => {
   it('shows "Try searching the full knowledge base" link when search filter returns no results', async () => {
     mockActiveCount.value = 1;
     mockFilters.value = { ...mockFilters.value, search: 'cyber security' };
-    mockSupabaseQuery.data = [];
+    mockLibraryData.items = [];
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       const link = screen.getByText('Try searching the full knowledge base');
       expect(link).toBeInTheDocument();
@@ -397,9 +386,9 @@ describe('LibraryContent', () => {
   it('does not show semantic search link when no search term', async () => {
     mockActiveCount.value = 1;
     mockFilters.value = { ...mockFilters.value, domain: 'Technical', search: undefined };
-    mockSupabaseQuery.data = [];
+    mockLibraryData.items = [];
 
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       expect(screen.getByText('No matching Q&A pairs')).toBeInTheDocument();
     });
@@ -411,7 +400,7 @@ describe('LibraryContent', () => {
   // -------------------------------------------------------------------------
 
   it('renders verified status filter in primary filter bar', async () => {
-    render(<LibraryContent />);
+    renderLibraryContent();
     await waitFor(() => {
       // The verified filter should be in the primary bar (not just in the popover)
       const verifiedSelect = screen.getByLabelText('Filter by verified status');
