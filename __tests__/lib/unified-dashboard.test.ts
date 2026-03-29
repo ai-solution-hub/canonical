@@ -68,21 +68,14 @@ const TEST_USER_ID = 'user-abc-123';
  *     from(1): read_marks — last read activity
  *     from(2): entity_relationships — cert relationship targets
  *   Phase 2 (main parallel batch):
- *     Promise.allSettled with 14 items:
- *       [0] governance reviews — from('content_items') or Promise.resolve for viewer
- *       [1] unverified items — from('content_items')
- *       [2] quality flags — rpc('get_items_with_quality_flags') or Promise.resolve
- *       [3] freshness breakdown — rpc('get_freshness_breakdown')
- *       [4] unread notifications — from('notifications')
- *       [5] recent activity — rpc('get_grouped_activity_feed')
- *       [6] team changes (content_history) — from('content_history')
- *       [7] recent work (content_history) — from('content_history')
- *       [8] bid response team changes — from('bid_response_history')
- *       [9] bid response recent work — from('bid_response_history')
- *       [10] expiring content dates — from('content_items')
- *       [11] cert expiry — from('entity_mentions') or Promise.resolve
- *       [12] coverage gaps — from('taxonomy_subtopics')
- *       [13] content items by subtopic — from('content_items')
+ *     Promise.allSettled with 7 items:
+ *       [0] attention counts — rpc('get_dashboard_attention_counts')
+ *       [1] recent activity — rpc('get_grouped_activity_feed')
+ *       [2] team changes (content_history) — from('content_history')
+ *       [3] recent work (content_history) — from('content_history')
+ *       [4] bid response team changes — from('bid_response_history')
+ *       [5] bid response recent work — from('bid_response_history')
+ *       [6] cert expiry — from('entity_mentions') or Promise.resolve
  *     fetchActiveBidsWithStats (mocked separately)
  *   auth.getUser() for display name
  */
@@ -93,17 +86,16 @@ function setupDefaultMock(overrides: {
   authUser?: Record<string, unknown> | null;
   teamChangesData?: unknown[];
   recentWorkData?: unknown[];
-  freshnessData?: unknown[];
+  freshnessData?: { fresh: number; aging: number; stale: number; expired: number };
   governanceCount?: number;
   notificationsCount?: number;
-  qualityFlagsData?: unknown[];
+  qualityFlagsCount?: number;
   bidResponseTeamChangesData?: unknown[];
   bidResponseRecentWorkData?: unknown[];
   unverifiedCount?: number;
   expiringContentDateCount?: number;
   certMentionsData?: unknown[];
-  taxonomySubtopicsData?: unknown[];
-  contentBySubtopicData?: unknown[];
+  coverageGapCount?: number;
   activityFeedData?: unknown[];
   workspaces?: unknown[];
   statsMap?: Map<string, unknown>;
@@ -139,65 +131,37 @@ function setupDefaultMock(overrides: {
     count: null,
   });
 
-  // Phase 2: main parallel batch from() calls
-  // [0] governance reviews — from('content_items')
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.governanceCount ?? 0,
-  });
-
-  // [1] unverified items — from('content_items')
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.unverifiedCount ?? 0,
-  });
-
-  // [4] unread notifications — from('notifications')
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.notificationsCount ?? 0,
-  });
-
-  // [6] team changes — from('content_history')
+  // Phase 2: from() calls (queries 2-6 in Promise.allSettled)
+  // [2] team changes — from('content_history')
   fromCalls.push({
     data: overrides.teamChangesData ?? [],
     error: null,
     count: null,
   });
 
-  // [7] recent work — from('content_history')
+  // [3] recent work — from('content_history')
   fromCalls.push({
     data: overrides.recentWorkData ?? [],
     error: null,
     count: null,
   });
 
-  // [8] bid response team changes — from('bid_response_history')
+  // [4] bid response team changes — from('bid_response_history')
   fromCalls.push({
     data: overrides.bidResponseTeamChangesData ?? [],
     error: null,
     count: null,
   });
 
-  // [9] bid response recent work — from('bid_response_history')
+  // [5] bid response recent work — from('bid_response_history')
   fromCalls.push({
     data: overrides.bidResponseRecentWorkData ?? [],
     error: null,
     count: null,
   });
 
-  // [10] expiring content dates — from('content_items')
-  fromCalls.push({
-    data: null,
-    error: null,
-    count: overrides.expiringContentDateCount ?? 0,
-  });
-
-  // [11] cert expiry — from('entity_mentions')
-  // When certRelData is empty, query 11 uses Promise.resolve so no from() call.
+  // [6] cert expiry — from('entity_mentions')
+  // When certRelData is empty, query 6 uses Promise.resolve so no from() call.
   // When certRelData has data, the from('entity_mentions') call happens.
   if (overrides.certRelData && overrides.certRelData.length > 0) {
     fromCalls.push({
@@ -206,20 +170,6 @@ function setupDefaultMock(overrides: {
       count: null,
     });
   }
-
-  // [12] coverage gaps — from('taxonomy_subtopics')
-  fromCalls.push({
-    data: overrides.taxonomySubtopicsData ?? [],
-    error: null,
-    count: null,
-  });
-
-  // [13] content items by subtopic — from('content_items')
-  fromCalls.push({
-    data: overrides.contentBySubtopicData ?? [],
-    error: null,
-    count: null,
-  });
 
   // Configure from() to return per-call chain
   let callIdx = 0;
@@ -252,23 +202,29 @@ function setupDefaultMock(overrides: {
     return freshChain;
   });
 
-  // Configure rpc() calls — 3 RPCs in order:
-  // [2] get_items_with_quality_flags, [3] get_freshness_breakdown, [5] get_grouped_activity_feed
+  // Build default freshness summary
+  const defaultFreshness = overrides.freshnessData ?? { fresh: 10, aging: 5, stale: 3, expired: 2 };
+
+  // Configure rpc() calls — 2 RPCs in order:
+  // [0] get_dashboard_attention_counts, [1] get_grouped_activity_feed
   let rpcIdx = 0;
   const rpcResponses = [
-    // [2] quality flags
-    { data: overrides.qualityFlagsData ?? [], error: null },
-    // [3] freshness breakdown
+    // [0] attention counts
     {
-      data: overrides.freshnessData ?? [
-        { freshness: 'fresh', count: 10 },
-        { freshness: 'aging', count: 5 },
-        { freshness: 'stale', count: 3 },
-        { freshness: 'expired', count: 2 },
-      ],
+      data: {
+        governance_review_count: overrides.governanceCount ?? 0,
+        unverified_count: overrides.unverifiedCount ?? 0,
+        quality_flag_count: overrides.qualityFlagsCount ?? 0,
+        stale_content_count: defaultFreshness.stale,
+        expired_content_count: defaultFreshness.expired,
+        expiring_content_date_count: overrides.expiringContentDateCount ?? 0,
+        unread_notification_count: overrides.notificationsCount ?? 0,
+        coverage_gap_count: overrides.coverageGapCount ?? 0,
+        freshness_summary: defaultFreshness,
+      },
       error: null,
     },
-    // [5] recent activity
+    // [1] recent activity
     { data: overrides.activityFeedData ?? [], error: null },
   ];
 
@@ -364,12 +320,7 @@ describe('fetchUnifiedDashboardData', () => {
 
   it('populates freshness summary from RPC data', async () => {
     const mock = setupDefaultMock({
-      freshnessData: [
-        { freshness: 'fresh', count: 20 },
-        { freshness: 'aging', count: 8 },
-        { freshness: 'stale', count: 4 },
-        { freshness: 'expired', count: 1 },
-      ],
+      freshnessData: { fresh: 20, aging: 8, stale: 4, expired: 1 },
     });
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -392,12 +343,12 @@ describe('fetchUnifiedDashboardData', () => {
   it('handles partial query failures gracefully with error tracking', async () => {
     const mock = setupDefaultMock();
 
-    // Make freshness RPC fail
+    // Make the attention counts RPC fail
     let rpcIdx = 0;
     mock.rpc.mockImplementation(() => {
       const idx = rpcIdx++;
-      if (idx === 1) {
-        // freshness breakdown
+      if (idx === 0) {
+        // attention counts RPC
         return Promise.resolve({ data: null, error: { message: 'DB error' } });
       }
       return Promise.resolve({ data: [], error: null });
@@ -410,14 +361,14 @@ describe('fetchUnifiedDashboardData', () => {
       'admin',
     );
 
-    expect(result.errors).toContain('freshness_breakdown query failed');
-    // Freshness should be zeroes
+    expect(result.errors).toContain('attention_counts RPC failed');
+    // Freshness should be zeroes when RPC fails
     expect(result.freshness_summary).toEqual({ fresh: 0, aging: 0, stale: 0, expired: 0 });
   });
 
   it('admin sees quality flags count', async () => {
     const mock = setupDefaultMock({
-      qualityFlagsData: [{ id: '1' }, { id: '2' }, { id: '3' }],
+      qualityFlagsCount: 3,
     });
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -429,8 +380,11 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.attention_sources.quality_flag_count).toBe(3);
   });
 
-  it('non-admin gets zero quality flags', async () => {
-    const mock = setupDefaultMock();
+  it('non-admin gets zero quality flags (RPC handles role filtering)', async () => {
+    // The RPC itself returns 0 for quality_flag_count when role is not admin/editor
+    const mock = setupDefaultMock({
+      qualityFlagsCount: 0,
+    });
     const result = await fetchUnifiedDashboardData(
       mock as never,
       TEST_USER_ID,
@@ -441,9 +395,10 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.attention_sources.quality_flag_count).toBe(0);
   });
 
-  it('viewer role skips governance query (returns zero)', async () => {
+  it('viewer role gets zero governance count from RPC', async () => {
+    // The RPC returns 0 for governance_review_count when role is 'viewer'
     const mock = setupDefaultMock({
-      governanceCount: 99, // Should be ignored for viewer
+      governanceCount: 0, // RPC returns 0 for viewer
     });
     const result = await fetchUnifiedDashboardData(
       mock as never,
@@ -452,7 +407,6 @@ describe('fetchUnifiedDashboardData', () => {
       'viewer',
     );
 
-    // Viewer uses Promise.resolve({ count: 0 }) instead of querying
     expect(result.attention_sources.governance_review_count).toBe(0);
   });
 
@@ -585,20 +539,20 @@ describe('fetchUnifiedDashboardData', () => {
     expect(result.reorient.my_recent_work[0].href).toBe('/item/item-2');
   });
 
-  it('error array tracks multiple failed queries independently', async () => {
+  it('error array tracks RPC failure', async () => {
     const mock = setupDefaultMock();
 
-    // Make multiple RPCs fail
+    // Make the attention counts RPC fail and activity feed fail
     let rpcIdx = 0;
     mock.rpc.mockImplementation(() => {
       const idx = rpcIdx++;
       if (idx === 0) {
-        // quality flags
-        return Promise.resolve({ data: null, error: { message: 'quality fail' } });
+        // attention counts RPC
+        return Promise.resolve({ data: null, error: { message: 'attention counts fail' } });
       }
       if (idx === 1) {
-        // freshness
-        return Promise.resolve({ data: null, error: { message: 'freshness fail' } });
+        // activity feed RPC
+        return Promise.resolve({ data: null, error: { message: 'activity fail' } });
       }
       return Promise.resolve({ data: [], error: null });
     });
@@ -606,12 +560,12 @@ describe('fetchUnifiedDashboardData', () => {
     const result = await fetchUnifiedDashboardData(
       mock as never,
       TEST_USER_ID,
-      true, // isAdmin — so quality flags RPC runs
+      true, // isAdmin
       'admin',
     );
 
-    expect(result.errors).toContain('quality_flag_count query failed');
-    expect(result.errors).toContain('freshness_breakdown query failed');
+    expect(result.errors).toContain('attention_counts RPC failed');
+    expect(result.errors).toContain('recent_activity query failed');
   });
 
   it('defaults role to viewer when not provided', async () => {

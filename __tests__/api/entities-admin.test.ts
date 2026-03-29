@@ -104,43 +104,35 @@ describe('GET /api/entities', () => {
   it('returns entity list with counts on success', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                canonical_name: 'Acme Corp',
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'Acme Corp',
-                content_item_id: VALID_UUID,
-              },
-              {
-                canonical_name: 'Acme Corp',
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'ACME',
-                content_item_id: VALID_UUID_2,
-              },
-              {
-                canonical_name: 'ISO 27001',
-                entity_type: 'certification',
-                entity_type_override: null,
-                entity_name: 'ISO 27001',
-                content_item_id: VALID_UUID,
-              },
-            ],
-            error: null,
-          }),
-      )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [{ source_entity: 'Acme Corp', target_entity: 'ISO 27001' }],
-            error: null,
-          }),
-      );
+    // The route now calls a single RPC: get_entity_list_aggregated
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: {
+        entities: [
+          {
+            canonical_name: 'Acme Corp',
+            entity_type: 'organisation',
+            mention_count: 2,
+            variant_count: 2,
+            variant_names: ['Acme Corp', 'ACME'],
+            relationship_count: 1,
+            has_type_conflict: false,
+            types_seen: ['organisation'],
+          },
+          {
+            canonical_name: 'ISO 27001',
+            entity_type: 'certification',
+            mention_count: 1,
+            variant_count: 1,
+            variant_names: ['ISO 27001'],
+            relationship_count: 1,
+            has_type_conflict: false,
+            types_seen: ['certification'],
+          },
+        ],
+        total: 2,
+      },
+      error: null,
+    });
 
     const req = createTestRequest('/api/entities');
     const res = await entitiesGet(req);
@@ -156,31 +148,39 @@ describe('GET /api/entities', () => {
     expect(acme.variant_count).toBe(2);
     expect(acme.variant_names).toContain('ACME');
     expect(acme.relationship_count).toBe(1);
+
+    // Verify RPC was called with correct parameters (default limit is 100 per schema)
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', {
+      p_type: undefined,
+      p_search: undefined,
+      p_variants_only: false,
+      p_type_conflicts: false,
+      p_limit: 100,
+      p_offset: 0,
+    });
   });
 
-  it('filters by entity_type', async () => {
+  it('filters by entity_type via RPC parameter', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                canonical_name: 'ISO 27001',
-                entity_type: 'certification',
-                entity_type_override: null,
-                entity_name: 'ISO 27001',
-                content_item_id: VALID_UUID,
-              },
-            ],
-            error: null,
-          }),
-      )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
-      );
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: {
+        entities: [
+          {
+            canonical_name: 'ISO 27001',
+            entity_type: 'certification',
+            mention_count: 1,
+            variant_count: 1,
+            variant_names: ['ISO 27001'],
+            relationship_count: 0,
+            has_type_conflict: false,
+            types_seen: ['certification'],
+          },
+        ],
+        total: 1,
+      },
+      error: null,
+    });
 
     const req = createTestRequest('/api/entities', {
       searchParams: { type: 'certification' },
@@ -191,31 +191,34 @@ describe('GET /api/entities', () => {
     const body = await res.json();
     expect(body.entities).toHaveLength(1);
     expect(body.entities[0].entity_type).toBe('certification');
+
+    // Verify the type filter was passed to the RPC
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
+      p_type: 'certification',
+    }));
   });
 
-  it('searches by entity name', async () => {
+  it('searches by entity name via RPC parameter', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({
-            data: [
-              {
-                canonical_name: 'Acme Corp',
-                entity_type: 'organisation',
-                entity_type_override: null,
-                entity_name: 'Acme Corp',
-                content_item_id: VALID_UUID,
-              },
-            ],
-            error: null,
-          }),
-      )
-      .mockImplementationOnce(
-        (resolve: (v: unknown) => void) =>
-          resolve({ data: [], error: null }),
-      );
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: {
+        entities: [
+          {
+            canonical_name: 'Acme Corp',
+            entity_type: 'organisation',
+            mention_count: 1,
+            variant_count: 1,
+            variant_names: ['Acme Corp'],
+            relationship_count: 0,
+            has_type_conflict: false,
+            types_seen: ['organisation'],
+          },
+        ],
+        total: 1,
+      },
+      error: null,
+    });
 
     const req = createTestRequest('/api/entities', {
       searchParams: { search: 'acme' },
@@ -227,23 +230,19 @@ describe('GET /api/entities', () => {
     expect(body.entities).toHaveLength(1);
     expect(body.entities[0].canonical_name).toBe('Acme Corp');
 
-    // Verify ilike was called with the search term
-    expect(mockSupabase._chain.ilike).toHaveBeenCalledWith(
-      'canonical_name',
-      '%acme%',
-    );
+    // Verify search was passed to the RPC
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_list_aggregated', expect.objectContaining({
+      p_search: 'acme',
+    }));
   });
 
-  it('returns 500 when Supabase query fails', async () => {
+  it('returns 500 when RPC fails', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) =>
-        resolve({
-          data: null,
-          error: { message: 'DB error', code: '50000' },
-        }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'DB error', code: '50000' },
+    });
 
     const req = createTestRequest('/api/entities');
     const res = await entitiesGet(req);

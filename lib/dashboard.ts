@@ -392,7 +392,6 @@ export async function fetchUnifiedDashboardData(
 ): Promise<UnifiedDashboardData> {
   const errors: string[] = [];
   const effectiveRole = role ?? 'viewer';
-  const nowIso = new Date().toISOString();
 
   // --- Phase 1: User's last activity + cert relationships (needed to scope later queries) ---
   const [lastWriteResult, lastReadResult, certRelResult] = await Promise.all([
@@ -447,46 +446,23 @@ export async function fetchUnifiedDashboardData(
     : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
   // --- Phase 2: All queries in parallel (each runs exactly ONCE) ---
+  // Attention counts (queries 0,1,2,3,4,10,12,13) consolidated into single RPC.
+  // Remaining queries: activity feed, team changes, recent work, bid history, cert expiry.
   const [results, activeBidsResult] = await Promise.all([
     Promise.allSettled([
-      // 0: Governance reviews pending (editor/admin only — skip for viewer)
-      effectiveRole === 'viewer'
-        ? Promise.resolve({ count: 0, error: null })
-        : supabase
-            .from('content_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('governance_review_status', 'pending'),
+      // 0: Attention counts (replaces queries 0,1,2,3,4,10,12,13)
+      supabase.rpc('get_dashboard_attention_counts', {
+        p_user_id: userId,
+        p_role: effectiveRole,
+      }),
 
-      // 1: Unverified items
-      supabase
-        .from('content_items')
-        .select('*', { count: 'exact', head: true })
-        .is('verified_at', null),
-
-      // 2: Distinct content items with unresolved quality flags (editor + admin)
-      effectiveRole !== 'viewer'
-        ? supabase.rpc('get_items_with_quality_flags')
-        : Promise.resolve({ data: [], error: null }),
-
-      // 3: Freshness breakdown (single query, used by multiple consumers)
-      supabase.rpc('get_freshness_breakdown'),
-
-      // 4: Unread notifications (aligned with /api/notifications + reorient filters)
-      supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .is('dismissed_at', null)
-        .is('read_at', null)
-        .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
-
-      // 5: Recent activity (grouped RPC)
+      // 1: Recent activity (grouped RPC — unchanged)
       supabase.rpc('get_grouped_activity_feed', {
         p_limit: 10,
         p_is_admin: isAdmin,
       }),
 
-      // 6: Team changes — content_history since last active (others' work)
+      // 2: Team changes — content_history since last active (others' work)
       supabase
         .from('content_history')
         .select('id, content_item_id, change_type, change_summary, created_by, created_at, content_items!inner(title, primary_domain)')
@@ -495,7 +471,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // 7: User's own recent work — content_history
+      // 3: User's own recent work — content_history
       supabase
         .from('content_history')
         .select('id, content_item_id, change_type, change_summary, created_at, content_items!inner(title)')
@@ -503,7 +479,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(5),
 
-      // 8: Bid response changes by others (team changes)
+      // 4: Bid response changes by others (team changes)
       supabase
         .from('bid_response_history')
         .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, workspaces!inner(name)))')
@@ -512,7 +488,7 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // 9: User's own bid response edits (recent work)
+      // 5: User's own bid response edits (recent work)
       supabase
         .from('bid_response_history')
         .select('id, response_id, edited_by, created_at, bid_responses!inner(question_id, bid_questions!inner(project_id, question_text, workspaces!inner(id, name)))')
@@ -520,16 +496,8 @@ export async function fetchUnifiedDashboardData(
         .order('created_at', { ascending: false })
         .limit(5),
 
-      // 10: Expiring content dates — items with expiry_date within 30 days
-      supabase
-        .from('content_items')
-        .select('*', { count: 'exact', head: true })
-        .not('expiry_date', 'is', null)
-        .lte('expiry_date', new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()),
-
-      // 11: Certification expiry — entity_mentions with certification metadata
-      // containing expiry_date within 90 days. Replaces the client-side
-      // /api/certifications fetch for the count. Uses certRelResult from Phase 1.
+      // 6: Certification expiry — entity_mentions with certification metadata
+      // containing expiry_date within 90 days. Uses certRelResult from Phase 1.
       certRelResult.data && certRelResult.data.length > 0
         ? supabase
             .from('entity_mentions')
@@ -540,99 +508,60 @@ export async function fetchUnifiedDashboardData(
             )
             .or('entity_type.eq.certification,entity_type_override.eq.certification')
         : Promise.resolve({ data: [], error: null }),
-
-      // 12: Coverage gaps — active taxonomy subtopics
-      supabase
-        .from('taxonomy_subtopics')
-        .select('id, name, domain_id')
-        .eq('is_active', true),
-
-      // 13: Content items grouped by subtopic (for coverage gap cross-reference)
-      supabase
-        .from('content_items')
-        .select('primary_subtopic'),
     ]),
     fetchActiveBidsWithStats(supabase),
   ]);
 
-  // --- Extract governance review count (query 0) ---
+  // --- Extract attention counts from RPC (query 0) ---
   let governance_review_count = 0;
-  if (results[0].status === 'fulfilled') {
-    const r = results[0].value as { count?: number | null; error?: unknown };
-    if (r.error) {
-      errors.push('governance_review_count query failed');
-    } else {
-      governance_review_count = r.count ?? 0;
-    }
-  } else {
-    errors.push('governance_review_count query failed');
-  }
-
-  // --- Extract unverified count (query 1) ---
   let unverified_count = 0;
-  if (results[1].status === 'fulfilled') {
-    const { count, error } = results[1].value;
-    if (error) {
-      errors.push('unverified_count query failed');
-    } else {
-      unverified_count = count ?? 0;
-    }
-  } else {
-    errors.push('unverified_count query failed');
-  }
-
-  // --- Extract quality flag count (query 2, admin only) ---
   let quality_flag_count = 0;
-  if (results[2].status === 'fulfilled') {
-    const r = results[2].value as { data?: unknown[] | null; error?: unknown };
-    if (r.error) {
-      errors.push('quality_flag_count query failed');
-    } else {
-      quality_flag_count = Array.isArray(r.data) ? r.data.length : 0;
-    }
-  } else {
-    errors.push('quality_flag_count query failed');
-  }
-
-  // --- Extract freshness breakdown (query 3 — single source of truth) ---
   const freshness_summary = { fresh: 0, aging: 0, stale: 0, expired: 0 };
   let stale_content_count = 0;
   let expired_content_count = 0;
-  if (results[3].status === 'fulfilled') {
-    const { data, error } = results[3].value;
-    if (error) {
-      errors.push('freshness_breakdown query failed');
-    } else if (data) {
-      for (const row of data as { freshness: string; count: number }[]) {
-        const key = row.freshness as keyof typeof freshness_summary;
-        if (key in freshness_summary) {
-          freshness_summary[key] = row.count;
-        }
-      }
-      stale_content_count = freshness_summary.stale;
-      expired_content_count = freshness_summary.expired;
-    }
-  } else {
-    errors.push('freshness_breakdown query failed');
-  }
-
-  // --- Extract unread notification count (query 4) ---
   let unread_notification_count = 0;
-  if (results[4].status === 'fulfilled') {
-    const { count, error } = results[4].value;
+  let expiring_content_date_count = 0;
+  let coverage_gap_count = 0;
+
+  if (results[0].status === 'fulfilled') {
+    const { data, error } = results[0].value;
     if (error) {
-      errors.push('unread_notification_count query failed');
-    } else {
-      unread_notification_count = count ?? 0;
+      errors.push('attention_counts RPC failed');
+    } else if (data) {
+      const counts = data as {
+        governance_review_count: number;
+        unverified_count: number;
+        quality_flag_count: number;
+        stale_content_count: number;
+        expired_content_count: number;
+        expiring_content_date_count: number;
+        unread_notification_count: number;
+        coverage_gap_count: number;
+        freshness_summary: { fresh: number; aging: number; stale: number; expired: number };
+      };
+      governance_review_count = counts.governance_review_count ?? 0;
+      unverified_count = counts.unverified_count ?? 0;
+      quality_flag_count = counts.quality_flag_count ?? 0;
+      stale_content_count = counts.stale_content_count ?? 0;
+      expired_content_count = counts.expired_content_count ?? 0;
+      expiring_content_date_count = counts.expiring_content_date_count ?? 0;
+      unread_notification_count = counts.unread_notification_count ?? 0;
+      coverage_gap_count = counts.coverage_gap_count ?? 0;
+      if (counts.freshness_summary) {
+        freshness_summary.fresh = counts.freshness_summary.fresh ?? 0;
+        freshness_summary.aging = counts.freshness_summary.aging ?? 0;
+        freshness_summary.stale = counts.freshness_summary.stale ?? 0;
+        freshness_summary.expired = counts.freshness_summary.expired ?? 0;
+      }
     }
   } else {
-    errors.push('unread_notification_count query failed');
+    errors.push('attention_counts RPC failed');
   }
 
-  // --- Extract recent activity (query 5) ---
+  // --- Extract recent activity (query 1) ---
   let recent_activity: GroupedActivityItem[] = [];
-  if (results[5].status === 'fulfilled') {
-    const { data, error } = results[5].value;
+  if (results[1].status === 'fulfilled') {
+    const { data, error } = results[1].value;
     if (error) {
       errors.push('recent_activity query failed');
     } else if (data) {
@@ -663,10 +592,10 @@ export async function fetchUnifiedDashboardData(
     errors.push('recent_activity query failed');
   }
 
-  // --- Extract team changes — content_history (query 6) ---
+  // --- Extract team changes — content_history (query 2) ---
   const team_changes: TeamChange[] = [];
-  if (results[6].status === 'fulfilled') {
-    const { data, error } = results[6].value;
+  if (results[2].status === 'fulfilled') {
+    const { data, error } = results[2].value;
     if (error) {
       errors.push('team_changes query failed');
     } else if (data) {
@@ -688,10 +617,10 @@ export async function fetchUnifiedDashboardData(
     errors.push('team_changes query failed');
   }
 
-  // --- Extract user's recent work — content_history (query 7) ---
+  // --- Extract user's recent work — content_history (query 3) ---
   const my_recent_work: RecentWorkItem[] = [];
-  if (results[7].status === 'fulfilled') {
-    const { data, error } = results[7].value;
+  if (results[3].status === 'fulfilled') {
+    const { data, error } = results[3].value;
     if (error) {
       errors.push('my_recent_work query failed');
     } else if (data) {
@@ -711,9 +640,9 @@ export async function fetchUnifiedDashboardData(
     errors.push('my_recent_work query failed');
   }
 
-  // --- Extract bid response team changes (query 8) ---
-  if (results[8].status === 'fulfilled') {
-    const { data, error } = results[8].value;
+  // --- Extract bid response team changes (query 4) ---
+  if (results[4].status === 'fulfilled') {
+    const { data, error } = results[4].value;
     if (error) {
       errors.push('bid_response team_changes query failed');
     } else if (data) {
@@ -748,9 +677,9 @@ export async function fetchUnifiedDashboardData(
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 
-  // --- Extract user's own bid response edits (query 9) ---
-  if (results[9].status === 'fulfilled') {
-    const { data, error } = results[9].value;
+  // --- Extract user's own bid response edits (query 5) ---
+  if (results[5].status === 'fulfilled') {
+    const { data, error } = results[5].value;
     if (error) {
       errors.push('bid_response my_recent_work query failed');
     } else if (data) {
@@ -788,19 +717,6 @@ export async function fetchUnifiedDashboardData(
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
   my_recent_work.splice(5);
-
-  // --- Extract expiring content date count (query 10) ---
-  let expiring_content_date_count = 0;
-  if (results[10].status === 'fulfilled') {
-    const { count, error } = results[10].value;
-    if (error) {
-      errors.push('expiring_content_date_count query failed');
-    } else {
-      expiring_content_date_count = count ?? 0;
-    }
-  } else {
-    errors.push('expiring_content_date_count query failed');
-  }
 
   // --- Build active bids (from shared helper — single query) ---
   const { workspaces: bidWorkspaces, statsMap } = activeBidsResult;
@@ -886,10 +802,10 @@ export async function fetchUnifiedDashboardData(
     }
   }
 
-  // --- Extract expiring certification count (query 11) ---
+  // --- Extract expiring certification count (query 6) ---
   let expiring_cert_count = 0;
-  if (results[11].status === 'fulfilled') {
-    const { data, error } = results[11].value;
+  if (results[6].status === 'fulfilled') {
+    const { data, error } = results[6].value;
     if (error) {
       errors.push('expiring_cert_count query failed');
     } else if (data) {
@@ -915,33 +831,7 @@ export async function fetchUnifiedDashboardData(
     errors.push('expiring_cert_count query failed');
   }
 
-  // --- Extract coverage gap count (queries 12 + 13) ---
-  let coverage_gap_count = 0;
-  if (results[12].status === 'fulfilled' && results[13].status === 'fulfilled') {
-    const subtopicResult = results[12].value as { data?: { id: string; name: string; domain_id: string }[] | null; error?: unknown };
-    const contentResult = results[13].value as { data?: { primary_subtopic: string | null }[] | null; error?: unknown };
-
-    if (subtopicResult.error) {
-      errors.push('coverage_gap subtopics query failed');
-    } else if (contentResult.error) {
-      errors.push('coverage_gap content query failed');
-    } else {
-      const activeSubtopics = subtopicResult.data ?? [];
-      // Build set of subtopics that have at least one content item
-      const coveredSubtopics = new Set(
-        (contentResult.data ?? [])
-          .map((item) => item.primary_subtopic)
-          .filter((s): s is string => s !== null),
-      );
-      // Count subtopics with zero content items
-      coverage_gap_count = activeSubtopics.filter(
-        (st) => !coveredSubtopics.has(st.name),
-      ).length;
-    }
-  } else {
-    if (results[12].status === 'rejected') errors.push('coverage_gap subtopics query failed');
-    if (results[13].status === 'rejected') errors.push('coverage_gap content query failed');
-  }
+  // Coverage gap count is now included in the attention counts RPC (query 0)
 
   return {
     attention_sources: {
