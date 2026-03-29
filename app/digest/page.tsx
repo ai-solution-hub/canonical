@@ -31,7 +31,7 @@ import { formatDate } from '@/lib/format';
 import { digestTypeLabel } from '@/lib/digest/digest-helpers';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTaxonomy } from '@/contexts/taxonomy-context';
-import type { Digest } from '@/types/digest';
+import { useDigestData } from '@/hooks/use-digest-data';
 
 type DigestMode = 'preset' | 'daily' | 'custom';
 
@@ -59,15 +59,6 @@ function DigestSkeleton() {
       </div>
     </div>
   );
-}
-
-interface PastDigestEntry {
-  id: string;
-  digest_type: string;
-  period_start: string;
-  period_end: string;
-  item_count: number;
-  created_at: string;
 }
 
 /**
@@ -400,16 +391,21 @@ export default function DigestPage() {
   const { getDomainNames } = useTaxonomy();
   const domainOptions = getDomainNames();
 
+  const {
+    currentDigest,
+    loading,
+    pastDigests,
+    loadingPastDigests,
+    generating,
+    handleGenerate,
+    loadDigest,
+  } = useDigestData();
+
   // Trigger lazy loading of read marks for this page
   useEffect(() => {
     loadReadMarks();
   }, [loadReadMarks]);
 
-  const [currentDigest, setCurrentDigest] = useState<Digest | null>(null);
-  const [pastDigests, setPastDigests] = useState<PastDigestEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingPastDigests, setLoadingPastDigests] = useState(true);
-  const [generating, setGenerating] = useState(false);
   const [periodDays, setPeriodDays] = useState('7');
 
   // Mode: preset (7/14/30 day), daily, or custom
@@ -425,113 +421,46 @@ export default function DigestPage() {
   const [customDomain, setCustomDomain] = useState<string>('');
   const [customKeywords, setCustomKeywords] = useState('');
 
-  // Fetch the latest digest on mount
-  const fetchLatest = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/digest/latest');
-      if (!res.ok) throw new Error('Failed to fetch latest digest');
-      const data = await res.json();
-      setCurrentDigest(data.digest ?? null);
-    } catch (err) {
-      console.error('Failed to fetch latest digest:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch list of past digests
-  const fetchPastDigests = useCallback(async () => {
-    setLoadingPastDigests(true);
-    try {
-      const res = await fetch('/api/digest/list?limit=10&offset=0');
-      if (!res.ok) throw new Error('Failed to fetch digest list');
-      const data = await res.json();
-      setPastDigests(data.digests ?? []);
-    } catch (err) {
-      console.error('Failed to fetch digest list:', err);
-    } finally {
-      setLoadingPastDigests(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLatest();
-    fetchPastDigests();
-  }, [fetchLatest, fetchPastDigests]);
-
-  // Generate a new digest
-  const handleGenerate = useCallback(async () => {
-    setGenerating(true);
-
-    try {
-      let body: Record<string, unknown>;
-
-      if (mode === 'daily') {
-        body = {
-          period_days: 1,
-          digest_type: 'daily',
-        };
-      } else if (mode === 'custom') {
-        // Parse keywords from comma-separated input
-        const keywords = customKeywords
-          .split(',')
-          .map((k) => k.trim())
-          .filter(Boolean);
-
-        const dateFrom = customDateFrom
-          ? new Date(customDateFrom)
-          : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-        const dateTo = customDateTo
-          ? new Date(customDateTo + 'T23:59:59')
-          : new Date();
-
-        body = {
-          period_days: 7, // fallback, overridden by date_from/date_to
-          digest_type: 'custom',
-          date_from: dateFrom.toISOString(),
-          date_to: dateTo.toISOString(),
-          ...(customDomain && customDomain !== 'all'
-            ? { domain: customDomain }
-            : {}),
-          ...(keywords.length > 0 ? { keywords } : {}),
-        };
-      } else {
-        const selectedPeriod = PERIOD_OPTIONS.find(
-          (o) => o.value === periodDays,
-        );
-        body = {
-          period_days: parseInt(periodDays, 10),
-          digest_type: selectedPeriod?.type ?? 'custom',
-        };
-      }
-
-      const res = await fetch('/api/digest/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+  // Build request body and trigger generation
+  const onGenerate = useCallback(() => {
+    if (mode === 'daily') {
+      handleGenerate({
+        period_days: 1,
+        digest_type: 'daily',
       });
+    } else if (mode === 'custom') {
+      const keywords = customKeywords
+        .split(',')
+        .map((k) => k.trim())
+        .filter(Boolean);
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate report');
-      }
+      const dateFrom = customDateFrom
+        ? new Date(customDateFrom)
+        : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const dateTo = customDateTo
+        ? new Date(customDateTo + 'T23:59:59')
+        : new Date();
 
-      const data = await res.json();
-      setCurrentDigest(data.digest);
-      toast.success('Report generated successfully');
-
-      // Refresh the list
-      fetchPastDigests();
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to generate report';
-      toast.error(message);
-      console.error('Digest generation failed:', err);
-    } finally {
-      setGenerating(false);
+      handleGenerate({
+        period_days: 7,
+        digest_type: 'custom',
+        date_from: dateFrom.toISOString(),
+        date_to: dateTo.toISOString(),
+        ...(customDomain && customDomain !== 'all'
+          ? { domain: customDomain }
+          : {}),
+        ...(keywords.length > 0 ? { keywords } : {}),
+      });
+    } else {
+      const selectedPeriod = PERIOD_OPTIONS.find(
+        (o) => o.value === periodDays,
+      );
+      handleGenerate({
+        period_days: parseInt(periodDays, 10),
+        digest_type: selectedPeriod?.type ?? 'custom',
+      });
     }
-  }, [mode, customKeywords, customDateFrom, customDateTo, customDomain, periodDays, fetchPastDigests]);
+  }, [mode, customKeywords, customDateFrom, customDateTo, customDomain, periodDays, handleGenerate]);
 
   // Mark all items from digest as read
   const handleMarkAllRead = useCallback(async () => {
@@ -554,50 +483,12 @@ export default function DigestPage() {
     }
   }, [currentDigest, markBulkRead]);
 
-  // Load a specific past digest by fetching full data
-  async function loadDigest(digestId: string) {
-    setLoading(true);
-    try {
-      const match = pastDigests.find((d) => d.id === digestId);
-      if (
-        match &&
-        'domain_summaries' in match &&
-        'narrative_summary' in match
-      ) {
-        setCurrentDigest(match as Digest);
-      } else {
-        const res = await fetch('/api/digest/list?limit=50&offset=0');
-        if (!res.ok) throw new Error('Failed to load digest');
-        const data = await res.json();
-        const full = data.digests?.find((d: Digest) => d.id === digestId);
-        if (full) {
-          setCurrentDigest(full);
-        } else {
-          // Digest not found in paginated list — fetch it individually
-          const singleRes = await fetch(`/api/digest/${digestId}`);
-          if (!singleRes.ok) throw new Error('Failed to load digest');
-          const singleData = await singleRes.json();
-          if (singleData) {
-            setCurrentDigest(singleData);
-          } else {
-            toast.error('Report not found');
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load digest:', err);
-      toast.error('Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // Shared props for GenerateControls
   const controlsProps = {
     mode,
     onModeChange: setMode,
     generating,
-    onGenerate: handleGenerate,
+    onGenerate,
     periodDays,
     onPeriodDaysChange: setPeriodDays,
     customDateFrom,

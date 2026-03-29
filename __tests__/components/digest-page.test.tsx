@@ -4,12 +4,14 @@
  * Tests the digest page — loading state, hero/generate states, mode selector,
  * custom filters, generation flow, past digests, and accessibility.
  *
- * Updated for digest-to-"Change Report" vocabulary reframing.
+ * Updated for TanStack Query migration (Wave 2A) and digest-to-"Change Report"
+ * vocabulary reframing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -168,6 +170,14 @@ function setupFetch(options: {
   });
 }
 
+/**
+ * Render DigestPage wrapped in QueryClientProvider.
+ */
+function renderDigestPage() {
+  const { Wrapper } = createQueryWrapper();
+  return render(<DigestPage />, { wrapper: Wrapper });
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -186,7 +196,7 @@ describe('DigestPage', () => {
   it('shows loading skeleton on initial load', () => {
     // fetch never resolves — stays in loading state
     mockFetch.mockImplementation(() => new Promise(() => {}));
-    render(<DigestPage />);
+    renderDigestPage();
 
     expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
   });
@@ -194,7 +204,7 @@ describe('DigestPage', () => {
   // 2. No digest (hero state) — now says "Change Reports"
   it('shows hero state when no digest exists', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -208,7 +218,7 @@ describe('DigestPage', () => {
   // 3. Mode selector tabs — now labelled "Report mode"
   it('renders three mode tabs with correct aria attributes', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -229,7 +239,7 @@ describe('DigestPage', () => {
   // 4. Preset mode: period select and generate button — now "Generate Report"
   it('shows generate button in preset mode', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -242,7 +252,7 @@ describe('DigestPage', () => {
   it('shows daily mode text when Daily tab is selected', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -258,7 +268,7 @@ describe('DigestPage', () => {
   it('shows custom filter panel when Custom tab is selected', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -278,7 +288,7 @@ describe('DigestPage', () => {
   it('shows active filter badges in custom mode and removes on click', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -309,7 +319,7 @@ describe('DigestPage', () => {
     const user = userEvent.setup();
     const generatedDigest = makeDigest({ id: 'new-digest' });
     setupFetch({ latest: null, list: [], generateResult: generatedDigest });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -333,7 +343,7 @@ describe('DigestPage', () => {
   it('calls fetch with custom filters when generating custom digest', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [], generateResult: makeDigest() });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -377,7 +387,7 @@ describe('DigestPage', () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -396,7 +406,7 @@ describe('DigestPage', () => {
     const user = userEvent.setup();
     const generatedDigest = makeDigest({ id: 'generated-1' });
     setupFetch({ latest: null, list: [], generateResult: generatedDigest });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -416,7 +426,7 @@ describe('DigestPage', () => {
   it('shows toast error when generation fails', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [], generateError: 'Insufficient content' });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -434,7 +444,7 @@ describe('DigestPage', () => {
   it('renders bar controls and DigestView when digest exists', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -449,7 +459,7 @@ describe('DigestPage', () => {
     const user = userEvent.setup();
     const digest = makeDigest({ item_ids: ['item-1', 'item-2', 'item-3'] });
     setupFetch({ latest: digest, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -475,7 +485,7 @@ describe('DigestPage', () => {
       makePastDigestEntry({ id: 'past-2' }),
     ];
     setupFetch({ latest: digest, list: pastList });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -493,7 +503,7 @@ describe('DigestPage', () => {
     const currentDigest = makeDigest({ id: 'current-digest' });
     const pastEntry = makePastDigestEntry({ id: 'past-1' });
     setupFetch({ latest: currentDigest, list: [currentDigest, pastEntry] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Previous Reports')).toBeInTheDocument();
@@ -506,7 +516,8 @@ describe('DigestPage', () => {
 
     // It should have called fetch to load the full digest
     await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalledWith(
+      const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0]);
+      expect(calls).toContainEqual(
         expect.stringContaining('/api/digest/list?limit=50'),
       );
     });
@@ -516,7 +527,7 @@ describe('DigestPage', () => {
   it('does not render previous reports section when none exist', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [digest] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -541,7 +552,7 @@ describe('DigestPage', () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -558,7 +569,7 @@ describe('DigestPage', () => {
   // 19. Content section has correct aria-label — now "Change reports"
   it('wraps content in section with correct aria-label', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -571,7 +582,7 @@ describe('DigestPage', () => {
   it('switches between all three modes', async () => {
     const user = userEvent.setup();
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -594,7 +605,7 @@ describe('DigestPage', () => {
   // 21. loadReadMarks is called on mount
   it('calls loadReadMarks on mount', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(mockLoadReadMarks).toHaveBeenCalled();
@@ -620,7 +631,7 @@ describe('DigestPage', () => {
       ],
     });
     setupFetch({ latest: digest, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -652,7 +663,7 @@ describe('DigestPage', () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -669,7 +680,7 @@ describe('DigestPage', () => {
   // 24. tabpanel has correct aria-labelledby
   it('renders tabpanel with correct aria-labelledby for active mode', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
@@ -683,7 +694,7 @@ describe('DigestPage', () => {
   it('renders mark all as read button after digest content, not in controls bar', async () => {
     const digest = makeDigest();
     setupFetch({ latest: digest, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByTestId('digest-view')).toBeInTheDocument();
@@ -701,7 +712,7 @@ describe('DigestPage', () => {
   // 26. Mark all as read button is not shown when no digest exists
   it('does not render mark all as read button in hero state', async () => {
     setupFetch({ latest: null, list: [] });
-    render(<DigestPage />);
+    renderDigestPage();
 
     await waitFor(() => {
       expect(screen.getByText('Change Reports')).toBeInTheDocument();
