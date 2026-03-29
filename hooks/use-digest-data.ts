@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
+import { toast } from 'sonner';
 import type { Digest, DigestGenerateResponse } from '@/types/digest';
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,10 @@ export function useDigestData() {
       queryClient.invalidateQueries({
         queryKey: queryKeys.digests.list(10, 0),
       });
+      toast.success('Report generated successfully');
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate report');
     },
   });
 

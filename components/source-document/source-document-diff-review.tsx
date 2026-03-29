@@ -968,13 +968,13 @@ export function SourceDocumentDiffReview({
 
   // All mutation, optimistic update, and review state is managed by the hook
   const {
-    localEntries,
+    entries: localEntries,
     localSummary,
     loadingIds,
     updateError,
-    clearUpdateError,
+    dismissError: clearUpdateError,
     handleNoteChange,
-    handleSingleStatusChange,
+    handleStatusChange: handleSingleStatusChange,
     handleBulkStatusChange,
     handleSendToReview,
     sendToReviewState,
