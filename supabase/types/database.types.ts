@@ -2203,6 +2203,10 @@ export type Database = {
           total_items: number
         }[]
       }
+      get_dashboard_attention_counts: {
+        Args: { p_role?: string; p_user_id: string }
+        Returns: Json
+      }
       get_document_version_chain: {
         Args: { p_document_id: string }
         Returns: {
@@ -2228,6 +2232,27 @@ export type Database = {
           primary_domain: string
           primary_subtopic: string
         }[]
+      }
+      get_entity_co_occurrence: {
+        Args: { p_entity_type?: string; p_limit?: number; p_min_count?: number }
+        Returns: {
+          entity_a: string
+          entity_b: string
+          shared_count: number
+          type_a: string
+          type_b: string
+        }[]
+      }
+      get_entity_list_aggregated: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_search?: string
+          p_type?: string
+          p_type_conflicts?: boolean
+          p_variants_only?: boolean
+        }
+        Returns: Json
       }
       get_entity_name_counts: {
         Args: never
@@ -2361,6 +2386,7 @@ export type Database = {
         }[]
       }
       get_reading_patterns: { Args: { p_days?: number }; Returns: Json }
+      get_review_breakdown_stats: { Args: never; Returns: Json }
       get_source_documents: {
         Args: never
         Returns: {

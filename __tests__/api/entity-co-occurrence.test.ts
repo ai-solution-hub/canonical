@@ -70,10 +70,8 @@ describe('GET /api/entities/co-occurrence', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns empty pairs when no entity mentions exist', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: [], error: null }),
-    );
+  it('returns empty pairs when RPC returns empty array', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
     const req = createTestRequest('/api/entities/co-occurrence');
     const res = await GET(req);
@@ -84,28 +82,14 @@ describe('GET /api/entities/co-occurrence', () => {
     expect(body.total).toBe(0);
   });
 
-  it('returns co-occurring entity pairs sorted by shared count', async () => {
-    const ITEM_1 = 'a1b2c3d4-0001-0000-0000-000000000000';
-    const ITEM_2 = 'a1b2c3d4-0002-0000-0000-000000000000';
-    const ITEM_3 = 'a1b2c3d4-0003-0000-0000-000000000000';
-
-    // Acme Corp and ISO 27001 appear in items 1, 2, and 3 (shared_count = 3)
-    // Acme Corp and GDPR appear in items 1 and 2 (shared_count = 2)
-    // ISO 27001 and GDPR appear in items 1 and 2 (shared_count = 2)
-    const mentions = [
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_1 },
-      { canonical_name: 'GDPR', entity_type: 'regulation', content_item_id: ITEM_1 },
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_2 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_2 },
-      { canonical_name: 'GDPR', entity_type: 'regulation', content_item_id: ITEM_2 },
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_3 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_3 },
+  it('returns co-occurring entity pairs from RPC', async () => {
+    const rpcResult = [
+      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 3 },
+      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'GDPR', type_b: 'regulation', shared_count: 2 },
+      { entity_a: 'GDPR', type_a: 'regulation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 2 },
     ];
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: mentions, error: null }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
 
     const req = createTestRequest('/api/entities/co-occurrence', {
       searchParams: { min: '2' },
@@ -114,30 +98,29 @@ describe('GET /api/entities/co-occurrence', () => {
     expect(res.status).toBe(200);
 
     const body = await res.json();
-    expect(body.pairs.length).toBeGreaterThanOrEqual(2);
+    expect(body.pairs.length).toBe(3);
 
-    // Acme Corp + ISO 27001 should be first (shared_count = 3)
+    // First pair should be Acme Corp + ISO 27001 (shared_count = 3)
     expect(body.pairs[0].entity_a).toBe('Acme Corp');
     expect(body.pairs[0].entity_b).toBe('ISO 27001');
     expect(body.pairs[0].shared_count).toBe(3);
     expect(body.pairs[0].type_a).toBe('organisation');
     expect(body.pairs[0].type_b).toBe('certification');
+
+    // Verify RPC was called with correct parameters
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_co_occurrence', {
+      p_limit: 20,
+      p_min_count: 2,
+      p_entity_type: undefined,
+    });
   });
 
-  it('filters co-occurrence by entity type', async () => {
-    const ITEM_1 = 'a1b2c3d4-0001-0000-0000-000000000000';
-    const ITEM_2 = 'a1b2c3d4-0002-0000-0000-000000000000';
-
-    const mentions = [
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_1 },
-      { canonical_name: 'ISO 9001', entity_type: 'certification', content_item_id: ITEM_1 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_2 },
-      { canonical_name: 'ISO 9001', entity_type: 'certification', content_item_id: ITEM_2 },
+  it('passes entity type filter to RPC', async () => {
+    const rpcResult = [
+      { entity_a: 'ISO 27001', type_a: 'certification', entity_b: 'ISO 9001', type_b: 'certification', shared_count: 2 },
     ];
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: mentions, error: null }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
 
     const req = createTestRequest('/api/entities/co-occurrence', {
       searchParams: { type: 'certification', min: '2' },
@@ -151,27 +134,21 @@ describe('GET /api/entities/co-occurrence', () => {
     expect(body.pairs[0].entity_b).toBe('ISO 9001');
     expect(body.pairs[0].shared_count).toBe(2);
 
-    // Verify the type filter was applied to the query
-    expect(mockSupabase._chain.eq).toHaveBeenCalledWith('entity_type', 'certification');
+    // Verify the type filter was passed to the RPC
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_co_occurrence', {
+      p_limit: 20,
+      p_min_count: 2,
+      p_entity_type: 'certification',
+    });
   });
 
-  it('respects limit parameter', async () => {
-    const ITEM_1 = 'a1b2c3d4-0001-0000-0000-000000000000';
-    const ITEM_2 = 'a1b2c3d4-0002-0000-0000-000000000000';
-
-    // Create enough pairs to test limit
-    const mentions = [
-      { canonical_name: 'Entity A', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'Entity B', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'Entity C', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'Entity A', entity_type: 'organisation', content_item_id: ITEM_2 },
-      { canonical_name: 'Entity B', entity_type: 'organisation', content_item_id: ITEM_2 },
-      { canonical_name: 'Entity C', entity_type: 'organisation', content_item_id: ITEM_2 },
-    ];
-
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: mentions, error: null }),
-    );
+  it('passes limit parameter to RPC', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: [
+        { entity_a: 'Entity A', type_a: 'organisation', entity_b: 'Entity B', type_b: 'organisation', shared_count: 2 },
+      ],
+      error: null,
+    });
 
     const req = createTestRequest('/api/entities/co-occurrence', {
       searchParams: { limit: '1', min: '2' },
@@ -181,20 +158,17 @@ describe('GET /api/entities/co-occurrence', () => {
 
     const body = await res.json();
     expect(body.pairs).toHaveLength(1);
+
+    // Verify limit was passed to RPC
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_entity_co_occurrence', {
+      p_limit: 1,
+      p_min_count: 2,
+      p_entity_type: undefined,
+    });
   });
 
-  it('excludes pairs below minimum shared count', async () => {
-    const ITEM_1 = 'a1b2c3d4-0001-0000-0000-000000000000';
-
-    // Only 1 item — pairs will have shared_count = 1
-    const mentions = [
-      { canonical_name: 'Entity A', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'Entity B', entity_type: 'organisation', content_item_id: ITEM_1 },
-    ];
-
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: mentions, error: null }),
-    );
+  it('returns empty pairs when RPC returns no results above min count', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({ data: [], error: null });
 
     const req = createTestRequest('/api/entities/co-occurrence', {
       searchParams: { min: '2' },
@@ -206,35 +180,23 @@ describe('GET /api/entities/co-occurrence', () => {
     expect(body.pairs).toEqual([]);
   });
 
-  it('returns 500 when Supabase query fails', async () => {
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({
-        data: null,
-        error: { message: 'DB error', code: '50000' },
-      }),
-    );
+  it('returns 500 when RPC fails', async () => {
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'DB error', code: '50000' },
+    });
 
     const req = createTestRequest('/api/entities/co-occurrence');
     const res = await GET(req);
     expect(res.status).toBe(500);
   });
 
-  it('deduplicates entities within the same content item', async () => {
-    const ITEM_1 = 'a1b2c3d4-0001-0000-0000-000000000000';
-    const ITEM_2 = 'a1b2c3d4-0002-0000-0000-000000000000';
-
-    // Same entity appears twice in the same item — should only count once
-    const mentions = [
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_1 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_1 },
-      { canonical_name: 'Acme Corp', entity_type: 'organisation', content_item_id: ITEM_2 },
-      { canonical_name: 'ISO 27001', entity_type: 'certification', content_item_id: ITEM_2 },
+  it('returns correct total matching pairs count', async () => {
+    const rpcResult = [
+      { entity_a: 'Acme Corp', type_a: 'organisation', entity_b: 'ISO 27001', type_b: 'certification', shared_count: 2 },
     ];
 
-    mockSupabase._chain.then.mockImplementationOnce(
-      (resolve: (v: unknown) => void) => resolve({ data: mentions, error: null }),
-    );
+    mockSupabase.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
 
     const req = createTestRequest('/api/entities/co-occurrence', {
       searchParams: { min: '2' },
@@ -244,7 +206,6 @@ describe('GET /api/entities/co-occurrence', () => {
 
     const body = await res.json();
     expect(body.pairs).toHaveLength(1);
-    // shared_count should be 2 (items 1 and 2), not 3
-    expect(body.pairs[0].shared_count).toBe(2);
+    expect(body.total).toBe(1);
   });
 });

@@ -427,63 +427,27 @@ describe('GET /api/review/stats', () => {
   it('returns 200 with stats object', async () => {
     configureRole(mockSupabase, 'editor');
 
-    let thenCallCount = 0;
-    mockSupabase._chain.then.mockImplementation((resolve: (v: unknown) => void) => {
-      thenCallCount++;
-      if (thenCallCount === 1) {
-        // Total count (excluding drafts)
-        return resolve({ data: null, error: null, count: 100 });
-      }
-      if (thenCallCount === 2) {
-        // Verified count
-        return resolve({ data: null, error: null, count: 60 });
-      }
-      if (thenCallCount === 3) {
-        // Flagged items (distinct content_item_ids)
-        return resolve({
-          data: [
-            { content_item_id: 'a1' },
-            { content_item_id: 'a2' },
-            { content_item_id: 'a3' },
-            { content_item_id: 'a4' },
-            { content_item_id: 'a5' },
-          ],
-          error: null,
-          count: null,
-        });
-      }
-      if (thenCallCount === 4) {
-        // Draft count
-        return resolve({ data: null, error: null, count: 3 });
-      }
-      if (thenCallCount === 5) {
-        // Breakdown data for domain/content_type/source_file
-        return resolve({
-          data: [
-            {
-              primary_domain: 'Technology',
-              content_type: 'article',
-              verified_at: '2026-01-01T00:00:00Z',
-              source_file: 'import-batch-1.docx',
-            },
-            {
-              primary_domain: 'Technology',
-              content_type: 'q_a_pair',
-              verified_at: null,
-              source_file: 'import-batch-1.docx',
-            },
-            {
-              primary_domain: 'Business',
-              content_type: 'article',
-              verified_at: '2026-02-01T00:00:00Z',
-              source_file: null,
-            },
-          ],
-          error: null,
-          count: null,
-        });
-      }
-      return resolve({ data: [], error: null, count: 0 });
+    // The route now calls a single RPC: get_review_breakdown_stats
+    mockSupabase.rpc.mockResolvedValueOnce({
+      data: {
+        total: 100,
+        verified: 60,
+        flagged: 5,
+        draft: 3,
+        by_domain: {
+          Technology: { total: 2, verified: 1 },
+          Business: { total: 1, verified: 1 },
+        },
+        by_content_type: {
+          article: { total: 2, verified: 2 },
+          q_a_pair: { total: 1, verified: 0 },
+        },
+        by_source_file: {
+          'import-batch-1.docx': { total: 2, verified: 1 },
+        },
+        by_source_document: {},
+      },
+      error: null,
     });
 
     const res = await getStats();
@@ -510,5 +474,8 @@ describe('GET /api/review/stats', () => {
     expect(json.by_source_file).toEqual({
       'import-batch-1.docx': { total: 2, verified: 1 },
     });
+
+    // Verify the RPC was called
+    expect(mockSupabase.rpc).toHaveBeenCalledWith('get_review_breakdown_stats');
   });
 });
