@@ -15,7 +15,8 @@ const mockSupabase = createMockSupabaseClient();
 const {
   mockCookies,
   mockCheckRateLimit,
-  mockFetchDashboardData,
+  mockFetchUnifiedDashboardData,
+  mockUnifiedToDashboardData,
   mockListAvailableTemplates,
   mockFetchTemplateRequirements,
   mockComputeTemplateCoverage,
@@ -24,7 +25,8 @@ const {
 } = vi.hoisted(() => ({
   mockCookies: vi.fn(),
   mockCheckRateLimit: vi.fn(),
-  mockFetchDashboardData: vi.fn(),
+  mockFetchUnifiedDashboardData: vi.fn(),
+  mockUnifiedToDashboardData: vi.fn((d: unknown) => d),
   mockListAvailableTemplates: vi.fn(),
   mockFetchTemplateRequirements: vi.fn(),
   mockComputeTemplateCoverage: vi.fn(),
@@ -46,7 +48,8 @@ vi.mock('@/lib/rate-limit', () => ({
 }));
 
 vi.mock('@/lib/dashboard', () => ({
-  fetchDashboardData: mockFetchDashboardData,
+  fetchUnifiedDashboardData: mockFetchUnifiedDashboardData,
+  unifiedToDashboardData: mockUnifiedToDashboardData,
 }));
 
 vi.mock('@/lib/templates/template-coverage', () => ({
@@ -129,7 +132,7 @@ beforeEach(() => {
 
   // External dependency mocks
   mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 19 });
-  mockFetchDashboardData.mockResolvedValue({
+  mockFetchUnifiedDashboardData.mockResolvedValue({
     needs_attention: {
       governance_review_count: 0,
       unverified_count: 0,
@@ -444,7 +447,7 @@ describe('GET /api/dashboard', () => {
       freshness_summary: { fresh: 10, ageing: 2, stale: 1, expired: 0, unknown: 0 },
       errors: [],
     };
-    mockFetchDashboardData.mockResolvedValueOnce(dashboardData);
+    mockFetchUnifiedDashboardData.mockResolvedValueOnce(dashboardData);
 
     const req = createTestRequest('/api/dashboard');
     const res = await dashboardGet(req);
@@ -461,10 +464,11 @@ describe('GET /api/dashboard', () => {
     const req = createTestRequest('/api/dashboard');
     await dashboardGet(req);
 
-    expect(mockFetchDashboardData).toHaveBeenCalledWith(
+    expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
       mockSupabase,
       'test-user-id',
       true,
+      'admin',
     );
   });
 
@@ -474,17 +478,18 @@ describe('GET /api/dashboard', () => {
     const req = createTestRequest('/api/dashboard');
     await dashboardGet(req);
 
-    expect(mockFetchDashboardData).toHaveBeenCalledWith(
+    expect(mockFetchUnifiedDashboardData).toHaveBeenCalledWith(
       mockSupabase,
       'test-user-id',
       false,
+      'viewer',
     );
   });
 
   it('returns 500 when all 7+ queries fail (errors threshold)', async () => {
     configureRole(mockSupabase, 'admin');
 
-    mockFetchDashboardData.mockResolvedValueOnce({
+    mockFetchUnifiedDashboardData.mockResolvedValueOnce({
       needs_attention: {
         governance_review_count: null,
         unverified_count: null,

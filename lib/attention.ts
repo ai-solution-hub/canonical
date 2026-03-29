@@ -69,7 +69,7 @@ export interface AttentionItem {
 
 /**
  * Raw data from all attention sources, passed to buildAttentionItems().
- * Mirrors the data already fetched by fetchDashboardData() and related queries.
+ * Mirrors the data already fetched by fetchUnifiedDashboardData().
  */
 export interface AttentionSourceData {
   governance_review_count: number;

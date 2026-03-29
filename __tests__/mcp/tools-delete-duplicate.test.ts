@@ -47,7 +47,10 @@ vi.mock('@/lib/ai/summarise', () => ({ generateSummary: vi.fn() }));
 vi.mock('@modelcontextprotocol/ext-apps/server', () => ({
   registerAppTool: vi.fn(),
 }));
-vi.mock('@/lib/dashboard', () => ({ fetchDashboardData: vi.fn() }));
+vi.mock('@/lib/dashboard', () => ({
+  fetchUnifiedDashboardData: vi.fn(),
+  unifiedToDashboardData: vi.fn((d: unknown) => d),
+}));
 vi.mock('@/lib/reorient', () => ({ fetchReorientData: vi.fn(), resolveDisplayNames: vi.fn() }));
 vi.mock('@/lib/bid/bid-queries', () => ({ fetchBidSections: vi.fn() }));
 

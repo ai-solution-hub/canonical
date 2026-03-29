@@ -1,8 +1,8 @@
 /**
  * Unit tests for fetchUnifiedDashboardData() in lib/dashboard.ts.
  *
- * Tests the unified fetch that combines fetchDashboardData + fetchReorientData
- * into a single function, eliminating 4 duplicate queries (freshness,
+ * Tests the unified fetch that combines dashboard + reorient queries
+ * into a single function, eliminating duplicate queries (freshness,
  * governance reviews, notifications, active bids).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

@@ -37,9 +37,8 @@ function mapChangeTypeToAction(changeType: string): TeamChange['action'] | Recen
 
 /**
  * @deprecated Use `fetchUnifiedDashboardData()` from `lib/dashboard.ts` instead.
- * This function runs queries that duplicate those in `fetchDashboardData()` —
- * freshness breakdown, governance reviews, notifications, and active bids.
- * The unified fetch in `lib/dashboard.ts` eliminates all 4 duplicate queries.
+ * This function runs queries that duplicate the unified fetch.
+ * The unified fetch in `lib/dashboard.ts` eliminates all duplicate queries.
  */
 export async function fetchReorientData(
   supabase: SupabaseClient<Database>,
@@ -139,7 +138,7 @@ export async function fetchReorientData(
             .eq('governance_review_status', 'pending'),
 
       // 4: Quality flags count (admin only)
-      // Uses the same RPC as fetchDashboardData() so counts are consistent —
+      // Uses the same RPC as fetchUnifiedDashboardData() so counts are consistent —
       // returns distinct content_item_ids with unresolved flags, not raw log entries
       isAdmin
         ? supabase.rpc('get_items_with_quality_flags')
