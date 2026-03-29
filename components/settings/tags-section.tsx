@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   Loader2,
   Tags,
@@ -26,7 +26,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/use-user-role';
 import { cn } from '@/lib/utils';
 import {
@@ -36,20 +35,14 @@ import {
   TooltipContent,
 } from '@/components/ui/tooltip';
 import { DuplicateReview } from './duplicate-review';
-import type { DuplicateGroup } from './duplicate-review';
 import { TagDomainView } from './tag-domain-view';
-import type { DomainTagGroup } from './tag-domain-view';
 import { TagBulkActions } from './tag-bulk-actions';
+import { useTagsData } from '@/hooks/use-tags-data';
+import type { TagCount } from '@/hooks/use-tags-data';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface TagCount {
-  tag: string;
-  count: number;
-  source: 'user' | 'ai';
-}
 
 type SortField = 'count' | 'tag';
 type SortOrder = 'asc' | 'desc';
@@ -156,19 +149,24 @@ function VirtualTagRow({
 export function TagsSection() {
   const { canAdmin, loading: roleLoading } = useUserRole();
 
-  // Data state
-  const [tags, setTags] = useState<TagCount[]>([]);
-  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
-  const [domainGroups, setDomainGroups] = useState<DomainTagGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
+  // Data from TanStack Query hook
+  const {
+    tags,
+    duplicates,
+    domainGroups,
+    loading,
+    renameMutation,
+    mergeMutation,
+    deleteMutation,
+    invalidateAllTags,
+  } = useTagsData();
 
-  // All Tags tab state
+  // UI state
+  const [activeTab, setActiveTab] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('count');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSingletons, setShowSingletons] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
 
   // Dialog state
   const [renameDialog, setRenameDialog] = useState<{
@@ -192,59 +190,11 @@ export function TagsSection() {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // ─────────────────────────────────────────
-  // Data fetching
+  // Set default active tab based on data
   // ─────────────────────────────────────────
 
-  const fetchTags = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tags');
-      if (!res.ok) throw new Error('Failed to fetch tags');
-      const data: TagCount[] = await res.json();
-      setTags(data);
-    } catch (err) {
-      console.error('Failed to fetch tags:', err);
-      toast.error('Failed to load tags');
-    }
-  }, []);
-
-  const fetchDuplicates = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tags/duplicates?type=ai');
-      if (!res.ok) throw new Error('Failed to fetch duplicates');
-      const data: DuplicateGroup[] = await res.json();
-      setDuplicates(data);
-    } catch (err) {
-      console.error('Failed to fetch duplicates:', err);
-    }
-  }, []);
-
-  const fetchDomainGroups = useCallback(async () => {
-    try {
-      const res = await fetch('/api/tags/by-domain?type=ai');
-      if (!res.ok) throw new Error('Failed to fetch domain groups');
-      const data: DomainTagGroup[] = await res.json();
-      setDomainGroups(data);
-    } catch (err) {
-      console.error('Failed to fetch domain groups:', err);
-    }
-  }, []);
-
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    await Promise.all([fetchTags(), fetchDuplicates(), fetchDomainGroups()]);
-    setLoading(false);
-  }, [fetchTags, fetchDuplicates, fetchDomainGroups]);
-
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
-  // Set default active tab based on data
-  useEffect(() => {
-    if (!loading && activeTab === undefined) {
-      setActiveTab(duplicates.length > 0 ? 'duplicates' : 'all');
-    }
-  }, [loading, duplicates.length, activeTab]);
+  // Compute the effective tab: if user hasn't picked one yet, default based on data
+  const effectiveTab = activeTab ?? (duplicates.length > 0 ? 'duplicates' : 'all');
 
   // ─────────────────────────────────────────
   // Summary stats
@@ -298,93 +248,59 @@ export function TagsSection() {
   });
 
   // ─────────────────────────────────────────
-  // Tag actions
+  // Tag actions (delegate to mutations)
   // ─────────────────────────────────────────
 
-  const handleRename = async () => {
+  const actionLoading =
+    renameMutation.isPending ||
+    mergeMutation.isPending ||
+    deleteMutation.isPending;
+
+  const handleRename = () => {
     if (!renameDialog.tag || !renameDialog.newName.trim()) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch('/api/tags/rename', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          old: renameDialog.tag.tag,
-          new: renameDialog.newName.trim(),
-          type: renameDialog.tag.source,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to rename tag');
-      toast.success(
-        `Renamed "${renameDialog.tag.tag}" to "${renameDialog.newName.trim()}" (${data.affected} items updated)`,
-      );
-      setRenameDialog({ open: false, tag: null, newName: '' });
-      fetchAll();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to rename tag',
-      );
-    } finally {
-      setActionLoading(false);
-    }
+    renameMutation.mutate(
+      {
+        old: renameDialog.tag.tag,
+        new: renameDialog.newName.trim(),
+        type: renameDialog.tag.source,
+      },
+      {
+        onSuccess: () => {
+          setRenameDialog({ open: false, tag: null, newName: '' });
+        },
+      },
+    );
   };
 
-  const handleMerge = async () => {
+  const handleMerge = () => {
     if (!mergeDialog.tag || !mergeDialog.targetName.trim()) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch('/api/tags/merge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: mergeDialog.tag.tag,
-          target: mergeDialog.targetName.trim(),
-          type: mergeDialog.tag.source,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to merge tags');
-      toast.success(
-        `Merged "${mergeDialog.tag.tag}" into "${mergeDialog.targetName.trim()}" (${data.affected} items updated)`,
-      );
-      setMergeDialog({ open: false, tag: null, targetName: '' });
-      fetchAll();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to merge tags',
-      );
-    } finally {
-      setActionLoading(false);
-    }
+    mergeMutation.mutate(
+      {
+        source: mergeDialog.tag.tag,
+        target: mergeDialog.targetName.trim(),
+        type: mergeDialog.tag.source,
+      },
+      {
+        onSuccess: () => {
+          setMergeDialog({ open: false, tag: null, targetName: '' });
+        },
+      },
+    );
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deleteDialog.tag) return;
-    setActionLoading(true);
-    try {
-      const res = await fetch('/api/tags', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tag: deleteDialog.tag.tag,
-          type: deleteDialog.tag.source,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to delete tag');
-      toast.success(
-        `Deleted "${deleteDialog.tag.tag}" (${data.affected} items updated)`,
-      );
-      setDeleteDialog({ open: false, tag: null });
-      fetchAll();
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : 'Failed to delete tag',
-      );
-    } finally {
-      setActionLoading(false);
-    }
+    deleteMutation.mutate(
+      {
+        tag: deleteDialog.tag.tag,
+        type: deleteDialog.tag.source,
+      },
+      {
+        onSuccess: () => {
+          setDeleteDialog({ open: false, tag: null });
+        },
+      },
+    );
   };
 
   // ─────────────────────────────────────────
@@ -477,7 +393,7 @@ export function TagsSection() {
 
       {/* ─── Tabbed View ─── */}
       <Tabs
-        value={activeTab}
+        value={effectiveTab}
         onValueChange={setActiveTab}
       >
         <TabsList className="w-full sm:w-auto">
@@ -504,7 +420,7 @@ export function TagsSection() {
           <DuplicateReview
             duplicates={duplicates}
             isAdmin={canAdmin}
-            onMergeComplete={fetchAll}
+            onMergeComplete={invalidateAllTags}
           />
         </TabsContent>
 
@@ -645,7 +561,7 @@ export function TagsSection() {
             <TagBulkActions
               tags={tags}
               isAdmin={canAdmin}
-              onActionComplete={fetchAll}
+              onActionComplete={invalidateAllTags}
             />
           </TabsContent>
         )}

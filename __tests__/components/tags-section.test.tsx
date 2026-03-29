@@ -3,11 +3,14 @@
  *
  * Tests the tag management section — loading state, summary stats,
  * tab switching, tag list rendering, and merge dialog.
+ *
+ * Uses TanStack Query wrapper for data fetching via useTagsData hook.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mock values referenced in vi.mock() factories
@@ -115,7 +118,8 @@ describe('TagsSection', () => {
     mockUserRole.loading = true;
     mockFetch.mockReturnValue(new Promise(() => {}));
 
-    render(<TagsSection />);
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
 
     // The component returns a spinner when loading or roleLoading
     const spinners = document.querySelectorAll('.animate-spin');
@@ -126,7 +130,8 @@ describe('TagsSection', () => {
     const tags = createTagData(5);
     setupFetchResponses(tags);
 
-    render(<TagsSection />);
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Tag Health')).toBeInTheDocument();
@@ -140,7 +145,8 @@ describe('TagsSection', () => {
   it('renders tab triggers for navigation between views', async () => {
     setupFetchResponses();
 
-    render(<TagsSection />);
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Tag Health')).toBeInTheDocument();
@@ -158,7 +164,8 @@ describe('TagsSection', () => {
     const tags = createTagData(3);
     setupFetchResponses(tags);
 
-    render(<TagsSection />);
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Tag Health')).toBeInTheDocument();
@@ -180,7 +187,8 @@ describe('TagsSection', () => {
     const tags = createTagData(3);
     setupFetchResponses(tags);
 
-    render(<TagsSection />);
+    const { Wrapper } = createQueryWrapper();
+    render(<TagsSection />, { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(screen.getByText('Tag Health')).toBeInTheDocument();

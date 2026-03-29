@@ -139,4 +139,10 @@ export const queryKeys = {
   freshness: {
     counts: ['freshness', 'counts'] as const,
   },
+  tags: {
+    all: ['tags'] as const,
+    list: ['tags', 'list'] as const,
+    duplicates: ['tags', 'duplicates'] as const,
+    byDomain: ['tags', 'byDomain'] as const,
+  },
 } as const;
