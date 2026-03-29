@@ -1,26 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import {
   getAuthorisedClient,
   authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBody } from '@/lib/validation';
+import { CoverageTargetPutBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
-
-// ---------------------------------------------------------------------------
-// Validation
-// ---------------------------------------------------------------------------
-
-const targetEntrySchema = z.object({
-  domain_id: z.string().uuid(),
-  metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
-  target_value: z.number().min(0),
-});
-
-const putBodySchema = z.object({
-  targets: z.array(targetEntrySchema).min(1).max(200),
-});
 
 // ---------------------------------------------------------------------------
 // GET — fetch all coverage targets (any authenticated user)
@@ -81,14 +68,8 @@ export async function PUT(request: NextRequest) {
 
     const { supabase, user } = auth;
     const body = await request.json();
-    const parsed = putBodySchema.safeParse(body);
-
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: parsed.error.flatten() },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(CoverageTargetPutBodySchema, body);
+    if (!parsed.success) return parsed.response;
 
     const now = new Date().toISOString();
     let upsertCount = 0;

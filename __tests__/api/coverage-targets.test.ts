@@ -218,7 +218,7 @@ describe('PUT /api/coverage/targets', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('Invalid request body');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for empty targets array', async () => {

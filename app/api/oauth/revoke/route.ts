@@ -6,13 +6,9 @@
  */
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { z } from 'zod';
 import { parseBody } from '@/lib/validation';
+import { RevokeSchema } from '@/lib/validation/schemas';
 import { safeErrorMessage } from '@/lib/error';
-
-const RevokeSchema = z.object({
-  clientId: z.string().uuid('Invalid client ID'),
-});
 
 export const maxDuration = 30;
 

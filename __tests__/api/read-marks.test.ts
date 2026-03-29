@@ -127,7 +127,8 @@ describe('Read Marks API', () => {
       expect(response.status).toBe(400);
 
       const body = await response.json();
-      expect(body.error).toContain('Invalid item_ids');
+      expect(body.error).toBe('Validation failed');
+      expect(body.details).toBeDefined();
     });
   });
 

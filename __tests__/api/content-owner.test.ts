@@ -138,7 +138,8 @@ describe('PATCH /api/items/[id]/owner', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/uuid/i);
+    expect(body.error).toBe('Validation failed');
+    expect(body.details).toBeDefined();
   });
 
   it('returns 404 when item not found', async () => {

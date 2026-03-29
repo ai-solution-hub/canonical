@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FALLBACK_LAYERS } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
 // Shared enums / constants
@@ -121,12 +122,10 @@ export const DigestListParamsSchema = z.object({
   offset: z.number().int().min(0).default(0),
 });
 
-/** GET /api/read-marks?item_ids=uuid1,uuid2,... */
+/** GET /api/read-marks?item_ids=uuid1,uuid2,...
+ *  item_ids is optional — when absent, the route returns counts-only. */
 export const ReadMarkCheckParamsSchema = z.object({
-  item_ids: z
-    .string()
-    .transform((s) => s.split(',').filter(Boolean))
-    .pipe(z.array(z.string().uuid()).min(1).max(200)),
+  item_ids: z.array(z.string().uuid()).max(200).optional(),
 });
 
 /** POST /api/read-marks */
@@ -1005,3 +1004,70 @@ export const BulkOwnerAssignSchema = z.object({
   (data) => data.item_ids || data.filter,
   { message: 'Either item_ids or filter must be provided' },
 );
+
+// ──────────────────────────────────────────
+// Shared Query Parameter Building Blocks
+// ──────────────────────────────────────────
+
+/** Reusable pagination params: limit + offset */
+export const PaginationParamsSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  offset: z.number().int().min(0).default(0),
+});
+
+/** Pagination with a configurable default limit (for routes that default to 50) */
+export function paginationParams(defaults?: { limit?: number; maxLimit?: number }) {
+  const defaultLimit = defaults?.limit ?? 20;
+  const maxLimit = defaults?.maxLimit ?? 100;
+  return z.object({
+    limit: z.number().int().min(1).max(maxLimit).default(defaultLimit),
+    offset: z.number().int().min(0).default(0),
+  });
+}
+
+/** Boolean flag from query string ('true'/'false' -> boolean) */
+export const booleanParam = z.preprocess(
+  (v) => v === 'true' || v === true,
+  z.boolean(),
+);
+
+// ──────────────────────────────────────────
+// Moved from route files (centralisation)
+// ──────────────────────────────────────────
+
+/** PATCH /api/quality — resolve a quality flag */
+export const QualityResolveBodySchema = z.object({
+  flag_id: z.string().uuid('flag_id must be a valid UUID'),
+  resolution_notes: z.string().max(1000).optional(),
+});
+
+/** POST /api/oauth/revoke */
+export const RevokeSchema = z.object({
+  clientId: z.string().uuid('Invalid client ID'),
+});
+
+/** PUT /api/coverage/targets — upsert coverage targets */
+const coverageTargetEntrySchema = z.object({
+  domain_id: z.string().uuid(),
+  metric_name: z.enum(['item_count', 'fresh_pct', 'max_expired']),
+  target_value: z.number().min(0),
+});
+
+export const CoverageTargetPutBodySchema = z.object({
+  targets: z.array(coverageTargetEntrySchema).min(1).max(200),
+});
+
+/** PATCH /api/items/[id]/metadata — update metadata (layer, topic_id) */
+const layerValues = FALLBACK_LAYERS.map((l) => l.key);
+
+export const ItemMetadataUpdateSchema = z
+  .object({
+    layer: z
+      .enum(layerValues as [string, ...string[]])
+      .nullable()
+      .optional(),
+    topic_id: z.string().max(200).nullable().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one metadata field required',
+  });

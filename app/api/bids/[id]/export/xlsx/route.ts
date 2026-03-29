@@ -3,6 +3,7 @@ import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { generateBidXlsx } from '@/lib/bid/bid-export-xlsx';
 import { XlsxExportBodySchema } from '@/lib/validation/schemas';
+import { parseBody } from '@/lib/validation';
 import { fetchBidExportData, sanitiseFilename } from '@/lib/bid/bid-export-data';
 
 export const maxDuration = 30;
@@ -24,16 +25,11 @@ export async function POST(
     try {
       body = await request.json();
     } catch {
-      // Empty body is acceptable
+      // Empty body is acceptable — all fields have defaults
     }
-    const parseResult = XlsxExportBodySchema.safeParse(body);
-    if (!parseResult.success) {
-      return NextResponse.json(
-        { error: parseResult.error.issues[0]?.message || 'Invalid request' },
-        { status: 400 },
-      );
-    }
-    const options = parseResult.data;
+    const parsed = parseBody(XlsxExportBodySchema, body);
+    if (!parsed.success) return parsed.response;
+    const options = parsed.data;
 
     // Fetch and transform bid data
     const result = await fetchBidExportData(auth.supabase, bidId);
