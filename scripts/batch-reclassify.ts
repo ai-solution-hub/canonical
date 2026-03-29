@@ -232,30 +232,36 @@ function hasEditorialNotes(content: string): boolean {
 
 // ── Taxonomy loader ──
 
-// Hardcoded fallback taxonomy (matches DB-driven taxonomy)
-// Used when the Supabase client cannot read taxonomy tables (e.g. anon key without auth)
-const FALLBACK_TAXONOMY = `- SECURITY: data-protection, cyber-security, encryption, access-control, iso-27001
-- COMPLIANCE: standards, regulatory, audit, certification
-- IMPLEMENTATION: deployment, migration, onboarding, integration
-- SUPPORT: sla, helpdesk, maintenance, incident
-- CORPORATE: company-info, financial, insurance, references, staffing
-- PRODUCT-FEATURE: functionality, technical, reporting, usability
-- METHODOLOGY: approach, project-management, quality, delivery`;
-
 async function loadTaxonomy(supabase: SupabaseClient): Promise<string> {
-  const { data: domains } = await supabase
+  const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')
     .select('id, name')
     .eq('is_active', true)
     .order('display_order');
 
-  const { data: subtopics } = await supabase
+  if (dErr) {
+    console.error(`Failed to fetch taxonomy domains: ${dErr.message}`);
+    console.error('Ensure SUPABASE_SECRET_KEY is set (service role key bypasses RLS).');
+    process.exit(1);
+  }
+
+  const { data: subtopics, error: sErr } = await supabase
     .from('taxonomy_subtopics')
     .select('name, domain_id')
     .eq('is_active', true)
     .order('display_order');
 
-  const result = (domains ?? [])
+  if (sErr) {
+    console.error(`Failed to fetch taxonomy subtopics: ${sErr.message}`);
+    process.exit(1);
+  }
+
+  if (!domains?.length) {
+    console.error('Taxonomy query returned empty. Check SUPABASE_SECRET_KEY is set.');
+    process.exit(1);
+  }
+
+  return domains
     .map((d) => {
       const subs = (subtopics ?? [])
         .filter((s) => s.domain_id === d.id)
@@ -263,14 +269,6 @@ async function loadTaxonomy(supabase: SupabaseClient): Promise<string> {
       return `- ${d.name}: ${subs.join(', ')}`;
     })
     .join('\n');
-
-  // Fall back to hardcoded taxonomy if DB query returns empty (e.g. anon key without auth)
-  if (!result) {
-    console.log('  Using hardcoded fallback taxonomy (DB query returned empty — likely RLS)');
-    return FALLBACK_TAXONOMY;
-  }
-
-  return result;
 }
 
 // ── Tool schema for Claude ──
