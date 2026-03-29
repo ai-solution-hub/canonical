@@ -57,7 +57,8 @@ vi.mock('@/lib/ai/errors', () => ({
   },
 }));
 vi.mock('@/lib/dashboard', () => ({
-  getDashboardData: vi.fn(),
+  fetchUnifiedDashboardData: vi.fn(),
+  unifiedToDashboardData: vi.fn((d: unknown) => d),
 }));
 vi.mock('@/lib/bid/bid-queries', () => ({
   getBidDetail: vi.fn(),

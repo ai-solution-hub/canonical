@@ -4,7 +4,7 @@ import {
   unauthorisedResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { fetchDashboardData } from '@/lib/dashboard';
+import { fetchUnifiedDashboardData, unifiedToDashboardData } from '@/lib/dashboard';
 
 export const maxDuration = 30;
 
@@ -29,7 +29,9 @@ export async function GET() {
       .single();
     const isAdmin = roleData?.role === 'admin';
 
-    const dashboard = await fetchDashboardData(supabase, user.id, isAdmin);
+    const role = roleData?.role ?? 'viewer';
+    const unified = await fetchUnifiedDashboardData(supabase, user.id, isAdmin, role);
+    const dashboard = unifiedToDashboardData(unified);
 
     // If ALL queries failed, return 500
     if (dashboard.errors.length >= 7) {

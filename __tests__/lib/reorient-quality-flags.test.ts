@@ -129,8 +129,8 @@ describe('fetchReorientData quality flag query alignment', () => {
     expect(result.counts.quality_flags).toBe(0);
   });
 
-  it('returns consistent count format with fetchDashboardData', async () => {
-    // Both fetchDashboardData and fetchReorientData should use the same RPC
+  it('returns consistent count format with fetchUnifiedDashboardData', async () => {
+    // Both fetchUnifiedDashboardData and fetchReorientData should use the same RPC
     // and count distinct items, not raw log entries.
     // This test verifies the RPC returns distinct UUIDs (array length = count).
     const { fetchReorientData } = await import('@/lib/reorient');

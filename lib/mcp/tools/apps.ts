@@ -61,8 +61,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const includeGaps = args.include_gaps ?? true;
 
         // Aggregate data from multiple sources
-        const { fetchDashboardData } = await getDashboardModule();
-        const dashData = await fetchDashboardData(supabase, userId, isAdmin, role);
+        const { fetchUnifiedDashboardData } = await getDashboardModule();
+        const dashData = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
 
         // Freshness breakdown
         const freshness = dashData.freshness_summary;
@@ -335,8 +335,8 @@ export async function registerAppTools(server: McpServer): Promise<void> {
         const isAdmin = role === 'admin';
 
         // Fetch active bids
-        const { fetchDashboardData } = await getDashboardModule();
-        const dashData = await fetchDashboardData(supabase, userId, isAdmin, role);
+        const { fetchUnifiedDashboardData } = await getDashboardModule();
+        const dashData = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
         const bids = dashData.active_bids as ActiveBidSummary[];
 
         const result: BidDashboardData = {

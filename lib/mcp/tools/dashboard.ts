@@ -56,8 +56,9 @@ export async function registerDashboardTools(server: McpServer): Promise<void> {
         const userId = getMcpUserId(extra.authInfo);
         const role = await getMcpUserRole(extra.authInfo!);
         const isAdmin = role === 'admin';
-        const { fetchDashboardData } = await getDashboardModule();
-        const data = await fetchDashboardData(supabase, userId, isAdmin, role);
+        const { fetchUnifiedDashboardData, unifiedToDashboardData } = await getDashboardModule();
+        const unified = await fetchUnifiedDashboardData(supabase, userId, isAdmin, role);
+        const data = unifiedToDashboardData(unified);
         const markdown = truncateResponse(formatDashboardSummary(data));
 
         return {
