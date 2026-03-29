@@ -12,6 +12,7 @@ import {
   Save,
   CheckCircle2,
 } from 'lucide-react';
+import { useEntityDetail } from '@/hooks/use-entity-detail';
 import {
   Sheet,
   SheetContent,
@@ -44,36 +45,6 @@ import {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface ContentItemRef {
-  id: string;
-  title: string;
-  content_type: string | null;
-}
-
-interface EntityRelationship {
-  source_entity: string;
-  relationship_type: string;
-  target_entity: string;
-  confidence: number;
-}
-
-interface EntityDetail {
-  canonical_name: string;
-  entity_type: string;
-  effective_type: string;
-  has_type_override: boolean;
-  mention_count: number;
-  variant_names: string[];
-  variant_count: number;
-  types_seen: string[];
-  has_type_conflict: boolean;
-  content_items: ContentItemRef[];
-  content_item_count: number;
-  relationships: EntityRelationship[];
-  relationship_count: number;
-  metadata?: Record<string, unknown>;
-}
 
 interface EntityDetailPanelProps {
   canonicalName: string | null;
@@ -504,60 +475,42 @@ function MetadataDetailsSection({
   entityType,
   canonicalName,
   initialMetadata,
+  onSave,
+  saving,
+  saveSuccess,
+  saveError,
+  onResetSaveState,
 }: {
   entityType: string;
   canonicalName: string;
   initialMetadata?: Record<string, unknown>;
+  onSave: (metadata: Record<string, unknown>) => Promise<unknown>;
+  saving: boolean;
+  saveSuccess: boolean;
+  saveError: string | null;
+  onResetSaveState: () => void;
 }) {
   const [metadata, setMetadata] = useState<Record<string, unknown>>(
     initialMetadata ?? {},
   );
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Reset when entity changes
   useEffect(() => {
     setMetadata(initialMetadata ?? {});
-    setSaveSuccess(false);
-    setSaveError(null);
-  }, [initialMetadata, canonicalName]);
+    onResetSaveState();
+  }, [initialMetadata, canonicalName, onResetSaveState]);
 
   const handleChange = useCallback(
     (updates: Record<string, unknown>) => {
       setMetadata((prev) => ({ ...prev, ...updates }));
-      setSaveSuccess(false);
-      setSaveError(null);
+      onResetSaveState();
     },
-    [],
+    [onResetSaveState],
   );
 
   const handleSave = useCallback(async () => {
-    setSaving(true);
-    setSaveError(null);
-    setSaveSuccess(false);
-    try {
-      const res = await fetch(
-        `/api/entities/${encodeURIComponent(canonicalName)}/metadata`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(metadata),
-        },
-      );
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Failed to save (${res.status})`);
-      }
-      setSaveSuccess(true);
-    } catch (err) {
-      setSaveError(
-        err instanceof Error ? err.message : 'Failed to save metadata',
-      );
-    } finally {
-      setSaving(false);
-    }
-  }, [canonicalName, metadata]);
+    await onSave(metadata);
+  }, [onSave, metadata]);
 
   const expiryDate = metadata.expiry_date as string | undefined;
   const expiryStatus = deriveExpiryStatus(expiryDate);
@@ -632,44 +585,16 @@ export function EntityDetailPanel({
   open,
   onOpenChange,
 }: EntityDetailPanelProps) {
-  const [detail, setDetail] = useState<EntityDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || !canonicalName) {
-      setDetail(null);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchDetail() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(
-          `/api/entities/${encodeURIComponent(canonicalName!)}`,
-        );
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `Failed to fetch entity (${res.status})`);
-        }
-        const data: EntityDetail = await res.json();
-        if (!cancelled) setDetail(data);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load entity detail');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    fetchDetail();
-    return () => { cancelled = true; };
-  }, [open, canonicalName]);
+  const {
+    detail,
+    isLoading: loading,
+    error,
+    saveMetadata,
+    isSaving,
+    saveError,
+    saveSuccess,
+    resetSaveState,
+  } = useEntityDetail(canonicalName, open);
 
   const showMetadataSection =
     detail && ENRICHABLE_TYPES.has(detail.effective_type);
@@ -760,6 +685,11 @@ export function EntityDetailPanel({
                   entityType={detail.effective_type}
                   canonicalName={detail.canonical_name}
                   initialMetadata={detail.metadata}
+                  onSave={saveMetadata}
+                  saving={isSaving}
+                  saveSuccess={saveSuccess}
+                  saveError={saveError}
+                  onResetSaveState={resetSaveState}
                 />
               </>
             )}

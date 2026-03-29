@@ -145,4 +145,11 @@ export const queryKeys = {
     duplicates: ['tags', 'duplicates'] as const,
     byDomain: ['tags', 'byDomain'] as const,
   },
+  entities: {
+    all: ['entities'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.entities.all, 'list', filters] as const,
+    detail: (canonicalName: string) =>
+      [...queryKeys.entities.all, 'detail', canonicalName] as const,
+  },
 } as const;
