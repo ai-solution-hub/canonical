@@ -109,14 +109,20 @@ describe('TagFilteredParamsSchema', () => {
     }
   });
 
-  it('rejects negative offset', () => {
+  it('clamps negative offset to 0', () => {
     const result = TagFilteredParamsSchema.safeParse({ offset: '-1' });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.offset).toBe(0);
+    }
   });
 
-  it('rejects limit over 500', () => {
+  it('clamps limit over 500 to 500', () => {
     const result = TagFilteredParamsSchema.safeParse({ limit: '501' });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(500);
+    }
   });
 
   it('rejects min_count of 0', () => {

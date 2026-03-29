@@ -66,7 +66,7 @@ export const VALID_DIGEST_TYPES = ['weekly', 'daily', 'custom'] as const;
 export const SearchBodySchema = z.object({
   query: z.string().trim().min(1, 'Query is required').max(2000),
   threshold: z.number().min(0).max(1).default(0.35),
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
   layer: z.string().max(50).optional(),
 });
 
@@ -94,8 +94,8 @@ export const VALID_REVIEW_QUEUE_SORTS = [
 
 export const ReviewQueueParamsSchema = z.object({
   status: z.enum(VALID_REVIEW_STATUSES).default('unverified'),
-  limit: z.number().int().min(1).max(100).default(20),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
   sort: z.enum(VALID_REVIEW_QUEUE_SORTS).default('created_at').optional(),
 });
 
@@ -118,8 +118,8 @@ export const DigestGenerateBodySchema = z.object({
 
 /** GET /api/digest/list */
 export const DigestListParamsSchema = z.object({
-  limit: z.number().int().min(1).max(50).default(10),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(10).transform(v => Math.max(1, Math.min(50, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** GET /api/read-marks?item_ids=uuid1,uuid2,...
@@ -749,8 +749,8 @@ export const TagFilteredParamsSchema = z.object({
   type: z.enum(VALID_TAG_TYPES).optional(),
   min_count: z.coerce.number().int().min(1).optional(),
   search: z.string().trim().max(100).optional(),
-  limit: z.coerce.number().int().min(1).max(500).optional(),
-  offset: z.coerce.number().int().min(0).optional(),
+  limit: z.coerce.number().int().optional().transform(v => v != null ? Math.max(1, Math.min(500, v)) : v),
+  offset: z.coerce.number().int().optional().transform(v => v != null ? Math.max(0, v) : v),
 });
 
 /** POST /api/tags/bulk-delete */
@@ -830,8 +830,8 @@ export const EntityListParamsSchema = z.object({
   search: z.string().trim().max(200).optional(),
   variants_only: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
   type_conflicts: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
-  limit: z.coerce.number().int().min(1).max(500).default(100),
-  offset: z.coerce.number().int().min(0).default(0),
+  limit: z.coerce.number().int().default(100).transform(v => Math.max(1, Math.min(500, v))),
+  offset: z.coerce.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** POST /api/entities/merge */
@@ -1011,8 +1011,8 @@ export const BulkOwnerAssignSchema = z.object({
 
 /** Reusable pagination params: limit + offset */
 export const PaginationParamsSchema = z.object({
-  limit: z.number().int().min(1).max(100).default(20),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** Pagination with a configurable default limit (for routes that default to 50) */
@@ -1021,7 +1021,7 @@ export function paginationParams(defaults?: { limit?: number; maxLimit?: number 
   const maxLimit = defaults?.maxLimit ?? 100;
   return z.object({
     limit: z.number().int().default(defaultLimit).transform(v => Math.min(Math.max(v, 1), maxLimit)),
-    offset: z.number().int().min(0).default(0),
+    offset: z.number().int().default(0).transform(v => Math.max(0, v)),
   });
 }
 
@@ -1090,8 +1090,8 @@ export const QualityFlagsParamsSchema = z.object({
     (v) => v === 'true' ? true : v === 'false' ? false : undefined,
     z.boolean().optional(),
   ),
-  limit: z.number().int().min(1).max(200).default(50),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(50).transform(v => Math.max(1, Math.min(200, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** GET /api/pipeline-runs */
@@ -1126,15 +1126,15 @@ const VALID_BID_STATUSES = [
 
 export const BidListParamsSchema = z.object({
   status: z.enum(VALID_BID_STATUSES).optional(),
-  limit: z.number().int().min(1).max(100).default(50),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(50).transform(v => Math.max(1, Math.min(100, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** GET /api/governance/review */
 export const GovernanceReviewParamsSchema = z.object({
   count_only: booleanParam.optional(),
-  limit: z.number().int().min(1).max(100).default(20),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** GET /api/coverage/gaps */
@@ -1146,7 +1146,7 @@ export const CoverageGapsParamsSchema = z.object({
   priority: z.enum(VALID_PRIORITY_TIERS).optional(),
   domain: z.string().max(200).optional(),
   limit: z.number().int().default(25).transform(v => Math.min(Math.max(v, 1), 100)),
-  offset: z.number().int().min(0).default(0),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
 });
 
 /** GET /api/content-suggestions */
@@ -1166,7 +1166,7 @@ export const GuideListParamsSchema = z.object({
 
 /** GET /api/workspaces/[id]/items */
 export const WorkspaceItemsParamsSchema = z.object({
-  limit: z.number().int().min(1).max(50).default(10),
+  limit: z.number().int().default(10).transform(v => Math.max(1, Math.min(50, v))),
 });
 
 /** GET /api/workspaces */
@@ -1197,7 +1197,7 @@ export const ReviewAssignmentsParamsSchema = z.object({
 
 /** GET /api/entities/co-occurrence */
 export const EntityCoOccurrenceParamsSchema = z.object({
-  limit: z.number().int().min(1).max(50).default(20),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(50, v))),
   min: z.number().int().min(1).default(2),
   type: z.enum([
     'organisation', 'certification', 'regulation', 'framework',

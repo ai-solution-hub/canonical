@@ -4,8 +4,8 @@ import { parseSearchParams } from '@/lib/validation';
 
 // Simple schema for testing coercion/defaults
 const TestSchema = z.object({
-  limit: z.number().int().min(1).max(100).default(20),
-  offset: z.number().int().min(0).default(0),
+  limit: z.number().int().default(20).transform(v => Math.max(1, Math.min(100, v))),
+  offset: z.number().int().default(0).transform(v => Math.max(0, v)),
   query: z.string().optional(),
   flag: z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional(),
 });
@@ -141,32 +141,21 @@ describe('parseSearchParams', () => {
   });
 
   describe('validation failure', () => {
-    it('should return 400 response with standard error shape on invalid input', async () => {
-      // limit must be >= 1, so -5 fails
+    it('should clamp negative limit to 1 instead of returning 400', () => {
       const params = new URLSearchParams('limit=-5');
       const result = parseSearchParams(TestSchema, params);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.response.status).toBe(400);
-        const body = await result.response.json();
-        expect(body).toHaveProperty('error', 'Validation failed');
-        expect(body).toHaveProperty('details');
-        expect(Array.isArray(body.details)).toBe(true);
-        expect(body.details.length).toBeGreaterThan(0);
-        expect(body.details[0]).toHaveProperty('field');
-        expect(body.details[0]).toHaveProperty('message');
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(1);
       }
     });
 
-    it('should return 400 when limit exceeds max', async () => {
+    it('should clamp limit exceeding max to 100 instead of returning 400', () => {
       const params = new URLSearchParams('limit=200');
       const result = parseSearchParams(TestSchema, params);
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.response.status).toBe(400);
-        const body = await result.response.json();
-        expect(body.error).toBe('Validation failed');
-        expect(body.details.some((d: { field: string }) => d.field === 'limit')).toBe(true);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.limit).toBe(100);
       }
     });
 

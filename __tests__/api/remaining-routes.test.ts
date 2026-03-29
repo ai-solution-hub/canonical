@@ -373,15 +373,13 @@ describe('GET /api/digest/list', () => {
     expect(body.total).toBe(15);
   });
 
-  it('returns 400 for invalid pagination params', async () => {
+  it('clamps out-of-range pagination params', async () => {
     const req = createTestRequest('/api/digest/list', {
       searchParams: { limit: '0' },
     });
     const res = await digestListGet(req);
-    expect(res.status).toBe(400);
-
-    const body = await res.json();
-    expect(body.error).toBe('Validation failed');
+    // DigestListParamsSchema uses .transform() clamping — limit 0 is clamped to 1
+    expect(res.status).toBe(200);
   });
 
   it('returns 500 when Supabase query fails', async () => {

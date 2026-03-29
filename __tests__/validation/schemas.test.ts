@@ -70,14 +70,20 @@ describe('SearchBodySchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('should reject limit above 100', () => {
+  it('should clamp limit above 100 to 100', () => {
     const result = SearchBodySchema.safeParse({ query: 'test', limit: 101 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(100);
+    }
   });
 
-  it('should reject limit of 0', () => {
+  it('should clamp limit of 0 to 1', () => {
     const result = SearchBodySchema.safeParse({ query: 'test', limit: 0 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(1);
+    }
   });
 
   it('should trim the query string', () => {
@@ -241,14 +247,20 @@ describe('DigestListParamsSchema', () => {
     }
   });
 
-  it('should reject limit above 50', () => {
+  it('should clamp limit above 50 to 50', () => {
     const result = DigestListParamsSchema.safeParse({ limit: 51 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(50);
+    }
   });
 
-  it('should reject negative offset', () => {
+  it('should clamp negative offset to 0', () => {
     const result = DigestListParamsSchema.safeParse({ offset: -1 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.offset).toBe(0);
+    }
   });
 });
 
@@ -289,9 +301,12 @@ describe('ReviewQueueParamsSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject limit above 100', () => {
+  it('should clamp limit above 100 to 100', () => {
     const result = ReviewQueueParamsSchema.safeParse({ limit: 101 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(100);
+    }
   });
 
   it('should accept sort=confidence_asc', () => {

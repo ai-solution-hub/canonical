@@ -35,19 +35,28 @@ describe('PaginationParamsSchema', () => {
     expect(result.success).toBe(true);
   });
 
-  it('should reject limit=0 (below minimum)', () => {
+  it('should clamp limit=0 to 1 (below minimum)', () => {
     const result = PaginationParamsSchema.safeParse({ limit: 0 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(1);
+    }
   });
 
-  it('should reject limit=101 (above maximum)', () => {
+  it('should clamp limit=101 to 100 (above maximum)', () => {
     const result = PaginationParamsSchema.safeParse({ limit: 101 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.limit).toBe(100);
+    }
   });
 
-  it('should reject negative offset', () => {
+  it('should clamp negative offset to 0', () => {
     const result = PaginationParamsSchema.safeParse({ offset: -1 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.offset).toBe(0);
+    }
   });
 
   it('should reject non-integer limit', () => {
@@ -114,10 +123,13 @@ describe('paginationParams factory', () => {
     }
   });
 
-  it('should reject negative offset (not clamped)', () => {
+  it('should clamp negative offset to 0', () => {
     const schema = paginationParams();
     const result = schema.safeParse({ offset: -1 });
-    expect(result.success).toBe(false);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.offset).toBe(0);
+    }
   });
 
   it('should pass through valid limit unchanged', () => {
