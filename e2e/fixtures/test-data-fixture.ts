@@ -139,6 +139,10 @@ export const test = base.extend<{}, { workerData: WorkerData }>({
       );
 
       // --- Seed workspaces (from centralised shapes) ---
+      // Clean up stale data from a previous crashed run to avoid
+      // workspaces_type_name_unique constraint violations
+      await supabase.from('workspaces').delete().like('name', `${prefix}%`);
+
       const bidDeadline = new Date(now + FRESHNESS_OFFSETS.FOURTEEN_DAYS_FUTURE_MS)
         .toISOString()
         .split('T')[0];

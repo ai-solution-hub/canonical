@@ -25,7 +25,8 @@ test.describe('Workspaces page', () => {
     ).toBeVisible({ timeout: 10000 });
 
     await expect(
-      page.getByText('Use your knowledge base to power different types of work.'),
+      page.locator('section[aria-label="Workspaces"]')
+        .getByText('Use your knowledge base to power different types of work.'),
     ).toBeVisible();
   });
 

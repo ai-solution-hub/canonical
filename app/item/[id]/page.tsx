@@ -17,12 +17,22 @@ export default async function ItemDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  // Fetch item with explicit columns + embedding (for related items query)
-  const { data: item, error } = await supabase
-    .from('content_items')
-    .select(`${CONTENT_DETAIL_COLUMNS}, embedding`)
-    .eq('id', id)
-    .single();
+  // Fetch item with retry to handle read-after-write race when redirecting
+  // from the creation form (different connection pool connections)
+  let item = null;
+  let error = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await supabase
+      .from('content_items')
+      .select(`${CONTENT_DETAIL_COLUMNS}, embedding`)
+      .eq('id', id)
+      .single();
+    item = result.data;
+    error = result.error;
+    if (item) break;
+    if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+  }
 
   if (error || !item) {
     notFound();
