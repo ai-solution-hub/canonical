@@ -9,6 +9,15 @@ import {
   ReviewQueueParamsSchema,
   ReadMarkBodySchema,
   ItemUpdateBodySchema,
+  ActivityParamsSchema,
+  QualityFlagsParamsSchema,
+  PipelineRunsParamsSchema,
+  BidListParamsSchema,
+  GovernanceReviewParamsSchema,
+  CoverageGapsParamsSchema,
+  ContentSuggestionsParamsSchema,
+  WorkspaceItemsParamsSchema,
+  EntityCoOccurrenceParamsSchema,
 } from '@/lib/validation/schemas';
 
 // Helper: generate a valid UUID for tests
@@ -561,3 +570,184 @@ describe('ItemUpdateBodySchema', () => {
     expect(result.success).toBe(true);
   });
 });
+
+// ──────────────────────────────────────────
+// Category B: Parameterised clamping tests
+// ──────────────────────────────────────────
+
+/**
+ * Schemas with limit fields that use .transform() clamping.
+ * Each entry defines the schema, its default limit, and the allowed range.
+ */
+const LIMIT_CLAMPING_SCHEMAS = [
+  {
+    name: 'ActivityParamsSchema',
+    schema: ActivityParamsSchema,
+    field: 'limit',
+    defaultValue: 20,
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'QualityFlagsParamsSchema',
+    schema: QualityFlagsParamsSchema,
+    field: 'limit',
+    defaultValue: 50,
+    min: 1,
+    max: 200,
+  },
+  {
+    name: 'PipelineRunsParamsSchema',
+    schema: PipelineRunsParamsSchema,
+    field: 'limit',
+    defaultValue: 20,
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'BidListParamsSchema',
+    schema: BidListParamsSchema,
+    field: 'limit',
+    defaultValue: 50,
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'GovernanceReviewParamsSchema',
+    schema: GovernanceReviewParamsSchema,
+    field: 'limit',
+    defaultValue: 20,
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'CoverageGapsParamsSchema',
+    schema: CoverageGapsParamsSchema,
+    field: 'limit',
+    defaultValue: 25,
+    min: 1,
+    max: 100,
+  },
+  {
+    name: 'ContentSuggestionsParamsSchema',
+    schema: ContentSuggestionsParamsSchema,
+    field: 'limit',
+    defaultValue: 5,
+    min: 1,
+    max: 20,
+  },
+  {
+    name: 'WorkspaceItemsParamsSchema',
+    schema: WorkspaceItemsParamsSchema,
+    field: 'limit',
+    defaultValue: 10,
+    min: 1,
+    max: 50,
+  },
+  {
+    name: 'EntityCoOccurrenceParamsSchema',
+    schema: EntityCoOccurrenceParamsSchema,
+    field: 'limit',
+    defaultValue: 20,
+    min: 1,
+    max: 50,
+  },
+] as const;
+
+describe.each(LIMIT_CLAMPING_SCHEMAS)(
+  '$name limit clamping',
+  ({ schema, field, defaultValue, min, max }) => {
+    it(`should apply default ${field} of ${defaultValue}`, () => {
+      const result = schema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(defaultValue);
+      }
+    });
+
+    it(`should accept ${field} within range`, () => {
+      const midpoint = Math.floor((min + max) / 2);
+      const result = schema.safeParse({ [field]: midpoint });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(midpoint);
+      }
+    });
+
+    it(`should clamp ${field} above ${max} to ${max}`, () => {
+      const result = schema.safeParse({ [field]: max + 1 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(max);
+      }
+    });
+
+    it(`should clamp ${field} of 0 to ${min}`, () => {
+      const result = schema.safeParse({ [field]: 0 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(min);
+      }
+    });
+
+    it(`should clamp negative ${field} to ${min}`, () => {
+      const result = schema.safeParse({ [field]: -10 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(min);
+      }
+    });
+
+    it(`should accept ${field} at exact min (${min})`, () => {
+      const result = schema.safeParse({ [field]: min });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(min);
+      }
+    });
+
+    it(`should accept ${field} at exact max (${max})`, () => {
+      const result = schema.safeParse({ [field]: max });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data[field]).toBe(max);
+      }
+    });
+  },
+);
+
+const OFFSET_CLAMPING_SCHEMAS = [
+  { name: 'QualityFlagsParamsSchema', schema: QualityFlagsParamsSchema },
+  { name: 'BidListParamsSchema', schema: BidListParamsSchema },
+  { name: 'GovernanceReviewParamsSchema', schema: GovernanceReviewParamsSchema },
+  { name: 'CoverageGapsParamsSchema', schema: CoverageGapsParamsSchema },
+] as const;
+
+describe.each(OFFSET_CLAMPING_SCHEMAS)(
+  '$name offset clamping',
+  ({ schema }) => {
+    it('should default offset to 0', () => {
+      const result = schema.safeParse({});
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.offset).toBe(0);
+      }
+    });
+
+    it('should clamp negative offset to 0', () => {
+      const result = schema.safeParse({ offset: -5 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.offset).toBe(0);
+      }
+    });
+
+    it('should accept positive offset', () => {
+      const result = schema.safeParse({ offset: 50 });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.offset).toBe(50);
+      }
+    });
+  },
+);
