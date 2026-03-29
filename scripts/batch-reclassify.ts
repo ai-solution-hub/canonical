@@ -407,9 +407,8 @@ async function main(): Promise<void> {
     process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
     process.env.SUPABASE_SECRET_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_ANON_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -423,7 +422,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const usingServiceRole = !!(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const usingServiceRole = !!process.env.SUPABASE_SECRET_KEY;
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
   const supabase = createClient(supabaseUrl, supabaseKey);
   const anthropic = new Anthropic({ apiKey: anthropicKey });

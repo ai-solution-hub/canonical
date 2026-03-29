@@ -4,7 +4,7 @@
  * Tests the "Last reviewed X days ago" and "Never reviewed" indicators
  * added to the review card.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
@@ -29,13 +29,23 @@ import { ReviewCard } from '@/components/review/review-card';
 import type { ReviewQueueItem } from '@/types/review';
 
 // ---------------------------------------------------------------------------
+// Deterministic time — pin Date.now() to a fixed value so the component's
+// useState(() => Date.now()) and our daysAgo() helper use the same reference.
+// We avoid vi.useFakeTimers() because it breaks React scheduler/useState.
+// ---------------------------------------------------------------------------
+
+const FIXED_NOW = new Date('2026-02-15T12:00:00.000Z').getTime();
+let dateNowSpy: ReturnType<typeof vi.spyOn>;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 function daysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
+  // Subtract an extra 2 hours so Math.floor always produces exactly `days`,
+  // even if there's tiny floating-point drift.
+  const buffer = 2 * 60 * 60 * 1000;
+  return new Date(FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer).toISOString();
 }
 
 function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
@@ -63,6 +73,7 @@ function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueIt
     source_url: 'https://example.com',
     verified_at: null,
     verified_by: null,
+    last_reviewed_at: null,
     secondary_domain: null,
     secondary_subtopic: null,
     quality_score: 72,
@@ -75,6 +86,14 @@ function makeReviewItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueIt
 // ---------------------------------------------------------------------------
 
 describe('ReviewCard — days since review', () => {
+  beforeEach(() => {
+    dateNowSpy = vi.spyOn(Date, 'now').mockReturnValue(FIXED_NOW);
+  });
+
+  afterEach(() => {
+    dateNowSpy.mockRestore();
+  });
+
   it('shows "Never reviewed" when verified_at is null', () => {
     const item = makeReviewItem({ verified_at: null });
     render(<ReviewCard item={item} position={1} total={10} />);
@@ -83,7 +102,7 @@ describe('ReviewCard — days since review', () => {
   });
 
   it('shows "Reviewed today" when verified_at is today', () => {
-    const item = makeReviewItem({ verified_at: new Date().toISOString() });
+    const item = makeReviewItem({ verified_at: new Date(FIXED_NOW).toISOString() });
     render(<ReviewCard item={item} position={1} total={10} />);
 
     expect(screen.getByText('Reviewed today')).toBeInTheDocument();

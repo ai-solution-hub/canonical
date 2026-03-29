@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
+import type { TaxonomyProvenance } from '@/types/taxonomy';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
+export type { TaxonomyProvenance };
 
 export interface AdminDomain {
   id: string;

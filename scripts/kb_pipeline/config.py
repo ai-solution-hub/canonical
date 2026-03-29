@@ -3,6 +3,8 @@
 import logging
 import os
 
+from dotenv import load_dotenv
+
 logger = logging.getLogger(__name__)
 
 # Derive PROJECT_ROOT from file location: config.py is at scripts/kb_pipeline/config.py
@@ -12,6 +14,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 ENV_PATH = os.path.join(PROJECT_ROOT, ".env")
 PROMPT_PATH = os.path.join(PROJECT_ROOT, "docs", "reference", "classification-prompt.md")
 SUPABASE_URL = None  # loaded from .env via get_env()
+
+# Load .env into os.environ (does not override existing env vars)
+load_dotenv(ENV_PATH)
 
 # Models
 CLASSIFICATION_MODEL = "claude-opus-4-6"
@@ -34,17 +39,13 @@ LOW_CONFIDENCE_THRESHOLD = 0.60
 
 
 def load_env():
-    """Parse .env file, return dict."""
-    env = {}
-    with open(ENV_PATH, "r") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                key, value = line.split("=", 1)
-                env[key.strip()] = value.strip()
-    return env
+    """Return current environment variables as a dict.
+
+    Variables are loaded from .env at module import time via python-dotenv.
+    This function now simply returns os.environ as a dict for backward
+    compatibility with get_env() caching.
+    """
+    return dict(os.environ)
 
 
 def load_system_prompt():
@@ -130,10 +131,15 @@ def get_supabase_secret_key():
     return key
 
 
-def get_supabase_publishable_key():
-    """Get Supabase anon/publishable key from .env."""
+def get_supabase_anon_key():
+    """Get Supabase anon key from .env.
+
+    Checks SUPABASE_ANON_KEY first, then falls back to
+    NEXT_PUBLIC_SUPABASE_ANON_KEY for compatibility with the Next.js
+    environment.
+    """
     env = get_env()
-    key = env.get('SUPABASE_PUBLISHABLE_KEY', '')
+    key = env.get('SUPABASE_ANON_KEY', '') or env.get('NEXT_PUBLIC_SUPABASE_ANON_KEY', '')
     if not key:
-        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY not set in .env")
+        raise RuntimeError("SUPABASE_ANON_KEY not set in .env")
     return key

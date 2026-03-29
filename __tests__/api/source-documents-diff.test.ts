@@ -33,10 +33,10 @@ const { POST, PATCH } = await import(
 // Constants
 // ---------------------------------------------------------------------------
 
-const OLD_DOC_ID = '11111111-1111-1111-1111-111111111111';
-const NEW_DOC_ID = '22222222-2222-2222-2222-222222222222';
-const ENTRY_ID_1 = '33333333-3333-3333-3333-333333333333';
-const ENTRY_ID_2 = '44444444-4444-4444-4444-444444444444';
+const OLD_DOC_ID = '550e8400-e29b-41d4-a716-446655440011';
+const NEW_DOC_ID = '550e8400-e29b-41d4-a716-446655440022';
+const ENTRY_ID_1 = '550e8400-e29b-41d4-a716-446655440033';
+const ENTRY_ID_2 = '550e8400-e29b-41d4-a716-446655440044';
 
 // ---------------------------------------------------------------------------
 // Reset mocks before each test
@@ -650,7 +650,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('exceeds maximum length of 500');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('accepts note at exactly 500 characters', async () => {

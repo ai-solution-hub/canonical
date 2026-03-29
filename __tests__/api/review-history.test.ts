@@ -27,8 +27,8 @@ vi.mock('@/lib/supabase/server', () => ({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const VALID_UUID = '00000000-0000-0000-0000-000000000001';
-const ANOTHER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+const VALID_UUID = '550e8400-e29b-41d4-a716-446655440001';
+const ANOTHER_UUID = 'a1b2c3d4-e5f6-4a7b-8c9d-ef1234567890';
 
 function makeRequest(url: string): NextRequest {
   return new NextRequest(`http://localhost${url}`);

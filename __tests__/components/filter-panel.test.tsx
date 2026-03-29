@@ -117,7 +117,8 @@ vi.mock('@/hooks/browse/use-filter-data', () => ({
 
 vi.mock('@/lib/client-config', () => ({
   isFeatureEnabled: () => false,
-  CLIENT_CONFIG: { features: {} },
+  CLIENT_CONFIG: { features: {}, layer_vocabulary: [] },
+  FALLBACK_LAYERS: [],
 }));
 
 vi.mock('@/contexts/layer-vocabulary-context', () => ({

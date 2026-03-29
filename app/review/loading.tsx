@@ -1,6 +1,8 @@
 export default function ReviewLoading() {
   return (
     <div role="status" aria-label="Loading review queue" className="mx-auto max-w-[800px] px-4 py-8 sm:px-6">
+      <span className="sr-only">Loading review queue...</span>
+
       {/* Header skeleton */}
       <div className="mb-6 flex items-center justify-between">
         <div>

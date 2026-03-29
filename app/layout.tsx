@@ -9,6 +9,7 @@ import { ReadMarksProvider } from '@/contexts/read-marks-context';
 import { TaxonomyProvider } from '@/contexts/taxonomy-context';
 import { LayerVocabularyProvider } from '@/contexts/layer-vocabulary-context';
 import { ClientFeaturesProvider } from '@/contexts/client-features-context';
+import { QueryProvider } from '@/lib/query/query-provider';
 import { AuthAwareChrome } from '@/components/shell/auth-aware-chrome';
 import { SessionGuard } from '@/components/shell/session-guard';
 import { Analytics } from '@vercel/analytics/next';
@@ -41,6 +42,7 @@ export default async function RootLayout({
     <html lang="en-GB" suppressHydrationWarning>
       <body className={`${instrumentSans.variable} font-sans antialiased`}>
         <ThemeProvider>
+          <QueryProvider>
           <ClientFeaturesProvider>
           <TaxonomyProvider>
           <LayerVocabularyProvider>
@@ -66,6 +68,7 @@ export default async function RootLayout({
           </LayerVocabularyProvider>
           </TaxonomyProvider>
           </ClientFeaturesProvider>
+          </QueryProvider>
         </ThemeProvider>
         <Analytics />
       </body>

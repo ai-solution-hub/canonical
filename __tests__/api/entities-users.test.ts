@@ -63,8 +63,7 @@ const { POST: displayNamesPost } = await import('@/app/api/users/display-names/r
 // Helpers
 // ---------------------------------------------------------------------------
 
-const VALID_UUID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-const VALID_UUID_2 = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
+const VALID_UUID = 'a1b2c3d4-e5f6-4890-abcd-ef1234567890';
 
 // ---------------------------------------------------------------------------
 // Reset mocks before each test
@@ -809,7 +808,7 @@ describe('POST /api/users/display-names', () => {
 
   it('returns 400 when more than 50 IDs provided', async () => {
     const ids = Array.from({ length: 51 }, (_, i) =>
-      `a1b2c3d4-e5f6-7890-abcd-ef12345${String(i).padStart(5, '0')}`,
+      `a1b2c3d4-e5f6-4890-abcd-ef12345${String(i).padStart(5, '0')}`,
     );
 
     const req = createTestRequest('/api/users/display-names', {
@@ -879,27 +878,15 @@ describe('POST /api/users/display-names', () => {
     expect(body[VALID_UUID]).toBe('bob');
   });
 
-  it('handles mixed valid and invalid UUIDs gracefully', async () => {
-    mockGetUserById.mockResolvedValueOnce({
-      data: {
-        user: {
-          id: VALID_UUID,
-          email: 'charlie@example.com',
-          user_metadata: { full_name: 'Charlie Brown' },
-        },
-      },
-    });
-
+  it('rejects mixed valid and invalid UUIDs with validation error', async () => {
     const req = createTestRequest('/api/users/display-names', {
       method: 'POST',
       body: { ids: [VALID_UUID, 'not-valid'] },
     });
     const res = await displayNamesPost(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
 
     const body = await res.json();
-    // Only valid UUID resolved; invalid one silently skipped
-    expect(body[VALID_UUID]).toBe('Charlie Brown');
-    expect(mockGetUserById).toHaveBeenCalledTimes(1);
+    expect(body.error).toBe('Validation failed');
   });
 });

@@ -84,7 +84,7 @@ async function main(): Promise<void> {
 
   // Validate env
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
   if (!supabaseUrl || !supabaseKey) {

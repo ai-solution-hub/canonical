@@ -4,7 +4,7 @@
  * Tests auth, response shape, overdue calculation, domain breakdown,
  * and never-reviewed item handling.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createMockSupabaseClient,
   configureRole,
@@ -47,10 +47,13 @@ const UUID_2 = '00000000-0000-4000-8000-000000000002';
 const UUID_3 = '00000000-0000-4000-8000-000000000003';
 const UUID_4 = '00000000-0000-4000-8000-000000000004';
 
+// Pin Date.now() so the route handler's `new Date()` and our helper agree.
+const FIXED_NOW = new Date('2026-02-15T12:00:00.000Z').getTime();
+
 function daysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString();
+  // Subtract an extra 2 hours so Math.floor always produces exactly `days`.
+  const buffer = 2 * 60 * 60 * 1000;
+  return new Date(FIXED_NOW - days * 24 * 60 * 60 * 1000 - buffer).toISOString();
 }
 
 function makeMockItem(overrides: Record<string, unknown> = {}) {
@@ -65,9 +68,42 @@ function makeMockItem(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Deterministic time — pin both Date.now() and new Date() to FIXED_NOW so
+// the route handler's `const now = new Date()` produces a predictable value.
+// ---------------------------------------------------------------------------
+
+const OriginalDate = globalThis.Date;
+
+function mockDateNow() {
+  // Create a Date subclass that returns FIXED_NOW when called with no args
+  // but delegates to the original for explicit args (e.g. new Date('2026-01-01'))
+  const MockDate = function (...args: ConstructorParameters<typeof Date>) {
+    if (args.length === 0) {
+      return new OriginalDate(FIXED_NOW);
+    }
+    // @ts-expect-error -- spread into Date constructor
+    return new OriginalDate(...args);
+  } as unknown as DateConstructor;
+
+  // Copy static methods and properties
+  MockDate.now = () => FIXED_NOW;
+  MockDate.parse = OriginalDate.parse;
+  MockDate.UTC = OriginalDate.UTC;
+  MockDate.prototype = OriginalDate.prototype;
+
+  globalThis.Date = MockDate;
+}
+
+function restoreDateNow() {
+  globalThis.Date = OriginalDate;
+}
+
 function resetMocks() {
   vi.clearAllMocks();
   _resetRateLimitStore();
+
+  mockDateNow();
 
   mockSupabase.auth.getUser.mockResolvedValue({
     data: { user: { id: 'test-user-id', email: 'test@example.com' } },
@@ -99,6 +135,7 @@ function resetMocks() {
 
 describe('GET /api/review/cadence', () => {
   beforeEach(resetMocks);
+  afterEach(restoreDateNow);
 
   // -- Auth tests --
 
@@ -262,7 +299,8 @@ describe('GET /api/review/cadence', () => {
     const res = await GET();
     const json = await res.json();
 
-    // Average of (10 + 20) / 2 = 15
+    // With pinned Date.now, Math.floor gives exactly 10 and 20,
+    // and Math.round((10 + 20) / 2) = 15
     expect(json.summary.average_days_since_review).toBe(15);
   });
 

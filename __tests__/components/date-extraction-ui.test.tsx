@@ -260,6 +260,15 @@ describe('CertificationSummaryCard — Renew button', () => {
 // ---------------------------------------------------------------------------
 
 describe('ExpiryDateDisplay', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-29T12:00:00Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('displays expiry date in DD/MM/YYYY format', () => {
     render(
       <dl>

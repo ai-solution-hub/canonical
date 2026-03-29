@@ -1,6 +1,8 @@
 export default function ItemDetailLoading() {
   return (
     <div role="status" aria-label="Loading item" className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <span className="sr-only">Loading item...</span>
+
       {/* Back button skeleton */}
       <div className="mb-6 h-9 w-20 animate-pulse rounded-md bg-accent" />
 

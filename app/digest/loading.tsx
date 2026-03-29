@@ -1,6 +1,7 @@
 export default function DigestLoading() {
   return (
     <div role="status" aria-label="Loading change report" className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+      <span className="sr-only">Loading change report...</span>
       <div className="space-y-6">
         {/* Title and date skeleton */}
         <div className="space-y-3">

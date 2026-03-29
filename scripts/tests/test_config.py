@@ -19,7 +19,7 @@ import kb_pipeline.config as config_module
 from kb_pipeline.config import (
     _replace_taxonomy_section,
     get_env,
-    get_supabase_publishable_key,
+    get_supabase_anon_key,
     get_supabase_secret_key,
     get_supabase_url,
     get_system_prompt,
@@ -33,41 +33,31 @@ from kb_pipeline.config import (
 
 
 class TestLoadEnv:
-    """Tests for parsing .env files."""
+    """Tests for load_env() which returns os.environ as a dict.
 
-    def test_parses_key_value_pairs(self):
-        """Standard KEY=VALUE pairs are parsed correctly."""
-        env_content = "FOO=bar\nBAZ=qux\n"
-        with patch("builtins.open", mock_open(read_data=env_content)):
-            result = load_env()
-        assert result == {"FOO": "bar", "BAZ": "qux"}
+    Since python-dotenv loads .env at module import time, load_env() now
+    simply returns dict(os.environ). These tests verify the dict conversion
+    and that environment variables are accessible.
+    """
 
-    def test_skips_comments_and_blank_lines(self):
-        """Comment lines (#) and blank lines are skipped."""
-        env_content = "# This is a comment\n\nKEY=value\n  \n# Another comment\n"
-        with patch("builtins.open", mock_open(read_data=env_content)):
+    def test_returns_dict_of_environ(self):
+        """load_env() returns a plain dict containing os.environ entries."""
+        with patch.dict(os.environ, {"FOO": "bar", "BAZ": "qux"}, clear=False):
             result = load_env()
-        assert result == {"KEY": "value"}
+        assert isinstance(result, dict)
+        assert result["FOO"] == "bar"
+        assert result["BAZ"] == "qux"
 
-    def test_handles_values_with_equals_sign(self):
-        """Values containing = signs are preserved (split on first = only)."""
-        env_content = "DATABASE_URL=postgres://user:pass@host/db?opt=true\n"
-        with patch("builtins.open", mock_open(read_data=env_content)):
-            result = load_env()
-        assert result["DATABASE_URL"] == "postgres://user:pass@host/db?opt=true"
+    def test_returns_snapshot_not_live_reference(self):
+        """load_env() returns a snapshot dict, not a live reference to os.environ."""
+        result = load_env()
+        assert result is not os.environ
 
-    def test_strips_whitespace(self):
-        """Whitespace around keys and values is stripped."""
-        env_content = "  KEY  =  value  \n"
-        with patch("builtins.open", mock_open(read_data=env_content)):
-            result = load_env()
-        assert result == {"KEY": "value"}
-
-    def test_empty_file(self):
-        """Empty .env file returns empty dict."""
-        with patch("builtins.open", mock_open(read_data="")):
-            result = load_env()
-        assert result == {}
+    def test_includes_existing_env_vars(self):
+        """load_env() includes pre-existing environment variables like PATH."""
+        result = load_env()
+        # PATH should always exist in the environment
+        assert "PATH" in result
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -246,14 +236,20 @@ class TestSupabaseCredentialGetters:
             get_supabase_secret_key()
 
     @patch("kb_pipeline.config.load_env")
-    def test_get_supabase_publishable_key_returns_value(self, mock_load):
-        """get_supabase_publishable_key returns the key when set."""
-        mock_load.return_value = {"SUPABASE_PUBLISHABLE_KEY": "anon-456"}
-        assert get_supabase_publishable_key() == "anon-456"
+    def test_get_supabase_anon_key_returns_value(self, mock_load):
+        """get_supabase_anon_key returns the key when set."""
+        mock_load.return_value = {"SUPABASE_ANON_KEY": "anon-456"}
+        assert get_supabase_anon_key() == "anon-456"
 
     @patch("kb_pipeline.config.load_env")
-    def test_get_supabase_publishable_key_raises_when_missing(self, mock_load):
-        """get_supabase_publishable_key raises RuntimeError when not set."""
+    def test_get_supabase_anon_key_falls_back_to_next_public(self, mock_load):
+        """get_supabase_anon_key falls back to NEXT_PUBLIC_SUPABASE_ANON_KEY."""
+        mock_load.return_value = {"NEXT_PUBLIC_SUPABASE_ANON_KEY": "next-pub-789"}
+        assert get_supabase_anon_key() == "next-pub-789"
+
+    @patch("kb_pipeline.config.load_env")
+    def test_get_supabase_anon_key_raises_when_missing(self, mock_load):
+        """get_supabase_anon_key raises RuntimeError when not set."""
         mock_load.return_value = {}
-        with pytest.raises(RuntimeError, match="SUPABASE_PUBLISHABLE_KEY"):
-            get_supabase_publishable_key()
+        with pytest.raises(RuntimeError, match="SUPABASE_ANON_KEY"):
+            get_supabase_anon_key()

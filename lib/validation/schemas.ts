@@ -1020,7 +1020,7 @@ export function paginationParams(defaults?: { limit?: number; maxLimit?: number 
   const defaultLimit = defaults?.limit ?? 20;
   const maxLimit = defaults?.maxLimit ?? 100;
   return z.object({
-    limit: z.number().int().min(1).max(maxLimit).default(defaultLimit),
+    limit: z.number().int().default(defaultLimit).transform(v => Math.min(Math.max(v, 1), maxLimit)),
     offset: z.number().int().min(0).default(0),
   });
 }
@@ -1078,7 +1078,7 @@ export const ItemMetadataUpdateSchema = z
 
 /** GET /api/activity */
 export const ActivityParamsSchema = z.object({
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z.number().int().default(20).transform(v => Math.min(Math.max(v, 1), 100)),
   before: z.string().optional(), // ISO timestamp cursor
 });
 
@@ -1096,7 +1096,7 @@ export const QualityFlagsParamsSchema = z.object({
 
 /** GET /api/pipeline-runs */
 export const PipelineRunsParamsSchema = z.object({
-  limit: z.number().int().min(1).max(100).default(20),
+  limit: z.number().int().default(20).transform(v => Math.min(Math.max(v, 1), 100)),
   pipeline_name: z.string().max(100).optional(),
   status: z.enum(['running', 'completed', 'failed', 'cancelled']).optional(),
   all: booleanParam.optional(),
@@ -1145,13 +1145,13 @@ export const CoverageGapsParamsSchema = z.object({
   source: z.enum(VALID_GAP_SOURCES).optional(),
   priority: z.enum(VALID_PRIORITY_TIERS).optional(),
   domain: z.string().max(200).optional(),
-  limit: z.number().int().min(1).max(100).default(25),
+  limit: z.number().int().default(25).transform(v => Math.min(Math.max(v, 1), 100)),
   offset: z.number().int().min(0).default(0),
 });
 
 /** GET /api/content-suggestions */
 export const ContentSuggestionsParamsSchema = z.object({
-  limit: z.number().int().min(1).max(20).default(5),
+  limit: z.number().int().default(5).transform(v => Math.min(Math.max(v, 1), 20)),
   domain: z.string().max(200).optional(),
 });
 
