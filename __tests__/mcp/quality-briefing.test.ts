@@ -272,6 +272,151 @@ describe('formatQualityBriefing', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tests: fetchQualityBriefingData shared function
+// ---------------------------------------------------------------------------
+
+describe('fetchQualityBriefingData', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.resetFrom();
+  });
+
+  it('returns all 6 data sections with empty database', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+
+    expect(result.below_threshold).toEqual([]);
+    expect(result.score_drops).toEqual([]);
+    expect(result.freshness_transitions).toEqual([]);
+    expect(result.quality_flags).toEqual([]);
+    expect(result.coverage_alerts).toEqual([]);
+    expect(result.certification_warnings).toEqual([]);
+    expect(result.generated_at).toBeDefined();
+  });
+
+  it('applies domain filter when provided', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+
+    const eqCalls: Array<[string, string]> = [];
+    mocks.mockSupabaseClient.from.mockImplementation(() => {
+      const chain = mocks.createChain({ data: [], error: null });
+      const originalEq = chain.eq as (...a: unknown[]) => unknown;
+      chain.eq = vi.fn((...args: unknown[]) => {
+        eqCalls.push(args as [string, string]);
+        return originalEq(...args);
+      });
+      return chain;
+    });
+
+    await fetchQualityBriefingData(mocks.mockSupabaseClient as never, { domain: 'Security' });
+
+    const domainFilters = eqCalls.filter(([col, val]) => col === 'primary_domain' && val === 'Security');
+    expect(domainFilters.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('uses threshold override for below-threshold filtering', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+
+    const fromCallIndex = { value: 0 };
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'content_items' && fromCallIndex.value === 0) {
+        fromCallIndex.value++;
+        return mocks.createChain({
+          data: [
+            {
+              id: 'item-1', title: 'Score 55', suggested_title: null,
+              primary_domain: 'Ops', primary_subtopic: null,
+              quality_score: 55, freshness: 'fresh', ai_summary: 'Yes',
+              classification_confidence: 0.8,
+            },
+            {
+              id: 'item-2', title: 'Score 25', suggested_title: null,
+              primary_domain: 'Ops', primary_subtopic: null,
+              quality_score: 25, freshness: 'stale', ai_summary: null,
+              classification_confidence: 0.3,
+            },
+          ],
+          error: null,
+        });
+      }
+      return mocks.createChain({ data: [], error: null });
+    });
+
+    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never, { threshold: 60 });
+
+    expect(result.below_threshold.length).toBe(2);
+    expect(result.below_threshold.some(item => item.quality_score === 55)).toBe(true);
+    expect(result.below_threshold.some(item => item.quality_score === 25)).toBe(true);
+  });
+
+  it('processes score drops and sorts by magnitude', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+
+    const fromCallIndex = { value: 0 };
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'content_items') {
+        const callNum = fromCallIndex.value++;
+        if (callNum === 1) {
+          // score drops query (second content_items call)
+          return mocks.createChain({
+            data: [
+              {
+                id: 'item-a', title: 'Small Drop', suggested_title: null,
+                primary_domain: 'Ops', quality_score: 60,
+                previous_quality_score: 70,
+              },
+              {
+                id: 'item-b', title: 'Big Drop', suggested_title: null,
+                primary_domain: 'Ops', quality_score: 20,
+                previous_quality_score: 80,
+              },
+            ],
+            error: null,
+          });
+        }
+      }
+      return mocks.createChain({ data: [], error: null });
+    });
+
+    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+
+    expect(result.score_drops.length).toBe(2);
+    // Big drop (60 points) should come first
+    expect(result.score_drops[0].id).toBe('item-b');
+    expect(result.score_drops[1].id).toBe('item-a');
+  });
+
+  it('deduplicates certification warnings by canonical_name', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'entity_mentions') {
+        return mocks.createChain({
+          data: [
+            {
+              canonical_name: 'ISO 27001', entity_type: 'certification',
+              metadata: { expiry_date: '2020-01-01T00:00:00Z' },
+            },
+            {
+              canonical_name: 'ISO 27001', entity_type: 'certification',
+              metadata: { expiry_date: '2020-06-01T00:00:00Z' },
+            },
+          ],
+          error: null,
+        });
+      }
+      return mocks.createChain({ data: [], error: null });
+    });
+
+    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+
+    // Should deduplicate — only 1 warning for ISO 27001
+    expect(result.certification_warnings.length).toBe(1);
+    expect(result.certification_warnings[0].canonical_name).toBe('ISO 27001');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tests: get_quality_briefing tool
 // ---------------------------------------------------------------------------
 

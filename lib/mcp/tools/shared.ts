@@ -136,3 +136,226 @@ export async function fetchBidSections(
 
   return { sections, status_breakdown, confidence_breakdown };
 }
+
+// ---------------------------------------------------------------------------
+// Shared helper: fetch and process quality briefing data from 6 Supabase
+// tables. Used by both the kb://quality-briefing resource and the
+// get_quality_briefing tool.
+// ---------------------------------------------------------------------------
+
+export interface QualityBriefingOptions {
+  domain?: string;
+  threshold?: number;
+}
+
+export async function fetchQualityBriefingData(
+  supabase: ReturnType<typeof createMcpClient>,
+  options?: QualityBriefingOptions,
+): Promise<import('@/lib/mcp/formatters/briefing').QualityBriefingData> {
+  // Lazy import — keeps certification-status out of module evaluation
+  const { deriveExpiryStatus } = await import('@/lib/certification-status');
+
+  const domainFilter = options?.domain;
+  const thresholdOverride = options?.threshold;
+
+  // Build content_items queries with optional domain filter
+  let belowThresholdQuery = supabase
+    .from('content_items')
+    .select('id, title, suggested_title, primary_domain, primary_subtopic, quality_score, freshness, ai_summary, classification_confidence')
+    .is('archived_at', null)
+    .not('quality_score', 'is', null)
+    .order('quality_score', { ascending: true })
+    .limit(100);
+  if (domainFilter) {
+    belowThresholdQuery = belowThresholdQuery.eq('primary_domain', domainFilter);
+  }
+
+  let scoreDropsQuery = supabase
+    .from('content_items')
+    .select('id, title, suggested_title, primary_domain, quality_score, previous_quality_score')
+    .is('archived_at', null)
+    .not('previous_quality_score', 'is', null)
+    .limit(100);
+  if (domainFilter) {
+    scoreDropsQuery = scoreDropsQuery.eq('primary_domain', domainFilter);
+  }
+
+  let freshnessQuery = supabase
+    .from('content_items')
+    .select('id, title, suggested_title, primary_domain, freshness, previous_freshness')
+    .is('archived_at', null)
+    .not('previous_freshness', 'is', null)
+    .limit(100);
+  if (domainFilter) {
+    freshnessQuery = freshnessQuery.eq('primary_domain', domainFilter);
+  }
+
+  // Run all queries in parallel (including governance_config)
+  const [
+    belowThresholdResult,
+    scoreDropsResult,
+    freshnessResult,
+    qualityFlagsResult,
+    coverageAlertsResult,
+    certResult,
+    govConfigResult,
+  ] = await Promise.all([
+    belowThresholdQuery,
+    scoreDropsQuery,
+    freshnessQuery,
+    supabase
+      .from('notifications')
+      .select('id, type, message, created_at, entity_id')
+      .eq('type', 'quality_flag')
+      .is('dismissed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('notifications')
+      .select('id, type, message, created_at')
+      .eq('type', 'coverage_alert')
+      .is('dismissed_at', null)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('entity_mentions')
+      .select('canonical_name, entity_type, metadata')
+      .not('metadata', 'is', null)
+      .limit(500),
+    supabase
+      .from('governance_config')
+      .select('domain, quality_score_threshold'),
+  ]);
+
+  // Build threshold map from governance_config
+  const thresholdMap = new Map<string, number>();
+  for (const config of (govConfigResult.data ?? []) as unknown as Array<{ domain: string; quality_score_threshold: number | null }>) {
+    if (config.quality_score_threshold != null) {
+      thresholdMap.set(config.domain, config.quality_score_threshold);
+    }
+  }
+  const defaultThreshold = 40;
+
+  // Process below-threshold items
+  type BelowThresholdItemType = import('@/lib/mcp/formatters/briefing').BelowThresholdItem;
+  const belowThreshold: BelowThresholdItemType[] = [];
+  for (const row of (belowThresholdResult.data ?? []) as unknown as Array<{
+    id: string; title: string | null; suggested_title: string | null;
+    primary_domain: string | null; primary_subtopic: string | null;
+    quality_score: number | null; freshness: string | null;
+    ai_summary: string | null; classification_confidence: number | null;
+  }>) {
+    if (row.quality_score == null) continue;
+    const threshold = thresholdOverride ?? thresholdMap.get(row.primary_domain ?? '') ?? defaultThreshold;
+    if (row.quality_score < threshold) {
+      belowThreshold.push({
+        id: row.id,
+        title: row.title,
+        suggested_title: row.suggested_title,
+        primary_domain: row.primary_domain,
+        primary_subtopic: row.primary_subtopic,
+        quality_score: row.quality_score,
+        freshness: row.freshness,
+        ai_summary: row.ai_summary,
+        classification_confidence: row.classification_confidence,
+      });
+    }
+  }
+  const belowThresholdLimited = belowThreshold.slice(0, 20);
+
+  // Process score drops — filter to items where score actually dropped
+  type ScoreDropItemType = import('@/lib/mcp/formatters/briefing').ScoreDropItem;
+  const scoreDrops: ScoreDropItemType[] = [];
+  for (const row of (scoreDropsResult.data ?? []) as unknown as Array<{
+    id: string; title: string | null; suggested_title: string | null;
+    primary_domain: string | null; quality_score: number | null;
+    previous_quality_score: number | null;
+  }>) {
+    if (row.quality_score != null && row.previous_quality_score != null
+        && row.quality_score < row.previous_quality_score) {
+      scoreDrops.push({
+        id: row.id,
+        title: row.title,
+        suggested_title: row.suggested_title,
+        primary_domain: row.primary_domain,
+        quality_score: row.quality_score,
+        previous_quality_score: row.previous_quality_score,
+      });
+    }
+  }
+  // Sort by drop magnitude descending, limit to 20
+  scoreDrops.sort((a, b) =>
+    (b.previous_quality_score - b.quality_score) - (a.previous_quality_score - a.quality_score),
+  );
+  const scoreDropsLimited = scoreDrops.slice(0, 20);
+
+  // Process freshness transitions — filter to actual changes
+  type FreshnessTransitionItemType = import('@/lib/mcp/formatters/briefing').FreshnessTransitionItem;
+  const freshnessTransitions: FreshnessTransitionItemType[] = [];
+  for (const row of (freshnessResult.data ?? []) as unknown as Array<{
+    id: string; title: string | null; suggested_title: string | null;
+    primary_domain: string | null; freshness: string | null;
+    previous_freshness: string | null;
+  }>) {
+    if (row.freshness !== row.previous_freshness) {
+      freshnessTransitions.push({
+        id: row.id,
+        title: row.title,
+        suggested_title: row.suggested_title,
+        primary_domain: row.primary_domain,
+        freshness: row.freshness,
+        previous_freshness: row.previous_freshness,
+      });
+    }
+  }
+  const freshnessTransitionsLimited = freshnessTransitions.slice(0, 20);
+
+  // Quality flags — already filtered by query
+  type QualityFlagNotificationType = import('@/lib/mcp/formatters/briefing').QualityFlagNotification;
+  const qualityFlags = ((qualityFlagsResult.data ?? []) as QualityFlagNotificationType[]);
+
+  // Coverage alerts — already filtered by query
+  type CoverageAlertNotificationType = import('@/lib/mcp/formatters/briefing').CoverageAlertNotification;
+  const coverageAlerts = ((coverageAlertsResult.data ?? []) as CoverageAlertNotificationType[]);
+
+  // Process certification warnings — derive expiry status
+  type CertificationWarningType = import('@/lib/mcp/formatters/briefing').CertificationWarning;
+  const certWarnings: CertificationWarningType[] = [];
+  const seenCerts = new Set<string>();
+  for (const row of (certResult.data ?? []) as Array<{
+    canonical_name: string; entity_type: string;
+    metadata: Record<string, unknown> | null;
+  }>) {
+    const meta = row.metadata;
+    if (!meta) continue;
+    const expiryDate = meta.expiry_date as string | undefined;
+    if (!expiryDate) continue;
+
+    // Deduplicate by canonical_name
+    if (seenCerts.has(row.canonical_name)) continue;
+    seenCerts.add(row.canonical_name);
+
+    const status = deriveExpiryStatus(expiryDate);
+    if (status === 'expiring_soon' || status === 'expired') {
+      certWarnings.push({
+        canonical_name: row.canonical_name,
+        entity_type: row.entity_type,
+        expiry_date: expiryDate,
+        status,
+      });
+    }
+  }
+  const certWarningsLimited = certWarnings.slice(0, 10);
+
+  const briefingData: import('@/lib/mcp/formatters/briefing').QualityBriefingData = {
+    below_threshold: belowThresholdLimited,
+    score_drops: scoreDropsLimited,
+    freshness_transitions: freshnessTransitionsLimited,
+    quality_flags: qualityFlags,
+    coverage_alerts: coverageAlerts,
+    certification_warnings: certWarningsLimited,
+    generated_at: new Date().toISOString(),
+  };
+
+  return briefingData;
+}
