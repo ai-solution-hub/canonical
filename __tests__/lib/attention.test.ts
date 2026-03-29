@@ -363,12 +363,16 @@ describe('produceUnreadNotificationItems', () => {
     expect(items).toHaveLength(1);
     expect(items[0].severity).toBe('medium');
     expect(items[0].count).toBe(5);
+    expect(items[0].action_url).toBe('/');
+    expect(items[0].action_label).toBe('Go to dashboard');
+    expect(items[0].detail).toContain('notification bell');
   });
 
   it('returns item above threshold', () => {
     const items = produceUnreadNotificationItems(20);
     expect(items).toHaveLength(1);
     expect(items[0].count).toBe(20);
+    expect(items[0].action_url).toBe('/');
   });
 });
 

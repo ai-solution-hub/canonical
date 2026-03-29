@@ -414,6 +414,42 @@ describe('fetchQualityBriefingData', () => {
     expect(result.certification_warnings.length).toBe(1);
     expect(result.certification_warnings[0].canonical_name).toBe('ISO 27001');
   });
+
+  it('filters out items where freshness has not changed', async () => {
+    const { fetchQualityBriefingData } = await import('@/lib/mcp/tools/shared');
+
+    const fromCallIndex = { value: 0 };
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'content_items') {
+        const callNum = fromCallIndex.value++;
+        if (callNum === 2) {
+          // freshness transitions query (third content_items call)
+          return mocks.createChain({
+            data: [
+              {
+                id: 'item-changed', title: 'Changed', suggested_title: null,
+                primary_domain: 'Security', freshness: 'stale',
+                previous_freshness: 'fresh',
+              },
+              {
+                id: 'item-same', title: 'Unchanged', suggested_title: null,
+                primary_domain: 'Security', freshness: 'stale',
+                previous_freshness: 'stale',
+              },
+            ],
+            error: null,
+          });
+        }
+      }
+      return mocks.createChain({ data: [], error: null });
+    });
+
+    const result = await fetchQualityBriefingData(mocks.mockSupabaseClient as never);
+
+    // Only the item where freshness actually changed should be included
+    expect(result.freshness_transitions.length).toBe(1);
+    expect(result.freshness_transitions[0].id).toBe('item-changed');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -705,6 +741,39 @@ describe('kb://quality-briefing resource', () => {
 
     // Formatted should be a markdown string
     expect(parsed.formatted).toContain('# Quality Briefing');
+  });
+
+  it('returns populated data with formatted markdown', async () => {
+    const handler = mockServer.getResourceHandler('quality_briefing');
+    if (!handler) throw new Error('quality_briefing resource not registered');
+
+    // Mock populated data for below-threshold items
+    const fromCallIndex = { value: 0 };
+    mocks.mockSupabaseClient.from.mockImplementation((tableName: string) => {
+      if (tableName === 'content_items' && fromCallIndex.value === 0) {
+        fromCallIndex.value++;
+        return mocks.createChain({
+          data: [{
+            id: 'item-low', title: 'Low Quality Article', suggested_title: null,
+            primary_domain: 'Security', primary_subtopic: 'access-control',
+            quality_score: 25, freshness: 'expired', ai_summary: null,
+            classification_confidence: 0.4,
+          }],
+          error: null,
+        });
+      }
+      return mocks.createChain({ data: [], error: null });
+    });
+
+    const result = await handler(
+      new URL('kb://quality-briefing'),
+      extra,
+    ) as { contents: Array<{ mimeType: string; text: string }> };
+
+    const parsed = JSON.parse(result.contents[0].text);
+    expect(parsed.below_threshold).toHaveLength(1);
+    expect(parsed.below_threshold[0].id).toBe('item-low');
+    expect(parsed.formatted).toContain('Low Quality Article');
   });
 
   it('handles errors gracefully', async () => {

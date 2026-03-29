@@ -59,6 +59,39 @@ async function main() {
     process.exit(1);
   }
 
+  // Fetch CHECK constraint values for content_types and platforms
+  const { data: checkConstraints } = await supabase
+    .rpc('get_check_constraint_values', undefined)
+    .throwOnError()
+    .catch(() => ({ data: null }));
+
+  // Fallback: extract from SCHEMA-QUICK-REFERENCE if RPC not available
+  let contentTypes: string[] = [];
+  let platforms: string[] = [];
+
+  if (checkConstraints && Array.isArray(checkConstraints)) {
+    for (const row of checkConstraints) {
+      if (row.column_name === 'content_type') contentTypes = row.allowed_values;
+      if (row.column_name === 'platform') platforms = row.allowed_values;
+    }
+  }
+
+  // If RPC not available, use the known values from schema reference
+  if (contentTypes.length === 0) {
+    contentTypes = [
+      'article', 'blog', 'pdf', 'note', 'research', 'other',
+      'q_a_pair', 'case_study', 'policy', 'certification', 'compliance',
+      'methodology', 'capability', 'product_description', 'document',
+    ];
+    console.warn('  Using fallback content_types (RPC not available)');
+  }
+  if (platforms.length === 0) {
+    platforms = [
+      'web', 'email', 'manual', 'upload', 'extraction', 'other',
+    ];
+    console.warn('  Using fallback platforms (RPC not available)');
+  }
+
   // Build snapshot
   const snapshot = {
     generated_at: new Date().toISOString(),
@@ -77,6 +110,8 @@ async function main() {
       provenance: s.provenance,
       description: s.description,
     })),
+    content_types: contentTypes,
+    platforms: platforms,
   };
 
   writeFileSync(OUTPUT_PATH, JSON.stringify(snapshot, null, 2) + '\n', 'utf8');
@@ -89,6 +124,8 @@ async function main() {
   console.log(`Taxonomy snapshot written to ${OUTPUT_PATH}`);
   console.log(`  Domains: ${snapshot.domains.length} (${baselineDomains.length} baseline, ${clientDomains.length} client, ${recommendedDomains.length} recommended)`);
   console.log(`  Subtopics: ${snapshot.subtopics.length}`);
+  console.log(`  Content types: ${snapshot.content_types.length}`);
+  console.log(`  Platforms: ${snapshot.platforms.length}`);
 }
 
 main().catch((err) => {

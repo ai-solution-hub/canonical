@@ -18,7 +18,8 @@ export default async function ItemDetailPage({
   const supabase = await createClient();
 
   // Fetch item with retry to handle read-after-write race when redirecting
-  // from the creation form (different connection pool connections)
+  // from the creation form (different connection pool connections).
+  // Only retry on PGRST116 (single row not found) — other errors fail fast.
   let item = null;
   let error = null;
 
@@ -31,7 +32,10 @@ export default async function ItemDetailPage({
     item = result.data;
     error = result.error;
     if (item) break;
-    if (attempt < 2) await new Promise((r) => setTimeout(r, 500));
+    const isNotFound = error?.code === 'PGRST116';
+    if (!isNotFound || attempt >= 2) break;
+    console.warn(`[item/${id}] Retry ${attempt + 1}/2: item not found yet (read-after-write race)`);
+    await new Promise((r) => setTimeout(r, 500));
   }
 
   if (error || !item) {

@@ -391,5 +391,30 @@
       "provenance": "recommended",
       "description": "Method statements, service delivery approach, working arrangements, key steps, efficiencies, risk mitigation"
     }
+  ],
+  "content_types": [
+    "article",
+    "blog",
+    "pdf",
+    "note",
+    "research",
+    "other",
+    "q_a_pair",
+    "case_study",
+    "policy",
+    "certification",
+    "compliance",
+    "methodology",
+    "capability",
+    "product_description",
+    "document"
+  ],
+  "platforms": [
+    "web",
+    "email",
+    "manual",
+    "upload",
+    "extraction",
+    "other"
   ]
 }
