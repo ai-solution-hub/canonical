@@ -1,13 +1,86 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createClient } from '@supabase/supabase-js';
 import { VALID_CONTENT_TYPES } from '../lib/validation/schemas';
-import { parseCanonicalTaxonomy } from './lib/taxonomy-parser';
 
 const PROJECT_ROOT = join(__dirname, '..');
-const CANONICAL_PATH = join(PROJECT_ROOT, 'docs/reference/classification-prompt.md');
 const CLASSIFICATION_SKILL_PATH = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0/skills/classification/SKILL.md');
 const SEARCH_SKILL_PATH = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0/skills/search-strategy/SKILL.md');
 const SETTINGS_PATH = join(PROJECT_ROOT, '.claude/plugins/knowledge-hub/1.0.0/settings.template.json');
+
+// ── Env loading ──
+
+function loadEnvFile(path: string): void {
+  try {
+    const content = readFileSync(path, 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIndex = trimmed.indexOf('=');
+      if (eqIndex === -1) continue;
+      const key = trimmed.slice(0, eqIndex).trim();
+      const value = trimmed.slice(eqIndex + 1).trim();
+      if (!(key in process.env)) {
+        process.env[key] = value;
+      }
+    }
+  } catch {
+    // File doesn't exist — that's fine
+  }
+}
+
+loadEnvFile(join(PROJECT_ROOT, '.env.local'));
+loadEnvFile(join(PROJECT_ROOT, '.env'));
+
+// ── DB fetch ──
+
+async function fetchTaxonomyFromDB(): Promise<Map<string, { slug: string; desc: string }[]>> {
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Missing SUPABASE_URL or SUPABASE_SECRET_KEY');
+    process.exit(1);
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  const { data: domains, error: dErr } = await supabase
+    .from('taxonomy_domains')
+    .select('id, name')
+    .eq('is_active', true)
+    .order('display_order');
+
+  if (dErr || !domains?.length) {
+    console.error('Failed to fetch taxonomy domains:', dErr?.message ?? 'empty result');
+    process.exit(1);
+  }
+
+  const { data: subtopics, error: sErr } = await supabase
+    .from('taxonomy_subtopics')
+    .select('name, domain_id, description')
+    .eq('is_active', true)
+    .order('display_order');
+
+  if (sErr) {
+    console.error('Failed to fetch taxonomy subtopics:', sErr.message);
+    process.exit(1);
+  }
+
+  const taxonomyMap = new Map<string, { slug: string; desc: string }[]>();
+
+  for (const domain of domains) {
+    const domainSubtopics = (subtopics ?? [])
+      .filter((s) => s.domain_id === domain.id)
+      .map((s) => ({
+        slug: s.name,
+        desc: s.description ?? '',
+      }));
+    taxonomyMap.set(domain.name.toLowerCase(), domainSubtopics);
+  }
+
+  return taxonomyMap;
+}
 
 // Mapping for content type descriptions used in the table
 const CONTENT_TYPE_DESCRIPTIONS: Record<string, { desc: string, use: string }> = {
@@ -54,9 +127,9 @@ function inject(filePath: string, startMarker: string, endMarker: string, newCon
 }
 
 async function main() {
-  console.log('Syncing plugin taxonomy from canonical sources...');
-  
-  const canonicalMap = parseCanonicalTaxonomy(CANONICAL_PATH);
+  console.log('Syncing plugin taxonomy from DB...');
+
+  const canonicalMap = await fetchTaxonomyFromDB();
   
   // 1. Generate Classification Skill Taxonomy Tree
   let treeOutput = '### Full Taxonomy (' + canonicalMap.size + ' domains, ' + 

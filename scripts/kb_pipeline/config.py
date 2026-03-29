@@ -85,6 +85,12 @@ def get_system_prompt():
     global _system_prompt
     if _system_prompt is None:
         raw = load_system_prompt()
+        if _use_static_taxonomy:
+            logger.warning(
+                "Using static taxonomy from prompt file — "
+                "domain/subtopic drift possible. "
+                "Run `bun run sync:taxonomy` to regenerate from DB."
+            )
         if not _use_static_taxonomy:
             try:
                 from .store import fetch_taxonomy
