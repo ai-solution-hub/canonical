@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { parseBody } from '@/lib/validation';
-import { z } from 'zod';
+import { QualityResolveBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -81,12 +81,6 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
-/** Schema for PATCH /api/quality — resolve a quality flag */
-const QualityResolveBodySchema = z.object({
-  flag_id: z.string().uuid('flag_id must be a valid UUID'),
-  resolution_notes: z.string().max(1000).optional(),
-});
 
 /**
  * PATCH /api/quality

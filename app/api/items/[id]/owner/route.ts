@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { OwnerAssignSchema } from '@/lib/validation/schemas';
+import { parseBody } from '@/lib/validation';
 
 export const maxDuration = 30;
 
@@ -28,13 +29,8 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    const parsed = OwnerAssignSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || 'Invalid request body' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(OwnerAssignSchema, body);
+    if (!parsed.success) return parsed.response;
 
     const { owner_id } = parsed.data;
 

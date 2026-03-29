@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
+import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   ReadMarkBodySchema,
   ReadMarkCheckParamsSchema,
@@ -22,11 +22,11 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { user, supabase } = auth;
 
-    const { searchParams } = new URL(request.url);
-    const rawItemIds = searchParams.get('item_ids');
+    const parsed = parseSearchParams(ReadMarkCheckParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
 
-    // If no item_ids provided, return just the counts
-    if (!rawItemIds) {
+    // Dual-mode: when item_ids is absent, return counts-only
+    if (!parsed.data.item_ids) {
       const [readCountResult, totalCountResult] = await Promise.all([
         supabase
           .from('read_marks')
@@ -42,17 +42,6 @@ export async function GET(request: NextRequest) {
         read_count: readCountResult.count ?? 0,
         total_count: totalCountResult.count ?? 0,
       });
-    }
-
-    // Validate item_ids
-    const parsed = ReadMarkCheckParamsSchema.safeParse({
-      item_ids: rawItemIds,
-    });
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid item_ids parameter. Provide comma-separated UUIDs (max 200).' },
-        { status: 400 },
-      );
     }
 
     const { item_ids } = parsed.data;

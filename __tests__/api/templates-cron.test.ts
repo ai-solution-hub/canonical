@@ -442,7 +442,7 @@ describe('PATCH /api/bids/:id/templates/:templateId/fields/:fieldId', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('Invalid request body');
+    expect(body.error).toBe('Validation failed');
     expect(body.details).toBeDefined();
   });
 
@@ -598,7 +598,7 @@ describe('POST /api/bids/:id/templates/:templateId/fields/bulk-update', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('Invalid request body');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 404 when template not found', async () => {

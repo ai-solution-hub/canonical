@@ -7,6 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { TemplateFillBodySchema } from '@/lib/validation/template-schemas';
+import { parseBody } from '@/lib/validation';
 
 export const maxDuration = 30;
 
@@ -35,15 +36,12 @@ export async function POST(
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const body = await request.json().catch(() => ({}));
-    const parsed = TemplateFillBodySchema.safeParse(body);
-    const options = parsed.success
-      ? parsed.data
-      : {
-          skip_unmapped: true,
-          skip_unapproved: false,
-          fallback_to_draft: true,
-          response_variant: 'standard' as const,
-        };
+    const parsed = parseBody(TemplateFillBodySchema, body);
+    // All fields have defaults, so parse({}) always succeeds.
+    // If someone sends genuinely invalid data (e.g. skip_unmapped: "abc"),
+    // return the 400 error rather than silently using defaults.
+    if (!parsed.success) return parsed.response;
+    const options = parsed.data;
 
     // Fetch template
     const { data: template, error: templateError } = await supabase

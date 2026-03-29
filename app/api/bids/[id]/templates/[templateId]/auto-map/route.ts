@@ -7,6 +7,7 @@ import {
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { AutoMapBodySchema } from '@/lib/validation/template-schemas';
+import { parseBody } from '@/lib/validation';
 import { similarity } from '@/lib/templates/template-auto-map';
 
 export const maxDuration = 30;
@@ -36,8 +37,12 @@ export async function POST(
     if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
     const body = await request.json().catch(() => ({}));
-    const parsed = AutoMapBodySchema.safeParse(body);
-    const threshold = parsed.success ? parsed.data.threshold : 0.7;
+    const parsed = parseBody(AutoMapBodySchema, body);
+    // All fields have defaults, so parse({}) always succeeds.
+    // If someone sends genuinely invalid data (e.g. threshold: "abc"),
+    // return the 400 error rather than silently using defaults.
+    if (!parsed.success) return parsed.response;
+    const { threshold } = parsed.data;
 
     // Verify template exists and is analysed
     const { data: template, error: templateError } = await supabase

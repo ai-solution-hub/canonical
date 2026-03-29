@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { z } from 'zod';
-import { FALLBACK_LAYERS } from '@/lib/client-config';
+import { parseBody } from '@/lib/validation';
+import { ItemMetadataUpdateSchema } from '@/lib/validation/schemas';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
-
-const layerValues = FALLBACK_LAYERS.map((l) => l.key);
-
-const MetadataUpdateSchema = z
-  .object({
-    layer: z
-      .enum(layerValues as [string, ...string[]])
-      .nullable()
-      .optional(),
-    topic_id: z.string().max(200).nullable().optional(),
-  })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one metadata field required',
-  });
 
 export async function PATCH(
   request: NextRequest,
@@ -32,13 +18,8 @@ export async function PATCH(
     const { id } = await params;
 
     const body = await request.json();
-    const parsed = MetadataUpdateSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message || 'Invalid metadata' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(ItemMetadataUpdateSchema, body);
+    if (!parsed.success) return parsed.response;
 
     // Build metadata to merge — strip undefined values, keep nulls for deletion
     // Promoted fields (layer) go to columns, not JSONB

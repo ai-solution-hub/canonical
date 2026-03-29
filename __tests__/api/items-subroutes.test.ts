@@ -826,7 +826,8 @@ describe('PATCH /api/items/[id]/metadata', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/At least one metadata field required/);
+    expect(body.error).toBe('Validation failed');
+    expect(body.details).toBeDefined();
   });
 
   it('returns 400 for invalid layer value', async () => {
@@ -1302,7 +1303,8 @@ describe('PATCH /api/items/[id]/owner', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/uuid|Invalid/i);
+    expect(body.error).toBe('Validation failed');
+    expect(body.details).toBeDefined();
   });
 
   it('returns 200 on successful owner assignment', async () => {

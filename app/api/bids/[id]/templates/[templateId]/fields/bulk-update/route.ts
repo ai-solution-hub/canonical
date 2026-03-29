@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { BulkFieldMappingSchema } from '@/lib/validation/template-schemas';
+import { parseBody } from '@/lib/validation';
 
 export const maxDuration = 30;
 
@@ -27,13 +28,8 @@ export async function POST(
     }
 
     const body = await request.json();
-    const parsed = BulkFieldMappingSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: parsed.error.flatten() },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(BulkFieldMappingSchema, body);
+    if (!parsed.success) return parsed.response;
 
     // Verify template exists and belongs to this bid
     const { data: template, error: templateError } = await supabase
