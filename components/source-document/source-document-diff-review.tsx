@@ -9,6 +9,7 @@ import {
   DiffHighlightedText,
   exceedsLazyThreshold,
 } from '@/components/source-document/diff-highlighted-text';
+import { useDiffReview } from '@/hooks/use-diff-review';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -965,36 +966,21 @@ export function SourceDocumentDiffReview({
   const [showUnchanged, setShowUnchanged] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'side-by-side'>('card');
 
-  // Local state for optimistic updates
-  const [localEntries, setLocalEntries] = useState(entries);
-  const [localSummary, setLocalSummary] = useState<{
-    pending_review: number;
-    applied: number;
-    dismissed: number;
-  }>(() => {
-    const counts = { pending_review: 0, applied: 0, dismissed: 0 };
-    for (const e of entries) {
-      const s = e.status as keyof typeof counts;
-      if (s in counts) counts[s]++;
-    }
-    return counts;
-  });
-  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  const [updateError, setUpdateError] = useState<string | null>(null);
-
-  // Send-to-review state
-  const [sendToReviewState, setSendToReviewState] = useState<
-    'idle' | 'loading' | 'success' | 'error'
-  >('idle');
-  const [sendToReviewResult, setSendToReviewResult] = useState<{
-    sent: number;
-    already_pending: number;
-    skipped_draft: number;
-    review_url: string;
-  } | null>(null);
-
-  // Per-entry note state — tracks notes that have been typed but not yet saved
-  const [pendingNotes, setPendingNotes] = useState<Record<string, string>>({});
+  // All mutation, optimistic update, and review state is managed by the hook
+  const {
+    localEntries,
+    localSummary,
+    loadingIds,
+    updateError,
+    clearUpdateError,
+    handleNoteChange,
+    handleSingleStatusChange,
+    handleBulkStatusChange,
+    handleSendToReview,
+    sendToReviewState,
+    sendToReviewResult,
+    hasAffectedItems,
+  } = useDiffReview(documentId, entries);
 
   // Detect diff mode from entries: explicit diff_mode field, or infer from content
   const diffMode: 'qa' | 'full_text' =
@@ -1003,10 +989,6 @@ export function SourceDocumentDiffReview({
       : entries.every((e) => !e.old_question && !e.new_question)
         ? 'full_text'
         : 'qa';
-
-  function handleNoteChange(id: string, note: string) {
-    setPendingNotes((prev) => ({ ...prev, [id]: note }));
-  }
 
   // Filter entries based on active filter and unchanged toggle
   const filteredEntries = localEntries.filter((entry) => {
@@ -1021,123 +1003,6 @@ export function SourceDocumentDiffReview({
     summary.added + summary.removed + summary.modified;
 
   const isAnyLoading = loadingIds.size > 0;
-
-  // Status update handler with optimistic update and rollback
-  async function handleStatusChange(entryIds: string[], newStatus: string) {
-    const previousEntries = [...localEntries];
-    const previousSummary = { ...localSummary };
-
-    // Optimistic update
-    setLocalEntries((prev) =>
-      prev.map((e) =>
-        entryIds.includes(e.id) ? { ...e, status: newStatus } : e,
-      ),
-    );
-    setLoadingIds((prev) => new Set([...prev, ...entryIds]));
-
-    // Recompute summary optimistically
-    const newSummaryCounts = { pending_review: 0, applied: 0, dismissed: 0 };
-    localEntries.forEach((e) => {
-      const s = entryIds.includes(e.id) ? newStatus : e.status;
-      if (s in newSummaryCounts)
-        newSummaryCounts[s as keyof typeof newSummaryCounts]++;
-    });
-    setLocalSummary(newSummaryCounts);
-
-    setUpdateError(null);
-
-    try {
-      // Build the entries payload, attaching pending notes where applicable
-      const patchEntries = entryIds.map((id) => {
-        const note = pendingNotes[id];
-        const payload: { id: string; status: string; note?: string } = { id, status: newStatus };
-        if (note !== undefined) {
-          payload.note = note;
-        }
-        return payload;
-      });
-
-      const res = await fetch(`/api/source-documents/${documentId}/diff`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries: patchEntries }),
-      });
-      if (!res.ok) throw new Error('Failed to update');
-      const data = await res.json();
-      // Use server summary
-      setLocalSummary(data.summary);
-
-      // Clear saved notes from pending state and persist to local entries
-      const savedNoteIds = entryIds.filter((id) => pendingNotes[id] !== undefined);
-      if (savedNoteIds.length > 0) {
-        setLocalEntries((prev) =>
-          prev.map((e) =>
-            savedNoteIds.includes(e.id) && pendingNotes[e.id] !== undefined
-              ? { ...e, reviewer_note: pendingNotes[e.id] }
-              : e,
-          ),
-        );
-        setPendingNotes((prev) => {
-          const next = { ...prev };
-          for (const id of savedNoteIds) {
-            delete next[id];
-          }
-          return next;
-        });
-      }
-    } catch {
-      // Rollback and show error
-      setLocalEntries(previousEntries);
-      setLocalSummary(previousSummary);
-      setUpdateError('Failed to update review status. Please try again.');
-    } finally {
-      setLoadingIds((prev) => {
-        const next = new Set(prev);
-        entryIds.forEach((id) => next.delete(id));
-        return next;
-      });
-    }
-  }
-
-  function handleSingleStatusChange(id: string, status: string) {
-    handleStatusChange([id], status);
-  }
-
-  function handleBulkStatusChange(ids: string[], status: string) {
-    if (ids.length === 0) return;
-    handleStatusChange(ids, status);
-  }
-
-  // Compute affected items for send-to-review
-  const affectedItemIds = [...new Set(
-    localEntries
-      .filter(e => e.diff_type !== 'unchanged' && e.affected_item)
-      .map(e => e.affected_item!.id),
-  )];
-
-  const hasAffectedItems = affectedItemIds.length > 0;
-
-  async function handleSendToReview() {
-    if (affectedItemIds.length === 0) return;
-
-    setSendToReviewState('loading');
-    try {
-      const res = await fetch(
-        `/api/source-documents/${documentId}/send-to-review`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item_ids: affectedItemIds }),
-        },
-      );
-      if (!res.ok) throw new Error('Failed to send to review');
-      const data = await res.json();
-      setSendToReviewResult(data);
-      setSendToReviewState('success');
-    } catch {
-      setSendToReviewState('error');
-    }
-  }
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -1316,7 +1181,7 @@ export function SourceDocumentDiffReview({
         >
           <p className="text-sm text-destructive">{updateError}</p>
           <button
-            onClick={() => setUpdateError(null)}
+            onClick={clearUpdateError}
             className="rounded-md px-2 py-1 text-xs text-destructive hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             aria-label="Dismiss error"
           >

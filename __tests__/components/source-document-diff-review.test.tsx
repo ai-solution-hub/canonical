@@ -54,6 +54,7 @@ import {
   type SourceDocumentDiffReviewProps,
   type DiffReviewEntry,
 } from '@/components/source-document/source-document-diff-review';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Fetch mock
@@ -151,7 +152,8 @@ function renderComponent(overrides?: Partial<SourceDocumentDiffReviewProps>) {
     entries: DEFAULT_ENTRIES,
     ...overrides,
   };
-  return render(<SourceDocumentDiffReview {...props} />);
+  const { Wrapper } = createQueryWrapper();
+  return render(<SourceDocumentDiffReview {...props} />, { wrapper: Wrapper });
 }
 
 // ---------------------------------------------------------------------------
