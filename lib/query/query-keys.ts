@@ -105,6 +105,7 @@ export const queryKeys = {
       ['source-documents', 'diff', documentId] as const,
     history: (documentId: string) =>
       ['source-documents', 'history', documentId] as const,
+    sourceFiles: ['source-documents', 'source-files'] as const,
   },
 
   // Workspaces
