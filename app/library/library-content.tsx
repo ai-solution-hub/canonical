@@ -385,6 +385,9 @@ export function LibraryContent() {
         {/* Bulk action toolbar */}
         <BulkActionToolbar
           selectedCount={bulk.selectedIds.size}
+          unverifiedSelectedCount={
+            items.filter((i) => bulk.selectedIds.has(i.id) && !i.verified_at).length
+          }
           isAdmin={canAdmin}
           bulkOperating={bulk.bulkOperating}
           bulkProgress={bulk.bulkProgress}

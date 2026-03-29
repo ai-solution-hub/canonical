@@ -5,6 +5,14 @@
 -- =============================================================================
 -- 1. get_review_breakdown_stats()
 -- Replaces JS aggregation in app/api/review/stats/route.ts
+--
+-- NOTE: The 'flagged' count here does NOT filter by archived_at, so it may
+-- include flags for archived items. This differs from
+-- get_dashboard_attention_counts() which filters archived_at IS NULL for its
+-- quality_flag_count. This inconsistency is accepted: the review stats page
+-- shows the total review workload (including flags that need resolving even on
+-- archived content), while the dashboard attention count reflects only the
+-- active content requiring attention.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION get_review_breakdown_stats()

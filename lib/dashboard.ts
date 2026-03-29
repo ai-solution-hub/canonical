@@ -253,6 +253,9 @@ export async function fetchUnifiedDashboardData(
   const [results, activeBidsResult] = await Promise.all([
     Promise.allSettled([
       // 0: Attention counts (replaces queries 0,1,2,3,4,10,12,13)
+      // Note: quality_flag_count here filters archived_at IS NULL, which differs
+      // from get_review_breakdown_stats (no archived filter). This is intentional —
+      // see migration comment in 20260328234541_review_stats_rpc_functions.sql.
       supabase.rpc('get_dashboard_attention_counts', {
         p_user_id: userId,
         p_role: effectiveRole,

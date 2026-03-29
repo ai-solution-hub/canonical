@@ -65,7 +65,7 @@ interface MockClassification {
 describe('extractToolResult', () => {
   it('should extract tool result when tool block exists with matching name', () => {
     const expectedInput = {
-      domain: 'AI & EMERGING TECH',
+      domain: 'SECURITY',
       subtopic: 'LLM Applications',
       confidence: 0.95,
     };
@@ -122,7 +122,7 @@ describe('extractToolResult', () => {
 
   it('should return first matching tool_use block when multiple exist', () => {
     const firstInput = {
-      domain: 'AI & EMERGING TECH',
+      domain: 'SECURITY',
       subtopic: 'LLM Applications',
       confidence: 0.95,
     };
@@ -142,7 +142,7 @@ describe('extractToolResult', () => {
     );
 
     expect(result).toEqual(firstInput);
-    expect(result.domain).toBe('AI & EMERGING TECH');
+    expect(result.domain).toBe('SECURITY');
   });
 
   it('should return the input object with correct structure', () => {
@@ -150,7 +150,7 @@ describe('extractToolResult', () => {
       suggested_title: 'How to Build AI Agents',
       ai_summary: 'A guide to building autonomous AI agents.',
       ai_keywords: ['AI', 'agents', 'autonomy'],
-      primary_domain: 'AI & EMERGING TECH',
+      primary_domain: 'SECURITY',
       primary_subtopic: 'AI Agents & Autonomy',
       confidence: 0.92,
       classification_reasoning: 'Content focuses on AI agent architecture.',

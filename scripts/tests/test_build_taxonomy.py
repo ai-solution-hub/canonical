@@ -41,7 +41,7 @@ class TestBuildTaxonomySection:
 
     def test_single_domain_with_subtopics(self):
         """A single domain with subtopics produces correct markdown."""
-        domains = self._make_domains("AI & EMERGING TECH")
+        domains = self._make_domains("SECURITY")
         subtopics = self._make_subtopics(
             "domain-1", "ai-models-llms", "ai-tools-frameworks"
         )
@@ -50,8 +50,8 @@ class TestBuildTaxonomySection:
 
         assert "## TAXONOMY REFERENCE" in result
         assert "### Level 1 Domains (Choose exactly ONE primary)" in result
-        assert "#### 1. AI & EMERGING TECH" in result
-        assert "Description for AI & EMERGING TECH." in result
+        assert "#### 1. SECURITY" in result
+        assert "Description for SECURITY." in result
         assert "**Subtopics:**" in result
         assert "- `ai-models-llms`: Description for ai-models-llms" in result
         assert "- `ai-tools-frameworks`: Description for ai-tools-frameworks" in result
@@ -60,28 +60,28 @@ class TestBuildTaxonomySection:
     def test_multiple_domains_numbered_correctly(self):
         """Multiple domains are numbered sequentially."""
         domains = self._make_domains(
-            "AI & EMERGING TECH", "STRATEGY & BUSINESS", "PRODUCTS & INNOVATION"
+            "SECURITY", "COMPLIANCE", "IMPLEMENTATION"
         )
         subtopics = []
 
         result = build_taxonomy_section(domains, subtopics)
 
-        assert "#### 1. AI & EMERGING TECH" in result
-        assert "#### 2. STRATEGY & BUSINESS" in result
-        assert "#### 3. PRODUCTS & INNOVATION" in result
+        assert "#### 1. SECURITY" in result
+        assert "#### 2. COMPLIANCE" in result
+        assert "#### 3. IMPLEMENTATION" in result
 
     def test_domain_without_description(self):
         """Domains with no description omit the description line."""
-        domains = self._make_domains("AI & EMERGING TECH", with_descriptions=False)
+        domains = self._make_domains("SECURITY", with_descriptions=False)
         subtopics = []
 
         result = build_taxonomy_section(domains, subtopics)
 
-        assert "#### 1. AI & EMERGING TECH" in result
+        assert "#### 1. SECURITY" in result
         # Should NOT have a description line between heading and ---
         lines = result.split("\n")
         heading_idx = next(
-            i for i, l in enumerate(lines) if "#### 1. AI & EMERGING TECH" in l
+            i for i, l in enumerate(lines) if "#### 1. SECURITY" in l
         )
         # Next non-empty line should be ---
         next_non_empty = next(
@@ -91,7 +91,7 @@ class TestBuildTaxonomySection:
 
     def test_subtopics_without_descriptions(self):
         """Subtopics with no description omit the colon suffix."""
-        domains = self._make_domains("AI & EMERGING TECH")
+        domains = self._make_domains("SECURITY")
         subtopics = self._make_subtopics(
             "domain-1", "ai-models-llms", with_descriptions=False
         )

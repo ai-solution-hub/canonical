@@ -74,42 +74,4 @@ export function getDomainColourKey(
   return FALLBACK_COLOUR_MAP[domainName] ?? 'corporate';
 }
 
-// ---------------------------------------------------------------------------
-// Utility loaders — convenience wrappers over loadTaxonomy()
-// ---------------------------------------------------------------------------
-
-/**
- * Load taxonomy formatted as a prompt string for AI classification.
- *
- * Returns one line per domain in the format:
- *   - domain-name: subtopic-a, subtopic-b, subtopic-c
- */
-export async function loadTaxonomyForPrompt(): Promise<string> {
-  const { domains, subtopics } = await loadTaxonomy();
-  return domains
-    .map((d) => {
-      const subs = subtopics
-        .filter((s) => s.domain_id === d.id)
-        .map((s) => s.name);
-      return `- ${d.name}: ${subs.join(', ')}`;
-    })
-    .join('\n');
-}
-
-/**
- * Load taxonomy as flat name arrays for validation use.
- *
- * Returns `{ domains: string[], subtopics: string[] }` containing only active
- * domain and subtopic names.
- */
-export async function loadTaxonomyFlat(): Promise<{
-  domains: string[];
-  subtopics: string[];
-}> {
-  const { domains, subtopics } = await loadTaxonomy();
-  return {
-    domains: domains.map((d) => d.name),
-    subtopics: subtopics.map((s) => s.name),
-  };
-}
 

@@ -303,7 +303,7 @@ describe('ReviewQueueParamsSchema', () => {
 
   it('should accept optional filter arrays', () => {
     const result = ReviewQueueParamsSchema.safeParse({
-      domain: ['AI & EMERGING TECH'],
+      domain: ['SECURITY'],
       content_type: ['post', 'article'],
       platform: ['web'],
     });

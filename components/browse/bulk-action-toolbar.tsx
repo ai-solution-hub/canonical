@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   Loader2,
   Tag,
   FolderPlus,
@@ -28,6 +29,8 @@ import {
 
 export interface BulkActionToolbarProps {
   selectedCount: number;
+  /** Number of selected items that are unverified (verified_at is null) */
+  unverifiedSelectedCount?: number;
   isAdmin: boolean;
   bulkOperating: boolean;
   bulkProgress: { current: number; total: number; label: string };
@@ -45,6 +48,7 @@ export interface BulkActionToolbarProps {
 
 export function BulkActionToolbar({
   selectedCount,
+  unverifiedSelectedCount,
   isAdmin,
   bulkOperating,
   bulkProgress,
@@ -63,6 +67,13 @@ export function BulkActionToolbar({
         <span className="text-sm font-medium text-foreground">
           {selectedCount} selected
         </span>
+
+        {unverifiedSelectedCount != null && unverifiedSelectedCount > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-md bg-status-warning/10 px-2 py-0.5 text-xs font-medium text-status-warning">
+            <AlertTriangle className="size-3" aria-hidden="true" />
+            {unverifiedSelectedCount} of {selectedCount} unverified
+          </span>
+        )}
 
         <div className="flex flex-wrap items-center gap-2">
           <Button

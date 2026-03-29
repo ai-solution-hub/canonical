@@ -6,7 +6,7 @@
  *
  * Usage:
  *   bun run scripts/kb-search.ts "memory solutions for LLM agents"
- *   bun run scripts/kb-search.ts "MCP server patterns" --limit 5 --domain "AI & EMERGING TECH"
+ *   bun run scripts/kb-search.ts "MCP server patterns" --limit 5 --domain "SECURITY"
  *   bun run scripts/kb-search.ts "knowledge graphs for code" --full
  *   bun run scripts/kb-search.ts "RAG vs fine-tuning" --json
  *   bun run scripts/kb-search.ts "startup metrics" --threshold 0.3

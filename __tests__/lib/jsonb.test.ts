@@ -112,7 +112,7 @@ describe('parseJsonb', () => {
 
   it('should parse valid DigestDomainSummary', () => {
     const valid = {
-      domain: 'AI & Emerging Tech',
+      domain: 'SECURITY',
       item_count: 10,
       summary: 'This week featured several AI developments.',
       top_items: [
@@ -127,7 +127,7 @@ describe('parseJsonb', () => {
 
     const result = parseJsonb(DigestDomainSummarySchema, valid);
     expect(result).not.toBeNull();
-    expect(result?.domain).toBe('AI & Emerging Tech');
+    expect(result?.domain).toBe('SECURITY');
     expect(result?.top_items).toHaveLength(1);
     expect(result?.key_themes).toHaveLength(2);
   });

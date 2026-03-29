@@ -21,7 +21,7 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
       'A busy week across AI tooling, product launches, and strategic insights.',
     domain_summaries: [
       {
-        domain: 'AI & EMERGING TECH',
+        domain: 'SECURITY',
         item_count: 15,
         summary: 'Significant developments in agent frameworks and LLM tooling.',
         top_items: [
@@ -41,7 +41,7 @@ function makeDigest(overrides: Partial<Digest> = {}): Digest {
         key_themes: ['AI agents', 'developer tools'],
       },
       {
-        domain: 'STRATEGY & BUSINESS',
+        domain: 'COMPLIANCE',
         item_count: 8,
         summary: 'Enterprise AI adoption continues to accelerate.',
         top_items: [
@@ -92,7 +92,7 @@ describe('digestToMarkdown', () => {
     expect(md).toContain('A busy week across AI tooling');
 
     // Domain sections
-    expect(md).toContain('## AI & EMERGING TECH (15 items)');
+    expect(md).toContain('## SECURITY (15 items)');
     expect(md).toContain(
       'Significant developments in agent frameworks and LLM tooling.'
     );
@@ -105,7 +105,7 @@ describe('digestToMarkdown', () => {
     expect(md).toContain('*Themes: AI agents, developer tools*');
 
     // Second domain
-    expect(md).toContain('## STRATEGY & BUSINESS (8 items)');
+    expect(md).toContain('## COMPLIANCE (8 items)');
     expect(md).toContain('**Enterprise AI Playbook** (pdf)');
 
     // Theme clusters
@@ -182,7 +182,7 @@ describe('digestToMarkdown', () => {
     const digest = makeDigest({
       domain_summaries: [
         {
-          domain: 'META & PERSONAL',
+          domain: 'CORPORATE',
           item_count: 2,
           summary: 'Personal reflections.',
           top_items: [],
@@ -192,7 +192,7 @@ describe('digestToMarkdown', () => {
     });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('## META & PERSONAL (2 items)');
+    expect(md).toContain('## CORPORATE (2 items)');
     expect(md).toContain('Personal reflections.');
     // No top items or themes sections
     expect(md).not.toContain('### Top Items');
@@ -246,7 +246,7 @@ describe('digestToMarkdown', () => {
     const digest = makeDigest({
       domain_summaries: [
         {
-          domain: 'AI & EMERGING TECH',
+          domain: 'SECURITY',
           item_count: 5,
           summary: 'Updates in AI.',
           top_items: undefined as unknown as [],
@@ -256,7 +256,7 @@ describe('digestToMarkdown', () => {
     });
     const md = digestToMarkdown(digest);
 
-    expect(md).toContain('## AI & EMERGING TECH (5 items)');
+    expect(md).toContain('## SECURITY (5 items)');
     expect(md).toContain('Updates in AI.');
   });
 
