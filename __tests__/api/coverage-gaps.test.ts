@@ -453,7 +453,7 @@ describe('GET /api/coverage/gaps', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Invalid source filter');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for invalid priority parameter', async () => {
@@ -464,7 +464,7 @@ describe('GET /api/coverage/gaps', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Invalid priority filter');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns empty gap list when KB is fully covered', async () => {

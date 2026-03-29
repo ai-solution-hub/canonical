@@ -4,6 +4,8 @@ import {
   authFailureResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBody } from '@/lib/validation';
+import { EntityMetadataUpdateSchema } from '@/lib/validation/schemas';
 import type { Json } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
@@ -38,9 +40,9 @@ export async function PATCH(
     }
 
     // Parse and validate request body
-    let metadata: Record<string, unknown>;
+    let raw: unknown;
     try {
-      metadata = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
@@ -48,12 +50,9 @@ export async function PATCH(
       );
     }
 
-    if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) {
-      return NextResponse.json(
-        { error: 'Request body must be a JSON object' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(EntityMetadataUpdateSchema, raw);
+    if (!parsed.success) return parsed.response;
+    const metadata = parsed.data;
 
     // Find the first entity_mentions row for this canonical name
     const { data: existing, error: findError } = await supabase

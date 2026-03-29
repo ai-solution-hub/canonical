@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { CoverageMatrixParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -10,7 +12,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const layer = request.nextUrl.searchParams.get('layer') || undefined;
+    const parsed = parseSearchParams(CoverageMatrixParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { layer } = parsed.data;
 
     // Fetch matrix and summary in parallel
     const [matrixResult, summaryResult] = await Promise.all([

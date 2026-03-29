@@ -6,6 +6,8 @@ import {
   unauthorisedResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBody } from '@/lib/validation';
+import { DiffRequestBodySchema, DiffReviewUpdateBodySchema } from '@/lib/validation/schemas';
 import { computeDocumentDiff } from '@/lib/source-documents/document-diff';
 
 export const maxDuration = 30;
@@ -259,24 +261,19 @@ export async function POST(
       );
     }
 
-    // Parse request body
-    let body: { new_document_id?: string };
+    // Parse and validate request body
+    let raw: unknown;
     try {
-      body = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 },
       );
     }
-
-    const { new_document_id: newDocumentId } = body;
-    if (!newDocumentId || !uuidRegex.test(newDocumentId)) {
-      return NextResponse.json(
-        { error: 'new_document_id is required and must be a valid UUID' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(DiffRequestBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { new_document_id: newDocumentId } = parsed.data;
 
     if (oldDocumentId === newDocumentId) {
       return NextResponse.json(
@@ -399,59 +396,21 @@ export async function PATCH(
       );
     }
 
-    // Parse request body
-    let body: { entries?: Array<{ id?: string; status?: string; note?: string }> };
+    // Parse and validate request body
+    let raw: unknown;
     try {
-      body = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
         { status: 400 },
       );
     }
+    const parsed = parseBody(DiffReviewUpdateBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { entries } = parsed.data;
 
-    const { entries } = body;
-    const VALID_STATUSES = ['applied', 'dismissed', 'pending_review'];
-    const MAX_NOTE_LENGTH = 500;
-
-    // Validate entries array
-    if (!Array.isArray(entries) || entries.length === 0) {
-      return NextResponse.json(
-        { error: 'entries must be a non-empty array' },
-        { status: 400 },
-      );
-    }
-
-    if (entries.length > 500) {
-      return NextResponse.json(
-        { error: 'entries array exceeds maximum of 500 items' },
-        { status: 400 },
-      );
-    }
-
-    // Validate each entry
-    for (const entry of entries) {
-      if (!entry.id || !uuidRegex.test(entry.id)) {
-        return NextResponse.json(
-          { error: `Invalid UUID in entries: ${entry.id ?? 'missing'}` },
-          { status: 400 },
-        );
-      }
-      if (!entry.status || !VALID_STATUSES.includes(entry.status)) {
-        return NextResponse.json(
-          { error: `Invalid status value: ${entry.status ?? 'missing'}. Must be one of: ${VALID_STATUSES.join(', ')}` },
-          { status: 400 },
-        );
-      }
-      if (entry.note !== undefined && typeof entry.note === 'string' && entry.note.length > MAX_NOTE_LENGTH) {
-        return NextResponse.json(
-          { error: `Reviewer note exceeds maximum length of ${MAX_NOTE_LENGTH} characters` },
-          { status: 400 },
-        );
-      }
-    }
-
-    const entryIds = entries.map((e) => e.id as string);
+    const entryIds = entries.map((e) => e.id);
 
     // Verify all entry IDs belong to this document's diff pair
     const { data: matchingEntries } = await supabase
@@ -477,9 +436,9 @@ export async function PATCH(
     // Group note-free entries by target status for batch updates
     const byStatus: Record<string, string[]> = {};
     for (const entry of entriesWithoutNotes) {
-      const status = entry.status as string;
+      const status = entry.status;
       if (!byStatus[status]) byStatus[status] = [];
-      byStatus[status].push(entry.id as string);
+      byStatus[status].push(entry.id);
     }
 
     const now = new Date().toISOString();
@@ -518,7 +477,7 @@ export async function PATCH(
 
     // Handle entries with notes individually (notes are per-entry)
     for (const entry of entriesWithNotes) {
-      const status = entry.status as string;
+      const status = entry.status;
       const isReviewed = status !== 'pending_review';
       const updatePayload = {
         status,
@@ -531,7 +490,7 @@ export async function PATCH(
       const { error: updateErr } = await supabase
         .from('source_document_diffs')
         .update(updatePayload)
-        .eq('id', entry.id as string);
+        .eq('id', entry.id);
 
       if (updateErr) {
         return NextResponse.json(
@@ -545,7 +504,7 @@ export async function PATCH(
         );
       }
 
-      updatedResults.push({ id: entry.id as string, status, updated_at: now });
+      updatedResults.push({ id: entry.id, status, updated_at: now });
     }
 
     // Fetch summary counts for the entire diff pair

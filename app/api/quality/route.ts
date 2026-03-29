@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { QualityResolveBodySchema } from '@/lib/validation/schemas';
+import { parseBody, parseSearchParams } from '@/lib/validation';
+import { QualityResolveBodySchema, QualityFlagsParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * GET /api/quality
@@ -21,28 +19,15 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const { searchParams } = request.nextUrl;
-    const itemId = searchParams.get('item_id');
-    const flagType = searchParams.get('flag_type');
-    const resolvedParam = searchParams.get('resolved');
-    const limitParam = searchParams.get('limit');
-    const offsetParam = searchParams.get('offset');
-
-    const limit = Math.min(Math.max(parseInt(limitParam ?? '50', 10) || 50, 1), 200);
-    const offset = Math.max(parseInt(offsetParam ?? '0', 10) || 0, 0);
-    const resolved = resolvedParam === 'true' ? true : resolvedParam === 'false' ? false : undefined;
+    const parsed = parseSearchParams(QualityFlagsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { item_id: itemId, flag_type: flagType, resolved, limit, offset } = parsed.data;
 
     let query = supabase
       .from('ingestion_quality_log')
       .select('id, content_item_id, flag_type, severity, details, resolved, resolved_at, resolved_by, resolution_notes, created_at', { count: 'exact' });
 
     if (itemId) {
-      if (!UUID_RE.test(itemId)) {
-        return NextResponse.json(
-          { error: 'item_id must be a valid UUID' },
-          { status: 400 },
-        );
-      }
       query = query.eq('content_item_id', itemId);
     }
 

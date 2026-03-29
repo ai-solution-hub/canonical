@@ -125,7 +125,7 @@ describe('POST /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('new_document_id is required and must be a valid UUID');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for invalid new_document_id format', async () => {
@@ -140,7 +140,7 @@ describe('POST /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('new_document_id is required and must be a valid UUID');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 when diffing a document with itself', async () => {
@@ -427,7 +427,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('entries must be a non-empty array');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for invalid UUID in entries', async () => {
@@ -442,7 +442,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Invalid UUID in entries');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for invalid status value', async () => {
@@ -457,7 +457,7 @@ describe('PATCH /api/source-documents/[id]/diff', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Invalid status value');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 404 when entry IDs do not belong to document', async () => {

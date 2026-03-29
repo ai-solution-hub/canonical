@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { WorkspaceCreateBodySchema } from '@/lib/validation/schemas';
+import { parseBody, parseSearchParams } from '@/lib/validation';
+import { WorkspaceCreateBodySchema, WorkspaceListParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -13,8 +13,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const includeArchived =
-      request.nextUrl.searchParams.get('include_archived') === 'true';
+    const parsed = parseSearchParams(WorkspaceListParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const includeArchived = parsed.data.include_archived === true;
 
     let query = supabase.from('workspaces').select('id, name, description, color, icon, type, status, domain_metadata, is_archived, created_at, created_by, updated_at, updated_by').order('name');
     if (!includeArchived) {

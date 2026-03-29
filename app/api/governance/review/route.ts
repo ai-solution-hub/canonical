@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { GovernanceReviewBodySchema } from '@/lib/validation/schemas';
+import { parseBody, parseSearchParams } from '@/lib/validation';
+import { GovernanceReviewBodySchema, GovernanceReviewParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -19,8 +19,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const url = new URL(request.url);
-    const countOnly = url.searchParams.get('count_only') === 'true';
+    const parsed = parseSearchParams(GovernanceReviewParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { count_only: countOnly, limit, offset } = parsed.data;
 
     if (countOnly) {
       const { count, error } = await supabase
@@ -35,16 +36,6 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({ count: count ?? 0 });
     }
-
-    // Full list
-    const limit = Math.min(
-      Math.max(parseInt(url.searchParams.get('limit') ?? '20', 10) || 20, 1),
-      100,
-    );
-    const offset = Math.max(
-      parseInt(url.searchParams.get('offset') ?? '0', 10) || 0,
-      0,
-    );
 
     const { data, error } = await supabase
       .from('content_items')

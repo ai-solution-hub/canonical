@@ -14,6 +14,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { CoverageGapsParamsSchema } from '@/lib/validation/schemas';
 import {
   listAvailableTemplates,
   fetchTemplateRequirements,
@@ -300,33 +302,14 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
 
     const { supabase } = auth;
-    const params = request.nextUrl.searchParams;
 
-    // Parse query parameters
-    const source = params.get('source') || undefined;
-    const priority = params.get('priority') || undefined;
-    const domain = params.get('domain') || undefined;
-    const limit = Math.min(Math.max(parseInt(params.get('limit') ?? '25', 10) || 25, 1), 100);
-    const offset = Math.max(parseInt(params.get('offset') ?? '0', 10) || 0, 0);
-
-    // Validate source filter
-    if (source && !['taxonomy', 'template', 'guide'].includes(source)) {
-      return NextResponse.json(
-        { error: 'Invalid source filter. Must be taxonomy, template, or guide.' },
-        { status: 400 },
-      );
-    }
-
-    // Validate priority filter
-    if (priority && !['critical', 'high', 'medium', 'low'].includes(priority)) {
-      return NextResponse.json(
-        { error: 'Invalid priority filter. Must be critical, high, medium, or low.' },
-        { status: 400 },
-      );
-    }
+    // Parse and validate query parameters
+    const parsed = parseSearchParams(CoverageGapsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { source, priority, domain, limit, offset } = parsed.data;
 
     // Check cache
-    const cacheKey = getCacheKey(params);
+    const cacheKey = getCacheKey(request.nextUrl.searchParams);
     const cached = cache.get(cacheKey);
     if (cached && cached.expires > Date.now()) {
       return NextResponse.json(cached.data);

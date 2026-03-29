@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { WorkspaceItemsParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -25,10 +27,9 @@ export async function GET(
       );
     }
 
-    const limit = Math.min(
-      Math.max(1, Number(request.nextUrl.searchParams.get('limit') ?? '10')),
-      50,
-    );
+    const parsed = parseSearchParams(WorkspaceItemsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit } = parsed.data;
 
     const { data, error } = await supabase
       .from('content_item_workspaces')

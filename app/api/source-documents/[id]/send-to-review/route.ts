@@ -5,6 +5,8 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createNotification } from '@/lib/notifications';
+import { parseBody } from '@/lib/validation';
+import { SendToReviewBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -32,48 +34,11 @@ export async function POST(
 
     const { id: documentId } = await params;
 
-    // Validate UUID format
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-    // Parse request body
-    let body: { item_ids?: unknown };
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json(
-        { error: 'Invalid JSON body' },
-        { status: 400 },
-      );
-    }
-
-    const { item_ids: itemIds } = body;
-
-    // Validate item_ids is a non-empty array
-    if (!Array.isArray(itemIds) || itemIds.length === 0) {
-      return NextResponse.json(
-        { error: 'item_ids must be a non-empty array' },
-        { status: 400 },
-      );
-    }
-
-    // Validate max 200 items
-    if (itemIds.length > 200) {
-      return NextResponse.json(
-        { error: 'item_ids array exceeds maximum of 200 items' },
-        { status: 400 },
-      );
-    }
-
-    // Validate each ID is a valid UUID
-    for (const id of itemIds) {
-      if (typeof id !== 'string' || !uuidRegex.test(id)) {
-        return NextResponse.json(
-          { error: `Invalid UUID in item_ids: ${String(id)}` },
-          { status: 400 },
-        );
-      }
-    }
+    // Parse and validate request body
+    const raw = await request.json();
+    const parsed = parseBody(SendToReviewBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const itemIds = parsed.data.item_ids;
 
     // Fetch items to check current governance_review_status
     const { data: items, error: fetchErr } = await supabase

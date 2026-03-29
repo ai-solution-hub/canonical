@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { CoverageTemplateParamsSchema } from '@/lib/validation/schemas';
 import {
   fetchTemplateRequirements,
   fetchContentForMatching,
@@ -14,16 +16,9 @@ export async function GET(request: NextRequest) {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
 
-    const templateName = request.nextUrl.searchParams.get('template_name');
-    if (!templateName) {
-      return NextResponse.json(
-        { error: 'template_name query parameter is required' },
-        { status: 400 },
-      );
-    }
-
-    const templateVersion =
-      request.nextUrl.searchParams.get('template_version') || undefined;
+    const parsed = parseSearchParams(CoverageTemplateParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { template_name: templateName, template_version: templateVersion } = parsed.data;
 
     const [requirements, contentItems] = await Promise.all([
       fetchTemplateRequirements(auth.supabase, templateName, templateVersion),

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { createServiceClient } from '@/lib/supabase/server';
+import { parseSearchParams } from '@/lib/validation';
+import { TenderDownloadParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -26,14 +28,10 @@ export async function GET(
       );
     }
 
-    // Get the storage path from query params
-    const storagePath = request.nextUrl.searchParams.get('path');
-    if (!storagePath) {
-      return NextResponse.json(
-        { error: 'Missing required query parameter: path' },
-        { status: 400 },
-      );
-    }
+    // Validate and extract the storage path from query params
+    const parsed = parseSearchParams(TenderDownloadParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const storagePath = parsed.data.path;
 
     // Validate path belongs to this bid (prevent path traversal)
     if (!storagePath.startsWith(`${bidId}/`)) {

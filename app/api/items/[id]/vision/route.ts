@@ -8,6 +8,8 @@ import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
 import { analyseVision } from '@/lib/ai/vision';
 import { AIServiceError } from '@/lib/ai/errors';
+import { parseBody } from '@/lib/validation';
+import { VisionBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 60;
 
@@ -29,9 +31,11 @@ export async function POST(
     let prompt: string | undefined;
     try {
       const body = await request.json();
-      if (body.prompt && typeof body.prompt === 'string') {
-        prompt = body.prompt;
+      const parsed = parseBody(VisionBodySchema, body);
+      if (parsed.success) {
+        prompt = parsed.data.prompt;
       }
+      // If validation fails, silently use default (body is optional)
     } catch {
       // No body or invalid JSON — use default prompt
     }

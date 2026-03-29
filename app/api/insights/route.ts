@@ -6,6 +6,8 @@ import {
 } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { InsightsParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 60;
 
@@ -18,13 +20,12 @@ export async function GET(request: NextRequest) {
     const { allowed } = checkRateLimit(`insights:${user.id}`, 20, 60 * 1000);
     if (!allowed) return rateLimitResponse();
 
-    const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type') ?? 'trends';
-    const days = parseInt(searchParams.get('days') ?? '30', 10);
+    const parsed = parseSearchParams(InsightsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { type, days, min_count: minCount, keyword, author } = parsed.data;
 
     switch (type) {
       case 'trends': {
-        const minCount = parseInt(searchParams.get('min_count') ?? '2', 10);
         const { data, error } = await supabase.rpc('get_trend_analysis', {
           p_days: days,
           p_min_count: minCount,
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest) {
       }
 
       case 'topic': {
-        const keyword = searchParams.get('keyword');
         if (!keyword) {
           return NextResponse.json(
             { error: 'Missing keyword parameter' },
@@ -59,7 +59,6 @@ export async function GET(request: NextRequest) {
       }
 
       case 'author': {
-        const author = searchParams.get('author');
         if (!author) {
           return NextResponse.json(
             { error: 'Missing author parameter' },

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { paginationParams } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -32,15 +34,10 @@ export async function GET(
       );
     }
 
-    const url = new URL(request.url);
-    const limit = Math.min(
-      Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10) || 50, 1),
-      100,
-    );
-    const offset = Math.max(
-      parseInt(url.searchParams.get('offset') ?? '0', 10) || 0,
-      0,
-    );
+    const HistoryParamsSchema = paginationParams({ limit: 50 });
+    const parsed = parseSearchParams(HistoryParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit, offset } = parsed.data;
 
     const { data, error, count } = await supabase
       .from('content_history')

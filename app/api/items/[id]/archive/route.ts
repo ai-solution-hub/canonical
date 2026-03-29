@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseBody } from '@/lib/validation';
+import { ArchiveBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -36,9 +38,9 @@ export async function POST(
     }
 
     // Parse and validate request body
-    let body: unknown;
+    let raw: unknown;
     try {
-      body = await request.json();
+      raw = await request.json();
     } catch {
       return NextResponse.json(
         { error: 'Invalid JSON body' },
@@ -46,14 +48,9 @@ export async function POST(
       );
     }
 
-    const { reason } = body as { reason?: unknown };
-
-    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'reason is required and must be a non-empty string' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseBody(ArchiveBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { reason } = parsed.data;
 
     // Archive the content item
     const { data, error } = await supabase
@@ -61,7 +58,7 @@ export async function POST(
       .update({
         archived_at: new Date().toISOString(),
         archived_by: user.id,
-        archive_reason: reason.trim(),
+        archive_reason: reason,
       })
       .eq('id', id)
       .select('id, title, archived_at, archived_by, archive_reason')

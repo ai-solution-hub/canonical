@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
-
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { parseBody } from '@/lib/validation';
+import { DisplayNamesBodySchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -23,29 +22,11 @@ export async function POST(request: NextRequest) {
     const auth = await getAuthenticatedClient();
     if (!auth) return unauthorisedResponse();
 
-    const body = await request.json();
-    const ids: string[] = body?.ids;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
-      return NextResponse.json(
-        { error: 'Request body must include a non-empty "ids" array' },
-        { status: 400 },
-      );
-    }
-
-    // Limit to 50 IDs per request to prevent abuse
-    if (ids.length > 50) {
-      return NextResponse.json(
-        { error: 'Maximum 50 IDs per request' },
-        { status: 400 },
-      );
-    }
-
-    // Validate all IDs are UUIDs
-    const validIds = ids.filter((id) => UUID_RE.test(id));
-    if (validIds.length === 0) {
-      return NextResponse.json({});
-    }
+    const raw = await request.json();
+    const parsed = parseBody(DisplayNamesBodySchema, raw);
+    if (!parsed.success) return parsed.response;
+    const { ids } = parsed.data;
+    // All IDs are already validated as UUIDs by the schema
 
     const result: Record<string, string> = {};
 
@@ -53,7 +34,7 @@ export async function POST(request: NextRequest) {
     const { data: roleRows } = await auth.supabase
       .from('user_roles')
       .select('user_id, display_name')
-      .in('user_id', validIds);
+      .in('user_id', ids);
 
     if (roleRows) {
       for (const row of roleRows) {
@@ -64,7 +45,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fallback: for any IDs not resolved via user_roles, try auth.admin
-    const unresolvedIds = validIds.filter((id) => !result[id]);
+    const unresolvedIds = ids.filter((id) => !result[id]);
 
     if (unresolvedIds.length > 0) {
       const serviceClient = createServiceClient();

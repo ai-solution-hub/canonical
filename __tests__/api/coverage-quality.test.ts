@@ -328,7 +328,7 @@ describe('GET /api/coverage/templates', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('template_name query parameter is required');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 404 when no requirements found for template', async () => {
@@ -550,7 +550,7 @@ describe('GET /api/quality', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('item_id must be a valid UUID');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('applies filter params to query', async () => {
@@ -801,7 +801,7 @@ describe('GET /api/insights', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Unknown insight type');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 200 with gaps data', async () => {

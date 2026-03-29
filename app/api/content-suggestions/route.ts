@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse } from '@/lib/auth';
 import { generateContentSuggestions } from '@/lib/content/content-suggestions';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { ContentSuggestionsParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -11,15 +13,13 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const limit = parseInt(
-      request.nextUrl.searchParams.get('limit') ?? '5',
-      10,
-    );
-    const domain = request.nextUrl.searchParams.get('domain') || undefined;
+    const parsed = parseSearchParams(ContentSuggestionsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit, domain } = parsed.data;
 
     const suggestions = await generateContentSuggestions({
       supabase,
-      maxSuggestions: Math.min(Math.max(limit, 1), 20),
+      maxSuggestions: limit,
       domainFilter: domain,
       includeTemplateGaps: true,
     });

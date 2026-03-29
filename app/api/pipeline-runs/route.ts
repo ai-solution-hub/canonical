@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { PipelineRunsParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 15;
 
@@ -23,14 +25,10 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { user, supabase, role } = auth;
 
-    const { searchParams } = new URL(request.url);
-    const limit = Math.min(
-      Math.max(parseInt(searchParams.get('limit') ?? '20', 10) || 20, 1),
-      100,
-    );
-    const pipelineName = searchParams.get('pipeline_name');
-    const status = searchParams.get('status');
-    const showAll = searchParams.get('all') === 'true' && role === 'admin';
+    const parsed = parseSearchParams(PipelineRunsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit, pipeline_name: pipelineName, status, all } = parsed.data;
+    const showAll = all === true && role === 'admin';
 
     let query = supabase
       .from('pipeline_runs')

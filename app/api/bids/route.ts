@@ -8,8 +8,8 @@ import {
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { parseBody } from '@/lib/validation';
-import { BidCreateBodySchema, parseBidMetadata } from '@/lib/validation/schemas';
+import { parseBody, parseSearchParams } from '@/lib/validation';
+import { BidCreateBodySchema, BidListParamsSchema, parseBidMetadata } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -20,15 +20,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const status = request.nextUrl.searchParams.get('status');
-    const limit = Math.min(
-      Math.max(parseInt(request.nextUrl.searchParams.get('limit') ?? '50', 10) || 50, 1),
-      100,
-    );
-    const offset = Math.max(
-      parseInt(request.nextUrl.searchParams.get('offset') ?? '0', 10) || 0,
-      0,
-    );
+    const parsed = parseSearchParams(BidListParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { status, limit, offset } = parsed.data;
 
     let query = supabase
       .from('workspaces')

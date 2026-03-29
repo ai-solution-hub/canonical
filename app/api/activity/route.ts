@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { ActivityParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -21,12 +23,9 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase, role } = auth;
 
-    const url = new URL(request.url);
-    const limit = Math.min(
-      Math.max(parseInt(url.searchParams.get('limit') ?? '20', 10) || 20, 1),
-      100,
-    );
-    const before = url.searchParams.get('before') || undefined;
+    const parsed = parseSearchParams(ActivityParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit, before } = parsed.data;
 
     const rpcParams: { p_limit: number; p_is_admin: boolean; p_before?: string } = {
       p_limit: limit,

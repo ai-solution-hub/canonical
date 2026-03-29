@@ -1071,3 +1071,192 @@ export const ItemMetadataUpdateSchema = z
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one metadata field required',
   });
+
+// ──────────────────────────────────────────
+// Category B: GET handler schemas
+// ──────────────────────────────────────────
+
+/** GET /api/activity */
+export const ActivityParamsSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  before: z.string().optional(), // ISO timestamp cursor
+});
+
+/** GET /api/quality (flags list) */
+export const QualityFlagsParamsSchema = z.object({
+  item_id: z.string().uuid().optional(),
+  flag_type: z.string().max(50).optional(),
+  resolved: z.preprocess(
+    (v) => v === 'true' ? true : v === 'false' ? false : undefined,
+    z.boolean().optional(),
+  ),
+  limit: z.number().int().min(1).max(200).default(50),
+  offset: z.number().int().min(0).default(0),
+});
+
+/** GET /api/pipeline-runs */
+export const PipelineRunsParamsSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(20),
+  pipeline_name: z.string().max(100).optional(),
+  status: z.enum(['running', 'completed', 'failed', 'cancelled']).optional(),
+  all: booleanParam.optional(),
+});
+
+/** GET /api/insights
+ * Note: keyword is conditionally required when type=topic,
+ * author is conditionally required when type=author.
+ * These cross-field constraints are enforced in the route handler's
+ * switch-case, not in this schema. See B4 special case notes.
+ */
+const VALID_INSIGHT_TYPES = ['trends', 'topic', 'author', 'gaps', 'reading'] as const;
+
+export const InsightsParamsSchema = z.object({
+  type: z.enum(VALID_INSIGHT_TYPES).default('trends'),
+  days: z.number().int().min(1).max(365).default(30),
+  min_count: z.number().int().min(1).max(100).default(2),
+  keyword: z.string().max(200).optional(),
+  author: z.string().max(200).optional(),
+});
+
+/** GET /api/bids */
+const VALID_BID_STATUSES = [
+  'draft', 'questions_extracted', 'matching', 'drafting',
+  'in_review', 'ready_for_export', 'submitted', 'won', 'lost', 'withdrawn',
+] as const;
+
+export const BidListParamsSchema = z.object({
+  status: z.enum(VALID_BID_STATUSES).optional(),
+  limit: z.number().int().min(1).max(100).default(50),
+  offset: z.number().int().min(0).default(0),
+});
+
+/** GET /api/governance/review */
+export const GovernanceReviewParamsSchema = z.object({
+  count_only: booleanParam.optional(),
+  limit: z.number().int().min(1).max(100).default(20),
+  offset: z.number().int().min(0).default(0),
+});
+
+/** GET /api/coverage/gaps */
+const VALID_GAP_SOURCES = ['taxonomy', 'template', 'guide'] as const;
+const VALID_PRIORITY_TIERS = ['critical', 'high', 'medium', 'low'] as const;
+
+export const CoverageGapsParamsSchema = z.object({
+  source: z.enum(VALID_GAP_SOURCES).optional(),
+  priority: z.enum(VALID_PRIORITY_TIERS).optional(),
+  domain: z.string().max(200).optional(),
+  limit: z.number().int().min(1).max(100).default(25),
+  offset: z.number().int().min(0).default(0),
+});
+
+/** GET /api/content-suggestions */
+export const ContentSuggestionsParamsSchema = z.object({
+  limit: z.number().int().min(1).max(20).default(5),
+  domain: z.string().max(200).optional(),
+});
+
+/** GET /api/guides */
+const VALID_GUIDE_TYPES = ['sector', 'product', 'company', 'research', 'custom'] as const;
+
+export const GuideListParamsSchema = z.object({
+  type: z.enum(VALID_GUIDE_TYPES).optional(),
+  include_unpublished: booleanParam.optional(),
+  include: z.enum(['stats']).optional(),
+});
+
+/** GET /api/workspaces/[id]/items */
+export const WorkspaceItemsParamsSchema = z.object({
+  limit: z.number().int().min(1).max(50).default(10),
+});
+
+/** GET /api/workspaces */
+export const WorkspaceListParamsSchema = z.object({
+  include_archived: booleanParam.optional(),
+});
+
+/** GET /api/coverage */
+export const CoverageMatrixParamsSchema = z.object({
+  layer: z.string().max(100).optional(),
+});
+
+/** GET /api/coverage/templates */
+export const CoverageTemplateParamsSchema = z.object({
+  template_name: z.string().min(1, 'template_name is required').max(200),
+  template_version: z.string().max(50).optional(),
+});
+
+/** GET /api/review/history */
+export const ReviewHistoryParamsSchema = z.object({
+  item_id: z.string().uuid('item_id must be a valid UUID'),
+});
+
+/** GET /api/review/assignments */
+export const ReviewAssignmentsParamsSchema = z.object({
+  status: z.enum(['active', 'completed', 'cancelled', 'all']).default('active'),
+});
+
+/** GET /api/entities/co-occurrence */
+export const EntityCoOccurrenceParamsSchema = z.object({
+  limit: z.number().int().min(1).max(50).default(20),
+  min: z.number().int().min(1).default(2),
+  type: z.enum([
+    'organisation', 'certification', 'regulation', 'framework',
+    'capability', 'person', 'technology', 'project', 'sector', 'product',
+  ]).optional(),
+});
+
+/** DELETE /api/workspaces/[id] — query param for permanent delete */
+export const WorkspaceDeleteParamsSchema = z.object({
+  permanent: booleanParam.optional(),
+});
+
+/** GET /api/bids/[id]/tender/download */
+export const TenderDownloadParamsSchema = z.object({
+  path: z.string().min(1, 'Storage path is required').max(500),
+});
+
+// ──────────────────────────────────────────
+// Category C: Missing body schemas
+// ──────────────────────────────────────────
+
+/** POST /api/users/display-names */
+export const DisplayNamesBodySchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'At least one ID required').max(50),
+});
+
+/** PATCH /api/entities/[canonical_name]/metadata */
+export const EntityMetadataUpdateSchema = z.record(z.string(), z.unknown())
+  .refine((obj) => Object.keys(obj).length > 0, {
+    message: 'At least one metadata field required',
+  });
+
+/** POST /api/items/[id]/archive */
+export const ArchiveBodySchema = z.object({
+  reason: z.string().trim().min(1, 'Reason is required').max(1000),
+});
+
+/** POST /api/items/[id]/vision */
+export const VisionBodySchema = z.object({
+  prompt: z.string().max(5000).optional(),
+});
+
+/** POST /api/source-documents/[id]/send-to-review */
+export const SendToReviewBodySchema = z.object({
+  item_ids: z.array(z.string().uuid()).min(1, 'At least one item ID required').max(200),
+});
+
+/** POST /api/source-documents/[id]/diff — compute diff */
+export const DiffRequestBodySchema = z.object({
+  new_document_id: z.string().uuid('new_document_id is required and must be a valid UUID'),
+});
+
+/** PATCH /api/source-documents/[id]/diff — review status updates */
+const VALID_DIFF_REVIEW_STATUSES = ['applied', 'dismissed', 'pending_review'] as const;
+
+export const DiffReviewUpdateBodySchema = z.object({
+  entries: z.array(z.object({
+    id: z.string().uuid(),
+    status: z.enum(VALID_DIFF_REVIEW_STATUSES),
+    note: z.string().max(500).optional(),
+  })).min(1, 'entries must be a non-empty array').max(500),
+});

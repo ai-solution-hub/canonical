@@ -4,6 +4,8 @@ import {
   unauthorisedResponse,
 } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { EntityCoOccurrenceParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -27,10 +29,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const params = request.nextUrl.searchParams;
-    const limit = Math.min(Math.max(Number(params.get('limit')) || 20, 1), 50);
-    const minShared = Math.max(Number(params.get('min')) || 2, 1);
-    const entityType = params.get('type') ?? undefined;
+    const parsed = parseSearchParams(EntityCoOccurrenceParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { limit, min: minShared, type: entityType } = parsed.data;
 
     const { data: pairs, error } = await supabase.rpc('get_entity_co_occurrence', {
       p_limit: limit,

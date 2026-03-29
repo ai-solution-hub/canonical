@@ -243,7 +243,7 @@ describe('POST /api/items/[id]/archive', () => {
 
       expect(response.status).toBe(400);
       const body = await response.json();
-      expect(body.error).toMatch(/reason/i);
+      expect(body.error).toBe('Validation failed');
     });
 
     it('returns 400 when reason is an empty string', async () => {
@@ -260,7 +260,7 @@ describe('POST /api/items/[id]/archive', () => {
 
       expect(response.status).toBe(400);
       const body = await response.json();
-      expect(body.error).toMatch(/reason/i);
+      expect(body.error).toBe('Validation failed');
     });
 
     it('returns 400 when reason is whitespace only', async () => {
@@ -277,7 +277,7 @@ describe('POST /api/items/[id]/archive', () => {
 
       expect(response.status).toBe(400);
       const body = await response.json();
-      expect(body.error).toMatch(/reason/i);
+      expect(body.error).toBe('Validation failed');
     });
 
     it('returns 400 when reason is not a string', async () => {
@@ -294,7 +294,7 @@ describe('POST /api/items/[id]/archive', () => {
 
       expect(response.status).toBe(400);
       const body = await response.json();
-      expect(body.error).toMatch(/reason/i);
+      expect(body.error).toBe('Validation failed');
     });
 
     it('returns 400 when body is not valid JSON', async () => {

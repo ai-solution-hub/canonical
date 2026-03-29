@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedClient, unauthorisedResponse, getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
+import { parseBody, parseSearchParams } from '@/lib/validation';
 import { guideCreateSchema } from '@/lib/validation/guide-schemas';
+import { GuideListParamsSchema } from '@/lib/validation/schemas';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { rateLimitResponse } from '@/lib/auth';
 
@@ -15,8 +16,9 @@ export async function GET(request: NextRequest) {
     if (!auth) return unauthorisedResponse();
     const { supabase } = auth;
 
-    const typeFilter = request.nextUrl.searchParams.get('type');
-    const includeUnpublished = request.nextUrl.searchParams.get('include_unpublished') === 'true';
+    const parsed = parseSearchParams(GuideListParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { type: typeFilter, include_unpublished: includeUnpublished, include } = parsed.data;
 
     let query = supabase
       .from('guides')
@@ -45,7 +47,7 @@ export async function GET(request: NextRequest) {
     }
 
     // When ?include=stats, enrich each guide with section/content counts
-    const includeStats = request.nextUrl.searchParams.get('include') === 'stats';
+    const includeStats = include === 'stats';
     if (includeStats && data && data.length > 0) {
       const guideIds = data.map((g) => g.id);
       const { data: sections, error: secErr } = await supabase

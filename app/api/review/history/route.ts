@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { ReviewHistoryParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Review history entry returned by the API.
@@ -42,22 +42,9 @@ export async function GET(request: NextRequest) {
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const { searchParams } = request.nextUrl;
-    const itemId = searchParams.get('item_id');
-
-    if (!itemId) {
-      return NextResponse.json(
-        { error: 'item_id query parameter is required' },
-        { status: 400 },
-      );
-    }
-
-    if (!UUID_RE.test(itemId)) {
-      return NextResponse.json(
-        { error: 'item_id must be a valid UUID' },
-        { status: 400 },
-      );
-    }
+    const parsed = parseSearchParams(ReviewHistoryParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const { item_id: itemId } = parsed.data;
 
     const { data, error } = await supabase
       .from('ingestion_quality_log')

@@ -130,7 +130,7 @@ describe('GET /api/review/history', () => {
 
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toBe('item_id query parameter is required');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 when item_id is not a valid UUID', async () => {
@@ -139,7 +139,7 @@ describe('GET /api/review/history', () => {
 
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toBe('item_id must be a valid UUID');
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for a partial UUID', async () => {
@@ -148,7 +148,7 @@ describe('GET /api/review/history', () => {
 
     expect(response.status).toBe(400);
     const body = await response.json();
-    expect(body.error).toBe('item_id must be a valid UUID');
+    expect(body.error).toBe('Validation failed');
   });
 
   // ── Successful responses ─────────────────────────────────────────────────

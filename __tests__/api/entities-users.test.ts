@@ -795,7 +795,7 @@ describe('POST /api/users/display-names', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toMatch(/non-empty "ids" array/);
+    expect(body.error).toBe('Validation failed');
   });
 
   it('returns 400 for empty ids array', async () => {
@@ -820,19 +820,19 @@ describe('POST /api/users/display-names', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('Maximum 50 IDs per request');
+    expect(body.error).toBe('Validation failed');
   });
 
-  it('returns empty object when all IDs are invalid UUIDs', async () => {
+  it('returns 400 when IDs are invalid UUIDs', async () => {
     const req = createTestRequest('/api/users/display-names', {
       method: 'POST',
       body: { ids: ['not-a-uuid', 'also-bad'] },
     });
     const res = await displayNamesPost(req);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body).toEqual({});
+    expect(body.error).toBe('Validation failed');
   });
 
   it('resolves display names from user_metadata.display_name', async () => {

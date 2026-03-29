@@ -2,42 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
+import { parseBody, parseSearchParams } from '@/lib/validation';
 import {
   ReviewAssignmentBodySchema,
   ReviewAssignmentUpdateSchema,
+  ReviewAssignmentsParamsSchema,
 } from '@/lib/validation/schemas';
 import { createNotification } from '@/lib/notifications';
+import type { Database } from '@/supabase/types/database.types';
 
 export const maxDuration = 30;
 
-/**
- * Row shape for review_assignments table.
- * Defined here until `supabase gen types` is run after migration is pushed.
- */
-interface ReviewAssignmentRow {
-  id: string;
-  reviewer_id: string;
-  assigned_by: string;
-  assignment_type: string;
-  filter_domains: string[];
-  filter_content_types: string[];
-  filter_freshness: string[];
-  filter_date_from: string | null;
-  filter_date_to: string | null;
-  item_count: number | null;
-  status: string;
-  notes: string | null;
-  due_date: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Table name cast — `review_assignments` is created by migration but types
-// may not be regenerated yet. Remove this cast after `supabase gen types`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TABLE = 'review_assignments' as any;
+type ReviewAssignmentUpdate = Database['public']['Tables']['review_assignments']['Update'];
 
 /**
  * GET /api/review/assignments
@@ -54,11 +30,12 @@ export async function GET(request: NextRequest) {
     const { allowed } = checkRateLimit(`review-assignments:${user.id}`, 30, 60_000);
     if (!allowed) return rateLimitResponse();
 
-    const { searchParams } = request.nextUrl;
-    const statusFilter = searchParams.get('status') ?? 'active';
+    const parsed = parseSearchParams(ReviewAssignmentsParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const statusFilter = parsed.data.status;
 
     let query = supabase
-      .from(TABLE)
+      .from('review_assignments')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -82,7 +59,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ assignments: (data ?? []) as unknown as ReviewAssignmentRow[] });
+    return NextResponse.json({ assignments: data ?? [] });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to fetch review assignments') },
@@ -154,7 +131,7 @@ export async function POST(request: NextRequest) {
 
     // Insert the assignment
     const { data: rawAssignment, error: insertError } = await supabase
-      .from(TABLE)
+      .from('review_assignments')
       .insert({
         reviewer_id,
         assigned_by: user.id,
@@ -171,9 +148,7 @@ export async function POST(request: NextRequest) {
       .select('*')
       .single();
 
-    const assignment = rawAssignment as ReviewAssignmentRow | null;
-
-    if (insertError || !assignment) {
+    if (insertError || !rawAssignment) {
       console.error('Failed to create review assignment:', insertError);
       return NextResponse.json(
         { error: 'Failed to create review assignment' },
@@ -188,7 +163,7 @@ export async function POST(request: NextRequest) {
         userId: reviewer_id,
         type: 'governance_review_needed',
         entityType: 'content_item',
-        entityId: assignment.id,
+        entityId: rawAssignment.id,
         title: 'New review assignment',
         message: notes
           ? `Review assignment: ${notes}`
@@ -199,7 +174,7 @@ export async function POST(request: NextRequest) {
       console.warn('Failed to create assignment notification:', notifErr);
     }
 
-    return NextResponse.json({ assignment }, { status: 201 });
+    return NextResponse.json({ assignment: rawAssignment }, { status: 201 });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to create review assignment') },
@@ -228,19 +203,17 @@ export async function PATCH(request: NextRequest) {
 
     const { id, status } = parsed.data;
 
-    const updateData: Record<string, unknown> = { status };
+    const updateData: ReviewAssignmentUpdate = { status };
     if (status === 'completed') {
       updateData.completed_at = new Date().toISOString();
     }
 
     const { data: rawUpdated, error: updateError } = await supabase
-      .from(TABLE)
+      .from('review_assignments')
       .update(updateData)
       .eq('id', id)
       .select('*')
       .single();
-
-    const updated = rawUpdated as ReviewAssignmentRow | null;
 
     if (updateError) {
       console.error('Failed to update review assignment:', updateError);
@@ -250,14 +223,14 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    if (!updated) {
+    if (!rawUpdated) {
       return NextResponse.json(
         { error: 'Assignment not found' },
         { status: 404 },
       );
     }
 
-    return NextResponse.json({ assignment: updated });
+    return NextResponse.json({ assignment: rawUpdated });
   } catch (err) {
     return NextResponse.json(
       { error: safeErrorMessage(err, 'Failed to update review assignment') },

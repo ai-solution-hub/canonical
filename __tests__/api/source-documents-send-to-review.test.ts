@@ -162,7 +162,7 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toBe('item_ids must be a non-empty array');
+    expect(body.error).toBe('Validation failed');
   });
 
   // 5. Invalid UUID returns 400
@@ -178,7 +178,7 @@ describe('POST /api/source-documents/[id]/send-to-review', () => {
     expect(res.status).toBe(400);
 
     const body = await res.json();
-    expect(body.error).toContain('Invalid UUID in item_ids');
+    expect(body.error).toBe('Validation failed');
   });
 
   // 6. Eligible items get governance_review_status = 'pending'

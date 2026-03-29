@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
-import { parseBody } from '@/lib/validation';
-import { WorkspaceUpdateBodySchema } from '@/lib/validation/schemas';
+import { parseBody, parseSearchParams } from '@/lib/validation';
+import { WorkspaceUpdateBodySchema, WorkspaceDeleteParamsSchema } from '@/lib/validation/schemas';
 
 export const maxDuration = 30;
 
@@ -88,8 +88,9 @@ export async function DELETE(
       );
     }
 
-    const permanent =
-      request.nextUrl.searchParams.get('permanent') === 'true';
+    const parsed = parseSearchParams(WorkspaceDeleteParamsSchema, request.nextUrl.searchParams);
+    if (!parsed.success) return parsed.response;
+    const permanent = parsed.data.permanent === true;
 
     if (permanent) {
       // Check for assigned items first
