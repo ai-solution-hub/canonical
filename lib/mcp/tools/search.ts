@@ -20,7 +20,32 @@ import type {
 } from '@/lib/mcp/formatters';
 import { type ToolExtra, toStructuredContent, getGenerateEmbedding } from './shared';
 
+// ---------------------------------------------------------------------------
+// Load domain names from DB at registration time so tool descriptions stay
+// in sync with the taxonomy. Uses the service client (no user auth needed
+// for taxonomy metadata).
+// ---------------------------------------------------------------------------
+
+async function loadDomainNames(): Promise<string[]> {
+  try {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = createServiceClient();
+    const { data } = await supabase
+      .from('taxonomy_domains')
+      .select('name')
+      .order('display_order');
+    return (data ?? []).map((d: { name: string }) => d.name);
+  } catch {
+    // Fallback — ensures tool registration never fails even if DB is unreachable
+    return [];
+  }
+}
+
 export async function registerSearchTools(server: McpServer): Promise<void> {
+  const domainNames = await loadDomainNames();
+  const domainList = domainNames.length > 0
+    ? domainNames.join(', ')
+    : 'security, compliance, implementation, support, corporate, product-feature, methodology';
   // -------------------------------------------------------------------------
   // 1. search_knowledge_base
   // -------------------------------------------------------------------------
@@ -28,12 +53,12 @@ export async function registerSearchTools(server: McpServer): Promise<void> {
     'search_knowledge_base',
     {
       title: 'Search Knowledge Base',
-      description: 'Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: security, compliance, implementation, support, corporate, product-feature, methodology. Use the kb://taxonomy resource for the full subtopic list.',
+      description: `Search the knowledge base using semantic and keyword search. Returns content items matching your query, ranked by relevance. Use this to find articles, policies, case studies, Q&A pairs, and other knowledge base content. For Q&A pairs specifically, prefer search_qa_library instead. Valid domains: ${domainList}. Use the kb://taxonomy resource for the full subtopic list.`,
       inputSchema: {
         query: z.string().describe('The search query — use natural language for best results'),
         limit: z.number().optional().describe('Maximum number of results to return (default: 10, max: 50)'),
         offset: z.number().optional().describe('Number of results to skip for pagination (default: 0)'),
-        domain: z.string().optional().describe('Filter results to a specific domain. Valid values: security, compliance, implementation, support, corporate, product-feature, methodology'),
+        domain: z.string().optional().describe(`Filter results to a specific domain. Valid values: ${domainList}`),
       },
       annotations: {
         readOnlyHint: true,
