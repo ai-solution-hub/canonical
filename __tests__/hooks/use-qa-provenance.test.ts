@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -81,6 +83,19 @@ const DEFAULT_PARAMS = {
   onMetadataUpdate: vi.fn(),
 };
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -135,7 +150,9 @@ describe('useQAProvenance', () => {
   // -----------------------------------------------------------------------
 
   it('fetches workspaces for Q&A pair items', async () => {
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.usedInWorkspaces).toHaveLength(1);
@@ -148,7 +165,7 @@ describe('useQAProvenance', () => {
   it('does not fetch workspaces when isQAPair is false', async () => {
     const { result } = renderHook(() =>
       useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
-    );
+    { wrapper: createWrapper() });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.usedInWorkspaces).toEqual([]);
@@ -170,7 +187,9 @@ describe('useQAProvenance', () => {
       },
     ];
 
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.usedInWorkspaces).toHaveLength(1);
@@ -184,7 +203,9 @@ describe('useQAProvenance', () => {
   // -----------------------------------------------------------------------
 
   it('fetches related Q&A pairs from the same source file', async () => {
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.relatedQA).toHaveLength(2);
@@ -196,7 +217,7 @@ describe('useQAProvenance', () => {
   it('does not fetch related Q&A when no source_file available', async () => {
     const { result } = renderHook(() =>
       useQAProvenance({ ...DEFAULT_PARAMS, sourceFile: null, metadata: {} }),
-    );
+    { wrapper: createWrapper() });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.relatedQA).toEqual([]);
@@ -205,10 +226,24 @@ describe('useQAProvenance', () => {
   it('does not fetch related Q&A when isQAPair is false', async () => {
     const { result } = renderHook(() =>
       useQAProvenance({ ...DEFAULT_PARAMS, isQAPair: false }),
-    );
+    { wrapper: createWrapper() });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.relatedQA).toEqual([]);
+  });
+
+  it('falls back to metadata.source_file when sourceFile prop is null', async () => {
+    const { result } = renderHook(() =>
+      useQAProvenance({
+        ...DEFAULT_PARAMS,
+        sourceFile: null,
+        metadata: { source_file: 'fallback.docx' },
+      }),
+    { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.relatedQA).toHaveLength(2);
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -218,7 +253,9 @@ describe('useQAProvenance', () => {
   it('does not fetch layers when content_layers feature is disabled', async () => {
     mockIsFeatureEnabled.mockReturnValue(false);
 
-    renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await new Promise((r) => setTimeout(r, 50));
     // fetch should not have been called with /layers URL
@@ -231,7 +268,9 @@ describe('useQAProvenance', () => {
   it('fetches layers when content_layers feature is enabled', async () => {
     mockIsFeatureEnabled.mockReturnValue(true);
 
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.topicLayers).toHaveLength(1);
@@ -250,21 +289,23 @@ describe('useQAProvenance', () => {
       return { ok: true, json: async () => ({}) };
     });
 
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(result.current.topicLayers).toEqual([]);
   });
 
   // -----------------------------------------------------------------------
-  // Inline layer editing — optimistic update + rollback
+  // Inline layer editing -- optimistic update + rollback
   // -----------------------------------------------------------------------
 
   it('performs optimistic update when changing layer', async () => {
     const onMetadataUpdate = vi.fn();
     const { result } = renderHook(() =>
       useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
-    );
+    { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');
@@ -283,7 +324,7 @@ describe('useQAProvenance', () => {
     const onMetadataUpdate = vi.fn();
     const { result } = renderHook(() =>
       useQAProvenance({ ...DEFAULT_PARAMS, onMetadataUpdate }),
-    );
+    { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.handleLayerChange(null);
@@ -295,7 +336,9 @@ describe('useQAProvenance', () => {
   });
 
   it('shows success toast after successful layer update', async () => {
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');
@@ -305,7 +348,9 @@ describe('useQAProvenance', () => {
   });
 
   it('shows "Layer cleared" toast when setting layer to null', async () => {
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       await result.current.handleLayerChange(null);
@@ -332,7 +377,7 @@ describe('useQAProvenance', () => {
         metadata: originalMetadata,
         onMetadataUpdate,
       }),
-    );
+    { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');
@@ -346,7 +391,9 @@ describe('useQAProvenance', () => {
   });
 
   it('sends PATCH request to metadata API', async () => {
-    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS));
+    const { result } = renderHook(() => useQAProvenance(DEFAULT_PARAMS), {
+      wrapper: createWrapper(),
+    });
 
     await act(async () => {
       await result.current.handleLayerChange('strategic');

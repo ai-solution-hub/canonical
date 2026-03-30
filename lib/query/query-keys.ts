@@ -155,6 +155,24 @@ export const queryKeys = {
       ['citations', 'orphans', sortedIdKey] as const,
   },
 
+  // Q&A Provenance
+  qaProvenance: {
+    all: ['qa-provenance'] as const,
+    workspaces: (itemId: string) => ['qa-provenance', 'workspaces', itemId] as const,
+    related: (itemId: string, sourceFile: string) =>
+      ['qa-provenance', 'related', itemId, sourceFile] as const,
+    layers: (itemId: string) => ['qa-provenance', 'layers', itemId] as const,
+  },
+
+  // Bids
+  bids: {
+    all: ['bids'] as const,
+    list: ['bids', 'list'] as const,
+    detail: (id: string) => ['bids', 'detail', id] as const,
+    questions: (bidId: string) => ['bids', 'questions', bidId] as const,
+    readiness: (bidId: string) => ['bids', 'readiness', bidId] as const,
+  },
+
   // Topic layers
   topicLayers: {
     all: ['topic-layers'] as const,

@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson } from '@/lib/query/fetchers';
+import { useCallback } from 'react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,41 +46,23 @@ interface UseBidReadinessReturn {
 // ---------------------------------------------------------------------------
 
 export function useBidReadiness(bidId: string): UseBidReadinessReturn {
-  const [readiness, setReadiness] = useState<ReadinessData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchReadiness = useCallback(async () => {
-    if (!bidId) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/bids/${bidId}/readiness`);
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Failed to fetch readiness (${res.status})`);
-      }
-
-      const data: ReadinessData = await res.json();
-      setReadiness(data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to check readiness';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [bidId]);
-
-  useEffect(() => {
-    fetchReadiness();
-  }, [fetchReadiness]);
+  const query = useQuery<ReadinessData>({
+    queryKey: queryKeys.bids.readiness(bidId),
+    queryFn: () => fetchJson<ReadinessData>(`/api/bids/${bidId}/readiness`),
+    enabled: !!bidId,
+    staleTime: 30_000,
+  });
 
   const refresh = useCallback(() => {
-    fetchReadiness();
-  }, [fetchReadiness]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.bids.readiness(bidId) });
+  }, [queryClient, bidId]);
 
-  return { readiness, isLoading, error, refresh };
+  return {
+    readiness: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error?.message ?? null,
+    refresh,
+  };
 }

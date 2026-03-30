@@ -2,13 +2,15 @@
  * useBidReadiness hook tests.
  *
  * Covers:
- *   - Successful fetch
+ *   - Successful fetch via TanStack Query
  *   - Error handling
  *   - Loading state
- *   - Refresh functionality
+ *   - Refresh functionality (cache invalidation)
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
 import { useBidReadiness } from '@/hooks/bid/use-bid-readiness';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +42,23 @@ const readyResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Helper: wrapper with QueryClientProvider
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(QueryClientProvider, { client: queryClient }, children);
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -58,7 +77,9 @@ describe('useBidReadiness', () => {
       json: async () => readyResponse,
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
 
     // Initially loading
     expect(result.current.isLoading).toBe(true);
@@ -69,7 +90,7 @@ describe('useBidReadiness', () => {
 
     expect(result.current.readiness).toEqual(readyResponse);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith(`/api/bids/${BID_UUID}/readiness`);
+    expect(mockFetch).toHaveBeenCalledWith(`/api/bids/${BID_UUID}/readiness`, undefined);
   });
 
   it('handles fetch error', async () => {
@@ -79,7 +100,9 @@ describe('useBidReadiness', () => {
       json: async () => ({ error: 'Server error' }),
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -92,7 +115,9 @@ describe('useBidReadiness', () => {
   it('handles network error', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network failure'));
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -108,13 +133,15 @@ describe('useBidReadiness', () => {
       json: async () => readyResponse,
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.isLoading).toBe(true);
     expect(result.current.readiness).toBeNull();
     expect(result.current.error).toBeNull();
   });
 
-  it('supports refresh', async () => {
+  it('supports refresh via cache invalidation', async () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -128,7 +155,9 @@ describe('useBidReadiness', () => {
         }),
       });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -136,7 +165,7 @@ describe('useBidReadiness', () => {
 
     expect(result.current.readiness?.ready).toBe(true);
 
-    // Trigger refresh
+    // Trigger refresh (invalidates cache)
     act(() => {
       result.current.refresh();
     });
@@ -155,12 +184,26 @@ describe('useBidReadiness', () => {
       json: async () => { throw new Error('not JSON'); },
     });
 
-    const { result } = renderHook(() => useBidReadiness(BID_UUID));
+    const { result } = renderHook(() => useBidReadiness(BID_UUID), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    expect(result.current.error).toBe('Failed to fetch readiness (403)');
+    expect(result.current.error).toBe('Request failed: 403');
+  });
+
+  it('does not fetch when bidId is empty', async () => {
+    const { result } = renderHook(() => useBidReadiness(''), {
+      wrapper: createWrapper(),
+    });
+
+    // Should not be loading and should not have fetched
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.readiness).toBeNull();
   });
 });

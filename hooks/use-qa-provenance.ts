@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { isFeatureEnabled } from '@/lib/client-config';
 import { getLayerLabel } from '@/lib/validation/layer-schemas';
+import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 
 export interface UseQAProvenanceParams {
@@ -22,6 +24,19 @@ export interface UseQAProvenanceReturn {
   handleLayerChange: (newLayer: string | null) => Promise<void>;
 }
 
+// ---------------------------------------------------------------------------
+// Types for Supabase join query
+// ---------------------------------------------------------------------------
+
+interface WorkspaceJoinRow {
+  workspace_id: string;
+  workspaces: { id: string; name: string; type: string } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
 export function useQAProvenance({
   itemId,
   isQAPair,
@@ -29,79 +44,96 @@ export function useQAProvenance({
   sourceFile: sourceFileProp,
   onMetadataUpdate,
 }: UseQAProvenanceParams): UseQAProvenanceReturn {
-  const [usedInWorkspaces, setUsedInWorkspaces] = useState<Array<{ id: string; name: string; type: string }>>([]);
-  const [relatedQA, setRelatedQA] = useState<Array<{ id: string; title: string | null }>>([]);
-  const [topicLayers, setTopicLayers] = useState<
-    Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>
-  >([]);
+  const queryClient = useQueryClient();
 
-  // Fetch workspaces (bids) using this Q&A pair
-  useEffect(() => {
-    if (!isQAPair) return;
-    const fetchWorkspaces = async () => {
+  // Derive sourceFile from prop or metadata fallback
+  const sourceFile = sourceFileProp ?? (metadata as Record<string, unknown> | null)?.source_file as string | undefined;
+
+  // -----------------------------------------------------------------------
+  // Query 1: Workspaces (bids) using this Q&A pair
+  // -----------------------------------------------------------------------
+  const workspacesQuery = useQuery({
+    queryKey: queryKeys.qaProvenance.workspaces(itemId),
+    queryFn: async () => {
       const supabase = createClient();
       const { data } = await supabase
         .from('content_item_workspaces')
         .select('workspace_id, workspaces:workspace_id(id, name, type)')
         .eq('content_item_id', itemId);
-      if (data) {
-        interface WorkspaceJoinRow {
-          workspace_id: string;
-          workspaces: { id: string; name: string; type: string } | null;
-        }
-        const workspaces = (data as WorkspaceJoinRow[])
-          .map((d) => d.workspaces)
-          .filter((w): w is { id: string; name: string; type: string } => w !== null && w.type === 'bid');
-        setUsedInWorkspaces(workspaces);
-      }
-    };
-    fetchWorkspaces();
-  }, [itemId, isQAPair]);
+      if (!data) return [];
+      return (data as WorkspaceJoinRow[])
+        .map((d) => d.workspaces)
+        .filter((w): w is { id: string; name: string; type: string } => w !== null && w.type === 'bid');
+    },
+    enabled: isQAPair,
+    staleTime: 30_000,
+  });
 
-  // Fetch related Q&A pairs from the same source document
-  useEffect(() => {
-    if (!isQAPair) return;
-    const sourceFile = sourceFileProp ?? (metadata as Record<string, unknown> | null)?.source_file as string | undefined;
-    if (!sourceFile) return;
-    const fetchRelated = async () => {
+  // -----------------------------------------------------------------------
+  // Query 2: Related Q&A from the same source document
+  // -----------------------------------------------------------------------
+  const relatedQuery = useQuery({
+    queryKey: queryKeys.qaProvenance.related(itemId, sourceFile ?? ''),
+    queryFn: async () => {
       const supabase = createClient();
       const { data } = await supabase
         .from('content_items')
         .select('id, title')
         .eq('content_type', 'q_a_pair')
-        .eq('source_file', sourceFile)
+        .eq('source_file', sourceFile!)
         .neq('id', itemId)
         .order('title')
         .limit(10);
-      if (data) setRelatedQA(data as Array<{ id: string; title: string | null }>);
-    };
-    fetchRelated();
-  }, [itemId, metadata, isQAPair, sourceFileProp]);
+      if (!data) return [];
+      return data as Array<{ id: string; title: string | null }>;
+    },
+    enabled: isQAPair && !!sourceFile,
+    staleTime: 30_000,
+  });
 
-  // Fetch topic layers (items sharing the same topic_id)
-  useEffect(() => {
-    if (!isFeatureEnabled('content_layers')) return;
-    const fetchLayers = async () => {
-      try {
-        const res = await fetch(`/api/items/${itemId}/layers`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.layers?.length > 0) {
-          setTopicLayers(
-            data.layers as Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>,
-          );
-        }
-      } catch {
-        // Non-critical — fail silently
+  // -----------------------------------------------------------------------
+  // Query 3: Topic layers (feature-gated)
+  // -----------------------------------------------------------------------
+  const layersQuery = useQuery({
+    queryKey: queryKeys.qaProvenance.layers(itemId),
+    queryFn: async () => {
+      const res = await fetch(`/api/items/${itemId}/layers`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (data.layers?.length > 0) {
+        return data.layers as Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>;
       }
-    };
-    fetchLayers();
-  }, [itemId]);
+      return [];
+    },
+    enabled: isFeatureEnabled('content_layers'),
+    staleTime: 30_000,
+  });
 
-  // Inline layer editing handler
+  // -----------------------------------------------------------------------
+  // Mutation: Inline layer editing with optimistic update + rollback
+  // -----------------------------------------------------------------------
+  const layerMutation = useMutation({
+    mutationFn: async (newLayer: string | null) => {
+      const res = await fetch(`/api/items/${itemId}/metadata`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer: newLayer }),
+      });
+      if (!res.ok) throw new Error('Failed to update layer');
+      return newLayer;
+    },
+    onSuccess: (newLayer) => {
+      toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
+      queryClient.invalidateQueries({ queryKey: queryKeys.qaProvenance.layers(itemId) });
+    },
+  });
+
+  // Wrap mutation in a callback that preserves the original optimistic
+  // update / rollback contract via onMetadataUpdate
   const handleLayerChange = useCallback(
     async (newLayer: string | null) => {
       const prevMetadata = metadata;
+
       // Optimistic update
       onMetadataUpdate((prev) => {
         if (newLayer) {
@@ -111,14 +143,9 @@ export function useQAProvenance({
         delete m?.layer;
         return m;
       });
+
       try {
-        const res = await fetch(`/api/items/${itemId}/metadata`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ layer: newLayer }),
-        });
-        if (!res.ok) throw new Error();
-        toast.success(newLayer ? `Layer set to ${getLayerLabel(newLayer)}` : 'Layer cleared');
+        await layerMutation.mutateAsync(newLayer);
       } catch (err) {
         console.error('Failed to update layer:', err);
         // Rollback
@@ -126,13 +153,13 @@ export function useQAProvenance({
         toast.error('Failed to update layer');
       }
     },
-    [itemId, metadata, onMetadataUpdate],
+    [itemId, metadata, onMetadataUpdate, layerMutation],
   );
 
   return {
-    usedInWorkspaces,
-    relatedQA,
-    topicLayers,
+    usedInWorkspaces: workspacesQuery.data ?? [],
+    relatedQA: relatedQuery.data ?? [],
+    topicLayers: layersQuery.data ?? [],
     handleLayerChange,
   };
 }
