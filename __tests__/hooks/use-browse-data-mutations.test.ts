@@ -1,8 +1,8 @@
 /**
  * useBrowseData Mutation Tests
  *
- * Tests the optimistic update functions added to useBrowseData:
- * updateItemLocally and updateQualityFlag.
+ * Tests the optimistic update functions using TanStack Query's
+ * queryClient.setQueryData pattern.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
@@ -19,6 +19,7 @@ const {
   mockSearchQuery,
   mockSetSearchQuery,
   mockClearSearchQuery,
+  mockClearFilters,
 } = vi.hoisted(() => {
   return {
     mockRpc: vi.fn(),
@@ -31,6 +32,7 @@ const {
     mockSearchQuery: { value: undefined as string | undefined },
     mockSetSearchQuery: vi.fn(),
     mockClearSearchQuery: vi.fn(),
+    mockClearFilters: vi.fn(),
   };
 });
 
@@ -38,6 +40,7 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     from: mockFrom,
     rpc: mockRpc,
+    auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
   }),
 }));
 
@@ -49,6 +52,7 @@ vi.mock('@/hooks/browse/use-browse-filters', () => ({
     setFilters: mockSetFilters,
     setSearchQuery: mockSetSearchQuery,
     clearSearchQuery: mockClearSearchQuery,
+    clearFilters: mockClearFilters,
   }),
 }));
 
@@ -70,6 +74,7 @@ vi.mock('@/types/content', async (importOriginal) => {
 });
 
 import { useBrowseData } from '@/hooks/browse/use-browse-data';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -80,18 +85,20 @@ function createQueryChain(
   resolvedCount: number | null = null,
   resolvedError: unknown = null,
 ) {
-  const chain: Record<string, unknown> = {};
-  const methods = [
-    'select', 'eq', 'neq', 'in', 'is', 'not', 'or', 'order',
-    'limit', 'range', 'gte', 'lte', 'gt', 'lt', 'ilike', 'overlaps',
-  ];
-  for (const method of methods) {
-    chain[method] = vi.fn().mockReturnValue(chain);
-  }
-  chain.then = vi.fn((resolve: (value: unknown) => void) =>
-    resolve({ data: resolvedData, count: resolvedCount, error: resolvedError }),
-  );
-  return chain;
+  const result = { data: resolvedData, count: resolvedCount, error: resolvedError };
+
+  const handler: ProxyHandler<object> = {
+    get(_target, prop) {
+      if (prop === 'then') {
+        return (onFulfilled?: (v: unknown) => unknown) =>
+          Promise.resolve(result).then(onFulfilled);
+      }
+      return vi.fn().mockReturnValue(proxy);
+    },
+  };
+
+  const proxy = new Proxy({}, handler);
+  return proxy;
 }
 
 const MOCK_ITEMS = [
@@ -109,14 +116,19 @@ describe('useBrowseData mutations', () => {
     vi.clearAllMocks();
     mockSearchQuery.value = undefined;
 
+    // Reset filters
+    Object.keys(mockFilters).forEach((k) => delete mockFilters[k]);
+    mockFilters.sort = 'captured_date';
+    mockFilters.order = 'desc';
+
     // Set up query chain for initial fetch
-    const chain = createQueryChain(MOCK_ITEMS, 3);
-    mockFrom.mockReturnValue(chain);
-    mockRpc.mockResolvedValue({ data: ['item-2'] });
+    mockFrom.mockReturnValue(createQueryChain(MOCK_ITEMS, 3));
+    mockRpc.mockResolvedValue({ data: ['item-2'], error: null });
   });
 
   it('updateItemLocally updates verified_at on matching item', async () => {
-    const { result } = renderHook(() => useBrowseData());
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
 
     // Wait for initial load
     await waitFor(() => {
@@ -130,11 +142,14 @@ describe('useBrowseData mutations', () => {
       result.current.updateItemLocally('item-1', { verified_at: '2026-03-24T00:00:00Z' });
     });
 
-    expect(result.current.items[0].verified_at).toBe('2026-03-24T00:00:00Z');
+    await waitFor(() => {
+      expect(result.current.items[0].verified_at).toBe('2026-03-24T00:00:00Z');
+    });
   });
 
   it('updateItemLocally does not affect other items', async () => {
-    const { result } = renderHook(() => useBrowseData());
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -144,13 +159,18 @@ describe('useBrowseData mutations', () => {
       result.current.updateItemLocally('item-1', { verified_at: '2026-03-24T00:00:00Z' });
     });
 
+    await waitFor(() => {
+      expect(result.current.items[0].verified_at).toBe('2026-03-24T00:00:00Z');
+    });
+
     // Other items unchanged
     expect(result.current.items[1].verified_at).toBe('2026-01-01T00:00:00Z');
     expect(result.current.items[2].verified_at).toBeNull();
   });
 
   it('updateQualityFlag adds ID to qualityFlaggedIds', async () => {
-    const { result } = renderHook(() => useBrowseData());
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -160,23 +180,30 @@ describe('useBrowseData mutations', () => {
       result.current.updateQualityFlag('item-3', true);
     });
 
-    expect(result.current.qualityFlaggedIds.has('item-3')).toBe(true);
+    await waitFor(() => {
+      expect(result.current.qualityFlaggedIds.has('item-3')).toBe(true);
+    });
   });
 
   it('updateQualityFlag removes ID from qualityFlaggedIds', async () => {
-    const { result } = renderHook(() => useBrowseData());
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useBrowseData(), { wrapper: Wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
     // The mock RPC returns ['item-2'] as flagged
-    expect(result.current.qualityFlaggedIds.has('item-2')).toBe(true);
+    await waitFor(() => {
+      expect(result.current.qualityFlaggedIds.has('item-2')).toBe(true);
+    });
 
     act(() => {
       result.current.updateQualityFlag('item-2', false);
     });
 
-    expect(result.current.qualityFlaggedIds.has('item-2')).toBe(false);
+    await waitFor(() => {
+      expect(result.current.qualityFlaggedIds.has('item-2')).toBe(false);
+    });
   });
 });
