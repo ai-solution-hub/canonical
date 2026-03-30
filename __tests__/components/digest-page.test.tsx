@@ -128,11 +128,12 @@ function makePastDigestEntry(overrides: Record<string, unknown> = {}) {
 }
 
 /**
- * Configure mockFetch to respond to the three API endpoints.
+ * Configure mockFetch to respond to the digest API endpoints.
  */
 function setupFetch(options: {
   latest?: Record<string, unknown> | null;
   list?: Record<string, unknown>[];
+  detail?: Record<string, unknown> | null;
   generateResult?: Record<string, unknown> | null;
   generateError?: string | null;
 } = {}) {
@@ -163,6 +164,14 @@ function setupFetch(options: {
       return {
         ok: true,
         json: async () => ({ digest: options.generateResult ?? makeDigest() }),
+      };
+    }
+
+    // Match /api/digest/{id} — the detail endpoint
+    if (/\/api\/digest\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
+      return {
+        ok: true,
+        json: async () => ({ digest: options.detail ?? makeDigest() }),
       };
     }
 
@@ -514,11 +523,11 @@ describe('DigestPage', () => {
     const pastButton = within(list).getAllByRole('button')[0];
     await user.click(pastButton);
 
-    // It should have called fetch to load the full digest
+    // It should have called the detail endpoint directly, not the list endpoint
     await waitFor(() => {
       const calls = mockFetch.mock.calls.map((c: unknown[]) => c[0]);
       expect(calls).toContainEqual(
-        expect.stringContaining('/api/digest/list?limit=50'),
+        expect.stringContaining('/api/digest/past-1'),
       );
     });
   });

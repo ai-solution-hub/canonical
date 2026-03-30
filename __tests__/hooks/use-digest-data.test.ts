@@ -45,6 +45,7 @@ function makeDigest(overrides: Record<string, unknown> = {}) {
 function setupFetch(options: {
   latest?: Record<string, unknown> | null;
   list?: Record<string, unknown>[];
+  detail?: Record<string, unknown> | null;
   generateResult?: Record<string, unknown> | null;
   generateError?: string | null;
 } = {}) {
@@ -75,6 +76,14 @@ function setupFetch(options: {
       return {
         ok: true,
         json: async () => ({ digest: options.generateResult ?? makeDigest() }),
+      };
+    }
+
+    // Match /api/digest/{id} — the detail endpoint (any non-route ID)
+    if (/\/api\/digest\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
+      return {
+        ok: true,
+        json: async () => ({ digest: options.detail ?? null }),
       };
     }
 
@@ -211,5 +220,72 @@ describe('useDigestData', () => {
     await waitFor(() => {
       expect(result.current.generating).toBe(true);
     });
+  });
+
+  // ─── loadDigest ─────────────────────────────────────────────────────────
+
+  it('loadDigest calls the detail endpoint and updates current digest', async () => {
+    const latestDigest = makeDigest({ id: 'latest-1' });
+    const pastDigest = makeDigest({ id: 'past-1', narrative_summary: 'Past report.' });
+    setupFetch({
+      latest: latestDigest,
+      list: [latestDigest],
+      detail: pastDigest,
+    });
+    const { Wrapper } = createQueryWrapper();
+
+    const { result } = renderHook(() => useDigestData(), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.loadDigest('past-1');
+    });
+
+    // Verify the detail endpoint was called, not the list endpoint
+    const fetchCalls = mockFetch.mock.calls.map(
+      (call: [string, ...unknown[]]) => call[0],
+    );
+    expect(fetchCalls).toContain('/api/digest/past-1');
+
+    // The current digest should now be the loaded one
+    await waitFor(() => {
+      expect(result.current.currentDigest).toEqual(pastDigest);
+    });
+  });
+
+  it('loadDigest shows error toast on failure', async () => {
+    setupFetch({ latest: null, list: [] });
+    // Override to make the detail endpoint fail
+    mockFetch.mockImplementation(async (url: string) => {
+      const urlStr = typeof url === 'string' ? url : String(url);
+
+      if (urlStr.includes('/api/digest/latest')) {
+        return { ok: true, json: async () => ({ digest: null }) };
+      }
+      if (urlStr.includes('/api/digest/list')) {
+        return { ok: true, json: async () => ({ digests: [] }) };
+      }
+      // Detail endpoint fails
+      if (/\/api\/digest\/(?!latest|list|generate)[^/]+/.test(urlStr)) {
+        return { ok: false, json: async () => ({ error: 'Not found' }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    });
+
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useDigestData(), { wrapper: Wrapper });
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.loadDigest('nonexistent-id');
+    });
+
+    expect(mockToast.error).toHaveBeenCalledWith('Failed to load report');
   });
 });
