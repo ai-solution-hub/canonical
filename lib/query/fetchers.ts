@@ -5,14 +5,28 @@
  * to repeat the pattern.
  */
 
-/** Fetch JSON from an API route, throwing on non-OK responses. */
+/** API error with optional error code for differentiated handling. */
+export class ApiError extends Error {
+  readonly code: string | undefined;
+  readonly status: number;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** Fetch JSON from an API route, throwing ApiError on non-OK responses. */
 export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(
-      (body as Record<string, string>).error ?? `Request failed: ${res.status}`,
-    );
+    const data = body as Record<string, unknown>;
+    const message = (data.error as string) ?? `Request failed: ${res.status}`;
+    const code = data.code as string | undefined;
+    throw new ApiError(message, res.status, code);
   }
   return res.json() as Promise<T>;
 }

@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { getCursorFromItem, isOffsetSort } from '@/lib/browse-helpers';
 import { escapePostgrestValue } from '@/lib/supabase/escape';
 import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson, ApiError } from '@/lib/query/fetchers';
 import {
   CONTENT_LIST_COLUMNS,
   type ContentListItem,
@@ -431,6 +432,31 @@ export function useBrowseData(): UseBrowseDataReturn {
   const filtersKey = filters as Record<string, unknown>;
 
   // -------------------------------------------------------------------------
+  // Pre-filter resolution cache: resolvers only re-run when the filter values
+  // they depend on change, not on every page fetch (load-more).
+  // -------------------------------------------------------------------------
+
+  const resolverCacheRef = useRef<{
+    key: string;
+    result: {
+      keywordIds: string[] | null;
+      projectIds: string[] | null;
+      qualityIds: string[] | null;
+      entityIds: string[] | null;
+      resolvedOwner: string | null;
+    };
+  } | null>(null);
+
+  const resolverCacheKey = JSON.stringify({
+    keywords: filters.keywords,
+    workspace: filters.workspace,
+    quality_issues: filters.quality_issues,
+    entity: filters.entity,
+    entity_type: filters.entity_type,
+    owner: filters.owner,
+  });
+
+  // -------------------------------------------------------------------------
   // Browse mode: useInfiniteQuery for filter-mode with cursor/offset pagination
   // -------------------------------------------------------------------------
 
@@ -441,15 +467,24 @@ export function useBrowseData(): UseBrowseDataReturn {
       const isInitial = pageParam === null;
       const sort = filters.sort ?? 'captured_date';
 
-      // Resolve pre-filters in parallel
-      const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] =
-        await Promise.all([
-          resolveKeywordIds(supabase, filters),
-          resolveWorkspaceIds(supabase, filters),
-          resolveQualityIssueIds(supabase, filters),
-          resolveEntityIds(supabase, filters),
-          resolveOwnerFilter(supabase, filters),
-        ]);
+      // Use cached resolver results if filter values haven't changed
+      let resolved: typeof resolverCacheRef.current extends { result: infer R } ? R : never;
+      if (resolverCacheRef.current?.key === resolverCacheKey) {
+        resolved = resolverCacheRef.current.result;
+      } else {
+        const [keywordIds, projectIds, qualityIds, entityIds, resolvedOwner] =
+          await Promise.all([
+            resolveKeywordIds(supabase, filters),
+            resolveWorkspaceIds(supabase, filters),
+            resolveQualityIssueIds(supabase, filters),
+            resolveEntityIds(supabase, filters),
+            resolveOwnerFilter(supabase, filters),
+          ]);
+        resolved = { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner };
+        resolverCacheRef.current = { key: resolverCacheKey, result: resolved };
+      }
+
+      const { keywordIds, projectIds, qualityIds, entityIds, resolvedOwner } = resolved;
 
       // Short-circuit if any required filter resolved to empty
       if (
@@ -531,30 +566,24 @@ export function useBrowseData(): UseBrowseDataReturn {
   const searchResult = useQuery<SearchResult[], Error>({
     queryKey: queryKeys.contentItems.search(searchQuery ?? ''),
     queryFn: async ({ signal }) => {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: searchQuery,
-          threshold: 0.35,
-          limit: SEARCH_RESULT_LIMIT,
-        }),
-        signal,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        const code = (errData as Record<string, unknown>).code;
-        if (code === 'EMBEDDING_FAILED') {
+      try {
+        const data = await fetchJson<{ results: SearchResult[] }>('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: searchQuery,
+            threshold: 0.35,
+            limit: SEARCH_RESULT_LIMIT,
+          }),
+          signal,
+        });
+        return data.results ?? [];
+      } catch (err) {
+        if (err instanceof ApiError && err.code === 'EMBEDDING_FAILED') {
           throw new Error('Search is temporarily unavailable. Please try again shortly.');
         }
-        throw new Error(
-          ((errData as Record<string, unknown>).error as string) || 'Search failed',
-        );
+        throw err;
       }
-
-      const data = await response.json();
-      return (data.results ?? []) as SearchResult[];
     },
     enabled: isSearchMode,
     staleTime: AUXILIARY_STALE_TIME,
