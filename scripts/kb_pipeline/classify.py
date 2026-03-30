@@ -310,6 +310,8 @@ class ClassificationResult:
     requires_review: bool
     reason_if_flagged: str
     entities: List[dict] = field(default_factory=list)
+    relationships: List[dict] = field(default_factory=list)
+    temporal_references: List[dict] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
     cache_creation_tokens: int = 0
@@ -371,7 +373,7 @@ def classify(
 
     response = client.messages.create(
         model=CLASSIFICATION_MODEL,
-        max_tokens=1024,
+        max_tokens=2000,
         temperature=0.0,
         system=[{
             "type": "text",
@@ -412,7 +414,7 @@ def classify(
                 "entity_name": ent.get("name", ""),
                 "entity_type": ent_type,
                 "canonical_name": canonicalise(raw_canonical, ent_type),
-                "confidence": ent.get("confidence", 0.8),
+                "confidence": ent.get("confidence", 1.0),
             })
 
     # Filter out non-entity identifiers (SIC codes, VAT numbers, etc.)
@@ -424,6 +426,42 @@ def classify(
 
     # Merge: AI entities take precedence, keyword entities fill gaps
     entities = _merge_entities(ai_entities, keyword_entities)
+
+    # Parse relationships from response (if the AI returned them)
+    raw_relationships = parsed.get("relationships", [])
+    relationships = []
+    valid_relationship_types = frozenset([
+        "holds", "complies_with", "delivers_to", "uses",
+        "demonstrated_by", "requires", "part_of", "supersedes",
+        "references", "evidences",
+    ])
+    for rel in raw_relationships:
+        rel_type = rel.get("relationship", "")
+        source = rel.get("source", "")
+        target = rel.get("target", "")
+        if rel_type in valid_relationship_types and source and target:
+            relationships.append({
+                "source": canonicalise(source),
+                "relationship_type": rel_type,
+                "target": canonicalise(target),
+            })
+
+    # Parse temporal references from response (if the AI returned them)
+    raw_temporal = parsed.get("temporal_references", [])
+    temporal_references = []
+    valid_context_types = frozenset(["expiry", "effective", "historical", "unknown"])
+    for ref in raw_temporal:
+        date_str = ref.get("date", "")
+        context = ref.get("context", "")
+        context_type = ref.get("context_type", "unknown")
+        if date_str and context:
+            if context_type not in valid_context_types:
+                context_type = "unknown"
+            temporal_references.append({
+                "date": date_str,
+                "context": context,
+                "context_type": context_type,
+            })
 
     cls_result = ClassificationResult(
         primary_domain=parsed["primary_domain"],
@@ -440,6 +478,8 @@ def classify(
         requires_review=flags.get("requires_review", False),
         reason_if_flagged=flags.get("reason_if_flagged", ""),
         entities=entities,
+        relationships=relationships,
+        temporal_references=temporal_references,
         input_tokens=input_tok,
         output_tokens=output_tok,
         cache_creation_tokens=cache_creation,
@@ -794,6 +834,67 @@ def store_entities(
             logger.warning(
                 "Failed to store entity mention (status %s): %s — %s",
                 status, canonical, response,
+            )
+            skipped += 1
+
+    return (stored, skipped)
+
+
+def store_relationships(
+    content_item_id: str,
+    relationships: List[dict],
+) -> tuple:
+    """Store extracted relationships in entity_relationships table.
+
+    Uses Supabase REST API to insert relationship rows.
+
+    Args:
+        content_item_id: UUID of the content item.
+        relationships: List of dicts with source, relationship_type, target.
+
+    Returns:
+        Tuple of (stored_count, skipped_count).
+    """
+    from .store import _request
+
+    if not relationships:
+        return (0, 0)
+
+    stored = 0
+    skipped = 0
+
+    for rel in relationships:
+        source = rel.get("source", "")
+        target = rel.get("target", "")
+        rel_type = rel.get("relationship_type", "")
+
+        if not source or not target or not rel_type:
+            skipped += 1
+            continue
+
+        # Apply alias resolution and lowercase for index compatibility
+        # (canonicalisation already applied during parsing in classify())
+        source = resolve_entity_alias(source).lower()
+        target = resolve_entity_alias(target).lower()
+
+        record = {
+            "source_entity": source,
+            "relationship_type": rel_type,
+            "target_entity": target,
+            "source_item_id": content_item_id,
+            "confidence": 1.0,
+        }
+
+        status, response = _request("POST", "entity_relationships", record)
+
+        if status in (200, 201):
+            stored += 1
+        elif status == 409:
+            skipped += 1
+        else:
+            logger.warning(
+                "Failed to store relationship (status %s): %s %s %s — %s",
+                status, source, rel_type, target, response,
             )
             skipped += 1
 

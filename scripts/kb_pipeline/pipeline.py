@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from .classify import classify, estimate_cost as classify_cost, store_entities, load_entity_aliases
+from .classify import classify, estimate_cost as classify_cost, store_entities, store_relationships, load_entity_aliases
 from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
 from .dedup import is_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
@@ -237,14 +237,42 @@ def process_url(
         result.item_id = id_or_error
         print(f"             ID: {id_or_error}")
 
-        # ── Step 7: Entity storage ───────────────────────────────────
-        if cls and cls.entities:
+        # ── Step 7: Load entity aliases (needed for both entities and relationships)
+        if cls and (cls.entities or cls.relationships):
             try:
                 load_entity_aliases()
+            except Exception as e:
+                print(f"  [Aliases] WARNING: Failed to load aliases: {e}")
+
+        # ── Step 7a: Entity storage ──────────────────────────────────
+        if cls and cls.entities:
+            try:
                 stored, skipped = store_entities(id_or_error, cls.entities)
                 print(f"  [Entities] Stored {stored}, skipped {skipped}")
             except Exception as e:
                 print(f"  [Entities] ERROR (non-blocking): {e}")
+
+        # ── Step 7b: Relationship storage (non-blocking) ────────────
+        if cls and cls.relationships:
+            try:
+                rel_stored, rel_skipped = store_relationships(id_or_error, cls.relationships)
+                print(f"  [Relationships] Stored {rel_stored}, skipped {rel_skipped}")
+            except Exception as e:
+                print(f"  [Relationships] ERROR (non-blocking): {e}")
+
+        # ── Step 7c: Temporal reference storage (non-blocking) ──────
+        if cls and cls.temporal_references:
+            try:
+                from .store import merge_item_metadata
+                meta_ok = merge_item_metadata(id_or_error, {
+                    "ai_temporal_references": cls.temporal_references,
+                })
+                if meta_ok:
+                    print(f"  [Temporal] {len(cls.temporal_references)} references stored")
+                else:
+                    print(f"  [Temporal] Storage failed")
+            except Exception as e:
+                print(f"  [Temporal] ERROR (non-blocking): {e}")
 
         # ── Step 8: Quality logging ──────────────────────────────────
         _log_quality_flags(id_or_error, extracted, cls, batch_name, result)
