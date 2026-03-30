@@ -13,6 +13,8 @@ import { AIServiceError } from '@/lib/ai/errors';
 import { loadSkill } from '@/lib/ai/skills/loader';
 import { canonicalise } from '@/lib/entities/entity-dedup';
 import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
+import { extractEntityContext } from '@/lib/entities/entity-context';
+import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 
@@ -474,6 +476,7 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
           entity_name: e.name,
           canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
           confidence: 1.0,
+          context_snippet: extractEntityContext(plainText, e.name),
         }));
 
       if (entityRows.length > 0) {
@@ -514,6 +517,13 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
     } catch (relErr) {
       console.error('Entity relationship storage failed:', relErr);
     }
+  }
+
+  // Bridge temporal references to entity mention metadata (non-blocking)
+  try {
+    await bridgeTemporalReferencesToEntities(supabase, itemId);
+  } catch (bridgeErr) {
+    console.error('Temporal reference bridging failed:', bridgeErr);
   }
 
   return {
