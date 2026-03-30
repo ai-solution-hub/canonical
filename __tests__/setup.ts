@@ -1,8 +1,14 @@
 /**
  * Vitest global setup file.
  * Registers jest-dom matchers and provides polyfills for jsdom.
+ * Skips browser polyfills when running in node environment (e.g. real DB integration tests).
  */
 import '@testing-library/jest-dom/vitest';
+
+// Skip browser polyfills in node environment (real DB integration tests use @vitest-environment node)
+if (typeof window === 'undefined') {
+  // Nothing to polyfill in node
+} else {
 
 // Polyfill matchMedia (not provided by jsdom)
 Object.defineProperty(window, 'matchMedia', {
@@ -46,3 +52,5 @@ Object.defineProperty(window, 'ResizeObserver', {
   writable: true,
   value: MockResizeObserver,
 });
+
+} // end if (typeof window !== 'undefined')
