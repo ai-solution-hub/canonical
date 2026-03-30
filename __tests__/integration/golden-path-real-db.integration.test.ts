@@ -28,7 +28,7 @@ import { generateEmbedding } from '@/lib/ai/embed';
 // Constants
 // ---------------------------------------------------------------------------
 
-const TEST_PREFIX = `GOLDEN-PATH-${Date.now()}`;
+const TEST_PREFIX = `[GOLDEN-PATH-${Date.now()}]`;
 
 const TEST_CONTENT = `${TEST_PREFIX} ISO 27001 Information Security Management
 
@@ -283,8 +283,13 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
       expect(entitiesWithExpiry.length).toBeGreaterThanOrEqual(1);
     }
 
-    // The test passes either way — the presence of cert entities is the hard assertion
+    // Hard assertion: cert entities must exist (bridge metadata is the soft part)
     expect(certEntities!.length).toBeGreaterThanOrEqual(1);
+
+    // TODO: Uncomment when bridge code is implemented (Gap 1 fix)
+    // expect(entitiesWithExpiry.length).toBeGreaterThanOrEqual(1);
+    // const expiryMeta = entitiesWithExpiry[0].metadata as Record<string, unknown>;
+    // expect(expiryMeta.expiry_date).toContain('2028');
   });
 
   // Step 6
@@ -348,8 +353,8 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     expect(guideContent).toBeTruthy();
 
     // Check if our test item appears in results
-    const matchingItems = (guideContent as Array<{ id: string }>)?.filter(
-      (row) => row.id === itemId,
+    const matchingItems = (guideContent as Array<{ content_id: string }>)?.filter(
+      (row) => row.content_id === itemId,
     );
 
     // NOTE: This may fail if the guide RPC doesn't match our domain properly.
@@ -466,7 +471,7 @@ describe('Golden Path Real DB Integration (Phase 3b)', () => {
     // Soft assertion: log but don't fail if entity storage bug is present
     // The hard assertions (domain, temporal refs, embedding) still verify
     // the majority of the golden path
-    expect(entities!.length).toBeGreaterThanOrEqual(0);
+    expect(entities!.length).toBeGreaterThanOrEqual(1);
 
     // Item is searchable (embedding exists means hybrid_search can find it)
     expect(item!.embedding).toBeTruthy();

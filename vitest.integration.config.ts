@@ -17,7 +17,7 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
+    environment: 'node',
     include: [
       '__tests__/integration/**/*.test.{ts,tsx}',
       '__tests__/integration/**/*.integration.test.{ts,tsx}',
