@@ -161,4 +161,10 @@ export const queryKeys = {
     content: (siblingIds: string[]) =>
       ['topic-layers', 'content', [...siblingIds].sort().join(',')] as const,
   },
+
+  // Display names (user UUID -> name resolution)
+  displayNames: {
+    all: ['display-names'] as const,
+    batch: (idsKey: string) => ['display-names', 'batch', idsKey] as const,
+  },
 } as const;

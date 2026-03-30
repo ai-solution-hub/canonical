@@ -1,10 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 
 /**
  * Client-side cache shared across all hook instances.
  * Maps user UUID -> { name, cachedAt } with a 5-minute TTL.
+ *
+ * This module-level cache is kept alongside TanStack Query because
+ * different component instances may request different ID sets.
+ * The module cache lets a query for IDs [A, B] populate results
+ * that a later query for IDs [A, C] can partially serve from cache.
  */
 const NAME_CACHE_TTL_MS = 5 * 60 * 1000;
 const NAME_CACHE_MAX_SIZE = 200;
@@ -41,10 +48,18 @@ function setCachedName(id: string, name: string): void {
  */
 const pendingFetches = new Map<string, Promise<void>>();
 
-async function fetchDisplayNames(ids: string[]): Promise<void> {
+async function fetchDisplayNames(ids: string[]): Promise<Record<string, string>> {
   // Filter out already-cached IDs
   const needed = ids.filter((id) => getCachedName(id) === undefined);
-  if (needed.length === 0) return;
+
+  // Build initial result from cache
+  const result: Record<string, string> = {};
+  for (const id of ids) {
+    const cached = getCachedName(id);
+    if (cached) result[id] = cached;
+  }
+
+  if (needed.length === 0) return result;
 
   // For IDs already in-flight, collect their existing promises
   const existingPromises: Promise<void>[] = [];
@@ -62,7 +77,12 @@ async function fetchDisplayNames(ids: string[]): Promise<void> {
   // If all needed IDs are already being fetched, just await those
   if (toFetch.length === 0) {
     await Promise.all(existingPromises);
-    return;
+    // Build result from cache after in-flight requests complete
+    for (const id of needed) {
+      const cached = getCachedName(id);
+      if (cached) result[id] = cached;
+    }
+    return result;
   }
 
   // Create a single promise for the batch of new IDs
@@ -95,13 +115,24 @@ async function fetchDisplayNames(ids: string[]): Promise<void> {
 
   // Await both the new fetch and any existing in-flight fetches for our IDs
   await Promise.all([fetchPromise, ...existingPromises]);
+
+  // Build final result from cache
+  for (const id of needed) {
+    const cached = getCachedName(id);
+    if (cached) result[id] = cached;
+  }
+
+  return result;
 }
 
 /**
  * Hook that resolves user UUIDs to human-readable display names.
  *
- * Results are cached in-memory across all component instances.
- * Returns a map from UUID -> display name (or undefined if not yet resolved).
+ * Results are cached in-memory across all component instances via a
+ * module-level cache. TanStack Query manages the fetch lifecycle,
+ * deduplication, and stale-while-revalidate behaviour.
+ *
+ * Migrated from useState+useEffect to TanStack Query.
  *
  * @param userIds - array of user UUIDs to resolve
  * @returns Map from UUID to display name
@@ -109,50 +140,26 @@ async function fetchDisplayNames(ids: string[]): Promise<void> {
 export function useDisplayNames(
   userIds: (string | null | undefined)[],
 ): Map<string, string> {
-  const [names, setNames] = useState<Map<string, string>>(new Map());
-  const idsRef = useRef<string>('');
-
-  // Filter to valid, non-null IDs
-  const validIds = userIds.filter(
-    (id): id is string => typeof id === 'string' && id.length > 0,
+  // Filter to valid, non-null IDs and create a stable key
+  const validIds = useMemo(
+    () =>
+      userIds.filter(
+        (id): id is string => typeof id === 'string' && id.length > 0,
+      ),
+    [userIds],
   );
-  const idsKey = validIds.sort().join(',');
+  const idsKey = useMemo(() => [...validIds].sort().join(','), [validIds]);
 
-  useEffect(() => {
-    if (validIds.length === 0) return;
-    let cancelled = false;
+  const { data } = useQuery({
+    queryKey: queryKeys.displayNames.batch(idsKey),
+    queryFn: () => fetchDisplayNames(validIds),
+    enabled: validIds.length > 0,
+    staleTime: NAME_CACHE_TTL_MS,
+  });
 
-    // Build map from cache for the current set of IDs
-    const buildFromCache = () => {
-      const map = new Map<string, string>();
-      validIds.forEach((id) => {
-        const name = getCachedName(id);
-        if (name) map.set(id, name);
-      });
-      return map;
-    };
-
-    // Check if all are already cached
-    const allCached = validIds.every((id) => getCachedName(id) !== undefined);
-    if (allCached) {
-      queueMicrotask(() => {
-        if (!cancelled) setNames(buildFromCache());
-      });
-      return () => { cancelled = true; };
-    }
-
-    // Skip if we already fetched these exact IDs
-    if (idsRef.current === idsKey) return;
-    idsRef.current = idsKey;
-
-    fetchDisplayNames(validIds).then(() => {
-      if (!cancelled) setNames(buildFromCache());
-    }).catch((err) => {
-      console.error('Failed to fetch display names:', err);
-    });
-
-    return () => { cancelled = true; };
-  }, [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return names;
+  // Build a Map from the query data to preserve the return interface
+  return useMemo(() => {
+    if (!data) return new Map<string, string>();
+    return new Map(Object.entries(data));
+  }, [data]);
 }
