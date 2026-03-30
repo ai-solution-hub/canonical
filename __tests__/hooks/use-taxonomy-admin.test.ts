@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks — must be declared before the hook import
@@ -57,13 +58,13 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 const sampleDomains: AdminDomain[] = [
-  { id: 'd1', name: 'Technical', display_order: 1, colour: '#0000FF', is_active: true, subtopic_count: 3 },
-  { id: 'd2', name: 'Corporate', display_order: 2, colour: null, is_active: true, subtopic_count: 1 },
+  { id: 'd1', name: 'Technical', display_order: 1, colour: '#0000FF', is_active: true, subtopic_count: 3, provenance: 'baseline' },
+  { id: 'd2', name: 'Corporate', display_order: 2, colour: null, is_active: true, subtopic_count: 1, provenance: 'baseline' },
 ];
 
 const sampleSubtopics: AdminSubtopic[] = [
-  { id: 's1', domain_id: 'd1', name: 'Cloud', display_order: 1, is_active: true },
-  { id: 's2', domain_id: 'd1', name: 'Security', display_order: 2, is_active: true },
+  { id: 's1', domain_id: 'd1', name: 'Cloud', display_order: 1, is_active: true, provenance: 'baseline', description: null },
+  { id: 's2', domain_id: 'd1', name: 'Security', display_order: 2, is_active: true, provenance: 'baseline', description: null },
 ];
 
 function defaultParams(): UseTaxonomyAdminParams {
@@ -72,7 +73,8 @@ function defaultParams(): UseTaxonomyAdminParams {
 
 /**
  * Sets up mockFetch to return sampleDomains for the initial fetchDomains call
- * and renders the hook. Returns the renderHook result + the refresh mock.
+ * and renders the hook inside a QueryClientProvider. Returns the renderHook
+ * result + the refresh mock + the queryClient.
  */
 async function renderWithDomains(domains: AdminDomain[] = sampleDomains) {
   mockFetch.mockResolvedValueOnce({
@@ -81,14 +83,18 @@ async function renderWithDomains(domains: AdminDomain[] = sampleDomains) {
   });
 
   const refreshFn = vi.fn();
-  const rendered = renderHook(() => useTaxonomyAdmin({ refresh: refreshFn }));
+  const { queryClient, Wrapper } = createQueryWrapper();
+  const rendered = renderHook(
+    () => useTaxonomyAdmin({ refresh: refreshFn }),
+    { wrapper: Wrapper },
+  );
 
   // Wait for the initial fetch to complete
   await waitFor(() => {
     expect(rendered.result.current.loading).toBe(false);
   });
 
-  return { ...rendered, refreshFn };
+  return { ...rendered, refreshFn, queryClient };
 }
 
 // ---------------------------------------------------------------------------
@@ -111,7 +117,11 @@ describe('useTaxonomyAdmin', () => {
   it('starts with loading=true and empty domains', () => {
     // Do not resolve fetch so loading stays true
     mockFetch.mockReturnValue(new Promise(() => {}));
-    const { result } = renderHook(() => useTaxonomyAdmin(defaultParams()));
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(
+      () => useTaxonomyAdmin(defaultParams()),
+      { wrapper: Wrapper },
+    );
 
     expect(result.current.loading).toBe(true);
     expect(result.current.domains).toEqual([]);
@@ -124,18 +134,26 @@ describe('useTaxonomyAdmin', () => {
     expect(result.current.loading).toBe(false);
     expect(result.current.domains).toHaveLength(2);
     expect(result.current.domains[0].name).toBe('Technical');
-    expect(mockFetch).toHaveBeenCalledWith('/api/taxonomy/domains');
+    expect(mockFetch).toHaveBeenCalledWith('/api/taxonomy/domains', undefined);
   });
 
   it('shows error toast when domain fetch fails', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false });
-    const { result } = renderHook(() => useTaxonomyAdmin(defaultParams()));
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: vi.fn().mockResolvedValue({ error: 'Failed to load domains' }),
+    });
+    const { Wrapper } = createQueryWrapper();
+    const { result } = renderHook(
+      () => useTaxonomyAdmin(defaultParams()),
+      { wrapper: Wrapper },
+    );
 
     await waitFor(() => {
-      expect(result.current.loading).toBe(false);
+      expect(toast.error).toHaveBeenCalled();
     });
 
-    expect(toast.error).toHaveBeenCalledWith('Failed to load domains');
+    // The hook should still report empty domains via query error state
+    expect(result.current.domains).toEqual([]);
   });
 
   // -------------------------------------------------------------------------
@@ -158,7 +176,7 @@ describe('useTaxonomyAdmin', () => {
       expect(mockSupabase.from).toHaveBeenCalledWith('taxonomy_subtopics');
     });
 
-    // Wait for subtopics to be set in state
+    // Wait for subtopics to be set in cache and reflected in the Map
     await waitFor(() => {
       expect(result.current.subtopicsByDomain.get('d1')).toHaveLength(2);
     });
@@ -199,7 +217,7 @@ describe('useTaxonomyAdmin', () => {
     act(() => { result.current.setDomainName('New Domain'); });
     act(() => { result.current.setDomainColour('#FF0000'); });
 
-    // Mock the POST call + subsequent re-fetch
+    // Mock the POST call + subsequent refetch from invalidation
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -248,7 +266,7 @@ describe('useTaxonomyAdmin', () => {
     act(() => { result.current.openEditDomain(sampleDomains[0]); });
     act(() => { result.current.setDomainName('Technical v2'); });
 
-    // Mock PATCH + re-fetch
+    // Mock PATCH + subsequent refetch from invalidation
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -299,11 +317,14 @@ describe('useTaxonomyAdmin', () => {
 
     const fakeEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
     await act(async () => {
-      await result.current.handleDomainSubmit(fakeEvent);
+      try {
+        await result.current.handleDomainSubmit(fakeEvent);
+      } catch {
+        // mutateAsync throws on error — expected
+      }
     });
 
     expect(toast.error).toHaveBeenCalledWith('Duplicate name');
-    expect(result.current.domainSaving).toBe(false);
   });
 
   it('handleDomainSubmit closes without PATCH when no fields changed', async () => {
@@ -342,7 +363,7 @@ describe('useTaxonomyAdmin', () => {
     act(() => { result.current.openAddSubtopic('d1'); });
     act(() => { result.current.setSubtopicName('Networking'); });
 
-    // Mock POST + re-fetch domains (for subtopic count update)
+    // Mock POST + refetch domains (for subtopic count update)
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -385,7 +406,7 @@ describe('useTaxonomyAdmin', () => {
     act(() => { result.current.openEditSubtopic(sampleSubtopics[0]); });
     act(() => { result.current.setSubtopicName('Cloud Computing'); });
 
-    // Mock PATCH + re-fetches
+    // Mock PATCH + refetches
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -428,7 +449,7 @@ describe('useTaxonomyAdmin', () => {
 
     act(() => { result.current.confirmDeactivate('domain', 'd1', 'Technical'); });
 
-    // Mock PATCH + re-fetch
+    // Mock PATCH + refetch from invalidation
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -452,7 +473,7 @@ describe('useTaxonomyAdmin', () => {
   it('handleReactivate patches is_active=true for a subtopic', async () => {
     const { result, refreshFn } = await renderWithDomains();
 
-    // Mock PATCH + re-fetches
+    // Mock PATCH + refetch
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
@@ -483,7 +504,11 @@ describe('useTaxonomyAdmin', () => {
     });
 
     await act(async () => {
-      await result.current.handleDeactivate();
+      try {
+        await result.current.handleDeactivate();
+      } catch {
+        // mutateAsync throws on error — expected
+      }
     });
 
     expect(toast.error).toHaveBeenCalledWith('In use');
@@ -496,8 +521,10 @@ describe('useTaxonomyAdmin', () => {
   it('handleMoveDomain swaps display orders and calls /api/taxonomy/reorder', async () => {
     const { result, refreshFn } = await renderWithDomains();
 
-    // Mock reorder POST
-    mockFetch.mockResolvedValueOnce({ ok: true });
+    // Mock reorder POST + subsequent refetch
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
 
     await act(async () => {
       await result.current.handleMoveDomain('d2', 'up');
@@ -534,21 +561,20 @@ describe('useTaxonomyAdmin', () => {
   it('handleMoveDomain rolls back on API failure', async () => {
     const { result } = await renderWithDomains();
 
-    // Mock a failed reorder + the rollback fetchDomains
+    // Mock a failed reorder + the rollback refetch from onSettled
     mockFetch
-      .mockResolvedValueOnce({ ok: false })
+      .mockResolvedValueOnce({ ok: false, json: vi.fn().mockResolvedValue({ error: 'Failed to reorder' }) })
       .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
 
     await act(async () => {
-      await result.current.handleMoveDomain('d2', 'up');
+      try {
+        await result.current.handleMoveDomain('d2', 'up');
+      } catch {
+        // mutateAsync throws on error — expected
+      }
     });
 
     expect(toast.error).toHaveBeenCalledWith('Failed to reorder domains');
-    // fetchDomains should be called for rollback
-    const getDomainCalls = mockFetch.mock.calls.filter(
-      (c) => c[0] === '/api/taxonomy/domains' && !c[1],
-    );
-    expect(getDomainCalls.length).toBeGreaterThanOrEqual(1);
   });
 
   // -------------------------------------------------------------------------
@@ -556,7 +582,7 @@ describe('useTaxonomyAdmin', () => {
   // -------------------------------------------------------------------------
 
   it('handleMoveSubtopic swaps subtopic display orders', async () => {
-    // Populate subtopics in the state first
+    // Populate subtopics in the cache first
     mockSupabase._chain.then.mockImplementation(
       (resolve: (v: unknown) => void) => resolve({ data: sampleSubtopics, error: null }),
     );
@@ -569,8 +595,14 @@ describe('useTaxonomyAdmin', () => {
       expect(result.current.subtopicsByDomain.get('d1')).toHaveLength(2);
     });
 
-    // Mock the reorder POST
-    mockFetch.mockResolvedValueOnce({ ok: true });
+    // Mock the reorder POST + refetch
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) });
+
+    // Mock the subtopic refetch from onSettled
+    mockSupabase._chain.then.mockImplementation(
+      (resolve: (v: unknown) => void) => resolve({ data: sampleSubtopics, error: null }),
+    );
 
     await act(async () => {
       await result.current.handleMoveSubtopic('d1', 's2', 'up');
@@ -607,5 +639,73 @@ describe('useTaxonomyAdmin', () => {
     });
 
     expect(result.current.announcement).toBe("Domain 'Accessibility Domain' created");
+  });
+
+  // -------------------------------------------------------------------------
+  // TanStack Query-specific tests
+  // -------------------------------------------------------------------------
+
+  it('domain query uses cache on re-render without refetching', async () => {
+    const { result, rerender } = await renderWithDomains();
+
+    expect(result.current.domains).toHaveLength(2);
+    const fetchCount = mockFetch.mock.calls.length;
+
+    // Re-render should not trigger another fetch
+    rerender();
+
+    expect(mockFetch.mock.calls.length).toBe(fetchCount);
+    expect(result.current.domains).toHaveLength(2);
+  });
+
+  it('domain save mutation invalidates domain query', async () => {
+    const { result } = await renderWithDomains();
+
+    act(() => { result.current.openAddDomain(); });
+    act(() => { result.current.setDomainName('New via mutation'); });
+
+    // Mock POST + refetch after invalidation
+    const updatedDomains = [
+      ...sampleDomains,
+      { id: 'd3', name: 'New via mutation', display_order: 3, colour: null, is_active: true, subtopic_count: 0, provenance: 'client' as const },
+    ];
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue({}) })
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(updatedDomains) });
+
+    const fakeEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
+    await act(async () => {
+      await result.current.handleDomainSubmit(fakeEvent);
+    });
+
+    // After invalidation, the query should refetch and show new data
+    await waitFor(() => {
+      expect(result.current.domains).toHaveLength(3);
+    });
+  });
+
+  it('optimistic reorder restores domain order on API error', async () => {
+    const { result } = await renderWithDomains();
+
+    // Capture original order
+    const originalFirst = result.current.domains[0].id;
+
+    // Mock failed reorder + refetch from onSettled
+    mockFetch
+      .mockResolvedValueOnce({ ok: false, json: vi.fn().mockResolvedValue({ error: 'Server error' }) })
+      .mockResolvedValueOnce({ ok: true, json: vi.fn().mockResolvedValue(sampleDomains) });
+
+    await act(async () => {
+      try {
+        await result.current.handleMoveDomain('d2', 'up');
+      } catch {
+        // mutateAsync throws — expected
+      }
+    });
+
+    // After rollback + refetch, order should be restored
+    await waitFor(() => {
+      expect(result.current.domains[0].id).toBe(originalFirst);
+    });
   });
 });

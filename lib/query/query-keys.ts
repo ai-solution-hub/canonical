@@ -35,6 +35,9 @@ export const queryKeys = {
     all: ['taxonomy'] as const,
     domains: ['taxonomy', 'domains'] as const,
     subtopics: ['taxonomy', 'subtopics'] as const,
+    adminDomains: ['taxonomy', 'admin-domains'] as const,
+    adminSubtopics: (domainId: string) =>
+      ['taxonomy', 'subtopics', domainId] as const,
   },
 
   // Tags
