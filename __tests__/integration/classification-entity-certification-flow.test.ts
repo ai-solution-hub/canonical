@@ -228,7 +228,8 @@ describe('classification → entity → certification flow', () => {
     ]);
   });
 
-  it.todo('T2.3b: GET /api/certifications returns derived certification status from temporal references (requires real DB integration)');
+  // T2.3b: Covered by real DB integration tests in
+  // __tests__/integration/certification-bridge-flow.integration.test.ts
 
   it('T2.4: multiple certifications in one document are all stored', async () => {
     mockCreate.mockResolvedValue(
@@ -270,7 +271,8 @@ describe('classification → entity → certification flow', () => {
     expect(entityRows.every((r) => typeof r.context_snippet === 'string')).toBe(true);
   });
 
-  it.todo('T2.4b: each certification entity has correct metadata and expiry_status (requires bridge integration)');
+  // T2.4b: Covered by real DB integration tests in
+  // __tests__/integration/certification-bridge-flow.integration.test.ts
 
   it('T2.5: reclassification (force=true) updates entity metadata', async () => {
     // First, simulate a previously classified item
@@ -338,5 +340,6 @@ describe('classification → entity → certification flow', () => {
     expect(mockBridge).toHaveBeenCalledWith(mockClient, itemId);
   });
 
-  it.todo('T2.5b: reclassification metadata update replaces old temporal references in DB (requires real DB integration)');
+  // T2.5b: Covered by real DB integration tests in
+  // __tests__/integration/certification-bridge-flow.integration.test.ts
 });
