@@ -198,6 +198,7 @@ export async function suggestGuideSections(
       section.section_name,
       matchedFilters.map((f) => f.name),
       filterChecks.filter((f) => !f.matches).map((f) => f.name),
+      isSecondaryDomainMatch,
     );
 
     matches.push({
@@ -256,18 +257,30 @@ function buildMatchReason(
   sectionName: string,
   matchedFilters: string[],
   unmatchedFilters: string[],
+  isSecondaryDomainMatch: boolean,
 ): string {
+  const prefix = `"${guideName}" > "${sectionName}"`;
+
   switch (strength) {
     case 'exact':
       if (matchedFilters.length === 0) {
-        return `Matches "${guideName}" > "${sectionName}" — section accepts all content in this domain`;
+        return `Matches ${prefix} — section accepts all content in this domain`;
       }
-      return `Matches "${guideName}" > "${sectionName}" — all filters match (${matchedFilters.join(', ')})`;
+      return `Matches ${prefix} — all filters match (${matchedFilters.join(', ')})`;
 
-    case 'partial':
-      return `Partially matches "${guideName}" > "${sectionName}" — matches ${matchedFilters.join(', ')} but not ${unmatchedFilters.join(', ')}`;
+    case 'partial': {
+      if (isSecondaryDomainMatch && unmatchedFilters.length === 0) {
+        // Capped from exact due to secondary domain — all filters matched
+        // but domain is secondary, not primary
+        const filterNote = matchedFilters.length > 0
+          ? ` (${matchedFilters.join(', ')} match)`
+          : '';
+        return `Matches ${prefix} via secondary domain${filterNote}`;
+      }
+      return `Partially matches ${prefix} — matches ${matchedFilters.join(', ')} but not ${unmatchedFilters.join(', ')}`;
+    }
 
     case 'domain_only':
-      return `Domain match for "${guideName}" > "${sectionName}" — only domain matches (${unmatchedFilters.join(', ')} differ)`;
+      return `Domain match for ${prefix} — only domain matches (${unmatchedFilters.join(', ')} differ)`;
   }
 }
