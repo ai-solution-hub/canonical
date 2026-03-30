@@ -5,9 +5,13 @@
  *   Create content -> Classify (entities, temporal refs, domain) -> entity_mentions storage
  *     -> Guide matching via domain -> MCP search retrieval -> Certification status query
  *
- * These tests use mocked Supabase clients and mocked AI services to verify the
- * DATA FLOW between components — that the output of one step becomes the correct
- * input for the next step. No live database or AI API calls required.
+ * CURRENT STATUS: Mock-based data transformation tests (Phase 3a).
+ * These verify the DATA FLOW logic between components using in-memory stores.
+ *
+ * NEXT SESSION (Phase 3b): Replace with real DB integration tests using
+ * SUPABASE_SECRET_KEY service client, as the spec requires. The spec mandates
+ * "Real database required. Mocking would defeat the purpose." (Section 4).
+ * See docs/specs/data-flow-golden-path-e2e-spec.md for the full requirements.
  *
  * Spec: docs/specs/data-flow-golden-path-e2e-spec.md
  *
@@ -1163,4 +1167,31 @@ describe('GP10: Cross-feature data integrity', () => {
     expect(item1Rels.length).toBeGreaterThan(0);
     expect(item2Rels.length).toBe(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3b: Real DB integration tests (next session)
+// ---------------------------------------------------------------------------
+// These stubs document the spec-required tests that need a live Supabase
+// connection via SUPABASE_SECRET_KEY service client. See spec Section 4:
+// "Real database required. Mocking would defeat the purpose."
+//
+// Implementation requires:
+// - Service client using SUPABASE_SECRET_KEY from .env
+// - GOLDEN-PATH-{timestamp} prefix for test data isolation
+// - afterAll cleanup with FK-ordered deletion
+// - vitest.integration.config.ts with 120s timeout
+// ---------------------------------------------------------------------------
+
+describe('[Phase 3b] real DB golden path — requires SUPABASE_SECRET_KEY', () => {
+  it.todo('Step 1: create content item via service client insert');
+  it.todo('Step 2: call classifyContent() with real Claude mock and verify DB state');
+  it.todo('Step 3: verify entity_mentions rows in DB with correct canonical_name normalisation');
+  it.todo('Step 4: verify content_items.metadata.ai_temporal_references populated in DB');
+  it.todo('Step 5: verify entity_mentions.metadata.expiry_date populated by bridge function');
+  it.todo('Step 6: verify get_guide_content RPC returns the item for matching domain_filter');
+  it.todo('Step 7: verify hybrid_search RPC returns the item (requires embedding)');
+  it.todo('Step 8: verify certification status tool query finds entity with expiry data');
+  it.todo('Full chain: create → classify → entities → temporal → guide → search → cert status');
+  it.todo('Cleanup: FK-ordered deletion of test data with GOLDEN-PATH prefix');
 });

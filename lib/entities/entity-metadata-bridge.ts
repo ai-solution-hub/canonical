@@ -91,7 +91,7 @@ export async function bridgeTemporalReferencesToEntities(
     if (updated) {
       await supabase
         .from('entity_mentions')
-        .update({ metadata: newMetadata })
+        .update({ metadata: newMetadata as Record<string, string> })
         .eq('id', mention.id);
     }
   }
