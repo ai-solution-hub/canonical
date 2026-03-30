@@ -440,12 +440,14 @@ export async function registerBidTools(server: McpServer): Promise<void> {
           };
         }
 
-        const row = (rows as Array<{ total_citations: number; winning_citations: number; win_rate: number }> | null)?.[0];
+        const row = (rows as Array<{ total_citations: number; winning_citations: number; losing_citations: number; pending_citations: number; win_rate: number }> | null)?.[0];
 
         const effectiveness: ContentEffectiveness = {
           content_item_id: args.content_item_id,
           total_citations: Number(row?.total_citations ?? 0),
           winning_citations: Number(row?.winning_citations ?? 0),
+          losing_citations: Number(row?.losing_citations ?? 0),
+          pending_citations: Number(row?.pending_citations ?? 0),
           win_rate: Number(row?.win_rate ?? 0),
         };
 

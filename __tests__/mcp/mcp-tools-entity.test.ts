@@ -451,7 +451,7 @@ describe('MCP tools #14-16', () => {
       const handler = mockServer.getHandler('get_content_effectiveness')!;
 
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_citations: 10, winning_citations: 7, win_rate: 0.7 }],
+        data: [{ total_citations: 10, winning_citations: 7, losing_citations: 3, pending_citations: 0, win_rate: 0.7 }],
         error: null,
       });
 
@@ -464,6 +464,8 @@ describe('MCP tools #14-16', () => {
           content_item_id: string;
           total_citations: number;
           winning_citations: number;
+          losing_citations: number;
+          pending_citations: number;
           win_rate: number;
         };
       };
@@ -473,12 +475,14 @@ describe('MCP tools #14-16', () => {
       });
 
       expect(result.content[0].text).toContain('Content Effectiveness');
-      expect(result.content[0].text).toContain('**Win rate:** 70%');
+      expect(result.content[0].text).toContain('70%');
       expect(result.content[0].text).toContain('highly effective');
 
       expect(result.structuredContent.content_item_id).toBe('item-001');
       expect(result.structuredContent.total_citations).toBe(10);
       expect(result.structuredContent.winning_citations).toBe(7);
+      expect(result.structuredContent.losing_citations).toBe(3);
+      expect(result.structuredContent.pending_citations).toBe(0);
       expect(result.structuredContent.win_rate).toBe(0.7);
     });
 
@@ -515,11 +519,13 @@ describe('MCP tools #14-16', () => {
         { content_item_id: 'item-003' },
         extra,
       ) as {
-        structuredContent: { total_citations: number; winning_citations: number; win_rate: number };
+        structuredContent: { total_citations: number; winning_citations: number; losing_citations: number; pending_citations: number; win_rate: number };
       };
 
       expect(result.structuredContent.total_citations).toBe(0);
       expect(result.structuredContent.winning_citations).toBe(0);
+      expect(result.structuredContent.losing_citations).toBe(0);
+      expect(result.structuredContent.pending_citations).toBe(0);
       expect(result.structuredContent.win_rate).toBe(0);
     });
 
@@ -545,7 +551,7 @@ describe('MCP tools #14-16', () => {
       const handler = mockServer.getHandler('get_content_effectiveness')!;
 
       supabase.rpc.mockResolvedValueOnce({
-        data: [{ total_citations: 8, winning_citations: 1, win_rate: 0.125 }],
+        data: [{ total_citations: 8, winning_citations: 1, losing_citations: 7, pending_citations: 0, win_rate: 0.125 }],
         error: null,
       });
 
@@ -555,6 +561,24 @@ describe('MCP tools #14-16', () => {
       ) as { content: Array<{ text: string }> };
 
       expect(result.content[0].text).toContain('low win rate');
+    });
+
+    it('shows awaiting outcomes when citations exist but no decided bids', async () => {
+      const handler = mockServer.getHandler('get_content_effectiveness')!;
+
+      supabase.rpc.mockResolvedValueOnce({
+        data: [{ total_citations: 4, winning_citations: 0, losing_citations: 0, pending_citations: 4, win_rate: 0 }],
+        error: null,
+      });
+
+      const result = await handler(
+        { content_item_id: 'item-006' },
+        extra,
+      ) as { content: Array<{ text: string }> };
+
+      expect(result.content[0].text).toContain('Awaiting outcomes');
+      expect(result.content[0].text).not.toContain('low win rate');
+      expect(result.content[0].text).not.toContain('not yet been cited');
     });
   });
 });

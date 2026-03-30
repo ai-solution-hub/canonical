@@ -330,13 +330,15 @@ describe('formatContentEffectiveness', () => {
       content_item_id: 'item-001',
       total_citations: 10,
       winning_citations: 8,
+      losing_citations: 2,
+      pending_citations: 0,
       win_rate: 0.8,
     };
 
     const result = formatContentEffectiveness(data);
 
     expect(result).toContain('# Content Effectiveness');
-    expect(result).toContain('**Win rate:** 80%');
+    expect(result).toContain('80%');
     expect(result).toContain('highly effective');
   });
 
@@ -345,12 +347,14 @@ describe('formatContentEffectiveness', () => {
       content_item_id: 'item-002',
       total_citations: 10,
       winning_citations: 5,
+      losing_citations: 5,
+      pending_citations: 0,
       win_rate: 0.5,
     };
 
     const result = formatContentEffectiveness(data);
 
-    expect(result).toContain('**Win rate:** 50%');
+    expect(result).toContain('50%');
     expect(result).toContain('moderate effectiveness');
   });
 
@@ -359,12 +363,14 @@ describe('formatContentEffectiveness', () => {
       content_item_id: 'item-003',
       total_citations: 10,
       winning_citations: 2,
+      losing_citations: 8,
+      pending_citations: 0,
       win_rate: 0.2,
     };
 
     const result = formatContentEffectiveness(data);
 
-    expect(result).toContain('**Win rate:** 20%');
+    expect(result).toContain('20%');
     expect(result).toContain('low win rate');
   });
 
@@ -373,6 +379,8 @@ describe('formatContentEffectiveness', () => {
       content_item_id: 'item-004',
       total_citations: 0,
       winning_citations: 0,
+      losing_citations: 0,
+      pending_citations: 0,
       win_rate: 0,
     };
 
@@ -380,26 +388,57 @@ describe('formatContentEffectiveness', () => {
 
     expect(result).toContain('**Total citations:** 0');
     expect(result).toContain('not yet been cited');
-    // Should NOT contain any effectiveness commentary
     expect(result).not.toContain('highly effective');
     expect(result).not.toContain('moderate effectiveness');
     expect(result).not.toContain('low win rate');
   });
 
-  it('handles exactly 0 win rate with citations present', () => {
+  it('shows "Awaiting outcomes" when citations exist but no decided bids', () => {
     const data: ContentEffectiveness = {
       content_item_id: 'item-005',
       total_citations: 5,
       winning_citations: 0,
+      losing_citations: 0,
+      pending_citations: 5,
       win_rate: 0,
     };
 
     const result = formatContentEffectiveness(data);
 
-    expect(result).toContain('**Win rate:** 0%');
     expect(result).toContain('**Total citations:** 5');
-    // 0 < 0.4, so should get low win rate message, NOT the "no citations" message
-    expect(result).toContain('low win rate');
+    expect(result).toContain('Awaiting outcomes');
     expect(result).not.toContain('not yet been cited');
+    expect(result).not.toContain('low win rate');
+  });
+
+  it('shows losing citations count', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-006',
+      total_citations: 8,
+      winning_citations: 3,
+      losing_citations: 3,
+      pending_citations: 2,
+      win_rate: 0.5,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).toContain('**Losing citations:** 3');
+    expect(result).toContain('**Pending citations:** 2');
+  });
+
+  it('omits pending line when pending_citations is 0', () => {
+    const data: ContentEffectiveness = {
+      content_item_id: 'item-007',
+      total_citations: 6,
+      winning_citations: 4,
+      losing_citations: 2,
+      pending_citations: 0,
+      win_rate: 0.67,
+    };
+
+    const result = formatContentEffectiveness(data);
+
+    expect(result).not.toContain('Pending');
   });
 });

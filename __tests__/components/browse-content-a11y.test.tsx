@@ -104,6 +104,10 @@ vi.mock('@/hooks/use-user-role', () => ({
   useUserRole: () => ({ canEdit: false, role: 'viewer' }),
 }));
 
+vi.mock('@/hooks/use-display-names', () => ({
+  useDisplayNames: () => new Map(),
+}));
+
 vi.mock('@/contexts/read-marks-context', () => ({
   useReadMarks: () => ({
     isRead: () => false,

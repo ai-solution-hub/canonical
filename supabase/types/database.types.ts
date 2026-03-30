@@ -2175,6 +2175,8 @@ export type Database = {
       get_content_win_rate: {
         Args: { p_content_item_id: string }
         Returns: {
+          losing_citations: number
+          pending_citations: number
           total_citations: number
           win_rate: number
           winning_citations: number

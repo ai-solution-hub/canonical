@@ -178,10 +178,13 @@ export interface ContentEffectiveness {
   content_item_id: string;
   total_citations: number;
   winning_citations: number;
+  losing_citations: number;
+  pending_citations: number;
   win_rate: number;
 }
 
 export function formatContentEffectiveness(data: ContentEffectiveness): string {
+  const decidedCount = data.winning_citations + data.losing_citations;
   const winPct = Math.round(data.win_rate * 100);
 
   const lines: string[] = [
@@ -190,17 +193,29 @@ export function formatContentEffectiveness(data: ContentEffectiveness): string {
     `**Content item:** ${data.content_item_id}`,
     `**Total citations:** ${data.total_citations}`,
     `**Winning citations:** ${data.winning_citations}`,
-    `**Win rate:** ${winPct}%`,
+    `**Losing citations:** ${data.losing_citations}`,
   ];
+
+  if (data.pending_citations > 0) {
+    lines.push(`**Pending citations:** ${data.pending_citations}`);
+  }
 
   if (data.total_citations === 0) {
     lines.push('', 'This content has not yet been cited in any bid responses.');
-  } else if (data.win_rate >= 0.7) {
-    lines.push('', 'This content is highly effective — it is frequently associated with winning bids.');
-  } else if (data.win_rate >= 0.4) {
-    lines.push('', 'This content has moderate effectiveness in bid outcomes.');
+  } else if (decidedCount === 0) {
+    lines.push(
+      '',
+      `**Win rate:** Awaiting outcomes (${data.total_citations} citation${data.total_citations === 1 ? '' : 's'} in bids with no decided outcome yet)`,
+    );
   } else {
-    lines.push('', 'This content has a low win rate — consider reviewing or updating it.');
+    lines.push(`**Win rate:** ${winPct}% (${data.winning_citations} won / ${decidedCount} decided)`);
+    if (data.win_rate >= 0.7) {
+      lines.push('', 'This content is highly effective — it is frequently associated with winning bids.');
+    } else if (data.win_rate >= 0.4) {
+      lines.push('', 'This content has moderate effectiveness in bid outcomes.');
+    } else {
+      lines.push('', 'This content has a low win rate — consider reviewing or updating it.');
+    }
   }
 
   return lines.join('\n');
