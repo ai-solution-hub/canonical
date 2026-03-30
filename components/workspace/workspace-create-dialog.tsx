@@ -16,13 +16,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { WorkspaceColourPicker } from '@/components/workspace/workspace-colour-picker';
 import { WorkspaceIconPicker } from '@/components/workspace/workspace-icon-picker';
+import { getWorkspaceType } from '@/lib/workspace-types';
 import type { Workspace } from '@/types/content';
 
 interface WorkspaceCreateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (workspace: Workspace) => void;
-  type?: 'bid' | 'kb_section';
+  type?: string;
   onBidCreate?: () => void;
 }
 
@@ -40,13 +41,15 @@ export function WorkspaceCreateDialog({
   const [submitting, setSubmitting] = useState(false);
   const [nameError, setNameError] = useState('');
 
-  // When type is 'bid', close the dialog and delegate to BidCreationWizard
+  const typeConfig = getWorkspaceType(type);
+
+  // When type has a custom creation flow, close the dialog and delegate
   useEffect(() => {
-    if (open && type === 'bid') {
+    if (open && typeConfig?.hasCustomCreation) {
       onOpenChange(false);
       onBidCreate?.();
     }
-  }, [open, type, onOpenChange, onBidCreate]);
+  }, [open, typeConfig, onOpenChange, onBidCreate]);
 
   function resetForm() {
     setName('');
@@ -115,12 +118,10 @@ export function WorkspaceCreateDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {type === 'bid' ? 'New Bid' : 'New KB Section'}
+            New {typeConfig?.label ?? 'Workspace'}
           </DialogTitle>
           <DialogDescription>
-            {type === 'bid'
-              ? 'Create a new bid to manage tender responses.'
-              : 'Create a content section to organise related items.'}
+            {typeConfig?.description ?? 'Create a new workspace.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +182,7 @@ export function WorkspaceCreateDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Creating...' : type === 'bid' ? 'Create Bid' : 'Create Section'}
+              {submitting ? 'Creating...' : `Create ${typeConfig?.label ?? 'Workspace'}`}
             </Button>
           </DialogFooter>
         </form>

@@ -41,7 +41,7 @@ describe('WorkspaceCreateDialog', () => {
   });
 
   describe('kb_section type (default)', () => {
-    it('shows "New KB Section" title when type is kb_section', () => {
+    it('shows registry-driven title when type is kb_section', () => {
       render(
         <WorkspaceCreateDialog
           open={true}
@@ -53,7 +53,7 @@ describe('WorkspaceCreateDialog', () => {
 
       expect(screen.getByText('New KB Section')).toBeInTheDocument();
       expect(
-        screen.getByText('Create a content section to organise related items.'),
+        screen.getByText('Organise related content items into thematic sections'),
       ).toBeInTheDocument();
     });
 
@@ -84,10 +84,23 @@ describe('WorkspaceCreateDialog', () => {
       expect(screen.getByText('Colour')).toBeInTheDocument();
       expect(screen.getByText('Icon')).toBeInTheDocument();
     });
+
+    it('shows Create button with registry label', () => {
+      render(
+        <WorkspaceCreateDialog
+          open={true}
+          onOpenChange={mockOnOpenChange}
+          onCreated={mockOnCreated}
+          type="kb_section"
+        />,
+      );
+
+      expect(screen.getByText('Create KB Section')).toBeInTheDocument();
+    });
   });
 
-  describe('bid type', () => {
-    it('closes dialog and calls onBidCreate when type is bid', async () => {
+  describe('bid type (custom creation)', () => {
+    it('closes dialog and calls onBidCreate when type has custom creation', async () => {
       render(
         <WorkspaceCreateDialog
           open={true}
