@@ -24,6 +24,10 @@ export interface GuideSectionMatchInput {
   primaryDomain: string;
   /** Item's classified primary subtopic */
   primarySubtopic: string;
+  /** Item's secondary domain (optional) */
+  secondaryDomain?: string;
+  /** Item's secondary subtopic (optional) */
+  secondarySubtopic?: string;
   /** Item's layer (from inferLayer() or item metadata) */
   layer?: string;
   /** Item's content type (from classification or user input) */
@@ -90,15 +94,21 @@ export async function suggestGuideSections(
   supabase: SupabaseClient<Database>,
   input: GuideSectionMatchInput,
 ): Promise<GuideSectionMatch[]> {
-  const { primaryDomain, primarySubtopic, layer, contentType } = input;
+  const { primaryDomain, primarySubtopic, secondaryDomain, secondarySubtopic, layer, contentType } = input;
 
   // Guard: domain is required (sections are always scoped to a guide domain)
   if (!primaryDomain) {
     return [];
   }
 
+  // Build list of domains to match against guide domain_filter
+  const matchDomains = [primaryDomain];
+  if (secondaryDomain && secondaryDomain !== primaryDomain) {
+    matchDomains.push(secondaryDomain);
+  }
+
   // ---------------------------
-  // Query: fetch all sections from published guides matching this domain
+  // Query: fetch all sections from published guides matching primary or secondary domain
   // ---------------------------
   const { data: sections, error } = await supabase
     .from('guide_sections')
@@ -106,7 +116,7 @@ export async function suggestGuideSections(
       'id, section_name, subtopic_filter, expected_layer, content_type_filter, display_order, is_required, guides!inner(id, name, slug, domain_filter, display_order, is_published)',
     )
     .eq('guides.is_published', true)
-    .eq('guides.domain_filter', primaryDomain);
+    .in('guides.domain_filter', matchDomains);
 
   if (error || !sections || sections.length === 0) {
     return [];
@@ -134,9 +144,12 @@ export async function suggestGuideSections(
     const filterChecks: { name: string; matches: boolean }[] = [];
 
     if (section.subtopic_filter !== null) {
+      const subtopicMatches =
+        section.subtopic_filter === primarySubtopic ||
+        (secondarySubtopic != null && section.subtopic_filter === secondarySubtopic);
       filterChecks.push({
         name: 'subtopic',
-        matches: section.subtopic_filter === primarySubtopic,
+        matches: subtopicMatches,
       });
     }
 
@@ -167,6 +180,15 @@ export async function suggestGuideSections(
       matchStrength = 'partial';
     } else {
       matchStrength = 'domain_only';
+    }
+
+    // Cap match strength to 'partial' for secondary-domain-only matches
+    const isSecondaryDomainMatch =
+      guide.domain_filter !== primaryDomain &&
+      guide.domain_filter === secondaryDomain;
+
+    if (isSecondaryDomainMatch && matchStrength === 'exact') {
+      matchStrength = 'partial';
     }
 
     // Build human-readable reason

@@ -288,6 +288,8 @@ export async function POST(request: NextRequest) {
           const matches = await suggestGuideSections(serviceClient, {
             primaryDomain: effectiveDomain,
             primarySubtopic: effectiveSubtopic,
+            secondaryDomain: secondary_domain || undefined,
+            secondarySubtopic: secondary_subtopic || undefined,
             layer: suggestedLayer?.suggestedLayer,
             contentType: content_type,
           });

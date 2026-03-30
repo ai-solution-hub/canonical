@@ -260,7 +260,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           try {
             const { data: classifiedItem } = await supabase
               .from('content_items')
-              .select('primary_domain, primary_subtopic, content_type, metadata')
+              .select('primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, content_type, metadata')
               .eq('id', item.id)
               .single();
 
@@ -269,6 +269,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
               const matches = await suggestGuideSections(supabase, {
                 primaryDomain: classifiedItem.primary_domain,
                 primarySubtopic: classifiedItem.primary_subtopic || '',
+                secondaryDomain: classifiedItem.secondary_domain || undefined,
+                secondarySubtopic: classifiedItem.secondary_subtopic || undefined,
                 layer: suggestedLayerKey || undefined,
                 contentType: classifiedItem.content_type || args.content_type,
               });
