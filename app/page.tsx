@@ -11,6 +11,7 @@ import { fetchUnifiedDashboardData } from '@/lib/dashboard';
 import { buildAttentionItems } from '@/lib/attention';
 import { ReorientSection } from '@/components/dashboard/reorient-section';
 import { OwnedContentHealth } from '@/components/dashboard/owned-content-health';
+import { ContentPerformanceSection } from '@/components/dashboard/content-performance-section';
 import type { ReorientData } from '@/types/reorient';
 
 // ---------------------------------------------------------------------------
@@ -150,6 +151,11 @@ async function DashboardContent() {
       {/* Owned Content Health — personal content ownership card */}
       <div className="mt-6">
         <OwnedContentHealth />
+      </div>
+
+      {/* Content Performance — aggregate win-rate analytics */}
+      <div className="mt-6">
+        <ContentPerformanceSection />
       </div>
 
       {/* QuickStatsStrip — content health at a glance */}
