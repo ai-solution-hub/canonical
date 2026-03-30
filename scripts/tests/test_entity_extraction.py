@@ -394,7 +394,7 @@ class TestStoreEntities:
         # Verify the canonical_name was resolved via alias
         call_args = mock_request.call_args_list[0]
         posted_data = call_args[0][2]  # Third positional arg is `data`
-        assert posted_data["canonical_name"] == "ISO 27001"
+        assert posted_data["canonical_name"] == "iso 27001"  # lowercased for case-insensitive index
 
     @patch("kb_pipeline.store._request")
     def test_skips_entity_without_canonical_name(self, mock_request):

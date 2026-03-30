@@ -25,6 +25,206 @@ _valid_domains: Optional[List[str]] = None
 _valid_subtopics: Optional[List[str]] = None
 
 # ──────────────────────────────────────────
+# Identifier exclusion patterns
+# ──────────────────────────────────────────
+
+# Patterns matching non-entity identifiers that should be excluded from extraction.
+# Ported from lib/ai/classify.ts EXCLUDED_PATTERNS.
+_EXCLUDED_PATTERNS = [
+    re.compile(r"^SIC\s*Code", re.IGNORECASE),            # SIC classification codes
+    re.compile(r"^VAT\s*(Registration|Reg)", re.IGNORECASE),  # VAT registration numbers
+    re.compile(r"^DUNS\s*Number", re.IGNORECASE),          # D-U-N-S identifiers
+    re.compile(r"^\d{4,}$"),                               # Pure numeric identifiers
+    re.compile(r"^[A-Z]{2}\s*\d{3}\s*\d{4}\s*\d{2}$", re.IGNORECASE),  # VAT number format
+]
+
+
+def is_excluded_entity(name: str) -> bool:
+    """Check whether an entity name matches an excluded identifier pattern."""
+    return any(p.search(name) for p in _EXCLUDED_PATTERNS)
+
+
+def _filter_entities(entities: List[dict]) -> List[dict]:
+    """Filter out non-entity identifiers from extracted entities.
+
+    Removes SIC codes, VAT registration numbers, DUNS numbers, and other
+    numeric identifiers that should not be stored as entities.
+    """
+    filtered = []
+    for ent in entities:
+        name = ent.get("entity_name", "")
+        canonical = ent.get("canonical_name", "")
+        if is_excluded_entity(name) or is_excluded_entity(canonical):
+            logger.debug("Excluding identifier entity: %s", name or canonical)
+            continue
+        filtered.append(ent)
+    return filtered
+
+
+# ──────────────────────────────────────────
+# Entity name canonicalisation
+# ──────────────────────────────────────────
+
+# Known abbreviations that should remain uppercase.
+# Ported from lib/entities/entity-dedup.ts ABBREVIATIONS.
+_ABBREVIATIONS = {
+    "gdpr": "GDPR",
+    "ico": "ICO",
+    "owasp": "OWASP",
+    "crest": "CREST",
+    "csv": "CSV",
+    "pdf": "PDF",
+    "sla": "SLA",
+    "ims": "IMS",
+    "isms": "ISMS",
+    "uk": "UK",
+    "dpo": "DPO",
+    "tls": "TLS",
+    "ssl": "SSL",
+    "https": "HTTPS",
+    "http": "HTTP",
+    "html": "HTML",
+    "css": "CSS",
+    "mysql": "MySQL",
+    "api": "API",
+    "sql": "SQL",
+    "hmrc": "HMRC",
+    "sme": "SME",
+    "saml": "SAML",
+    "sso": "SSO",
+    "aws": "AWS",
+    "mfa": "MFA",
+    "nhs": "NHS",
+    "ncsc": "NCSC",
+    "plc": "PLC",
+    "lms": "LMS",
+    "pdms": "PDMS",
+    "wcag": "WCAG",
+    "vpn": "VPN",
+    "ssh": "SSH",
+    "sftp": "SFTP",
+    "saas": "SaaS",
+    "cctv": "CCTV",
+    "dpia": "DPIA",
+    "ppon": "PPON",
+    "hl7": "HL7",
+}
+
+# Entity types where trailing plural 's' should be stripped
+_DEPLURAL_TYPES = frozenset([
+    "capability", "framework", "regulation", "certification",
+    "technology", "standard", "methodology", "product",
+])
+
+
+def _slug_to_proper_case(slug: str) -> str:
+    """Convert a slug-style name to Title Case, preserving known abbreviations.
+
+    "penetration-testing" -> "Penetration Testing"
+    "uk-gdpr" -> "UK GDPR"
+    """
+    parts = re.split(r"[-_]", slug)
+    return " ".join(
+        _ABBREVIATIONS.get(w.lower(), w[0].upper() + w[1:].lower() if w else "")
+        for w in parts
+    )
+
+
+def _title_case(text: str) -> str:
+    """Title-case a multi-word string, preserving known abbreviations."""
+    return " ".join(
+        _ABBREVIATIONS.get(w.lower(), w[0].upper() + w[1:].lower() if w else "")
+        for w in text.split()
+    )
+
+
+def canonicalise(name: str, entity_type: Optional[str] = None) -> str:
+    """Normalise an entity name for consistent storage and deduplication.
+
+    Ported from lib/entities/entity-dedup.ts canonicalise().
+
+    Rules applied (in order):
+     1. Trim whitespace
+     2. Convert slug-style names to proper case
+     3. Normalise ISO standards (basic): "ISO27001" -> "ISO 27001"
+     4. Normalise ISO extended formats: "ISO/IEC 27001" -> "ISO 27001"
+     5. Strip ISO version suffixes: "ISO 27001:2022" -> "ISO 27001"
+     6. Normalise Cyber Essentials variants
+     7. WCAG normalisation: "Wcag 2 1 Aa" -> "WCAG 2.1 AA"
+     8. Company suffix normalisation: "Ltd" -> "Limited"
+     9. Fix single-word abbreviations: "gdpr" -> "GDPR"
+    10. Multi-word title case for all-lowercase inputs
+    11. Plural normalisation (type-aware)
+    12. Strip trailing periods
+    """
+    result = name.strip()
+
+    # 1-2. Convert slug-style names: "penetration-testing" -> "Penetration Testing"
+    if re.match(r"^[a-z0-9].*[-_]", result) and " " not in result:
+        result = _slug_to_proper_case(result)
+
+    # 3. Normalise ISO standards (basic): "ISO27001" -> "ISO 27001"
+    result = re.sub(r"^iso\s*(\d)", r"ISO \1", result, flags=re.IGNORECASE)
+
+    # 4. Normalise ISO extended formats
+    result = re.sub(r"^iso[/\-\s]*(?:iec[/\-\s]*)?(\d)", r"ISO \1", result, flags=re.IGNORECASE)
+
+    # 5. Strip ISO version suffixes: "ISO 27001:2022" -> "ISO 27001"
+    result = re.sub(r"^(ISO \d+)[:\s]\d{4}$", r"\1", result)
+
+    # 6. Normalise Cyber Essentials variants
+    result = re.sub(r"^cyber\s*essentials\b", "Cyber Essentials", result, flags=re.IGNORECASE)
+    result = re.sub(r"^(Cyber Essentials)\s+plus$", r"\1 Plus", result, flags=re.IGNORECASE)
+
+    # 7. WCAG normalisation: "Wcag 2 1 Aa" -> "WCAG 2.1 AA"
+    def _wcag_replace(m):
+        return f"WCAG {m.group(1)}.{m.group(2)} {m.group(3).upper()}"
+    result = re.sub(r"^wcag\s+(\d)\s+(\d)\s*(aa|a)$", _wcag_replace, result, flags=re.IGNORECASE)
+    result = re.sub(r"\bwcag\b", "WCAG", result, flags=re.IGNORECASE)
+
+    # 8. Company suffix normalisation
+    result = re.sub(r"\bLtd\.?$", "Limited", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bPLC$", "PLC", result, flags=re.IGNORECASE)
+    result = re.sub(r"\bInc\.?$", "Inc", result, flags=re.IGNORECASE)
+
+    # 9. Fix single-word abbreviations: "gdpr" -> "GDPR"
+    lower = result.lower()
+    if lower in _ABBREVIATIONS:
+        result = _ABBREVIATIONS[lower]
+
+    # 10. Multi-word title case for all-lowercase inputs
+    if result and result[0].islower() and lower not in _ABBREVIATIONS:
+        result = _title_case(result)
+
+    # 11. Plural normalisation -- strip trailing 's' for applicable entity types
+    if (
+        entity_type
+        and entity_type in _DEPLURAL_TYPES
+        and " " in result
+        and len(result) > 4
+    ):
+        last_word = result.rsplit(None, 1)[-1] if result else ""
+        last_word_is_abbrev = last_word.lower() in _ABBREVIATIONS
+        is_proper_name = result.startswith("Cyber Essentials")
+
+        if not last_word_is_abbrev and not is_proper_name:
+            if result.endswith("ies"):
+                result = result[:-3] + "y"
+            elif (
+                result.endswith("s")
+                and not result.endswith("ss")
+                and not result.endswith("us")
+                and not result.endswith("is")
+            ):
+                result = result[:-1]
+
+    # 12. Strip trailing periods
+    result = result.rstrip(".")
+
+    return result
+
+
+# ──────────────────────────────────────────
 # Keyword normalisation
 # ──────────────────────────────────────────
 
@@ -207,12 +407,16 @@ def classify(
     for ent in raw_entities:
         ent_type = ent.get("type", "")
         if ent_type in VALID_ENTITY_TYPES:
+            raw_canonical = ent.get("canonical_name", ent.get("name", ""))
             ai_entities.append({
                 "entity_name": ent.get("name", ""),
                 "entity_type": ent_type,
-                "canonical_name": ent.get("canonical_name", ent.get("name", "")),
+                "canonical_name": canonicalise(raw_canonical, ent_type),
                 "confidence": ent.get("confidence", 0.8),
             })
+
+    # Filter out non-entity identifiers (SIC codes, VAT numbers, etc.)
+    ai_entities = _filter_entities(ai_entities)
 
     # Supplement with keyword-based entity extraction from the content
     combined_text = f"{title} {content}"
@@ -546,8 +750,15 @@ def store_entities(
             skipped += 1
             continue
 
-        # Apply alias resolution before storing
+        # Skip excluded identifier patterns
+        if is_excluded_entity(canonical) or is_excluded_entity(ent.get("entity_name", "")):
+            skipped += 1
+            continue
+
+        # Apply canonicalisation and alias resolution, then lowercase for index compatibility
+        canonical = canonicalise(canonical, ent_type)
         canonical = resolve_entity_alias(canonical)
+        canonical = canonical.lower()
 
         record = {
             "content_item_id": content_item_id,
