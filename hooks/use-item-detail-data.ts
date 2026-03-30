@@ -100,7 +100,7 @@ export interface ItemDetailData {
 
   // --- Vision analysis ---
   isAnalysing: boolean;
-  handleVisionAnalysis: () => Promise<void>;
+  handleVisionAnalysis: () => void;
 
   // --- Q&A provenance ---
   qaProvenance: UseQAProvenanceReturn;

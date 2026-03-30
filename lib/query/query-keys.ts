@@ -140,4 +140,25 @@ export const queryKeys = {
   freshness: {
     counts: ['freshness', 'counts'] as const,
   },
+
+  // User
+  user: {
+    all: ['user'] as const,
+    role: ['user', 'role'] as const,
+    claudeConnected: ['user', 'claude-connected'] as const,
+  },
+
+  // Citations
+  citations: {
+    all: ['citations'] as const,
+    orphans: (sortedIdKey: string) =>
+      ['citations', 'orphans', sortedIdKey] as const,
+  },
+
+  // Topic layers
+  topicLayers: {
+    all: ['topic-layers'] as const,
+    content: (siblingIds: string[]) =>
+      ['topic-layers', 'content', siblingIds.sort().join(',')] as const,
+  },
 } as const;

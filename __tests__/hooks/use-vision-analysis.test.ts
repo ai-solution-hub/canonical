@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -18,6 +20,26 @@ vi.mock('sonner', () => ({ toast: mockToast }));
 let mockFetch: ReturnType<typeof vi.fn>;
 
 import { useVisionAnalysis } from '@/hooks/use-vision-analysis';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -44,20 +66,26 @@ describe('useVisionAnalysis', () => {
   });
 
   it('starts with isAnalysing false', () => {
-    const { result } = renderHook(() =>
-      useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+    const { result } = renderHook(
+      () => useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+      { wrapper: createWrapper() },
     );
 
     expect(result.current.isAnalysing).toBe(false);
   });
 
   it('POSTs to vision endpoint and calls onAnalysisComplete on success', async () => {
-    const { result } = renderHook(() =>
-      useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+    const { result } = renderHook(
+      () => useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+      { wrapper: createWrapper() },
     );
 
     await act(async () => {
-      await result.current.handleVisionAnalysis();
+      result.current.handleVisionAnalysis();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isAnalysing).toBe(false);
     });
 
     expect(mockFetch).toHaveBeenCalledWith('/api/items/item-1/vision', {
@@ -74,41 +102,49 @@ describe('useVisionAnalysis', () => {
       }),
     );
     expect(mockToast.success).toHaveBeenCalledWith('Visual analysis complete');
-    expect(result.current.isAnalysing).toBe(false);
   });
 
   it('shows error toast when API returns non-ok response', async () => {
     mockFetch.mockResolvedValue({
       ok: false,
+      status: 400,
       json: async () => ({ error: 'Unsupported format' }),
     });
 
-    const { result } = renderHook(() =>
-      useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+    const { result } = renderHook(
+      () => useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+      { wrapper: createWrapper() },
     );
 
     await act(async () => {
-      await result.current.handleVisionAnalysis();
+      result.current.handleVisionAnalysis();
+    });
+
+    await waitFor(() => {
+      expect(result.current.isAnalysing).toBe(false);
     });
 
     expect(onAnalysisComplete).not.toHaveBeenCalled();
     expect(mockToast.error).toHaveBeenCalledWith('Unsupported format');
-    expect(result.current.isAnalysing).toBe(false);
   });
 
   it('shows generic error toast on network failure', async () => {
     mockFetch.mockRejectedValue(new Error('Network error'));
 
-    const { result } = renderHook(() =>
-      useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+    const { result } = renderHook(
+      () => useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+      { wrapper: createWrapper() },
     );
 
     await act(async () => {
-      await result.current.handleVisionAnalysis();
+      result.current.handleVisionAnalysis();
     });
 
-    expect(mockToast.error).toHaveBeenCalledWith('Failed to perform visual analysis');
-    expect(result.current.isAnalysing).toBe(false);
+    await waitFor(() => {
+      expect(result.current.isAnalysing).toBe(false);
+    });
+
+    expect(mockToast.error).toHaveBeenCalledWith('Network error');
   });
 
   it('sets isAnalysing to true during request', async () => {
@@ -119,25 +155,32 @@ describe('useVisionAnalysis', () => {
       }),
     );
 
-    const { result } = renderHook(() =>
-      useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+    const { result } = renderHook(
+      () => useVisionAnalysis({ itemId: 'item-1', onAnalysisComplete }),
+      { wrapper: createWrapper() },
     );
 
-    let promise: Promise<void>;
     act(() => {
-      promise = result.current.handleVisionAnalysis();
+      result.current.handleVisionAnalysis();
     });
 
-    expect(result.current.isAnalysing).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isAnalysing).toBe(true);
+    });
 
     await act(async () => {
       resolveFetch({
         ok: true,
-        json: async () => ({ analysis: 'done', model: 'gpt-4o', tokens_used: 100 }),
+        json: async () => ({
+          analysis: 'done',
+          model: 'gpt-4o',
+          tokens_used: 100,
+        }),
       });
-      await promise!;
     });
 
-    expect(result.current.isAnalysing).toBe(false);
+    await waitFor(() => {
+      expect(result.current.isAnalysing).toBe(false);
+    });
   });
 });

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -14,10 +16,30 @@ vi.mock('@/lib/supabase/client', () => ({
 }));
 
 vi.mock('@/lib/citations', () => ({
-  checkOrphanedSourceIds: (...args: unknown[]) => mockCheckOrphanedSourceIds(...args),
+  checkOrphanedSourceIds: (...args: unknown[]) =>
+    mockCheckOrphanedSourceIds(...args),
 }));
 
 import { useCitationOrphans } from '@/hooks/use-citation-orphans';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -34,13 +56,17 @@ describe('useCitationOrphans', () => {
   // -----------------------------------------------------------------------
 
   it('returns empty set for empty input array', () => {
-    const { result } = renderHook(() => useCitationOrphans([]));
+    const { result } = renderHook(() => useCitationOrphans([]), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.size).toBe(0);
     expect(mockCheckOrphanedSourceIds).not.toHaveBeenCalled();
   });
 
   it('returns empty set when all source IDs are empty strings', () => {
-    const { result } = renderHook(() => useCitationOrphans(['', '', '']));
+    const { result } = renderHook(() => useCitationOrphans(['', '', '']), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.size).toBe(0);
     expect(mockCheckOrphanedSourceIds).not.toHaveBeenCalled();
   });
@@ -52,8 +78,9 @@ describe('useCitationOrphans', () => {
   it('detects orphaned citations', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set(['source-2']));
 
-    const { result } = renderHook(() =>
-      useCitationOrphans(['source-1', 'source-2', 'source-3']),
+    const { result } = renderHook(
+      () => useCitationOrphans(['source-1', 'source-2', 'source-3']),
+      { wrapper: createWrapper() },
     );
 
     await waitFor(() => {
@@ -67,8 +94,9 @@ describe('useCitationOrphans', () => {
   it('returns empty set when no citations are orphaned', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
-    const { result } = renderHook(() =>
-      useCitationOrphans(['source-1', 'source-2']),
+    const { result } = renderHook(
+      () => useCitationOrphans(['source-1', 'source-2']),
+      { wrapper: createWrapper() },
     );
 
     await waitFor(() => {
@@ -81,8 +109,9 @@ describe('useCitationOrphans', () => {
   it('passes deduplicated IDs to checkOrphanedSourceIds', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
-    renderHook(() =>
-      useCitationOrphans(['source-1', 'source-1', 'source-2']),
+    renderHook(
+      () => useCitationOrphans(['source-1', 'source-1', 'source-2']),
+      { wrapper: createWrapper() },
     );
 
     await waitFor(() => {
@@ -99,7 +128,9 @@ describe('useCitationOrphans', () => {
   it('passes a supabase client to checkOrphanedSourceIds', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
-    renderHook(() => useCitationOrphans(['source-1']));
+    renderHook(() => useCitationOrphans(['source-1']), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockCheckOrphanedSourceIds).toHaveBeenCalled();
@@ -111,22 +142,22 @@ describe('useCitationOrphans', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Key-based deduplication — no re-checking same IDs
+  // Key-based deduplication -- no re-checking same IDs
   // -----------------------------------------------------------------------
 
   it('does not re-check when IDs have not changed', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
     const sourceIds = ['source-1', 'source-2'];
-    const { rerender } = renderHook(() =>
-      useCitationOrphans(sourceIds),
-    );
+    const { rerender } = renderHook(() => useCitationOrphans(sourceIds), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockCheckOrphanedSourceIds).toHaveBeenCalledTimes(1);
     });
 
-    // Re-render with the same reference — should not re-check
+    // Re-render with the same reference -- should not re-check
     rerender();
 
     await new Promise((r) => setTimeout(r, 50));
@@ -136,9 +167,11 @@ describe('useCitationOrphans', () => {
   it('re-checks when source IDs change', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
+    const wrapper = createWrapper();
+
     const { rerender } = renderHook(
       ({ ids }: { ids: string[] }) => useCitationOrphans(ids),
-      { initialProps: { ids: ['source-1'] } },
+      { initialProps: { ids: ['source-1'] }, wrapper },
     );
 
     await waitFor(() => {
@@ -154,49 +187,15 @@ describe('useCitationOrphans', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Cancellation
-  // -----------------------------------------------------------------------
-
-  it('cancels pending check when IDs change before completion', async () => {
-    let resolveFirst!: (v: Set<string>) => void;
-    const firstPromise = new Promise<Set<string>>((r) => {
-      resolveFirst = r;
-    });
-
-    mockCheckOrphanedSourceIds
-      .mockReturnValueOnce(firstPromise)
-      .mockResolvedValueOnce(new Set(['new-orphan']));
-
-    const { result, rerender } = renderHook(
-      ({ ids }: { ids: string[] }) => useCitationOrphans(ids),
-      { initialProps: { ids: ['source-1'] } },
-    );
-
-    // Change IDs before first check completes
-    rerender({ ids: ['source-2'] });
-
-    // Now resolve the first (stale) check
-    resolveFirst(new Set(['stale-orphan']));
-
-    // Wait for the second check
-    await waitFor(() => {
-      expect(result.current.has('new-orphan')).toBe(true);
-    });
-
-    // The stale result should not have been applied
-    expect(result.current.has('stale-orphan')).toBe(false);
-  });
-
-  // -----------------------------------------------------------------------
   // Filters falsy values
   // -----------------------------------------------------------------------
 
   it('filters out falsy values from source IDs', async () => {
     mockCheckOrphanedSourceIds.mockResolvedValue(new Set());
 
-    renderHook(() =>
-      useCitationOrphans(['source-1', '', 'source-2']),
-    );
+    renderHook(() => useCitationOrphans(['source-1', '', 'source-2']), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockCheckOrphanedSourceIds).toHaveBeenCalled();

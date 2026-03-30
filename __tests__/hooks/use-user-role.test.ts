@@ -1,11 +1,13 @@
 /**
- * WP7: useUserRole Hook Tests
+ * useUserRole Hook Tests (TanStack Query migration)
  *
  * Tests the useUserRole hook — loading state, role resolution from Supabase,
  * unauthenticated state, and canEdit/canAdmin derivation.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mock Supabase client used inside useUserRole
@@ -41,6 +43,25 @@ vi.mock('@/lib/supabase/client', () => ({
 import { useUserRole } from '@/hooks/use-user-role';
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -65,7 +86,9 @@ describe('useUserRole', () => {
     // Make the auth call hang to keep loading
     mockAuth.getUser.mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.loading).toBe(true);
     expect(result.current.role).toBeNull();
   });
@@ -73,7 +96,9 @@ describe('useUserRole', () => {
   it('returns admin role after auth resolves', async () => {
     mockChain.single.mockResolvedValue({ data: { role: 'admin' }, error: null });
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -85,9 +110,14 @@ describe('useUserRole', () => {
   });
 
   it('returns editor role with canEdit true and canAdmin false', async () => {
-    mockChain.single.mockResolvedValue({ data: { role: 'editor' }, error: null });
+    mockChain.single.mockResolvedValue({
+      data: { role: 'editor' },
+      error: null,
+    });
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -99,9 +129,14 @@ describe('useUserRole', () => {
   });
 
   it('returns viewer role with canEdit and canAdmin both false', async () => {
-    mockChain.single.mockResolvedValue({ data: { role: 'viewer' }, error: null });
+    mockChain.single.mockResolvedValue({
+      data: { role: 'viewer' },
+      error: null,
+    });
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -115,7 +150,9 @@ describe('useUserRole', () => {
   it('defaults to viewer when no role row exists', async () => {
     mockChain.single.mockResolvedValue({ data: null, error: null });
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -132,7 +169,9 @@ describe('useUserRole', () => {
       error: { message: 'No session' },
     });
 
-    const { result } = renderHook(() => useUserRole());
+    const { result } = renderHook(() => useUserRole(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
