@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson } from '@/lib/query/fetchers';
 import type { ReviewHistoryEntry } from '@/app/api/review/history/route';
 
 export type { ReviewHistoryEntry };
@@ -15,60 +17,32 @@ interface UseReviewHistoryReturn {
  * Fetches review history for a content item from the review history API.
  *
  * Returns an empty array when `itemId` is null or empty.
- * Uses useEffect + useState pattern consistent with existing hooks in this project.
+ * Migrated from useState+useEffect to TanStack Query. Cancellation on
+ * unmount is handled automatically by TanStack Query.
  */
-export function useReviewHistory(itemId: string | null): UseReviewHistoryReturn {
-  const [history, setHistory] = useState<ReviewHistoryEntry[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useReviewHistory(
+  itemId: string | null,
+): UseReviewHistoryReturn {
+  const {
+    data: history = [],
+    isLoading,
+    error: queryError,
+  } = useQuery({
+    queryKey: queryKeys.review.history(itemId ?? ''),
+    queryFn: () =>
+      fetchJson<{ history: ReviewHistoryEntry[] }>(
+        `/api/review/history?item_id=${encodeURIComponent(itemId!)}`,
+      ).then((body) => body.history ?? []),
+    enabled: !!itemId,
+  });
 
-  useEffect(() => {
-    if (!itemId) {
-      setHistory([]);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchHistory() {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const response = await fetch(`/api/review/history?item_id=${encodeURIComponent(itemId!)}`);
-
-        if (cancelled) return;
-
-        if (!response.ok) {
-          const body = await response.json().catch(() => ({}));
-          setError(body.error ?? `Failed to fetch review history (${response.status})`);
-          setHistory([]);
-          return;
-        }
-
-        const body = await response.json();
-        if (cancelled) return;
-
-        setHistory(body.history ?? []);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to fetch review history');
-        setHistory([]);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    fetchHistory();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [itemId]);
-
-  return { history, isLoading, error };
+  return {
+    history,
+    isLoading,
+    error: queryError
+      ? queryError instanceof Error
+        ? queryError.message
+        : 'Failed to fetch review history'
+      : null,
+  };
 }

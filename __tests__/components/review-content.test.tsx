@@ -123,6 +123,10 @@ vi.mock('@/hooks/review/use-review-queue', () => ({
   useReviewQueue: () => mockUseReviewQueue(),
 }));
 
+vi.mock('@/hooks/review/use-review-history', () => ({
+  useReviewHistory: () => ({ history: [], isLoading: false, error: null }),
+}));
+
 vi.mock('sonner', () => ({
   toast: mockToast,
 }));

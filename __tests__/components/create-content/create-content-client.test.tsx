@@ -58,6 +58,15 @@ vi.mock('@/components/shell/breadcrumb-nav', () => ({
   ),
 }));
 
+vi.mock('@/hooks/use-user-role', () => ({
+  useUserRole: () => ({
+    role: 'viewer',
+    loading: false,
+    canEdit: false,
+    canAdmin: false,
+  }),
+}));
+
 vi.mock('@/contexts/taxonomy-context', () => ({
   useTaxonomy: () => ({
     getDomainNames: () => ['Corporate', 'Technical'],

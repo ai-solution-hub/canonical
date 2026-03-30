@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 import { createClient } from '@/lib/supabase/client';
 
 // ---------------------------------------------------------------------------
@@ -23,7 +25,7 @@ export interface LayerContentMap {
 }
 
 // ---------------------------------------------------------------------------
-// Pure function — exported for testing
+// Pure function -- exported for testing
 // ---------------------------------------------------------------------------
 
 /**
@@ -45,61 +47,57 @@ export function groupLayerContent(items: LayerItem[]): LayerContentMap {
  * Fetches content (title, brief, detail, content, content_type, metadata)
  * for sibling layer items that share the same topic_id.
  *
- * Uses Supabase client directly (same pattern as useQAProvenance).
+ * Migrated from useState+useEffect to TanStack Query. Uses `enabled` option
+ * for conditional fetching when there are sibling items to load.
  */
 export function useTopicLayerContent(
-  topicLayers: Array<{ id: string; title: string | null; layer: string | null; content_type: string | null }>,
+  topicLayers: Array<{
+    id: string;
+    title: string | null;
+    layer: string | null;
+    content_type: string | null;
+  }>,
   currentItemId: string,
 ) {
-  const [layerContent, setLayerContent] = useState<LayerContentMap>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const siblingIds = useMemo(
+    () =>
+      topicLayers
+        .filter((l) => l.id !== currentItemId)
+        .map((l) => l.id),
+    [topicLayers, currentItemId],
+  );
 
-  useEffect(() => {
-    if (topicLayers.length <= 1) return;
+  const { data: layerContent = {}, isLoading } = useQuery({
+    queryKey: queryKeys.topicLayers.content(siblingIds),
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('content_items')
+        .select(
+          'id, title, brief, detail, content, content_type, metadata, layer',
+        )
+        .in('id', siblingIds);
 
-    const siblingIds = topicLayers
-      .filter((l) => l.id !== currentItemId)
-      .map((l) => l.id);
+      if (error) throw error;
 
-    if (siblingIds.length === 0) return;
+      if (!data) return {};
 
-    setIsLoading(true);
+      const mapped: LayerItem[] = data.map((row) => ({
+        id: row.id,
+        layer:
+          ((row as Record<string, unknown>).layer as string) ?? '',
+        title: row.title ?? '',
+        brief: row.brief ?? null,
+        detail: row.detail ?? null,
+        content: row.content ?? null,
+        content_type: row.content_type ?? '',
+        metadata: row.metadata as Record<string, unknown> | null,
+      }));
 
-    const fetchSiblings = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase
-          .from('content_items')
-          .select('id, title, brief, detail, content, content_type, metadata, layer')
-          .in('id', siblingIds);
-
-        if (error) {
-          console.error('Failed to fetch layer content:', error);
-          return;
-        }
-
-        if (data) {
-          const mapped: LayerItem[] = data.map((row) => ({
-            id: row.id,
-            layer: (row as Record<string, unknown>).layer as string ?? '',
-            title: row.title ?? '',
-            brief: row.brief ?? null,
-            detail: row.detail ?? null,
-            content: row.content ?? null,
-            content_type: row.content_type ?? '',
-            metadata: row.metadata as Record<string, unknown> | null,
-          }));
-          setLayerContent(groupLayerContent(mapped));
-        }
-      } catch (err) {
-        console.error('Failed to fetch layer content:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSiblings();
-  }, [topicLayers, currentItemId]);
+      return groupLayerContent(mapped);
+    },
+    enabled: topicLayers.length > 1 && siblingIds.length > 0,
+  });
 
   return { layerContent, isLoading };
 }
