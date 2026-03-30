@@ -4,6 +4,7 @@
     {
       "id": "17d9f23f-1c4f-4d6d-b9c3-f37c178a547e",
       "name": "security",
+      "display_name": "security",
       "display_order": 1,
       "colour": "security",
       "provenance": "baseline"
@@ -11,6 +12,7 @@
     {
       "id": "8d6c0b63-f77c-4021-a54b-15c07fa04420",
       "name": "compliance",
+      "display_name": "compliance",
       "display_order": 2,
       "colour": "compliance",
       "provenance": "baseline"
@@ -18,6 +20,7 @@
     {
       "id": "7ea9e1ca-0a99-48e4-8a38-0aff9b910e7b",
       "name": "implementation",
+      "display_name": "implementation",
       "display_order": 3,
       "colour": "implementation",
       "provenance": "baseline"
@@ -25,6 +28,7 @@
     {
       "id": "d234988f-f548-4ea6-afbd-3aa7969674bd",
       "name": "support",
+      "display_name": "support",
       "display_order": 4,
       "colour": "support",
       "provenance": "baseline"
@@ -32,6 +36,7 @@
     {
       "id": "2cf9db4f-fa8d-4c7b-97ce-c3ce6f966f1b",
       "name": "corporate",
+      "display_name": "corporate",
       "display_order": 5,
       "colour": "corporate",
       "provenance": "baseline"
@@ -39,6 +44,7 @@
     {
       "id": "609bbcc4-ea14-4d74-b53d-d074ddce19a4",
       "name": "product-feature",
+      "display_name": "product-feature",
       "display_order": 6,
       "colour": "product",
       "provenance": "baseline"
@@ -46,6 +52,7 @@
     {
       "id": "047b2b0f-59a1-4242-bbc8-b912c57d29aa",
       "name": "methodology",
+      "display_name": "methodology",
       "display_order": 7,
       "colour": "methodology",
       "provenance": "baseline"
@@ -53,6 +60,7 @@
     {
       "id": "52eb10ea-eaa6-433d-9c56-d573240b5cf8",
       "name": "safeguarding-child-protection",
+      "display_name": "Safeguarding & Child Protection",
       "display_order": 8,
       "colour": "security",
       "provenance": "client"
@@ -60,6 +68,7 @@
     {
       "id": "7ced99c1-cc93-4074-a4fb-d3c6f30b817b",
       "name": "safeguarding-adults",
+      "display_name": "Safeguarding Adults",
       "display_order": 9,
       "colour": "compliance",
       "provenance": "client"
@@ -67,6 +76,7 @@
     {
       "id": "9da13d3a-5ccb-4363-adc0-ce32dc442423",
       "name": "multi-academy-trusts",
+      "display_name": "Multi-Academy Trusts",
       "display_order": 10,
       "colour": "implementation",
       "provenance": "client"
@@ -74,6 +84,7 @@
     {
       "id": "e6be270b-5ee4-4b5a-ab51-3627fbed2372",
       "name": "education",
+      "display_name": "Education",
       "display_order": 11,
       "colour": "methodology",
       "provenance": "client"
@@ -81,6 +92,7 @@
     {
       "id": "406054e3-8e00-46e2-9bff-038b9daff1b9",
       "name": "products-services",
+      "display_name": "Products & Services",
       "display_order": 12,
       "colour": "product",
       "provenance": "client"

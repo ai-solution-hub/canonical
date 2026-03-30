@@ -168,9 +168,21 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
     [domainByName],
   );
 
+  const subtopicByName = useMemo(() => {
+    const map = new Map<string, TaxonomySubtopic>();
+    for (const s of subtopics) {
+      map.set(s.name, s);
+    }
+    return map;
+  }, [subtopics]);
+
   const formatSubtopic = useCallback(
-    (subtopic: string): string => formatSubtopicUtil(subtopic),
-    [],
+    (subtopic: string): string => {
+      const record = subtopicByName.get(subtopic);
+      if (record?.display_name) return record.display_name;
+      return formatSubtopicUtil(subtopic);
+    },
+    [subtopicByName],
   );
 
   const formatDomainName = useCallback(
