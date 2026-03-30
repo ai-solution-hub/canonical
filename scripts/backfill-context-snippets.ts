@@ -14,8 +14,8 @@
  *           Expected additional coverage: ~13-18%.
  *
  * Context snippets are extracted as ~80 chars of surrounding context
- * (40 chars before + match + 40 chars after), following the pattern
- * in lib/date-extraction.ts extractContextSnippet().
+ * (40 chars before + match + 40 chars after), per the entity audit
+ * recommendation (docs/reference/entity-audit-s126.md §5).
  *
  * Usage:
  *   bun run scripts/backfill-context-snippets.ts                # process all
