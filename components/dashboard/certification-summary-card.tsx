@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { ClaudePromptButton } from '@/components/content/claude-prompt-button';
 import { cn } from '@/lib/utils';
 import { generateCertificationReviewPrompt } from '@/lib/claude-prompts';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import type { ExpiryStatus } from '@/lib/certification-status';
 
 // ---------------------------------------------------------------------------
@@ -144,7 +145,7 @@ function generateCopyText(
 
   if (certifications.length > 0) {
     const certDescriptions = certifications.map((cert) => {
-      const nameParts = [cert.canonical_name];
+      const nameParts = [formatEntityDisplayName(cert.canonical_name)];
       if (cert.metadata.version) nameParts[0] += `:${cert.metadata.version}`;
 
       const details: string[] = [];
@@ -183,9 +184,9 @@ function generateCopyText(
         details.push(`registration number ${reg.metadata.registration_number}`);
       }
       if (details.length > 0) {
-        return `${reg.canonical_name} (${details.join(', ')})`;
+        return `${formatEntityDisplayName(reg.canonical_name)} (${details.join(', ')})`;
       }
-      return reg.canonical_name;
+      return formatEntityDisplayName(reg.canonical_name);
     });
 
     parts.push(`We are registered with ${regDescriptions.join(', ')}.`);
@@ -221,9 +222,9 @@ function CertificationRow({
             <Link
               href={`/item/${renewalItemId}`}
               className="text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
-              aria-label={`View ${cert.canonical_name} details`}
+              aria-label={`View ${formatEntityDisplayName(cert.canonical_name)} details`}
             >
-              {cert.canonical_name}
+              {formatEntityDisplayName(cert.canonical_name)}
               {cert.metadata.version && (
                 <span className="ml-1 text-xs text-muted-foreground">
                   v{cert.metadata.version}
@@ -238,10 +239,10 @@ function CertificationRow({
                 'text-sm font-medium text-foreground',
                 onEdit && 'cursor-pointer hover:underline',
               )}
-              aria-label={`Edit ${cert.canonical_name}`}
+              aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
               disabled={!onEdit}
             >
-              {cert.canonical_name}
+              {formatEntityDisplayName(cert.canonical_name)}
               {cert.metadata.version && (
                 <span className="ml-1 text-xs text-muted-foreground">
                   v{cert.metadata.version}
@@ -334,10 +335,10 @@ function RegistrationRow({
               'text-sm font-medium text-foreground',
               onEdit && 'cursor-pointer hover:underline',
             )}
-            aria-label={`Edit ${reg.canonical_name}`}
+            aria-label={`Edit ${formatEntityDisplayName(reg.canonical_name)}`}
             disabled={!onEdit}
           >
-            {reg.canonical_name}
+            {formatEntityDisplayName(reg.canonical_name)}
           </button>
           <ExpiryBadge status={reg.expiry_status} />
           {needsRenewal && renewalItemId && (

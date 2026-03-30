@@ -5,6 +5,7 @@ import type { ActiveBidSummary, DashboardData, GroupedActivityItem } from '@/lib
 import type { ReorientData } from '@/types/reorient';
 import { formatDeadline, formatProgress } from './shared';
 import { formatDateUK } from '@/lib/format';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 
 // ---------------------------------------------------------------------------
 // Expiring content types
@@ -334,7 +335,7 @@ export function formatExpiringContent(data: ExpiringContentData): string {
       const daysStr = entity.days_remaining < 0
         ? `${Math.abs(entity.days_remaining)} overdue`
         : `${entity.days_remaining}`;
-      lines.push(`| ${entity.canonical_name} | ${entity.entity_type} | ${dateStr} | ${daysStr} | ${urgency} |`);
+      lines.push(`| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${dateStr} | ${daysStr} | ${urgency} |`);
     }
     lines.push('');
   } else {

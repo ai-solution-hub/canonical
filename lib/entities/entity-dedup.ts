@@ -190,3 +190,11 @@ export function canonicalise(name: string, entityType?: string): string {
 
   return result;
 }
+
+/**
+ * Format a stored lowercase canonical_name for display.
+ * Applies canonicalise() to restore proper casing from lowercase storage.
+ */
+export function formatEntityDisplayName(name: string): string {
+  return canonicalise(name);
+}
