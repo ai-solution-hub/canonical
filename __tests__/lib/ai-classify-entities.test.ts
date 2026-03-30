@@ -260,6 +260,8 @@ describe('classifyContent — entity extraction', () => {
         'technology',
         'project',
         'sector',
+        'standard',
+        'methodology',
       ]);
     });
 

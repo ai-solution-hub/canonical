@@ -31,7 +31,9 @@ export interface ExtractedEntity {
     | 'person'
     | 'technology'
     | 'project'
-    | 'sector';
+    | 'sector'
+    | 'standard'
+    | 'methodology';
   canonical_name: string;
 }
 
@@ -211,6 +213,8 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                       'technology',
                       'project',
                       'sector',
+                      'standard',
+                      'methodology',
                     ],
                   },
                   canonical_name: {
@@ -329,7 +333,10 @@ Classify this content. Return a JSON object with:
 - classification_reasoning: brief explanation of the classification
 
 Also extract named entities and relationships from the content:
-- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
+- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors, standards, and methodologies mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
+  Entity type guidance:
+  - standard: published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
+  - methodology: approaches, principles, and delivery methods. Not frameworks (those have formal structure). Examples: Agile, Lean, Six Sigma, Principle of Least Privilege.
 - relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
 When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
 Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.

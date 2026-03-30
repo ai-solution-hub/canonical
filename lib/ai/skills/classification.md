@@ -27,6 +27,16 @@ Do **not** assign a secondary domain when:
 - The connection is tangential or incidental
 - The content merely mentions a topic without substantive coverage
 
+## Entity Type Guidance
+
+When extracting entities, use these 12 types: `organisation`, `certification`, `regulation`, `framework`, `capability`, `person`, `technology`, `project`, `sector`, `product`, `standard`, `methodology`.
+
+Key distinctions:
+- **standard** — published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
+- **methodology** — approaches, principles, and delivery methods. Not frameworks (those have formal structure). Examples: Agile, Lean, Six Sigma, Principle of Least Privilege.
+- **standard vs certification:** A standard is the document itself; a certification is proof of compliance.
+- **methodology vs framework:** Methodologies are ways of working; frameworks provide structured management systems.
+
 ## Edge Cases
 
 - **Q&A pairs:** Classify based on the answer content, not the question. The answer reveals the domain expertise being demonstrated.

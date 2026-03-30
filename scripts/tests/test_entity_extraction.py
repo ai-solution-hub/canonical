@@ -565,6 +565,7 @@ class TestValidEntityTypes:
         expected = {
             "organisation", "certification", "regulation", "framework",
             "capability", "person", "technology", "project", "sector",
+            "product", "standard", "methodology",
         }
         assert VALID_ENTITY_TYPES == expected
 

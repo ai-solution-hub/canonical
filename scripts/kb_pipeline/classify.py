@@ -315,6 +315,7 @@ def _validate_classification(result, valid_domains, valid_subtopics):
 VALID_ENTITY_TYPES = frozenset([
     "organisation", "certification", "regulation", "framework",
     "capability", "person", "technology", "project", "sector",
+    "product", "standard", "methodology",
 ])
 
 # Known entities for keyword-based extraction.
@@ -356,12 +357,8 @@ KNOWN_ENTITIES = [
     (r"\bPPN\s*02/23\b", "PPN 02/23", "regulation", "PPN 02/23"),
     # Frameworks
     (r"\bITIL\b", "ITIL", "framework", "ITIL"),
-    (r"\bPRINCE2\b", "PRINCE2", "framework", "PRINCE2"),
     (r"\bNIST\b", "NIST", "framework", "NIST"),
     (r"\bOWASP\b", "OWASP", "framework", "OWASP"),
-    (r"\bWCAG\b", "WCAG", "framework", "WCAG"),
-    (r"\bSCRUM\b", "SCRUM", "framework", "Scrum"),
-    (r"\bAgile\b", "Agile", "framework", "Agile"),
     # Technologies
     (r"\bActive Directory\b", "Active Directory", "technology", "Active Directory"),
     (r"\bAzure\b", "Azure", "technology", "Microsoft Azure"),
@@ -384,6 +381,24 @@ KNOWN_ENTITIES = [
     (r"\blocal government\b", "local government", "sector", "Local Government"),
     (r"\bcentral government\b", "central government", "sector", "Central Government"),
     (r"\bdefence\b", "defence", "sector", "Defence"),
+    # Standards
+    (r"\bWCAG\b", "WCAG", "standard", "WCAG"),
+    (r"\bHL7\b", "HL7", "standard", "HL7"),
+    (r"\bIEEE\b", "IEEE", "standard", "IEEE"),
+    (r"\bBS\s*5839\b", "BS 5839", "standard", "BS 5839"),
+    (r"\bBS\s*5306\b", "BS 5306", "standard", "BS 5306"),
+    (r"\bBS\s*5445\b", "BS 5445", "standard", "BS 5445"),
+    (r"\bBS\s*5588\b", "BS 5588", "standard", "BS 5588"),
+    (r"\bBS\s*6266\b", "BS 6266", "standard", "BS 6266"),
+    (r"\bBS\s*3115\b", "BS 3115", "standard", "BS 3115"),
+    # Methodologies
+    (r"\bAgile\b", "Agile", "methodology", "Agile"),
+    (r"\bSCRUM\b", "SCRUM", "methodology", "Scrum"),
+    (r"\bScrum\b", "Scrum", "methodology", "Scrum"),
+    (r"\bPRINCE2\b", "PRINCE2", "methodology", "PRINCE2"),
+    (r"\bLean\b(?!\s+(?:Cuisine|meat))", "Lean", "methodology", "Lean"),
+    (r"\bSix Sigma\b", "Six Sigma", "methodology", "Six Sigma"),
+    (r"\bKanban\b", "Kanban", "methodology", "Kanban"),
 ]
 
 # Compile regex patterns once at module level

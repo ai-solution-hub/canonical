@@ -55,6 +55,9 @@ const DEPLURAL_TYPES = new Set([
   'regulation',
   'certification',
   'technology',
+  'standard',
+  'methodology',
+  'product',
 ]);
 
 /**
