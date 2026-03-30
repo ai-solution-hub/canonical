@@ -159,6 +159,6 @@ export const queryKeys = {
   topicLayers: {
     all: ['topic-layers'] as const,
     content: (siblingIds: string[]) =>
-      ['topic-layers', 'content', siblingIds.sort().join(',')] as const,
+      ['topic-layers', 'content', [...siblingIds].sort().join(',')] as const,
   },
 } as const;
