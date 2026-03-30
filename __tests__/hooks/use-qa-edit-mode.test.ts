@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -59,7 +60,9 @@ describe('useQAEditMode', () => {
   // -------------------------------------------------------------------------
 
   it('returns not editing initially', () => {
-    const { result } = renderHook(() => useQAEditMode(defaultParams()));
+    const { result } = renderHook(() => useQAEditMode(defaultParams()), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     expect(result.current.isEditing).toBe(false);
     expect(result.current.editDirty).toBe(false);
@@ -71,7 +74,9 @@ describe('useQAEditMode', () => {
   // -------------------------------------------------------------------------
 
   it('enters edit mode with current values', () => {
-    const { result } = renderHook(() => useQAEditMode(defaultParams()));
+    const { result } = renderHook(() => useQAEditMode(defaultParams()), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     act(() => {
       result.current.enterEditMode();
@@ -86,7 +91,9 @@ describe('useQAEditMode', () => {
 
   it('handles null answerStandard and answerAdvanced', () => {
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ answerStandard: null, answerAdvanced: null })),
+      useQAEditMode(defaultParams({ answerStandard: null, answerAdvanced: null })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -102,7 +109,9 @@ describe('useQAEditMode', () => {
   // -------------------------------------------------------------------------
 
   it('cancels edit mode and resets state', () => {
-    const { result } = renderHook(() => useQAEditMode(defaultParams()));
+    const { result } = renderHook(() => useQAEditMode(defaultParams()), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     act(() => {
       result.current.enterEditMode();
@@ -124,7 +133,9 @@ describe('useQAEditMode', () => {
   it('saves changed title via PATCH', async () => {
     const onFieldSaved = vi.fn();
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false, onFieldSaved })),
+      useQAEditMode(defaultParams({ isQAPair: false, onFieldSaved })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -151,7 +162,9 @@ describe('useQAEditMode', () => {
 
   it('does not PATCH unchanged title', async () => {
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false })),
+      useQAEditMode(defaultParams({ isQAPair: false })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -170,7 +183,9 @@ describe('useQAEditMode', () => {
   it('saves changed Q&A fields for QA pairs', async () => {
     const onFieldSaved = vi.fn();
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ onFieldSaved })),
+      useQAEditMode(defaultParams({ onFieldSaved })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -193,7 +208,9 @@ describe('useQAEditMode', () => {
 
   it('does not save Q&A fields when isQAPair is false', async () => {
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ isQAPair: false })),
+      useQAEditMode(defaultParams({ isQAPair: false })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -214,7 +231,9 @@ describe('useQAEditMode', () => {
   it('shows error toast on save failure', async () => {
     mockFetch.mockResolvedValue({ ok: false });
 
-    const { result } = renderHook(() => useQAEditMode(defaultParams()));
+    const { result } = renderHook(() => useQAEditMode(defaultParams()), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     act(() => {
       result.current.enterEditMode();
@@ -233,7 +252,9 @@ describe('useQAEditMode', () => {
   it('passes null for empty Q&A answer fields', async () => {
     const onFieldSaved = vi.fn();
     const { result } = renderHook(() =>
-      useQAEditMode(defaultParams({ onFieldSaved })),
+      useQAEditMode(defaultParams({ onFieldSaved })), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {

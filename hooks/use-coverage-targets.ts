@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,16 +17,14 @@ export interface CoverageTargetRow {
   domain_name: string | null;
 }
 
-interface CoverageTargetsState {
-  targets: CoverageTargetRow[];
-  loading: boolean;
-  error: string | null;
-}
-
 interface SaveTargetEntry {
   domain_id: string;
   metric_name: 'item_count' | 'fresh_pct' | 'max_expired';
   target_value: number;
+}
+
+interface TargetsResponse {
+  targets: CoverageTargetRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -31,57 +32,28 @@ interface SaveTargetEntry {
 // ---------------------------------------------------------------------------
 
 export function useCoverageTargets() {
-  const [state, setState] = useState<CoverageTargetsState>({
-    targets: [],
-    loading: true,
-    error: null,
+  const queryClient = useQueryClient();
+
+  const query = useQuery<CoverageTargetRow[]>({
+    queryKey: queryKeys.coverage.targets,
+    queryFn: async () => {
+      const data = await fetchJson<TargetsResponse>('/api/coverage/targets');
+      return data.targets ?? [];
+    },
   });
 
-  const fetchTargets = useCallback(async () => {
-    setState((prev) => ({ ...prev, loading: true, error: null }));
-
-    try {
-      const res = await fetch('/api/coverage/targets');
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || `Failed to load targets (${res.status})`);
-      }
-
-      const json = await res.json();
-      setState({
-        targets: json.targets ?? [],
-        loading: false,
-        error: null,
-      });
-    } catch (err) {
-      setState((prev) => ({
-        ...prev,
-        loading: false,
-        error: err instanceof Error ? err.message : 'Failed to load targets',
-      }));
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTargets();
-  }, [fetchTargets]);
+  const mutation = useMutation<TargetsResponse, Error, SaveTargetEntry[]>({
+    mutationFn: (entries: SaveTargetEntry[]) =>
+      mutationFetchJson<TargetsResponse>('/api/coverage/targets', { targets: entries }, { method: 'PUT' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.coverage.targets });
+    },
+  });
 
   const saveTargets = useCallback(
     async (entries: SaveTargetEntry[]): Promise<{ success: boolean; error?: string }> => {
       try {
-        const res = await fetch('/api/coverage/targets', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ targets: entries }),
-        });
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          return { success: false, error: body.error || `Save failed (${res.status})` };
-        }
-
-        // Refetch after successful save
-        await fetchTargets();
+        await mutation.mutateAsync(entries);
         return { success: true };
       } catch (err) {
         return {
@@ -90,14 +62,14 @@ export function useCoverageTargets() {
         };
       }
     },
-    [fetchTargets],
+    [mutation],
   );
 
   return {
-    targets: state.targets,
-    loading: state.loading,
-    error: state.error,
+    targets: query.data ?? [],
+    loading: query.isLoading,
+    error: query.error?.message ?? null,
     saveTargets,
-    refetch: fetchTargets,
+    refetch: query.refetch,
   };
 }

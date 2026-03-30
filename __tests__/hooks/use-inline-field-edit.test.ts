@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -52,7 +53,9 @@ describe('useInlineFieldEdit', () => {
 
   it('starts editing a field with current value', () => {
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -65,7 +68,9 @@ describe('useInlineFieldEdit', () => {
 
   it('converts null to empty string when starting edit', () => {
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -77,7 +82,9 @@ describe('useInlineFieldEdit', () => {
 
   it('cancels editing and resets state', () => {
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {
@@ -97,7 +104,9 @@ describe('useInlineFieldEdit', () => {
 
   it('saves edit with optimistic update and calls fetch', async () => {
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     await act(async () => {
@@ -125,7 +134,9 @@ describe('useInlineFieldEdit', () => {
     mockValidateEditableField.mockReturnValue(false);
 
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     await act(async () => {
@@ -147,7 +158,9 @@ describe('useInlineFieldEdit', () => {
     });
 
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     await act(async () => {
@@ -166,7 +179,9 @@ describe('useInlineFieldEdit', () => {
 
   it('allows setting edit value directly', () => {
     const { result } = renderHook(() =>
-      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }),
+      useInlineFieldEdit({ itemId: 'item-1', onItemUpdate }), {
+        wrapper: createQueryWrapper().Wrapper,
+      },
     );
 
     act(() => {

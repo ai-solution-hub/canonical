@@ -2,14 +2,16 @@
  * useCoverageTargets hook tests.
  *
  * Covers:
- *   - Successful fetch
+ *   - Successful fetch via TanStack Query
  *   - Error handling
  *   - Loading state
- *   - saveTargets: success and error
- *   - refetch after save
+ *   - saveTargets mutation: success and error
+ *   - Cache invalidation after save
+ *   - refetch
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 import { useCoverageTargets } from '@/hooks/use-coverage-targets';
 
 // ---------------------------------------------------------------------------
@@ -17,7 +19,6 @@ import { useCoverageTargets } from '@/hooks/use-coverage-targets';
 // ---------------------------------------------------------------------------
 
 const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
 
 // ---------------------------------------------------------------------------
 // Test data
@@ -49,6 +50,7 @@ const mockTargets = [
 describe('useCoverageTargets', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', mockFetch);
   });
 
   afterEach(() => {
@@ -61,7 +63,9 @@ describe('useCoverageTargets', () => {
       json: async () => ({ targets: mockTargets }),
     });
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     // Initially loading
     expect(result.current.loading).toBe(true);
@@ -72,7 +76,7 @@ describe('useCoverageTargets', () => {
 
     expect(result.current.targets).toEqual(mockTargets);
     expect(result.current.error).toBeNull();
-    expect(mockFetch).toHaveBeenCalledWith('/api/coverage/targets');
+    expect(mockFetch).toHaveBeenCalledWith('/api/coverage/targets', undefined);
   });
 
   it('handles fetch error', async () => {
@@ -82,7 +86,9 @@ describe('useCoverageTargets', () => {
       json: async () => ({ error: 'Server error' }),
     });
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -95,7 +101,9 @@ describe('useCoverageTargets', () => {
   it('handles network failure', async () => {
     mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -111,7 +119,9 @@ describe('useCoverageTargets', () => {
       json: async () => ({ targets: [] }),
     });
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -120,7 +130,7 @@ describe('useCoverageTargets', () => {
     // Set up save response then refetch response
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ success: true, count: 1 }),
+      json: async () => ({ targets: [], success: true, count: 1 }),
     });
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -145,7 +155,7 @@ describe('useCoverageTargets', () => {
       }),
     });
 
-    // After save, targets should be refetched
+    // After save, targets should be refetched via invalidation
     await waitFor(() => {
       expect(result.current.targets).toEqual(mockTargets);
     });
@@ -158,7 +168,9 @@ describe('useCoverageTargets', () => {
       json: async () => ({ targets: [] }),
     });
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -189,7 +201,9 @@ describe('useCoverageTargets', () => {
       json: async () => ({ targets: [] }),
     });
 
-    const { result } = renderHook(() => useCoverageTargets());
+    const { result } = renderHook(() => useCoverageTargets(), {
+      wrapper: createQueryWrapper().Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -205,6 +219,8 @@ describe('useCoverageTargets', () => {
       await result.current.refetch();
     });
 
-    expect(result.current.targets).toEqual(mockTargets);
+    await waitFor(() => {
+      expect(result.current.targets).toEqual(mockTargets);
+    });
   });
 });
