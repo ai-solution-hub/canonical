@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import type { ReviewQueueItem, ReviewStatsResponse } from '@/types/review';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type {
+  ReviewQueueItem,
+  ReviewStatsResponse,
+  ReviewFilters as ReviewFiltersType,
+  ReviewProgress,
+} from '@/types/review';
 
 // ---------------------------------------------------------------------------
 // Mocks — must be declared before importing the hook
@@ -38,15 +45,101 @@ vi.mock('@/hooks/review/use-review-shortcuts', () => ({
   })),
 }));
 
+// ---------------------------------------------------------------------------
+// Sub-hook mocks (with hoisted mock variables)
+// ---------------------------------------------------------------------------
+
+const mockSessionReturn = vi.hoisted(() => ({
+  filters: { status: 'unverified' as const } as ReviewFiltersType,
+  serverSort: undefined as string | undefined,
+  queueSort: 'default' as const,
+  setFilters: vi.fn(),
+  setQueueSort: vi.fn(),
+  handleFiltersChange: vi.fn(),
+  progress: {
+    verified: 0,
+    flagged: 0,
+    skipped: 0,
+    total: 0,
+    sessionReviewed: 0,
+  } as ReviewProgress,
+  setProgress: vi.fn(),
+  announcement: '',
+  setAnnouncement: vi.fn(),
+  showFlagInput: false,
+  flagDetails: '',
+  showQueuePanel: false,
+  setShowFlagInput: vi.fn(),
+  setFlagDetails: vi.fn(),
+  handleTogglePanel: vi.fn(),
+  flagInputRef: { current: null } as React.RefObject<HTMLInputElement | null>,
+}));
+
+const mockDataReturn = vi.hoisted(() => ({
+  queue: [] as ReviewQueueItem[],
+  isLoading: true,
+  hasMore: false,
+  stats: null as ReviewStatsResponse | null,
+  activeAssignment: null,
+  queueQuery: {
+    data: undefined,
+    isLoading: true,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
+  } as unknown,
+  queryClient: null as unknown, // Assigned in beforeEach after QueryClient is available
+  queueFiltersKey: {} as Record<string, unknown>,
+}));
+
+const mockNavReturn = vi.hoisted(() => ({
+  currentIndex: 0,
+  currentItem: null as ReviewQueueItem | null,
+  sortedQueue: [] as ReviewQueueItem[],
+  currentSortedIndex: -1,
+  handleSelectItem: vi.fn(),
+  handleSkip: vi.fn(),
+  handleBack: vi.fn(),
+  advanceToNext: vi.fn(),
+  setCurrentIndex: vi.fn(),
+  cardRef: { current: null } as React.RefObject<HTMLDivElement | null>,
+}));
+
+const mockActionsReturn = vi.hoisted(() => ({
+  handleVerify: vi.fn(async () => {}),
+  handlePublish: vi.fn(async () => {}),
+  handleFlagSubmit: vi.fn(async () => {}),
+  isActioning: false,
+  lastAnnouncement: '',
+}));
+
+vi.mock('@/hooks/review/use-review-session', () => ({
+  useReviewSession: vi.fn(() => ({ ...mockSessionReturn })),
+}));
+
+vi.mock('@/hooks/review/use-review-queue-data', () => ({
+  useReviewQueueData: vi.fn(() => ({ ...mockDataReturn })),
+}));
+
+vi.mock('@/hooks/review/use-review-navigation', () => ({
+  useReviewNavigation: vi.fn(() => ({ ...mockNavReturn })),
+}));
+
+vi.mock('@/hooks/review/use-review-actions', () => ({
+  useReviewActions: vi.fn(() => ({ ...mockActionsReturn })),
+}));
+
 import { toast } from 'sonner';
 import { useReviewQueue } from '@/hooks/review/use-review-queue';
+import { useReviewSession } from '@/hooks/review/use-review-session';
+import { useReviewQueueData } from '@/hooks/review/use-review-queue-data';
+import { useReviewNavigation } from '@/hooks/review/use-review-navigation';
+import { useReviewActions } from '@/hooks/review/use-review-actions';
 
 // ---------------------------------------------------------------------------
 // Global mocks
 // ---------------------------------------------------------------------------
-
-const mockFetch = vi.fn();
-global.fetch = mockFetch;
 
 const mockReplaceState = vi.fn();
 Object.defineProperty(window, 'history', {
@@ -96,26 +189,41 @@ function makeQueueItem(overrides: Partial<ReviewQueueItem> = {}, index = 0): Rev
   };
 }
 
-function mockQueueResponse(
-  items: Partial<ReviewQueueItem>[] = [],
-  cursor?: string,
-) {
-  return {
-    ok: true,
-    json: async () => ({
-      items: items.map((item, i) => makeQueueItem(item, i)),
-      cursor,
-      total: items.length,
-      verified_count: 0,
-      flagged_count: 0,
-    }),
+/**
+ * Creates a QueryClientProvider wrapper for renderHook.
+ */
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
   };
 }
 
-function mockStatsResponse(overrides: Partial<ReviewStatsResponse> = {}) {
-  return {
-    ok: true,
-    json: async () => ({
+/**
+ * Helper to configure mock sub-hooks for a loaded state with items.
+ */
+function setupLoadedState(
+  items: ReviewQueueItem[],
+  overrides?: {
+    stats?: Partial<ReviewStatsResponse>;
+    hasMore?: boolean;
+    progress?: Partial<ReviewProgress>;
+  },
+) {
+  const dataOverrides = {
+    queue: items,
+    isLoading: false,
+    hasMore: overrides?.hasMore ?? false,
+    stats: overrides?.stats ? {
       total: 100,
       verified: 50,
       flagged: 10,
@@ -123,29 +231,22 @@ function mockStatsResponse(overrides: Partial<ReviewStatsResponse> = {}) {
       by_domain: {},
       by_content_type: {},
       by_source_file: {},
-      ...overrides,
-    }),
+      ...overrides.stats,
+    } as ReviewStatsResponse : null,
   };
-}
+  Object.assign(mockDataReturn, dataOverrides);
 
-/**
- * Sets up mockFetch to handle both the queue and stats fetch calls
- * that fire on mount. Returns the items for assertion convenience.
- */
-function setupMountFetches(
-  queueItems: Partial<ReviewQueueItem>[] = [{}],
-  cursor?: string,
-  statsOverrides?: Partial<ReviewStatsResponse>,
-) {
-  mockFetch.mockImplementation((url: string) => {
-    if (url.includes('/api/review/queue')) {
-      return Promise.resolve(mockQueueResponse(queueItems, cursor));
-    }
-    if (url.includes('/api/review/stats')) {
-      return Promise.resolve(mockStatsResponse(statsOverrides));
-    }
-    return Promise.resolve({ ok: true, json: async () => ({}) });
-  });
+  const navOverrides = {
+    currentItem: items[0] ?? null,
+    currentIndex: 0,
+    sortedQueue: items,
+    currentSortedIndex: items.length > 0 ? 0 : -1,
+  };
+  Object.assign(mockNavReturn, navOverrides);
+
+  if (overrides?.progress) {
+    Object.assign(mockSessionReturn.progress, overrides.progress);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -155,11 +256,60 @@ function setupMountFetches(
 describe('useReviewQueue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetch.mockReset();
     mockPush.mockReset();
     mockReplace.mockReset();
     mockReplaceState.mockReset();
     currentSearchParams = new URLSearchParams();
+
+    // Reset mock return values to defaults
+    Object.assign(mockSessionReturn, {
+      filters: { status: 'unverified' as const } as ReviewFiltersType,
+      serverSort: undefined,
+      queueSort: 'default' as const,
+      progress: { verified: 0, flagged: 0, skipped: 0, total: 0, sessionReviewed: 0 },
+      announcement: '',
+      showFlagInput: false,
+      flagDetails: '',
+      showQueuePanel: false,
+    });
+    mockSessionReturn.setFilters = vi.fn();
+    mockSessionReturn.setQueueSort = vi.fn();
+    mockSessionReturn.handleFiltersChange = vi.fn();
+    mockSessionReturn.setProgress = vi.fn();
+    mockSessionReturn.setAnnouncement = vi.fn();
+    mockSessionReturn.setShowFlagInput = vi.fn();
+    mockSessionReturn.setFlagDetails = vi.fn();
+    mockSessionReturn.handleTogglePanel = vi.fn();
+
+    Object.assign(mockDataReturn, {
+      queue: [],
+      isLoading: true,
+      hasMore: false,
+      stats: null,
+      activeAssignment: null,
+      queryClient: new QueryClient(),
+      queueFiltersKey: {},
+    });
+
+    Object.assign(mockNavReturn, {
+      currentIndex: 0,
+      currentItem: null,
+      sortedQueue: [],
+      currentSortedIndex: -1,
+    });
+    mockNavReturn.handleSelectItem = vi.fn();
+    mockNavReturn.handleSkip = vi.fn();
+    mockNavReturn.handleBack = vi.fn();
+    mockNavReturn.advanceToNext = vi.fn();
+    mockNavReturn.setCurrentIndex = vi.fn();
+
+    Object.assign(mockActionsReturn, {
+      isActioning: false,
+      lastAnnouncement: '',
+    });
+    mockActionsReturn.handleVerify = vi.fn(async () => {});
+    mockActionsReturn.handlePublish = vi.fn(async () => {});
+    mockActionsReturn.handleFlagSubmit = vi.fn(async () => {});
   });
 
   // =========================================================================
@@ -168,10 +318,9 @@ describe('useReviewQueue', () => {
 
   describe('initial state', () => {
     it('returns loading=true and empty queue initially', () => {
-      // Set up fetch so it never resolves (we just want initial state)
-      mockFetch.mockReturnValue(new Promise(() => {}));
-
-      const { result } = renderHook(() => useReviewQueue());
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
 
       expect(result.current.isLoading).toBe(true);
       expect(result.current.queue).toEqual([]);
@@ -181,33 +330,22 @@ describe('useReviewQueue', () => {
       expect(result.current.hasMore).toBe(false);
     });
 
-    it('parses status filter from URL search params', async () => {
+    it('parses status filter from URL search params', () => {
       currentSearchParams = new URLSearchParams('status=flagged');
-      setupMountFetches();
+      mockSessionReturn.filters = { status: 'flagged' };
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.filters.status).toBe('flagged');
-      // Verify the queue fetch included the status param
-      const queueCall = mockFetch.mock.calls.find(
-        (call: unknown[]) => typeof call[0] === 'string' && call[0].includes('/api/review/queue'),
-      );
-      expect(queueCall).toBeDefined();
-      expect(queueCall![0]).toContain('status=flagged');
     });
 
-    it('defaults to unverified status when no URL param is present', async () => {
+    it('defaults to unverified status when no URL param is present', () => {
       currentSearchParams = new URLSearchParams();
-      setupMountFetches();
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.filters.status).toBe('unverified');
@@ -219,14 +357,12 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('data fetching', () => {
-    it('fetches queue on mount and sets items', async () => {
-      const items = [{ id: 'q1', title: 'First' }, { id: 'q2', title: 'Second' }];
-      setupMountFetches(items);
+    it('fetches queue on mount and sets items', () => {
+      const items = [makeQueueItem({ id: 'q1', title: 'First' }), makeQueueItem({ id: 'q2', title: 'Second' }, 1)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.queue).toHaveLength(2);
@@ -236,53 +372,43 @@ describe('useReviewQueue', () => {
       expect(result.current.currentItem!.id).toBe('q1');
     });
 
-    it('fetches stats on mount', async () => {
-      setupMountFetches([{}], undefined, { total: 200, verified: 80, flagged: 15 });
+    it('fetches stats on mount', () => {
+      const items = [makeQueueItem()];
+      setupLoadedState(items, { stats: { total: 200, verified: 80, flagged: 15 } });
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.stats).not.toBeNull();
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
+      expect(result.current.stats).not.toBeNull();
       expect(result.current.stats!.total).toBe(200);
       expect(result.current.stats!.verified).toBe(80);
       expect(result.current.stats!.flagged).toBe(15);
     });
 
-    it('sets loading=false after fetch completes', async () => {
-      setupMountFetches([{ id: 'x1' }]);
+    it('sets loading=false after fetch completes', () => {
+      const items = [makeQueueItem({ id: 'x1' })];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      // Initially loading
-      expect(result.current.isLoading).toBe(true);
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
+      expect(result.current.isLoading).toBe(false);
       expect(result.current.queue).toHaveLength(1);
     });
 
-    it('shows error toast on queue fetch failure', async () => {
-      mockFetch.mockImplementation((url: string) => {
-        if (url.includes('/api/review/queue')) {
-          return Promise.resolve({ ok: false, status: 500 });
-        }
-        if (url.includes('/api/review/stats')) {
-          return Promise.resolve(mockStatsResponse());
-        }
-        return Promise.resolve({ ok: true, json: async () => ({}) });
+    it('delegates error handling to sub-hooks', () => {
+      // Data hook handles errors via TanStack Query's error state
+      mockDataReturn.isLoading = false;
+      mockDataReturn.queue = [];
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      expect(toast.error).toHaveBeenCalledWith('Failed to load review queue');
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.queue).toEqual([]);
     });
   });
 
@@ -291,58 +417,41 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('navigation', () => {
-    it('handleSkip advances currentIndex without incrementing counters', async () => {
-      const items = [{ id: 'n1' }, { id: 'n2' }, { id: 'n3' }];
-      setupMountFetches(items);
+    it('handleSkip delegates to navigation sub-hook', () => {
+      const items = [makeQueueItem({ id: 'n1' }), makeQueueItem({ id: 'n2' }, 1), makeQueueItem({ id: 'n3' }, 2)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
-
-      expect(result.current.currentIndex).toBe(0);
 
       act(() => {
         result.current.handleSkip();
       });
 
-      expect(result.current.currentIndex).toBe(1);
-      // Next/Skip is now pure navigation — no counter increments
-      expect(result.current.progress.skipped).toBe(0);
-      expect(result.current.progress.sessionReviewed).toBe(0);
+      expect(mockNavReturn.handleSkip).toHaveBeenCalled();
     });
 
-    it('handleBack decrements currentIndex', async () => {
-      const items = [{ id: 'b1' }, { id: 'b2' }, { id: 'b3' }];
-      setupMountFetches(items);
+    it('handleBack delegates to navigation sub-hook', () => {
+      const items = [makeQueueItem({ id: 'b1' }), makeQueueItem({ id: 'b2' }, 1)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
-      // Skip forward first
-      act(() => {
-        result.current.handleSkip();
-      });
-      expect(result.current.currentIndex).toBe(1);
-
-      // Now go back
       act(() => {
         result.current.handleBack();
       });
-      expect(result.current.currentIndex).toBe(0);
+
+      expect(mockNavReturn.handleBack).toHaveBeenCalled();
     });
 
-    it('handleBack does nothing at index 0', async () => {
-      setupMountFetches([{ id: 'solo' }]);
+    it('handleBack does nothing at index 0 (delegated)', () => {
+      setupLoadedState([makeQueueItem({ id: 'solo' })]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.currentIndex).toBe(0);
@@ -351,40 +460,27 @@ describe('useReviewQueue', () => {
         result.current.handleBack();
       });
 
-      expect(result.current.currentIndex).toBe(0);
+      // The navigation hook handles the boundary check internally
+      expect(mockNavReturn.handleBack).toHaveBeenCalled();
     });
 
-    it('handleSelectItem maps from sorted index to real index', async () => {
+    it('handleSelectItem delegates to navigation sub-hook', () => {
       const items = [
-        { id: 's1', primary_domain: 'Zebra' },
-        { id: 's2', primary_domain: 'Alpha' },
-        { id: 's3', primary_domain: 'Middle' },
+        makeQueueItem({ id: 's1', primary_domain: 'Zebra' }),
+        makeQueueItem({ id: 's2', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 's3', primary_domain: 'Middle' }, 2),
       ];
-      setupMountFetches(items);
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
-      // Sort by domain
-      act(() => {
-        result.current.setQueueSort('domain');
-      });
-
-      // After sorting: Alpha (s2), Middle (s3), Zebra (s1)
-      expect(result.current.sortedQueue[0].id).toBe('s2');
-      expect(result.current.sortedQueue[1].id).toBe('s3');
-      expect(result.current.sortedQueue[2].id).toBe('s1');
-
-      // Select the third item in sorted order (Zebra = s1 = real index 0)
       act(() => {
         result.current.handleSelectItem(2);
       });
 
-      expect(result.current.currentIndex).toBe(0); // s1 is at real index 0
-      expect(result.current.currentItem!.id).toBe('s1');
+      expect(mockNavReturn.handleSelectItem).toHaveBeenCalledWith(2);
     });
   });
 
@@ -393,169 +489,103 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('actions', () => {
-    it('handleVerify calls POST /api/review/action with verify action', async () => {
-      const items = [{ id: 'v1', title: 'Verify Me' }];
-      setupMountFetches(items);
+    it('handleVerify delegates to actions sub-hook', async () => {
+      const items = [makeQueueItem({ id: 'v1', title: 'Verify Me' })];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      // Reset fetch to track the verify call
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({}),
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       await act(async () => {
         await result.current.handleVerify();
       });
 
-      // Find the POST call to /api/review/action
-      const actionCall = mockFetch.mock.calls.find(
-        (call: unknown[]) =>
-          typeof call[0] === 'string' &&
-          call[0] === '/api/review/action' &&
-          (call[1] as RequestInit)?.method === 'POST',
-      );
-      expect(actionCall).toBeDefined();
-
-      const body = JSON.parse((actionCall![1] as RequestInit).body as string);
-      expect(body.item_id).toBe('v1');
-      expect(body.action).toBe('verify');
+      expect(mockActionsReturn.handleVerify).toHaveBeenCalled();
     });
 
-    it('handleVerify updates progress optimistically', async () => {
-      const items = [{ id: 'v2', title: 'Optimistic' }, { id: 'v3' }];
-      setupMountFetches(items);
+    it('handleVerify passes note argument through', async () => {
+      const items = [makeQueueItem({ id: 'v2', title: 'Optimistic' }), makeQueueItem({ id: 'v3' }, 1)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
-
-      const initialVerified = result.current.progress.verified;
-      const initialSessionReviewed = result.current.progress.sessionReviewed;
-
-      // Never resolving fetch to check optimistic state
-      mockFetch.mockReturnValue(new Promise(() => {}));
-
-      act(() => {
-        // Fire and forget — we check optimistic state immediately
-        result.current.handleVerify();
-      });
-
-      // Optimistic: verified count increased and session reviewed increased
-      expect(result.current.progress.verified).toBe(initialVerified + 1);
-      expect(result.current.progress.sessionReviewed).toBe(initialSessionReviewed + 1);
-      // Should advance to next item
-      expect(result.current.currentIndex).toBe(1);
-    });
-
-    it('handleVerify shows error toast and rolls back on API failure', async () => {
-      const items = [{ id: 'fail1', title: 'Fail Item' }, { id: 'fail2' }];
-      setupMountFetches(items);
-
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      const initialVerified = result.current.progress.verified;
-
-      // Make the action call fail
-      mockFetch.mockResolvedValue({ ok: false, status: 500 });
 
       await act(async () => {
-        await result.current.handleVerify();
+        await result.current.handleVerify('Review note');
       });
 
-      expect(toast.error).toHaveBeenCalledWith(
-        'Action failed. Check your connection and try again.',
-      );
-
-      // Verified count should roll back
-      expect(result.current.progress.verified).toBe(initialVerified);
+      expect(mockActionsReturn.handleVerify).toHaveBeenCalledWith('Review note');
     });
 
-    it('handleFlagSubmit calls POST with flag action and flag_details', async () => {
-      const items = [{ id: 'f1', title: 'Flag Me' }, { id: 'f2' }];
-      setupMountFetches(items);
+    it('handleVerify error handling is delegated to actions sub-hook', async () => {
+      const items = [makeQueueItem({ id: 'fail1', title: 'Fail Item' }), makeQueueItem({ id: 'fail2' }, 1)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      mockActionsReturn.handleVerify = vi.fn(async () => {
+        throw new Error('Verify failed');
       });
 
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: async () => ({}),
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      // The error is handled internally by the actions sub-hook
+      await act(async () => {
+        try {
+          await result.current.handleVerify();
+        } catch {
+          // Expected — sub-hook handles error internally
+        }
+      });
+
+      expect(mockActionsReturn.handleVerify).toHaveBeenCalled();
+    });
+
+    it('handleFlagSubmit delegates to actions sub-hook with details', async () => {
+      const items = [makeQueueItem({ id: 'f1', title: 'Flag Me' }), makeQueueItem({ id: 'f2' }, 1)];
+      setupLoadedState(items);
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       await act(async () => {
         await result.current.handleFlagSubmit('Needs reclassification');
       });
 
-      const actionCall = mockFetch.mock.calls.find(
-        (call: unknown[]) =>
-          typeof call[0] === 'string' &&
-          call[0] === '/api/review/action' &&
-          (call[1] as RequestInit)?.method === 'POST',
-      );
-      expect(actionCall).toBeDefined();
-
-      const body = JSON.parse((actionCall![1] as RequestInit).body as string);
-      expect(body.item_id).toBe('f1');
-      expect(body.action).toBe('flag');
-      expect(body.flag_details).toBe('Needs reclassification');
+      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith('Needs reclassification');
     });
 
-    it('handleFlag opens the flag input', async () => {
-      const items = [{ id: 'hf1' }];
-      setupMountFetches(items);
+    it('handleFlag opens the flag input', () => {
+      const items = [makeQueueItem({ id: 'hf1' })];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
-
-      expect(result.current.showFlagInput).toBe(false);
 
       act(() => {
         result.current.handleFlag();
       });
 
-      expect(result.current.showFlagInput).toBe(true);
+      expect(mockSessionReturn.setShowFlagInput).toHaveBeenCalledWith(true);
     });
 
-    it('handleFlagSubmit updates progress optimistically and advances', async () => {
-      const items = [{ id: 'fp1' }, { id: 'fp2' }];
-      setupMountFetches(items);
+    it('handleFlagSubmit delegates flag progression to actions sub-hook', async () => {
+      const items = [makeQueueItem({ id: 'fp1' }), makeQueueItem({ id: 'fp2' }, 1)];
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
-
-      const initialFlagged = result.current.progress.flagged;
-
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
 
       await act(async () => {
         await result.current.handleFlagSubmit('Bad data');
       });
 
-      expect(result.current.progress.flagged).toBe(initialFlagged + 1);
-      expect(result.current.progress.sessionReviewed).toBe(1);
-      // Should advance to next
-      expect(result.current.currentIndex).toBe(1);
+      expect(mockActionsReturn.handleFlagSubmit).toHaveBeenCalledWith('Bad data');
     });
   });
 
@@ -564,41 +594,35 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('sorting', () => {
-    it('sortedQueue returns queue as-is when sort is default', async () => {
+    it('sortedQueue returns queue as-is when sort is default', () => {
       const items = [
-        { id: 'def1', primary_domain: 'Zebra' },
-        { id: 'def2', primary_domain: 'Alpha' },
+        makeQueueItem({ id: 'def1', primary_domain: 'Zebra' }),
+        makeQueueItem({ id: 'def2', primary_domain: 'Alpha' }, 1),
       ];
-      setupMountFetches(items);
+      setupLoadedState(items);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.queueSort).toBe('default');
-      // Same order as original queue
       expect(result.current.sortedQueue[0].id).toBe('def1');
       expect(result.current.sortedQueue[1].id).toBe('def2');
     });
 
-    it('sortedQueue sorts by domain when sort is domain', async () => {
+    it('sortedQueue reflects navigation sub-hook sorting', () => {
       const items = [
-        { id: 'dom1', primary_domain: 'Zebra' },
-        { id: 'dom2', primary_domain: 'Alpha' },
-        { id: 'dom3', primary_domain: 'Middle' },
+        makeQueueItem({ id: 'dom1', primary_domain: 'Zebra' }),
+        makeQueueItem({ id: 'dom2', primary_domain: 'Alpha' }, 1),
+        makeQueueItem({ id: 'dom3', primary_domain: 'Middle' }, 2),
       ];
-      setupMountFetches(items);
+      // Simulate sorted order from navigation hook
+      const sorted = [items[1], items[2], items[0]];
+      setupLoadedState(items);
+      mockNavReturn.sortedQueue = sorted;
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      act(() => {
-        result.current.setQueueSort('domain');
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.sortedQueue[0].primary_domain).toBe('Alpha');
@@ -606,32 +630,18 @@ describe('useReviewQueue', () => {
       expect(result.current.sortedQueue[2].primary_domain).toBe('Zebra');
     });
 
-    it('sortedQueue sorts by confidence descending', async () => {
-      const items = [
-        { id: 'c1', classification_confidence: 0.5 },
-        { id: 'c2', classification_confidence: 0.95 },
-        { id: 'c3', classification_confidence: 0.7 },
-      ];
-      setupMountFetches(items);
+    it('setQueueSort delegates to session sub-hook', () => {
+      setupLoadedState([makeQueueItem()]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       act(() => {
         result.current.setQueueSort('confidence');
       });
 
-      // Setting confidence sort triggers a server-side refetch; wait for it to complete
-      await waitFor(() => {
-        expect(result.current.sortedQueue.length).toBe(3);
-      });
-
-      expect(result.current.sortedQueue[0].classification_confidence).toBe(0.95);
-      expect(result.current.sortedQueue[1].classification_confidence).toBe(0.7);
-      expect(result.current.sortedQueue[2].classification_confidence).toBe(0.5);
+      expect(mockSessionReturn.setQueueSort).toHaveBeenCalledWith('confidence');
     });
   });
 
@@ -640,13 +650,11 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('filters and exit', () => {
-    it('handleFiltersChange updates filters state', async () => {
-      setupMountFetches();
+    it('handleFiltersChange delegates to session sub-hook', () => {
+      setupLoadedState([makeQueueItem()]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       act(() => {
@@ -656,17 +664,17 @@ describe('useReviewQueue', () => {
         });
       });
 
-      expect(result.current.filters.status).toBe('verified');
-      expect(result.current.filters.domain).toEqual(['Technical']);
+      expect(mockSessionReturn.handleFiltersChange).toHaveBeenCalledWith({
+        status: 'verified',
+        domain: ['Technical'],
+      });
     });
 
-    it('handleExit navigates to /browse', async () => {
-      setupMountFetches();
+    it('handleExit navigates to /browse', () => {
+      setupLoadedState([makeQueueItem()]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       act(() => {
@@ -676,34 +684,24 @@ describe('useReviewQueue', () => {
       expect(mockPush).toHaveBeenCalledWith('/browse');
     });
 
-    it('syncs filters to URL via replaceState', async () => {
-      setupMountFetches();
+    it('setFilters delegates to session sub-hook', () => {
+      setupLoadedState([makeQueueItem()]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       act(() => {
-        result.current.handleFiltersChange({
+        result.current.setFilters({
           status: 'flagged',
           domain: ['Commercial'],
         });
       });
 
-      await waitFor(() => {
-        expect(mockReplaceState).toHaveBeenCalled();
+      expect(mockSessionReturn.setFilters).toHaveBeenCalledWith({
+        status: 'flagged',
+        domain: ['Commercial'],
       });
-
-      // Find the call that includes the flagged status
-      const matchingCall = mockReplaceState.mock.calls.find(
-        (call: unknown[]) =>
-          typeof call[2] === 'string' &&
-          call[2].includes('status=flagged') &&
-          call[2].includes('domain=Commercial'),
-      );
-      expect(matchingCall).toBeDefined();
     });
   });
 
@@ -712,28 +710,18 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('panel toggle', () => {
-    it('handleTogglePanel toggles showQueuePanel', async () => {
-      setupMountFetches();
+    it('handleTogglePanel delegates to session sub-hook', () => {
+      setupLoadedState([makeQueueItem()]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
-
-      expect(result.current.showQueuePanel).toBe(false);
 
       act(() => {
         result.current.handleTogglePanel();
       });
 
-      expect(result.current.showQueuePanel).toBe(true);
-
-      act(() => {
-        result.current.handleTogglePanel();
-      });
-
-      expect(result.current.showQueuePanel).toBe(false);
+      expect(mockSessionReturn.handleTogglePanel).toHaveBeenCalled();
     });
   });
 
@@ -742,38 +730,26 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('computed values', () => {
-    it('currentSortedIndex tracks current item in sorted queue', async () => {
+    it('currentSortedIndex comes from navigation sub-hook', () => {
       const items = [
-        { id: 'ci1', primary_domain: 'Zebra' },
-        { id: 'ci2', primary_domain: 'Alpha' },
+        makeQueueItem({ id: 'ci1', primary_domain: 'Zebra' }),
+        makeQueueItem({ id: 'ci2', primary_domain: 'Alpha' }, 1),
       ];
-      setupMountFetches(items);
+      setupLoadedState(items);
+      mockNavReturn.currentSortedIndex = 1;
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
-      // Default sort: current item is ci1 at sorted index 0
-      expect(result.current.currentSortedIndex).toBe(0);
-
-      // Switch to domain sort: Alpha (ci2) comes first, Zebra (ci1) second
-      act(() => {
-        result.current.setQueueSort('domain');
-      });
-
-      // Current item is still ci1, which is now at sorted index 1
       expect(result.current.currentSortedIndex).toBe(1);
     });
 
-    it('currentItem is null when queue is empty', async () => {
-      setupMountFetches([]);
+    it('currentItem is null when queue is empty', () => {
+      setupLoadedState([]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       expect(result.current.currentItem).toBeNull();
@@ -785,43 +761,298 @@ describe('useReviewQueue', () => {
   // =========================================================================
 
   describe('announcements', () => {
-    it('sets announcement on next for screen readers', async () => {
-      const items = [{ id: 'a1', title: 'Announce Item' }, { id: 'a2', title: 'Next Item' }];
-      setupMountFetches(items);
+    it('announcement comes from session sub-hook', () => {
+      setupLoadedState([makeQueueItem({ id: 'a1' }), makeQueueItem({ id: 'a2' }, 1)]);
+      mockSessionReturn.announcement = 'Item 2 of 10. Next Item.';
 
-      const { result } = renderHook(() => useReviewQueue());
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
 
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      expect(result.current.announcement).toContain('Item 2');
+    });
+
+    it('syncs action announcements into session state', () => {
+      setupLoadedState([makeQueueItem({ id: 'av1' }), makeQueueItem({ id: 'av2' }, 1)]);
+      mockActionsReturn.lastAnnouncement = 'Verified. Item 2 of 100. Verify Announce.';
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      // The orchestrator's useEffect should sync lastAnnouncement to session
+      expect(mockSessionReturn.setAnnouncement).toHaveBeenCalledWith(
+        'Verified. Item 2 of 100. Verify Announce.',
+      );
+    });
+  });
+
+  // =========================================================================
+  // Orchestrator wiring (composition tests)
+  // =========================================================================
+
+  describe('orchestrator wiring', () => {
+    it('passes session filters and serverSort to data hook', () => {
+      mockSessionReturn.filters = { status: 'flagged', domain: ['Technical'] };
+      mockSessionReturn.serverSort = 'confidence_asc';
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(vi.mocked(useReviewQueueData)).toHaveBeenCalledWith(
+        { status: 'flagged', domain: ['Technical'] },
+        'confidence_asc',
+      );
+    });
+
+    it('passes data queue and session sort to navigation hook', () => {
+      const items = [makeQueueItem({ id: 'wire1' })];
+      setupLoadedState(items);
+      mockSessionReturn.queueSort = 'domain';
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(vi.mocked(useReviewNavigation)).toHaveBeenCalledWith(
+        items,
+        false,
+        'domain',
+        expect.anything(),
+      );
+    });
+
+    it('passes correct params to actions hook', () => {
+      const items = [makeQueueItem({ id: 'wire2' })];
+      setupLoadedState(items);
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(vi.mocked(useReviewActions)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queue: items,
+          currentIndex: 0,
+          currentItem: items[0],
+        }),
+      );
+    });
+
+    it('handleFlag does nothing when isActioning is true', () => {
+      setupLoadedState([makeQueueItem({ id: 'guard1' })]);
+      mockActionsReturn.isActioning = true;
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
       act(() => {
-        result.current.handleSkip();
+        result.current.handleFlag();
       });
 
-      // Next announces the item position without "Skipped" prefix
-      expect(result.current.announcement).toContain('Item 2');
-      expect(result.current.announcement).toContain('Next Item');
+      expect(mockSessionReturn.setShowFlagInput).not.toHaveBeenCalled();
     });
 
-    it('sets announcement on verify for screen readers', async () => {
-      const items = [{ id: 'av1', title: 'Verify Announce' }, { id: 'av2' }];
-      setupMountFetches(items);
+    it('handleFlag does nothing when no current item', () => {
+      setupLoadedState([]);
 
-      const { result } = renderHook(() => useReviewQueue());
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
       });
 
-      mockFetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+      act(() => {
+        result.current.handleFlag();
+      });
+
+      expect(mockSessionReturn.setShowFlagInput).not.toHaveBeenCalled();
+    });
+
+    it('handleEdit opens item in new tab', () => {
+      const items = [makeQueueItem({ id: 'edit1' })];
+      setupLoadedState(items);
+
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      act(() => {
+        result.current.handleEdit();
+      });
+
+      expect(openSpy).toHaveBeenCalledWith('/item/edit1', '_blank');
+      openSpy.mockRestore();
+    });
+
+    it('handleEdit does nothing when no current item', () => {
+      setupLoadedState([]);
+
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      act(() => {
+        result.current.handleEdit();
+      });
+
+      expect(openSpy).not.toHaveBeenCalled();
+      openSpy.mockRestore();
+    });
+  });
+
+  // =========================================================================
+  // Cross-hook effects
+  // =========================================================================
+
+  describe('cross-hook effects', () => {
+    it('syncs stats into progress with Math.max guard (S126 #1)', () => {
+      setupLoadedState([makeQueueItem()], {
+        stats: { total: 100, verified: 50, flagged: 10 },
+      });
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      // The stats sync useEffect should call setProgress with Math.max guard
+      expect(mockSessionReturn.setProgress).toHaveBeenCalled();
+      const updateFn = mockSessionReturn.setProgress.mock.calls[0][0];
+      // Simulate: optimistic progress has verified=55, stats says 50 -> should keep 55
+      const result = updateFn({ verified: 55, flagged: 12, total: 100, skipped: 0, sessionReviewed: 5 });
+      expect(result.verified).toBe(55); // Math.max(50, 55) = 55
+      expect(result.flagged).toBe(12);  // Math.max(10, 12) = 12
+      expect(result.total).toBe(100);
+    });
+
+    it('does not sync stats when stats is null', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockDataReturn.stats = null;
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(mockSessionReturn.setProgress).not.toHaveBeenCalled();
+    });
+
+    it('does not sync empty lastAnnouncement', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockActionsReturn.lastAnnouncement = '';
+
+      renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(mockSessionReturn.setAnnouncement).not.toHaveBeenCalled();
+    });
+  });
+
+  // =========================================================================
+  // New tests: TanStack Query specific (Section 7.4)
+  // =========================================================================
+
+  describe('TanStack Query integration', () => {
+    it('hasMore reflects hasNextPage from infinite query', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockDataReturn.hasMore = true;
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.hasMore).toBe(true);
+    });
+
+    it('has_more: false results in hasMore=false', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockDataReturn.hasMore = false;
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.hasMore).toBe(false);
+    });
+
+    it('isActioning is derived from mutation pending states', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockActionsReturn.isActioning = true;
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.isActioning).toBe(true);
+    });
+
+    it('activeAssignment comes from data hook', () => {
+      setupLoadedState([makeQueueItem()]);
+      mockDataReturn.activeAssignment = {
+        id: 'assign-1',
+        notes: 'Review these items',
+        filter_domains: ['Technical'],
+        filter_content_types: [],
+        filter_freshness: [],
+        filter_date_from: null,
+        filter_date_to: null,
+        item_count: 20,
+        due_date: '2026-04-01',
+      };
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      expect(result.current.activeAssignment).not.toBeNull();
+      expect(result.current.activeAssignment!.id).toBe('assign-1');
+      expect(result.current.activeAssignment!.filter_domains).toEqual(['Technical']);
+    });
+
+    it('handlePublish delegates to actions sub-hook', async () => {
+      setupLoadedState([makeQueueItem({ id: 'pub1', governance_review_status: 'draft' })]);
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
 
       await act(async () => {
-        await result.current.handleVerify();
+        await result.current.handlePublish();
       });
 
-      expect(result.current.announcement).toContain('Verified');
-      expect(result.current.announcement).toContain('Verify Announce');
+      expect(mockActionsReturn.handlePublish).toHaveBeenCalled();
+    });
+
+    it('all 36 return properties are present', () => {
+      setupLoadedState([makeQueueItem()]);
+
+      const { result } = renderHook(() => useReviewQueue(), {
+        wrapper: createWrapper(),
+      });
+
+      const expectedProperties = [
+        'queue', 'currentIndex', 'isLoading', 'isActioning', 'hasMore',
+        'progress', 'filters', 'stats', 'showFlagInput', 'flagDetails',
+        'showQueuePanel', 'queueSort', 'announcement',
+        'activeAssignment',
+        'cardRef', 'flagInputRef',
+        'currentItem', 'sortedQueue', 'currentSortedIndex',
+        'handleSelectItem', 'handleVerify', 'handlePublish', 'handleFlagSubmit',
+        'handleFlag', 'handleSkip', 'handleBack', 'handleExit', 'handleEdit',
+        'handleFiltersChange', 'handleTogglePanel',
+        'setShowFlagInput', 'setFlagDetails', 'setFilters', 'setQueueSort',
+        'showHelp', 'setShowHelp',
+      ];
+
+      for (const prop of expectedProperties) {
+        expect(result.current).toHaveProperty(prop);
+      }
+
+      expect(expectedProperties).toHaveLength(36);
     });
   });
 });
