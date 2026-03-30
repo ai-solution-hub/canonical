@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
-import { fetchJson } from '@/lib/query/fetchers';
+import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,13 +71,10 @@ export function useEntityDetail(
     Record<string, unknown>
   >({
     mutationFn: (metadata: Record<string, unknown>) =>
-      fetchJson(
+      mutationFetchJson(
         `/api/entities/${encodeURIComponent(canonicalName!)}/metadata`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(metadata),
-        },
+        metadata,
+        { method: 'PATCH' },
       ),
     onSuccess: () => {
       if (canonicalName) {
