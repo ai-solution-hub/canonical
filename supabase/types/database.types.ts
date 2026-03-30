@@ -198,6 +198,66 @@ export type Database = {
           },
         ]
       }
+      company_profiles: {
+        Row: {
+          certifications: string[]
+          competitors: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          geographic_scope: string[]
+          id: string
+          is_active: boolean
+          key_topics: string[]
+          name: string
+          sectors: string[]
+          services: string[]
+          slug: string
+          target_customers: string | null
+          updated_at: string
+          value_proposition: string | null
+          website_url: string | null
+        }
+        Insert: {
+          certifications?: string[]
+          competitors?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          geographic_scope?: string[]
+          id?: string
+          is_active?: boolean
+          key_topics?: string[]
+          name: string
+          sectors?: string[]
+          services?: string[]
+          slug: string
+          target_customers?: string | null
+          updated_at?: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          certifications?: string[]
+          competitors?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          geographic_scope?: string[]
+          id?: string
+          is_active?: boolean
+          key_topics?: string[]
+          name?: string
+          sectors?: string[]
+          services?: string[]
+          slug?: string
+          target_customers?: string | null
+          updated_at?: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       content_citations: {
         Row: {
           bid_response_id: string
@@ -809,6 +869,273 @@ export type Database = {
             columns: ["source_item_id"]
             isOneToOne: false
             referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_articles: {
+        Row: {
+          ai_summary: string | null
+          content_item_id: string | null
+          created_at: string
+          external_id: string | null
+          external_url: string
+          feed_source_id: string
+          id: string
+          ingested_at: string
+          matched_categories: string[] | null
+          passed: boolean
+          prompt_version_id: string | null
+          published_at: string | null
+          raw_content: string | null
+          relevance_category: string | null
+          relevance_reasoning: string | null
+          relevance_score: number | null
+          title: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          ai_summary?: string | null
+          content_item_id?: string | null
+          created_at?: string
+          external_id?: string | null
+          external_url: string
+          feed_source_id: string
+          id?: string
+          ingested_at?: string
+          matched_categories?: string[] | null
+          passed?: boolean
+          prompt_version_id?: string | null
+          published_at?: string | null
+          raw_content?: string | null
+          relevance_category?: string | null
+          relevance_reasoning?: string | null
+          relevance_score?: number | null
+          title: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          ai_summary?: string | null
+          content_item_id?: string | null
+          created_at?: string
+          external_id?: string | null
+          external_url?: string
+          feed_source_id?: string
+          id?: string
+          ingested_at?: string
+          matched_categories?: string[] | null
+          passed?: boolean
+          prompt_version_id?: string | null
+          published_at?: string | null
+          raw_content?: string | null
+          relevance_category?: string | null
+          relevance_reasoning?: string | null
+          relevance_score?: number | null
+          title?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_articles_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_articles_feed_source_id_fkey"
+            columns: ["feed_source_id"]
+            isOneToOne: false
+            referencedRelation: "feed_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_articles_prompt_version_id_fkey"
+            columns: ["prompt_version_id"]
+            isOneToOne: false
+            referencedRelation: "feed_prompts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_articles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_flags: {
+        Row: {
+          created_at: string
+          feed_article_id: string
+          flag_type: string
+          flagged_by: string
+          id: string
+          notes: string | null
+          prompt_version_id: string | null
+          resolution_type: string | null
+          resolved: boolean
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_notes: string | null
+        }
+        Insert: {
+          created_at?: string
+          feed_article_id: string
+          flag_type: string
+          flagged_by: string
+          id?: string
+          notes?: string | null
+          prompt_version_id?: string | null
+          resolution_type?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_notes?: string | null
+        }
+        Update: {
+          created_at?: string
+          feed_article_id?: string
+          flag_type?: string
+          flagged_by?: string
+          id?: string
+          notes?: string | null
+          prompt_version_id?: string | null
+          resolution_type?: string | null
+          resolved?: boolean
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_flags_feed_article_id_fkey"
+            columns: ["feed_article_id"]
+            isOneToOne: false
+            referencedRelation: "feed_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feed_flags_prompt_version_id_fkey"
+            columns: ["prompt_version_id"]
+            isOneToOne: false
+            referencedRelation: "feed_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_prompts: {
+        Row: {
+          change_notes: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          performance_snapshot: Json | null
+          prompt_text: string
+          version: number
+          workspace_id: string
+        }
+        Insert: {
+          change_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          performance_snapshot?: Json | null
+          prompt_text: string
+          version: number
+          workspace_id: string
+        }
+        Update: {
+          change_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          performance_snapshot?: Json | null
+          prompt_text?: string
+          version?: number
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_prompts_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_sources: {
+        Row: {
+          article_count: number
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          etag: string | null
+          id: string
+          is_active: boolean
+          last_modified: string | null
+          last_polled_at: string | null
+          last_polled_error: string | null
+          last_polled_status: string | null
+          name: string
+          polling_interval_minutes: number
+          source_type: string
+          updated_at: string
+          url: string
+          workspace_id: string
+        }
+        Insert: {
+          article_count?: number
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          etag?: string | null
+          id?: string
+          is_active?: boolean
+          last_modified?: string | null
+          last_polled_at?: string | null
+          last_polled_error?: string | null
+          last_polled_status?: string | null
+          name: string
+          polling_interval_minutes?: number
+          source_type?: string
+          updated_at?: string
+          url: string
+          workspace_id: string
+        }
+        Update: {
+          article_count?: number
+          consecutive_failures?: number
+          created_at?: string
+          created_by?: string | null
+          etag?: string | null
+          id?: string
+          is_active?: boolean
+          last_modified?: string | null
+          last_polled_at?: string | null
+          last_polled_error?: string | null
+          last_polled_status?: string | null
+          name?: string
+          polling_interval_minutes?: number
+          source_type?: string
+          updated_at?: string
+          url?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_sources_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
         ]

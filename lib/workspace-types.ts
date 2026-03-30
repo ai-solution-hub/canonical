@@ -1,4 +1,4 @@
-import { Briefcase, FileText, FileSignature } from 'lucide-react';
+import { Briefcase, FileText, FileSignature, Newspaper } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /**
@@ -119,27 +119,24 @@ registerType({
   },
 });
 
-// ---- Future type: Intelligence (registered but unavailable until S13) ----
-// Uncomment when intelligence workspace schema is created:
-//
-// registerType({
-//   type: 'intelligence',
-//   label: 'Intelligence Stream',
-//   labelPlural: 'Intelligence Streams',
-//   description:
-//     'AI-filtered sector and competitor news feeds with configurable prompts',
-//   icon: Newspaper,
-//   route: '/intelligence',
-//   available: false,
-//   hasCustomCreation: true,
-//   defaultColour: '#059669',
-//   defaultIcon: 'globe',
-//   features: {
-//     hasStatus: false,
-//     hasContentAssignment: true,
-//     hasDomainMetadata: true,
-//   },
-// });
+registerType({
+  type: 'intelligence',
+  label: 'Intelligence Stream',
+  labelPlural: 'Intelligence Streams',
+  description:
+    'AI-filtered sector and competitor news feeds with configurable prompts',
+  icon: Newspaper,
+  route: '/intelligence',
+  available: false, // Set to true when Phase 1b UI is ready
+  hasCustomCreation: true,
+  defaultColour: '#059669',
+  defaultIcon: 'globe',
+  features: {
+    hasStatus: false,
+    hasContentAssignment: true,
+    hasDomainMetadata: true,
+  },
+});
 
 // ---- Public API ----
 
