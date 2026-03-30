@@ -15,7 +15,7 @@
  * @vitest-environment node
  */
 
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll, vi } from 'vitest';
 import { serviceClient } from './helpers/service-client';
 import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
 import { deriveExpiryStatus, type ExpiryStatus } from '@/lib/certification-status';
@@ -131,8 +131,31 @@ async function createEntityMention(
 // ---------------------------------------------------------------------------
 
 describe('Certification Bridge Flow — Real DB Integration', () => {
+  // Pin Date.now() to 2026-06-15T12:00:00Z — mid-year, well away from all
+  // test expiry dates (2023, 2024, 2025, 2027, 2029). Prevents boundary
+  // flakiness if tests run near year-end or month-end.
+  beforeAll(() => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-06-15T12:00:00Z').getTime());
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
+  // ---------------------------------------------------------------------------
   // T2.3b: After bridge populates entity metadata, verify expiry_status
   // is derived correctly (not "unknown").
+  //
+  // Design decision: This test verifies data correctness end-to-end against
+  // a real DB — the bridge populates metadata, and deriveExpiryStatus returns
+  // the correct status from that metadata. The API route handler layer
+  // (GET /api/certifications) is separately tested in
+  // __tests__/api/certifications.test.ts with mock data. Combined coverage
+  // is adequate: this test covers data correctness, the API test covers
+  // route wiring. Testing the API route against a real DB would require
+  // standing up Next.js route handlers in the integration test environment,
+  // which is out of scope for this test infrastructure.
+  // ---------------------------------------------------------------------------
   it('T2.3b: bridge populates expiry_date and deriveExpiryStatus returns correct status', async () => {
     // 1. Create content item with ISO 27001 expiry temporal reference
     const itemId = await createContentItemWithTemporalRefs(
@@ -174,6 +197,28 @@ describe('Certification Bridge Flow — Real DB Integration', () => {
     const status: ExpiryStatus = deriveExpiryStatus(metadata.expiry_date as string);
     expect(status).toBe('valid');
     expect(status).not.toBe('unknown');
+
+    // 6. Explicit DB-to-status derivation: query entity_mentions directly,
+    //    extract the expiry_date from metadata, and pass it through
+    //    deriveExpiryStatus to make the full data-to-status pipeline visible.
+    const { data: dbMentions, error: dbError } = await serviceClient
+      .from('entity_mentions')
+      .select('entity_name, entity_type, metadata')
+      .eq('content_item_id', itemId)
+      .eq('entity_type', 'certification');
+
+    expect(dbError).toBeNull();
+    expect(dbMentions).toBeTruthy();
+    expect(dbMentions!.length).toBeGreaterThanOrEqual(1);
+
+    for (const mention of dbMentions!) {
+      const mentionMeta = mention.metadata as Record<string, unknown>;
+      if (mentionMeta.expiry_date) {
+        const derivedStatus = deriveExpiryStatus(mentionMeta.expiry_date as string);
+        expect(['valid', 'expiring_soon', 'expired']).toContain(derivedStatus);
+        expect(derivedStatus).not.toBe('unknown');
+      }
+    }
   });
 
   // T2.4b: Create multiple certification entities with different temporal
