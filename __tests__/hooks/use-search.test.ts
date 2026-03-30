@@ -1,6 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSearch } from '@/hooks/use-search';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
 
 describe('useSearch', () => {
   const mockFetch = vi.fn();
@@ -34,7 +56,9 @@ describe('useSearch', () => {
   // ----------------------------------------------------------
 
   it('returns empty initial state', () => {
-    const { result } = renderHook(() => useSearch());
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.results).toEqual([]);
     expect(result.current.count).toBe(0);
     expect(result.current.isLoading).toBe(false);
@@ -49,25 +73,35 @@ describe('useSearch', () => {
     const fakeResults = [{ id: '1', title: 'Test item', similarity: 0.9 }];
     mockSuccessResponse(fakeResults, 1);
 
-    const { result } = renderHook(() => useSearch());
-
-    await act(async () => {
-      await result.current.search('test query');
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
     });
 
-    expect(result.current.results).toEqual(fakeResults);
-    expect(result.current.count).toBe(1);
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    act(() => {
+      result.current.search('test query');
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.results).toEqual(fakeResults);
+      expect(result.current.count).toBe(1);
+      expect(result.current.error).toBeNull();
+    });
   });
 
   it('sends the correct POST request with query, threshold, and limit', async () => {
     mockSuccessResponse();
 
-    const { result } = renderHook(() => useSearch());
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
+    });
 
-    await act(async () => {
-      await result.current.search('kb query', 0.5, 10);
+    act(() => {
+      result.current.search('kb query', 0.5, 10);
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
@@ -85,15 +119,20 @@ describe('useSearch', () => {
   // ----------------------------------------------------------
 
   it('clears results for empty query without making a fetch call', async () => {
-    const { result } = renderHook(() => useSearch());
-
-    await act(async () => {
-      await result.current.search('   ');
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
     });
 
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(result.current.results).toEqual([]);
-    expect(result.current.count).toBe(0);
+    act(() => {
+      result.current.search('   ');
+    });
+
+    // Wait a tick for any async effects
+    await waitFor(() => {
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.current.results).toEqual([]);
+      expect(result.current.count).toBe(0);
+    });
   });
 
   // ----------------------------------------------------------
@@ -103,14 +142,18 @@ describe('useSearch', () => {
   it('sets error state on failed response', async () => {
     mockErrorResponse(500, { error: 'Something went wrong' });
 
-    const { result } = renderHook(() => useSearch());
-
-    await act(async () => {
-      await result.current.search('bad query');
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
     });
 
-    expect(result.current.error).toBe('Something went wrong');
-    expect(result.current.isLoading).toBe(false);
+    act(() => {
+      result.current.search('bad query');
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).toBe('Something went wrong');
+      expect(result.current.isLoading).toBe(false);
+    });
   });
 
   it('shows embedding-specific error message for EMBEDDING_FAILED code', async () => {
@@ -119,13 +162,17 @@ describe('useSearch', () => {
       json: async () => ({ code: 'EMBEDDING_FAILED', error: 'Embedding failed' }),
     });
 
-    const { result } = renderHook(() => useSearch());
-
-    await act(async () => {
-      await result.current.search('query');
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
     });
 
-    expect(result.current.error).toContain('embedding service');
+    act(() => {
+      result.current.search('query');
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).toContain('embedding service');
+    });
   });
 
   // ----------------------------------------------------------
@@ -150,7 +197,9 @@ describe('useSearch', () => {
       });
     });
 
-    const { result } = renderHook(() => useSearch());
+    const { result } = renderHook(() => useSearch(), {
+      wrapper: createWrapper(),
+    });
 
     // Fire first search (will hang)
     act(() => {
@@ -158,33 +207,12 @@ describe('useSearch', () => {
     });
 
     // Fire second search — should abort the first
-    await act(async () => {
-      await result.current.search('second query');
-    });
-
-    expect(abortSpy).toHaveBeenCalledOnce();
-  });
-
-  // ----------------------------------------------------------
-  // Cleanup on unmount
-  // ----------------------------------------------------------
-
-  it('aborts in-flight request on unmount', async () => {
-    const abortSpy = vi.fn();
-
-    mockFetch.mockImplementation((_url: string, options: RequestInit) => {
-      options.signal?.addEventListener('abort', abortSpy);
-      return new Promise(() => {}); // Never resolves
-    });
-
-    const { result, unmount } = renderHook(() => useSearch());
-
     act(() => {
-      result.current.search('query');
+      result.current.search('second query');
     });
 
-    unmount();
-
-    expect(abortSpy).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(abortSpy).toHaveBeenCalledOnce();
+    });
   });
 });

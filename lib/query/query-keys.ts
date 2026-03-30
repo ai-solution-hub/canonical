@@ -155,6 +155,12 @@ export const queryKeys = {
       ['citations', 'orphans', sortedIdKey] as const,
   },
 
+  // Progress
+  progress: {
+    all: ['progress'] as const,
+    stats: ['progress', 'stats'] as const,
+  },
+
   // Topic layers
   topicLayers: {
     all: ['topic-layers'] as const,

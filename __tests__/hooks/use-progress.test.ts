@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -45,6 +47,21 @@ import { useProgress } from '@/hooks/use-progress';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
+
 /** Create a Supabase-like chainable query that resolves to read_marks data */
 function setupReadMarksQuery(dates: string[]) {
   const data = dates.map((d) => ({ read_at: d }));
@@ -85,7 +102,9 @@ describe('useProgress', () => {
   // -----------------------------------------------------------------------
 
   it('returns zero values when not loaded', () => {
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.readCount).toBe(0);
     expect(result.current.totalCount).toBe(0);
@@ -95,7 +114,9 @@ describe('useProgress', () => {
   });
 
   it('calls loadReadMarks on mount', () => {
-    renderHook(() => useProgress());
+    renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
     expect(mockUseReadMarks.loadReadMarks).toHaveBeenCalled();
   });
 
@@ -108,7 +129,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 100;
     mockUseReadMarks.isLoaded = true;
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     expect(result.current.percentage).toBe(25);
     expect(result.current.unreadCount).toBe(75);
@@ -119,7 +142,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 0;
     mockUseReadMarks.isLoaded = true;
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.percentage).toBe(0);
   });
 
@@ -128,7 +153,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 3;
     mockUseReadMarks.isLoaded = true;
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.percentage).toBe(33); // 33.33... rounds to 33
   });
 
@@ -148,7 +175,9 @@ describe('useProgress', () => {
       daysAgo(2), // 2 days ago
     ]);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.streak).toBe(3);
@@ -163,7 +192,9 @@ describe('useProgress', () => {
     // Most recent read was 3 days ago — streak is broken
     setupReadMarksQuery([daysAgo(3), daysAgo(4)]);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.streak).toBe(0);
@@ -178,7 +209,9 @@ describe('useProgress', () => {
     // Yesterday + day before = 2-day streak (no read today)
     setupReadMarksQuery([daysAgo(1), daysAgo(2)]);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.streak).toBe(2);
@@ -192,7 +225,9 @@ describe('useProgress', () => {
 
     setupReadMarksQuery([]);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.streak).toBe(0);
@@ -208,7 +243,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 100;
     mockUseReadMarks.isLoaded = true;
 
-    renderHook(() => useProgress());
+    renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -223,7 +260,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 100;
     mockUseReadMarks.isLoaded = true;
 
-    renderHook(() => useProgress());
+    renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -238,7 +277,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 50;
     mockUseReadMarks.isLoaded = true;
 
-    renderHook(() => useProgress());
+    renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledWith(
@@ -253,7 +294,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 100;
     mockUseReadMarks.isLoaded = true;
 
-    renderHook(() => useProgress());
+    renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await new Promise((r) => setTimeout(r, 50));
     expect(mockToast.success).not.toHaveBeenCalled();
@@ -264,7 +307,9 @@ describe('useProgress', () => {
     mockUseReadMarks.totalCount = 100;
     mockUseReadMarks.isLoaded = true;
 
-    const { rerender } = renderHook(() => useProgress());
+    const { rerender } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockToast.success).toHaveBeenCalledTimes(1);
@@ -293,7 +338,9 @@ describe('useProgress', () => {
       daysAgo(0),
     ]);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.itemsThisWeek).toBe(3);
@@ -314,7 +361,9 @@ describe('useProgress', () => {
     chain.order = vi.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } });
     mockSelect.mockReturnValue(chain);
 
-    const { result } = renderHook(() => useProgress());
+    const { result } = renderHook(() => useProgress(), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.streak).toBe(0);
