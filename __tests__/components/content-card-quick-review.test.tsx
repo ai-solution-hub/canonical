@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ContentListItem } from '@/types/content';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
@@ -58,6 +60,22 @@ vi.mock('@/hooks/use-user-role', () => ({
 import { ContentCard } from '@/components/content/content-card';
 
 // ---------------------------------------------------------------------------
+// Query wrapper
+// ---------------------------------------------------------------------------
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    React.createElement(QueryClientProvider, { client: queryClient }, ui),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Mock data factory
 // ---------------------------------------------------------------------------
 
@@ -107,20 +125,20 @@ describe('ContentCard with QuickReviewActions', () => {
   });
 
   it('quick review actions not rendered when canEdit is omitted', () => {
-    render(<ContentCard item={makeContentItem()} />);
+    renderWithQuery(<ContentCard item={makeContentItem()} />);
     expect(screen.queryByLabelText('Verify')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Flag for review')).not.toBeInTheDocument();
   });
 
   it('quick review actions rendered when canEdit={true}', () => {
-    render(<ContentCard item={makeContentItem()} canEdit={true} />);
+    renderWithQuery(<ContentCard item={makeContentItem()} canEdit={true} />);
     expect(screen.getByLabelText('Verify')).toBeInTheDocument();
     expect(screen.getByLabelText('Flag for review')).toBeInTheDocument();
   });
 
   it('verify action calls API', async () => {
     const onQuickReviewUpdate = vi.fn();
-    render(
+    renderWithQuery(
       <ContentCard
         item={makeContentItem()}
         canEdit={true}
@@ -143,7 +161,7 @@ describe('ContentCard with QuickReviewActions', () => {
 
   it('actions do not navigate (stopPropagation working)', () => {
     // The card is a Link, so we check the button click doesn't trigger navigation
-    render(
+    renderWithQuery(
       <ContentCard item={makeContentItem()} canEdit={true} />,
     );
 
@@ -159,7 +177,7 @@ describe('ContentCard with QuickReviewActions', () => {
   });
 
   it('Q&A card variant renders actions', () => {
-    render(
+    renderWithQuery(
       <ContentCard
         item={makeContentItem({
           content_type: 'q_a_pair',
@@ -174,7 +192,7 @@ describe('ContentCard with QuickReviewActions', () => {
   });
 
   it('compact card variant renders actions', () => {
-    render(
+    renderWithQuery(
       <ContentCard
         item={makeContentItem({ content_type: 'policy' })}
         canEdit={true}
@@ -185,7 +203,7 @@ describe('ContentCard with QuickReviewActions', () => {
   });
 
   it('flag action shows resolve flag when hasQualityFlag is true', () => {
-    render(
+    renderWithQuery(
       <ContentCard
         item={makeContentItem()}
         hasQualityFlag={true}

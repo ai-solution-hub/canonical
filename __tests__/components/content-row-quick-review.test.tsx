@@ -7,6 +7,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ContentListItem } from '@/types/content';
 import { mockTaxonomyContext } from '../helpers/mock-contexts';
 
@@ -108,6 +110,22 @@ vi.mock('@/hooks/use-user-role', () => ({
 import { ContentRow } from '@/components/content/content-row';
 
 // ---------------------------------------------------------------------------
+// Query wrapper
+// ---------------------------------------------------------------------------
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return render(
+    React.createElement(QueryClientProvider, { client: queryClient }, ui),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Mock data factory
 // ---------------------------------------------------------------------------
 
@@ -157,7 +175,7 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('quick review actions rendered in row when canEdit={true}', () => {
-    render(
+    renderWithQuery(
       <ContentRow item={makeContentItem()} canEdit={true} />,
     );
     expect(screen.getByLabelText('Verify')).toBeInTheDocument();
@@ -165,13 +183,13 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('quick review actions not rendered when canEdit is omitted', () => {
-    render(<ContentRow item={makeContentItem()} />);
+    renderWithQuery(<ContentRow item={makeContentItem()} />);
     expect(screen.queryByLabelText('Verify')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Flag for review')).not.toBeInTheDocument();
   });
 
   it('actions do not navigate (stopPropagation)', () => {
-    render(
+    renderWithQuery(
       <ContentRow item={makeContentItem()} canEdit={true} />,
     );
 
@@ -187,7 +205,7 @@ describe('ContentRow with QuickReviewActions', () => {
   });
 
   it('Q&A row variant renders actions', () => {
-    render(
+    renderWithQuery(
       <ContentRow
         item={makeContentItem({
           content_type: 'q_a_pair',

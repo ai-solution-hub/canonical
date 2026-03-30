@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 
 // ---------------------------------------------------------------------------
@@ -31,16 +33,30 @@ interface QuickReviewState {
 }
 
 // ---------------------------------------------------------------------------
+// Mutation variable types
+// ---------------------------------------------------------------------------
+
+interface ReviewActionVariables {
+  itemId: string;
+  itemTitle: string;
+  action: QuickReviewAction;
+  flagDetails?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
 export function useQuickReview(options?: UseQuickReviewOptions) {
   const { onOptimisticUpdate } = options ?? {};
+  const queryClient = useQueryClient();
 
-  // Pending state: use ref for the map, state counter to force re-renders
+  // Pending state: use ref for the map, state counter to force re-renders.
+  // This is preserved from the original implementation because it tracks
+  // which specific action is pending per item — more granular than
+  // useMutation.isPending which is a single boolean.
   const pendingMapRef = useRef<Map<string, QuickReviewAction>>(new Map());
   const [pendingCounter, setPendingCounter] = useState(0);
-  const [error, setError] = useState<string | null>(null);
 
   // Derive a snapshot of pending items from the ref (avoids accessing ref during render)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,13 +76,12 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
     return pendingMapRef.current.has(itemId);
   }, []);
 
-  /** Generic API call to POST /api/review/action */
-  const callReviewAction = useCallback(
-    async (
-      itemId: string,
-      action: string,
-      flagDetails?: string,
-    ): Promise<boolean> => {
+  // -------------------------------------------------------------------------
+  // Unified review action mutation
+  // -------------------------------------------------------------------------
+
+  const reviewActionMutation = useMutation<boolean, Error, ReviewActionVariables>({
+    mutationFn: async ({ itemId, action, flagDetails }) => {
       const body: Record<string, unknown> = { item_id: itemId, action };
       if (flagDetails) {
         body.flag_details = flagDetails;
@@ -80,54 +95,68 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
       return res.ok;
     },
-    [],
-  );
+    onSuccess: (ok) => {
+      if (!ok) return;
+      // Invalidate review stats and quality flag caches so other components
+      // reflect the updated state
+      queryClient.invalidateQueries({ queryKey: queryKeys.review.stats });
+      queryClient.invalidateQueries({ queryKey: queryKeys.qualityFlags.flaggedIds });
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Action helpers — preserve exact original signatures
+  // -------------------------------------------------------------------------
 
   // --- quickUnverify ---
   // Defined before quickVerify so it can be referenced in the undo callback
   const quickUnverify = useCallback(
     async (itemId: string, itemTitle: string) => {
-      setError(null);
       setPending(itemId, 'unverify');
 
       // Optimistic update
       onOptimisticUpdate?.(itemId, { verified_at: null });
 
-      const ok = await callReviewAction(itemId, 'unverify');
+      const ok = await reviewActionMutation.mutateAsync({
+        itemId,
+        itemTitle,
+        action: 'unverify',
+      });
 
       clearPending(itemId);
 
       if (!ok) {
         // Rollback: restore verified state
         onOptimisticUpdate?.(itemId, { verified_at: new Date().toISOString() });
-        setError('Action failed');
         toast.error('Action failed. Check your connection and try again.');
         return;
       }
 
       toast.success(`Unverified: ${itemTitle}`);
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation],
   );
 
   // --- quickVerify ---
   const quickVerify = useCallback(
     async (itemId: string, itemTitle: string) => {
-      setError(null);
       setPending(itemId, 'verify');
 
       // Optimistic update
       const verifiedAt = new Date().toISOString();
       onOptimisticUpdate?.(itemId, { verified_at: verifiedAt });
 
-      const ok = await callReviewAction(itemId, 'verify');
+      const ok = await reviewActionMutation.mutateAsync({
+        itemId,
+        itemTitle,
+        action: 'verify',
+      });
 
       clearPending(itemId);
 
       if (!ok) {
         // Rollback
         onOptimisticUpdate?.(itemId, { verified_at: null });
-        setError('Action failed');
         toast.error('Action failed. Check your connection and try again.');
         return;
       }
@@ -140,57 +169,58 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction, quickUnverify],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation, quickUnverify],
   );
 
   // --- quickUnflag ---
   // Defined before quickFlag so it can be referenced in the undo callback
   const quickUnflag = useCallback(
     async (itemId: string, itemTitle: string) => {
-      setError(null);
       setPending(itemId, 'unflag');
 
       // Optimistic update
       onOptimisticUpdate?.(itemId, { hasQualityFlag: false });
 
-      const ok = await callReviewAction(itemId, 'unflag');
+      const ok = await reviewActionMutation.mutateAsync({
+        itemId,
+        itemTitle,
+        action: 'unflag',
+      });
 
       clearPending(itemId);
 
       if (!ok) {
         // Rollback
         onOptimisticUpdate?.(itemId, { hasQualityFlag: true });
-        setError('Action failed');
         toast.error('Action failed. Check your connection and try again.');
         return;
       }
 
       toast.success(`Unflagged: ${itemTitle}`);
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation],
   );
 
   // --- quickFlag ---
   const quickFlag = useCallback(
     async (itemId: string, itemTitle: string, reason?: string) => {
-      setError(null);
       setPending(itemId, 'flag');
 
       // Optimistic update: flagging clears verification
       onOptimisticUpdate?.(itemId, { verified_at: null, hasQualityFlag: true });
 
-      const ok = await callReviewAction(
+      const ok = await reviewActionMutation.mutateAsync({
         itemId,
-        'flag',
-        reason?.trim() || undefined,
-      );
+        itemTitle,
+        action: 'flag',
+        flagDetails: reason?.trim() || undefined,
+      });
 
       clearPending(itemId);
 
       if (!ok) {
         // Rollback
         onOptimisticUpdate?.(itemId, { hasQualityFlag: false });
-        setError('Action failed');
         toast.error('Action failed. Check your connection and try again.');
         return;
       }
@@ -203,8 +233,11 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, callReviewAction, quickUnflag],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation, quickUnflag],
   );
+
+  // Derive error from the last mutation error
+  const error = reviewActionMutation.error?.message ?? null;
 
   return {
     error,

@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock useUserRole
 const mockCanEdit = { value: true };
@@ -36,6 +38,22 @@ import { QuickReviewActions } from '@/components/content/quick-review-actions';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function createQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = createQueryClient();
+  return render(
+    React.createElement(QueryClientProvider, { client: queryClient }, ui),
+  );
+}
+
 function mockFetchOk() {
   global.fetch = vi.fn().mockResolvedValue({ ok: true });
 }
@@ -58,7 +76,7 @@ describe('QuickReviewActions', () => {
   });
 
   it('renders nothing when canEdit is false', () => {
-    const { container } = render(
+    const { container } = renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -70,7 +88,7 @@ describe('QuickReviewActions', () => {
   });
 
   it('renders verify and flag buttons when canEdit is true', () => {
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -83,7 +101,7 @@ describe('QuickReviewActions', () => {
   });
 
   it('verify button shows "Verify" label when verifiedAt is null', () => {
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -95,7 +113,7 @@ describe('QuickReviewActions', () => {
   });
 
   it('verify button shows "Unverify" label when verifiedAt is set', () => {
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -109,7 +127,7 @@ describe('QuickReviewActions', () => {
   it('click verify calls API with verify action', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -132,8 +150,7 @@ describe('QuickReviewActions', () => {
   it('click verify calls stopPropagation', () => {
     const parentClick = vi.fn();
 
-    render(
-       
+    renderWithQuery(
       <div onClick={parentClick}>
         <QuickReviewActions
           itemId="item-1"
@@ -151,7 +168,7 @@ describe('QuickReviewActions', () => {
   it('flag button opens popover on click', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -170,7 +187,7 @@ describe('QuickReviewActions', () => {
   it('flag popover has reason input and submit button', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -191,7 +208,7 @@ describe('QuickReviewActions', () => {
   it('submit flag with reason calls API with flag_details', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -226,7 +243,7 @@ describe('QuickReviewActions', () => {
   it('submit flag with empty reason omits flag_details', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -255,7 +272,7 @@ describe('QuickReviewActions', () => {
   it('Enter key in flag input submits', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -288,7 +305,7 @@ describe('QuickReviewActions', () => {
   });
 
   it('unflag button visible when hasQualityFlag is true', () => {
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -303,7 +320,7 @@ describe('QuickReviewActions', () => {
   it('click unflag calls API directly (no popover)', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -334,7 +351,7 @@ describe('QuickReviewActions', () => {
 
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"
@@ -359,7 +376,7 @@ describe('QuickReviewActions', () => {
   it('falls back to useUserRole when canEdit prop is undefined', () => {
     mockCanEdit.value = false;
 
-    const { container } = render(
+    const { container } = renderWithQuery(
       <QuickReviewActions
         itemId="item-1"
         itemTitle="Test"

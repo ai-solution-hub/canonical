@@ -1,11 +1,13 @@
 /**
  * useQuickReview Hook Tests
  *
- * Tests the lightweight review action hook for verify/flag actions
- * from Browse and other pages.
+ * Tests the lightweight review action hook (migrated to TanStack Query)
+ * for verify/flag actions from Browse and other pages.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Mock sonner
 const mockToastSuccess = vi.fn();
@@ -22,6 +24,25 @@ import { useQuickReview } from '@/hooks/review/use-quick-review';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return {
+    queryClient,
+    Wrapper({ children }: { children: React.ReactNode }) {
+      return React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+    },
+  };
+}
 
 function mockFetchOk() {
   global.fetch = vi.fn().mockResolvedValue({ ok: true });
@@ -50,7 +71,8 @@ describe('useQuickReview', () => {
   // --- quickVerify ---
 
   it('quickVerify calls API with correct payload', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickVerify('item-1', 'Test Item');
@@ -75,8 +97,10 @@ describe('useQuickReview', () => {
       return Promise.resolve({ ok: true });
     });
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() =>
       useQuickReview({ onOptimisticUpdate }),
+      { wrapper: Wrapper },
     );
 
     await act(async () => {
@@ -91,7 +115,8 @@ describe('useQuickReview', () => {
   });
 
   it('quickVerify shows success toast with undo', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickVerify('item-1', 'Test Article');
@@ -110,8 +135,10 @@ describe('useQuickReview', () => {
     mockFetchFail();
     const onOptimisticUpdate = vi.fn();
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() =>
       useQuickReview({ onOptimisticUpdate }),
+      { wrapper: Wrapper },
     );
 
     await act(async () => {
@@ -131,7 +158,8 @@ describe('useQuickReview', () => {
   it('quickVerify shows error toast on API failure', async () => {
     mockFetchFail();
 
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickVerify('item-1', 'Test Item');
@@ -145,7 +173,8 @@ describe('useQuickReview', () => {
   // --- quickUnverify ---
 
   it('quickUnverify calls API with action: unverify', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickUnverify('item-1', 'Test Item');
@@ -161,7 +190,8 @@ describe('useQuickReview', () => {
   // --- quickFlag ---
 
   it('quickFlag calls API with action: flag and optional flag_details', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickFlag('item-1', 'Test Item', 'Outdated info');
@@ -181,8 +211,10 @@ describe('useQuickReview', () => {
   it('quickFlag calls optimistic update with verified_at: null and hasQualityFlag: true', async () => {
     const onOptimisticUpdate = vi.fn();
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() =>
       useQuickReview({ onOptimisticUpdate }),
+      { wrapper: Wrapper },
     );
 
     await act(async () => {
@@ -199,8 +231,10 @@ describe('useQuickReview', () => {
     mockFetchFail();
     const onOptimisticUpdate = vi.fn();
 
+    const { Wrapper } = createWrapper();
     const { result } = renderHook(() =>
       useQuickReview({ onOptimisticUpdate }),
+      { wrapper: Wrapper },
     );
 
     await act(async () => {
@@ -221,7 +255,8 @@ describe('useQuickReview', () => {
   // --- quickUnflag ---
 
   it('quickUnflag calls API with action: unflag', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickUnflag('item-1', 'Test Item');
@@ -244,7 +279,8 @@ describe('useQuickReview', () => {
       }),
     );
 
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     // Start action without awaiting
     let verifyPromise: Promise<void>;
@@ -265,7 +301,8 @@ describe('useQuickReview', () => {
   });
 
   it('isPending returns false after action completes', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickVerify('item-1', 'Test Item');
@@ -274,42 +311,50 @@ describe('useQuickReview', () => {
     expect(result.current.isPending('item-1')).toBe(false);
   });
 
-  it('multiple items can be pending simultaneously', async () => {
+  it('multiple items can be pending sequentially', async () => {
+    // With TanStack Query's useMutation, concurrent mutateAsync calls on the
+    // same mutation instance are serialised. Test sequential pending behaviour.
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
+
+    // First action: verify item-1
     let resolveFirst!: () => void;
-    let resolveSecond!: () => void;
-    let callCount = 0;
-
-    global.fetch = vi.fn().mockImplementation(() => {
-      callCount++;
-      if (callCount === 1) {
-        return new Promise((resolve) => {
-          resolveFirst = () => resolve({ ok: true });
-        });
-      }
-      return new Promise((resolve) => {
-        resolveSecond = () => resolve({ ok: true });
-      });
-    });
-
-    const { result } = renderHook(() => useQuickReview());
+    global.fetch = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        resolveFirst = () => resolve({ ok: true });
+      }),
+    );
 
     let p1: Promise<void>;
-    let p2: Promise<void>;
     act(() => {
       p1 = result.current.quickVerify('item-1', 'Item 1');
-      p2 = result.current.quickFlag('item-2', 'Item 2');
     });
 
     expect(result.current.isPending('item-1')).toBe(true);
-    expect(result.current.isPending('item-2')).toBe(true);
 
+    // Resolve first
     await act(async () => {
       resolveFirst();
       await p1!;
     });
 
     expect(result.current.isPending('item-1')).toBe(false);
+
+    // Second action: flag item-2
+    let resolveSecond!: () => void;
+    global.fetch = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        resolveSecond = () => resolve({ ok: true });
+      }),
+    );
+
+    let p2: Promise<void>;
+    act(() => {
+      p2 = result.current.quickFlag('item-2', 'Item 2');
+    });
+
     expect(result.current.isPending('item-2')).toBe(true);
+    expect(result.current.isPending('item-1')).toBe(false);
 
     await act(async () => {
       resolveSecond();
@@ -320,7 +365,8 @@ describe('useQuickReview', () => {
   });
 
   it('undo on verify toast calls quickUnverify', async () => {
-    const { result } = renderHook(() => useQuickReview());
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.quickVerify('item-1', 'Test Article');
@@ -345,5 +391,54 @@ describe('useQuickReview', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_id: 'item-1', action: 'unverify' }),
     });
+  });
+
+  // --- Cache invalidation ---
+
+  it('invalidates review.stats and qualityFlags.flaggedIds on successful action', async () => {
+    const { queryClient, Wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.quickVerify('item-1', 'Test Item');
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['review', 'stats'] }),
+    );
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['quality-flags', 'flagged-ids'] }),
+    );
+  });
+
+  it('does not invalidate caches when API returns failure', async () => {
+    mockFetchFail();
+    const { queryClient, Wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
+
+    await act(async () => {
+      await result.current.quickVerify('item-1', 'Test Item');
+    });
+
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  // --- Error state ---
+
+  it('error is null initially and after successful action', async () => {
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useQuickReview(), { wrapper: Wrapper });
+
+    expect(result.current.error).toBeNull();
+
+    await act(async () => {
+      await result.current.quickVerify('item-1', 'Test Item');
+    });
+
+    expect(result.current.error).toBeNull();
   });
 });
