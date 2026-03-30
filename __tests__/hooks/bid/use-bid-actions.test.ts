@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { BidState, ExtractionResult } from '@/types/bid';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -295,7 +296,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('in_review' as any);
+      result.current.handleStatusTransition('in_review' as BidState);
     });
 
     await waitFor(() => {
@@ -325,7 +326,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('submitted' as any);
+      result.current.handleStatusTransition('submitted' as BidState);
     });
 
     await waitFor(() => {
@@ -354,7 +355,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('won' as any);
+      result.current.handleStatusTransition('won' as BidState);
     });
 
     expect(toast.error).toHaveBeenCalledWith(
@@ -384,7 +385,7 @@ describe('useBidActions (TanStack Query)', () => {
     });
 
     await act(async () => {
-      result.current.handleStatusTransition('in_review' as any);
+      result.current.handleStatusTransition('in_review' as BidState);
     });
 
     await waitFor(() => {
@@ -630,7 +631,7 @@ describe('useBidActions (TanStack Query)', () => {
           ],
         },
       ],
-    } as any;
+    } as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -663,7 +664,7 @@ describe('useBidActions (TanStack Query)', () => {
     const extractionResult = {
       sections: [],
       extracted_metadata: { title: 'Test Tender', deadline: '2026-04-01' },
-    } as any;
+    } as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -869,7 +870,7 @@ describe('useBidActions (TanStack Query)', () => {
     expect(result.current.transitioning).toBe(false);
 
     act(() => {
-      result.current.handleStatusTransition('in_review' as any);
+      result.current.handleStatusTransition('in_review' as BidState);
     });
 
     await waitFor(() => {
@@ -932,7 +933,7 @@ describe('useBidActions (TanStack Query)', () => {
           questions: [{ question_sequence: 1, question_text: 'Q', word_limit: null, category: 'general' }],
         },
       ],
-    } as any;
+    } as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
@@ -968,7 +969,7 @@ describe('useBidActions (TanStack Query)', () => {
           questions: [{ question_sequence: 1, question_text: 'Q', word_limit: null, category: 'general' }],
         },
       ],
-    } as any;
+    } as ExtractionResult;
 
     act(() => {
       result.current.handleUploadComplete(extractionResult);
