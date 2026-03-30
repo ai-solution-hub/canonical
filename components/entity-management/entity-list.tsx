@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { VALID_ENTITY_TYPES } from '@/lib/validation/schemas';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import { MergeModal } from './merge-modal';
 import type { EntityForMerge } from './merge-modal';
 import { SplitModal } from './split-modal';
@@ -129,7 +130,7 @@ function EntityRowItem({
         >
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">
-              {entity.canonical_name}
+              {formatEntityDisplayName(entity.canonical_name)}
             </span>
             {entity.has_type_conflict && (
               <AlertTriangle
@@ -256,7 +257,7 @@ function TypeEditDialog({
       if (!res.ok) throw new Error(data.error || 'Failed to update type');
 
       toast.success(
-        `Updated "${entity.canonical_name}" type to ${selectedType} (${data.mentions_updated} mentions)`,
+        `Updated "${formatEntityDisplayName(entity.canonical_name)}" type to ${selectedType} (${data.mentions_updated} mentions)`,
       );
       onOpenChange(false);
       onComplete();
@@ -274,7 +275,7 @@ function TypeEditDialog({
       <DialogContent className="max-w-sm" showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>
-            Change type for &ldquo;{entity.canonical_name}&rdquo;
+            Change type for &ldquo;{formatEntityDisplayName(entity.canonical_name)}&rdquo;
           </DialogTitle>
         </DialogHeader>
         <Select value={selectedType} onValueChange={setSelectedType}>

@@ -17,6 +17,24 @@ import { normaliseTag } from '@/lib/validation/schemas';
 import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ──────────────────────────────────────────
+// Identifier exclusion patterns
+// ──────────────────────────────────────────
+
+/** Patterns matching non-entity identifiers that should be excluded from extraction */
+const EXCLUDED_PATTERNS = [
+  /^SIC\s*Code/i,                          // SIC classification codes
+  /^VAT\s*(Registration|Reg)/i,            // VAT registration numbers
+  /^DUNS\s*Number/i,                       // D-U-N-S identifiers
+  /^\d{4,}$/,                              // Pure numeric identifiers
+  /^[A-Z]{2}\s*\d{3}\s*\d{4}\s*\d{2}$/i,  // VAT number format
+];
+
+/** Check whether an entity name matches an excluded identifier pattern */
+export function isExcludedEntity(name: string): boolean {
+  return EXCLUDED_PATTERNS.some((p) => p.test(name));
+}
+
+// ──────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────
 
@@ -335,7 +353,7 @@ Classify this content. Return a JSON object with:
 - classification_reasoning: brief explanation of the classification
 
 Also extract named entities and relationships from the content:
-- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors, products, standards, and methodologies mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001").
+- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors, products, standards, and methodologies mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001"). Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numeric identifiers as entities.
   Entity type guidance:
   - product: commercial products, platforms, or named software systems. Not technologies (those are general tech categories). Examples: WordPress, example-client LMS, SharePoint.
   - standard: published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
@@ -418,23 +436,27 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
 
   if (result.entities?.length) {
     try {
-      const entityRows = result.entities.map((e) => ({
-        content_item_id: itemId,
-        entity_type: e.type,
-        entity_name: e.name,
-        canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)),
-        confidence: 1.0,
-      }));
+      const entityRows = result.entities
+        .filter((e) => !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name))
+        .map((e) => ({
+          content_item_id: itemId,
+          entity_type: e.type,
+          entity_name: e.name,
+          canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
+          confidence: 1.0,
+        }));
 
-      const { error: entityError } = await supabase
-        .from('entity_mentions')
-        .upsert(entityRows, {
-          onConflict: 'canonical_name,entity_type,content_item_id',
-          ignoreDuplicates: true,
-        });
+      if (entityRows.length > 0) {
+        const { error: entityError } = await supabase
+          .from('entity_mentions')
+          .upsert(entityRows, {
+            onConflict: 'canonical_name,entity_type,content_item_id',
+            ignoreDuplicates: true,
+          });
 
-      if (entityError) {
-        console.error('Failed to store entity mentions:', entityError);
+        if (entityError) {
+          console.error('Failed to store entity mentions:', entityError);
+        }
       }
     } catch (entityErr) {
       console.error('Entity mention storage failed:', entityErr);
@@ -445,9 +467,9 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
   if (result.relationships?.length) {
     try {
       const relRows = result.relationships.map((r) => ({
-        source_entity: resolveAlias(canonicalise(r.source)),
+        source_entity: resolveAlias(canonicalise(r.source)).toLowerCase(),
         relationship_type: r.relationship,
-        target_entity: resolveAlias(canonicalise(r.target)),
+        target_entity: resolveAlias(canonicalise(r.target)).toLowerCase(),
         source_item_id: itemId,
         confidence: 1.0,
       }));

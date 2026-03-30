@@ -406,7 +406,7 @@ describe('classifyContent — entity extraction', () => {
             content_item_id: ITEM_ID,
             entity_type: 'certification',
             entity_name: 'ISO27001',
-            canonical_name: 'ISO 27001', // canonicalised
+            canonical_name: 'iso 27001', // canonicalised + lowercased for case-insensitive index
             confidence: 1.0,
           }),
         ]),
@@ -438,9 +438,9 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            source_entity: 'Acme Limited',
+            source_entity: 'acme limited', // canonicalised + lowercased
             relationship_type: 'holds',
-            target_entity: 'ISO 27001',
+            target_entity: 'iso 27001', // canonicalised + lowercased
             source_item_id: ITEM_ID,
             confidence: 1.0,
           }),
@@ -566,8 +566,8 @@ describe('classifyContent — entity extraction', () => {
 
       expect(mockSupabase._chain.upsert).toHaveBeenCalledWith(
         expect.arrayContaining([
-          expect.objectContaining({ canonical_name: 'ISO 27001' }),
-          expect.objectContaining({ canonical_name: 'Cyber Essentials' }),
+          expect.objectContaining({ canonical_name: 'iso 27001' }), // lowercased for case-insensitive index
+          expect.objectContaining({ canonical_name: 'cyber essentials' }), // lowercased for case-insensitive index
         ]),
         expect.anything(),
       );
@@ -596,8 +596,8 @@ describe('classifyContent — entity extraction', () => {
       expect(mockSupabase._chain.insert).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            source_entity: 'Acme Limited',
-            target_entity: 'ISO 27001', // canonicalised
+            source_entity: 'acme limited', // canonicalised + lowercased
+            target_entity: 'iso 27001', // canonicalised + lowercased
           }),
         ]),
       );

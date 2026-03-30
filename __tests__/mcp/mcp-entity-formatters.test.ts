@@ -98,8 +98,8 @@ describe('formatEntitySummary', () => {
 
     expect(result).toContain('## Relationships');
     expect(result).toContain('| Source | Relationship | Target | Confidence |');
-    expect(result).toContain('| Acme Ltd | holds | ISO 27001 | 95% |');
-    expect(result).toContain('| Acme Ltd | holds | Cyber Essentials | 88% |');
+    expect(result).toContain('| Acme Limited | holds | ISO 27001 | 95% |');
+    expect(result).toContain('| Acme Limited | holds | Cyber Essentials | 88% |');
   });
 
   it('formats relationship types with underscores replaced by spaces', () => {
@@ -230,7 +230,7 @@ describe('formatEntityOverview', () => {
     expect(result).toContain('## Top Entities');
     expect(result).toContain('| Entity | Type | Mentions |');
     expect(result).toContain('| ISO 27001 | certification | 12 |');
-    expect(result).toContain('| Acme Ltd | organisation | 9 |');
+    expect(result).toContain('| Acme Limited | organisation | 9 |');
     expect(result).toContain('| Kubernetes | technology | 7 |');
   });
 

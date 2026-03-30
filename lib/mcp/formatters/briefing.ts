@@ -7,6 +7,7 @@
  * certification warnings.
  */
 import { formatDateUK } from '@/lib/format';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -209,7 +210,7 @@ export function formatQualityBriefing(data: QualityBriefingData): string {
     for (const cert of data.certification_warnings) {
       const expiryDate = formatDateUK(cert.expiry_date);
       const statusLabel = cert.status === 'expired' ? 'EXPIRED' : 'EXPIRING SOON';
-      lines.push(`- **${cert.canonical_name}** (${cert.entity_type}) — ${statusLabel}, expires ${expiryDate}`);
+      lines.push(`- **${formatEntityDisplayName(cert.canonical_name)}** (${cert.entity_type}) — ${statusLabel}, expires ${expiryDate}`);
     }
   }
 

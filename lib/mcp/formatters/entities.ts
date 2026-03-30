@@ -2,6 +2,7 @@
  * Entity relationship formatters for MCP tool responses.
  */
 import { formatDateUK } from '@/lib/format';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 
 // ---------------------------------------------------------------------------
 // Entity relationships
@@ -50,7 +51,7 @@ export function formatEntitySummary(
   ];
 
   for (const entity of summaries) {
-    lines.push(`## ${entity.canonical_name}`);
+    lines.push(`## ${formatEntityDisplayName(entity.canonical_name)}`);
     lines.push(`**Type:** ${entity.entity_type}`);
     lines.push(`**Mentions:** ${entity.mention_count}`);
     lines.push(`**Referenced in:** ${entity.content_item_ids.length} content item${entity.content_item_ids.length === 1 ? '' : 's'}`);
@@ -75,7 +76,7 @@ export function formatEntitySummary(
     for (const rel of relationships) {
       const conf = Math.round(rel.confidence * 100);
       const relLabel = rel.relationship_type.replace(/_/g, ' ');
-      lines.push(`| ${rel.source_entity} | ${relLabel} | ${rel.target_entity} | ${conf}% |`);
+      lines.push(`| ${formatEntityDisplayName(rel.source_entity)} | ${relLabel} | ${formatEntityDisplayName(rel.target_entity)} | ${conf}% |`);
     }
     lines.push('');
   }
@@ -103,7 +104,7 @@ export function formatEntityOverview(overview: EntityOverview): string {
     lines.push('| Entity | Type | Mentions |');
     lines.push('|--------|------|----------|');
     for (const entity of overview.top_entities) {
-      lines.push(`| ${entity.canonical_name} | ${entity.entity_type} | ${entity.mention_count} |`);
+      lines.push(`| ${formatEntityDisplayName(entity.canonical_name)} | ${entity.entity_type} | ${entity.mention_count} |`);
     }
   }
 
@@ -171,7 +172,7 @@ export function formatCertificationReport(
       const obtained = formatDateUK((meta.date_obtained as string) ?? null);
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
       const status = cert.expiry_status.replace(/_/g, ' ');
-      lines.push(`| ${cert.canonical_name} | ${version} | ${issuer} | ${obtained} | ${expires} | ${status} |`);
+      lines.push(`| ${formatEntityDisplayName(cert.canonical_name)} | ${version} | ${issuer} | ${obtained} | ${expires} | ${status} |`);
     }
     lines.push('');
   }
@@ -187,7 +188,7 @@ export function formatCertificationReport(
       const status = (meta.status as string) ?? fw.expiry_status.replace(/_/g, ' ');
       const joined = formatDateUK((meta.date_joined as string) ?? null);
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
-      lines.push(`| ${fw.canonical_name} | ${round} | ${status} | ${joined} | ${expires} |`);
+      lines.push(`| ${formatEntityDisplayName(fw.canonical_name)} | ${round} | ${status} | ${joined} | ${expires} |`);
     }
     lines.push('');
   }
@@ -201,7 +202,7 @@ export function formatCertificationReport(
       const meta = reg.metadata;
       const regNumber = (meta.registration_number as string) ?? '';
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
-      lines.push(`| ${reg.canonical_name} | ${regNumber} | ${expires} |`);
+      lines.push(`| ${formatEntityDisplayName(reg.canonical_name)} | ${regNumber} | ${expires} |`);
     }
     lines.push('');
   }
@@ -212,7 +213,7 @@ export function formatCertificationReport(
   if (evidenceEntries.length > 0) {
     lines.push('### Evidence', '');
     for (const entry of evidenceEntries) {
-      lines.push(`- ${entry.canonical_name}: referenced in ${entry.content_item_count} content ${entry.content_item_count === 1 ? 'item' : 'items'}`);
+      lines.push(`- ${formatEntityDisplayName(entry.canonical_name)}: referenced in ${entry.content_item_count} content ${entry.content_item_count === 1 ? 'item' : 'items'}`);
     }
     lines.push('');
   }
@@ -228,7 +229,7 @@ export function formatCertificationReport(
       const version = (meta.version as string) ?? '';
       const expires = formatDateUK((meta.expiry_date as string) ?? null);
       const status = cert.expiry_status.replace(/_/g, ' ');
-      lines.push(`| ${cert.canonical_name} | ${supplier} | ${version} | ${expires} | ${status} |`);
+      lines.push(`| ${formatEntityDisplayName(cert.canonical_name)} | ${supplier} | ${version} | ${expires} | ${status} |`);
     }
     lines.push('');
   }
