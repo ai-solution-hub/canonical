@@ -97,27 +97,19 @@ export function useDigestData() {
     },
   });
 
-  // ─── Load a specific past digest (Task 5: route through fetchQuery) ───
+  // ─── Load a specific past digest ───
 
-  // Load a specific past digest into the "current" slot.
-  // Note: no /api/digest/[id] endpoint exists, so we fetch via the list
-  // endpoint with a wider limit. Results are cached via queryClient.fetchQuery.
+  // Load a specific past digest into the "current" slot via the detail endpoint.
+  // Results are cached via queryClient.fetchQuery with the detail query key.
   const loadDigest = useCallback(async (digestId: string) => {
     try {
-      // Check if already in past digests with full data
-      const match = pastDigests.find((d) => d.id === digestId);
-      if (match && 'domain_summaries' in match && 'narrative_summary' in match) {
-        queryClient.setQueryData(queryKeys.digests.latest, match as Digest);
-        return;
-      }
-
       const digest = await queryClient.fetchQuery({
         queryKey: queryKeys.digests.detail(digestId),
         queryFn: async () => {
-          const listData = await fetchJson<{ digests: Digest[] }>(
-            '/api/digest/list?limit=50&offset=0',
+          const data = await fetchJson<{ digest: Digest | null }>(
+            `/api/digest/${digestId}`,
           );
-          return listData.digests?.find((d) => d.id === digestId) ?? null;
+          return data.digest;
         },
       });
 
@@ -127,7 +119,7 @@ export function useDigestData() {
     } catch {
       toast.error('Failed to load report');
     }
-  }, [pastDigests, queryClient]);
+  }, [queryClient]);
 
   return {
     currentDigest: latestDigest ?? null,
