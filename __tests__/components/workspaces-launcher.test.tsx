@@ -87,7 +87,8 @@ describe('WorkspacesContent (launcher)', () => {
 
   it('shows "Coming soon" badge on unavailable types', () => {
     render(<WorkspacesContent counts={{}} />);
-    expect(screen.getByText('Coming soon')).toBeInTheDocument();
+    // Multiple 'Coming soon' badges exist (Sales Proposals + Intelligence)
+    expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(1);
   });
 
   it('does not render coming soon types as links', () => {

@@ -7,6 +7,7 @@ import {
   useEffect,
   useCallback,
   useRef,
+  useMemo,
 } from 'react';
 
 type ReadSource = 'manual' | 'review' | 'digest' | 'bulk';
@@ -281,7 +282,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
-  const contextValue: ReadMarksContextValue = {
+  const contextValue: ReadMarksContextValue = useMemo(() => ({
     readItemIds,
     readCount,
     unreadCount,
@@ -294,7 +295,20 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     markBulkRead,
     loadReadMarks,
     checkReadStatus,
-  };
+  }), [
+    readItemIds,
+    readCount,
+    unreadCount,
+    totalCount,
+    isLoaded,
+    isRead,
+    toggleRead,
+    markRead,
+    markUnread,
+    markBulkRead,
+    loadReadMarks,
+    checkReadStatus,
+  ]);
 
   return (
     <ReadMarksContext.Provider value={contextValue}>

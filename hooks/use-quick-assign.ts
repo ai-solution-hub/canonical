@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
@@ -127,13 +127,21 @@ export function useQuickAssign(): UseQuickAssignReturn {
     },
   });
 
+  // Ref to break dependency cycle: useMutation returns a new object each render,
+  // which would make loadAssignments unstable and trigger infinite useEffect loops
+  // in consumers (e.g. browse-content.tsx loadAssignments effect).
+  const loadAssignmentsMutateRef = useRef(loadAssignmentsMutation.mutateAsync);
+  useEffect(() => {
+    loadAssignmentsMutateRef.current = loadAssignmentsMutation.mutateAsync;
+  });
+
   const loadAssignments = useCallback(
     async (itemIds: string[]) => {
       if (itemIds.length === 0) return;
 
       try {
         const assignments =
-          await loadAssignmentsMutation.mutateAsync(itemIds);
+          await loadAssignmentsMutateRef.current(itemIds);
 
         setItemAssignments((prev) => {
           const next = new Map(prev);
@@ -146,7 +154,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
         console.error('Failed to load assignments:', err);
       }
     },
-    [loadAssignmentsMutation],
+    [],
   );
 
   // -------------------------------------------------------------------------

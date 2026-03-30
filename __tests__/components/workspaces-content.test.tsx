@@ -38,7 +38,8 @@ describe('WorkspacesContent', () => {
   it('renders Sales Proposals as coming soon', () => {
     render(<WorkspacesContent counts={{}} />);
     expect(screen.getByText('Sales Proposals')).toBeInTheDocument();
-    expect(screen.getByText('Coming soon')).toBeInTheDocument();
+    // Multiple 'Coming soon' badges exist (Sales Proposals + Intelligence)
+    expect(screen.getAllByText('Coming soon').length).toBeGreaterThanOrEqual(1);
   });
 
   it('links Bids card to /bid', () => {
