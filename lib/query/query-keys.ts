@@ -133,6 +133,12 @@ export const queryKeys = {
     governance: ['settings', 'governance'] as const,
   },
 
+  // Layers (admin)
+  layers: {
+    all: ['layers'] as const,
+    list: ['layers', 'list'] as const,
+  },
+
   // Quality flags
   qualityFlags: {
     all: ['quality-flags'] as const,

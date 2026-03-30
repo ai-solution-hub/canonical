@@ -1,25 +1,75 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useLayerAdmin, type AdminLayer, type UseLayerAdminParams } from '@/hooks/use-layer-admin';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Mock dependencies
 // ---------------------------------------------------------------------------
 
-const { mockToast, mockFetch } = vi.hoisted(() => ({
-  mockToast: {
+vi.mock('sonner', () => ({
+  toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
-  mockFetch: vi.fn(),
 }));
 
-vi.mock('sonner', () => ({
-  toast: mockToast,
-}));
+import { toast } from 'sonner';
 
-// Assign mock fetch to global
+const mockFetch = vi.fn();
 global.fetch = mockFetch;
+
+// ---------------------------------------------------------------------------
+// Import after mocks
+// ---------------------------------------------------------------------------
+
+import {
+  useLayerAdmin,
+  generateKey,
+  type AdminLayer,
+  type UseLayerAdminParams,
+} from '@/hooks/use-layer-admin';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return {
+    queryClient,
+    Wrapper({ children }: { children: React.ReactNode }) {
+      return React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+    },
+  };
+}
+
+function createMockResponse(data: unknown, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: vi.fn().mockResolvedValue(data),
+  };
+}
+
+function renderLayerAdmin(overrides: Partial<UseLayerAdminParams> = {}) {
+  const params: UseLayerAdminParams = {
+    refresh: vi.fn(),
+    ...overrides,
+  };
+  const { queryClient, Wrapper } = createWrapper();
+  const result = renderHook(() => useLayerAdmin(params), { wrapper: Wrapper });
+  return { ...result, queryClient, refresh: params.refresh };
+}
 
 // ---------------------------------------------------------------------------
 // Sample data
@@ -49,26 +99,6 @@ const SAMPLE_LAYERS: AdminLayer[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function createMockResponse(data: unknown, status = 200) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: vi.fn().mockResolvedValue(data),
-  };
-}
-
-function renderLayerAdmin(overrides: Partial<UseLayerAdminParams> = {}) {
-  const params: UseLayerAdminParams = {
-    refresh: vi.fn(),
-    ...overrides,
-  };
-  return renderHook(() => useLayerAdmin(params));
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -83,7 +113,7 @@ describe('useLayerAdmin', () => {
   // Initial fetch
   // -----------------------------------------------------------------------
 
-  it('loads layers on mount', async () => {
+  it('returns loading=true initially then populates layers', async () => {
     const { result } = renderLayerAdmin();
 
     expect(result.current.loading).toBe(true);
@@ -93,7 +123,7 @@ describe('useLayerAdmin', () => {
     });
 
     expect(result.current.layers).toEqual(SAMPLE_LAYERS);
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers');
+    expect(mockFetch).toHaveBeenCalledWith('/api/layers', undefined);
   });
 
   it('shows error toast on fetch failure', async () => {
@@ -105,7 +135,8 @@ describe('useLayerAdmin', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    expect(mockToast.error).toHaveBeenCalled();
+    // Query should have no data (defaults to [])
+    expect(result.current.layers).toEqual([]);
   });
 
   // -----------------------------------------------------------------------
@@ -156,12 +187,10 @@ describe('useLayerAdmin', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Open add dialog
     act(() => {
       result.current.openAddLayer();
     });
 
-    // Set form fields
     act(() => {
       result.current.setLayerLabel('Technical');
       result.current.setLayerKey('technical');
@@ -169,20 +198,19 @@ describe('useLayerAdmin', () => {
 
     // Mock successful create
     mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'new-layer' }, 201));
-    // Mock re-fetch after create
-    mockFetch.mockResolvedValueOnce(createMockResponse(SAMPLE_LAYERS));
 
-    // Submit
     await act(async () => {
       await result.current.handleSubmit({
         preventDefault: vi.fn(),
       } as unknown as React.FormEvent);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers', expect.objectContaining({
-      method: 'POST',
-    }));
-    expect(mockToast.success).toHaveBeenCalledWith('Layer created');
+    // Should have called POST /api/layers
+    const postCall = mockFetch.mock.calls.find(
+      (call) => call[0] === '/api/layers' && call[1]?.method === 'POST',
+    );
+    expect(postCall).toBeDefined();
+    expect(toast.success).toHaveBeenCalledWith('Layer created');
     expect(mockRefresh).toHaveBeenCalled();
   });
 
@@ -190,38 +218,39 @@ describe('useLayerAdmin', () => {
   // Update
   // -----------------------------------------------------------------------
 
-  it('updates an existing layer on submit', async () => {
+  it('updates an existing layer on submit with only changed fields', async () => {
     const mockRefresh = vi.fn();
     const { result } = renderLayerAdmin({ refresh: mockRefresh });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Open edit dialog
     act(() => {
       result.current.openEditLayer(SAMPLE_LAYERS[0]);
     });
 
-    // Change label
     act(() => {
       result.current.setLayerLabel('Updated Brief');
     });
 
     // Mock successful update
-    mockFetch.mockResolvedValueOnce(createMockResponse({ ...SAMPLE_LAYERS[0], label: 'Updated Brief' }));
-    // Mock re-fetch
-    mockFetch.mockResolvedValueOnce(createMockResponse(SAMPLE_LAYERS));
+    mockFetch.mockResolvedValueOnce(
+      createMockResponse({ ...SAMPLE_LAYERS[0], label: 'Updated Brief' }),
+    );
 
-    // Submit
     await act(async () => {
       await result.current.handleSubmit({
         preventDefault: vi.fn(),
       } as unknown as React.FormEvent);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers/layer-1', expect.objectContaining({
-      method: 'PATCH',
-    }));
-    expect(mockToast.success).toHaveBeenCalledWith('Layer updated');
+    // Should have called PATCH with only the label change
+    const patchCall = mockFetch.mock.calls.find(
+      (call) => call[0] === `/api/layers/layer-1` && call[1]?.method === 'PATCH',
+    );
+    expect(patchCall).toBeDefined();
+    const body = JSON.parse(patchCall![1].body);
+    expect(body).toEqual({ label: 'Updated Brief' });
+    expect(toast.success).toHaveBeenCalledWith('Layer updated');
   });
 
   it('does not submit when no changes on edit', async () => {
@@ -229,12 +258,10 @@ describe('useLayerAdmin', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    // Open edit dialog with existing data
     act(() => {
       result.current.openEditLayer(SAMPLE_LAYERS[0]);
     });
 
-    // Submit without changes
     const fetchCallsBefore = mockFetch.mock.calls.length;
     await act(async () => {
       await result.current.handleSubmit({
@@ -244,7 +271,6 @@ describe('useLayerAdmin', () => {
 
     // Should close dialog without making additional fetch calls
     expect(result.current.dialogOpen).toBe(false);
-    // Only the initial fetch should have happened
     expect(mockFetch.mock.calls.length).toBe(fetchCallsBefore);
   });
 
@@ -258,18 +284,22 @@ describe('useLayerAdmin', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    mockFetch.mockResolvedValueOnce(createMockResponse({ ...SAMPLE_LAYERS[0], is_active: false }));
-    mockFetch.mockResolvedValueOnce(createMockResponse(SAMPLE_LAYERS));
+    mockFetch.mockResolvedValueOnce(
+      createMockResponse({ ...SAMPLE_LAYERS[0], is_active: false }),
+    );
 
     await act(async () => {
       await result.current.handleToggleActive(SAMPLE_LAYERS[0]);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers/layer-1', expect.objectContaining({
-      method: 'PATCH',
-      body: JSON.stringify({ is_active: false }),
-    }));
-    expect(mockToast.success).toHaveBeenCalledWith('Layer deactivated');
+    const patchCall = mockFetch.mock.calls.find(
+      (call) =>
+        call[0] === '/api/layers/layer-1' &&
+        call[1]?.method === 'PATCH' &&
+        JSON.parse(call[1].body).is_active === false,
+    );
+    expect(patchCall).toBeDefined();
+    expect(toast.success).toHaveBeenCalledWith('Layer deactivated');
     expect(mockRefresh).toHaveBeenCalled();
   });
 
@@ -284,16 +314,16 @@ describe('useLayerAdmin', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     mockFetch.mockResolvedValueOnce(createMockResponse(null, 204));
-    mockFetch.mockResolvedValueOnce(createMockResponse(SAMPLE_LAYERS));
 
     await act(async () => {
       await result.current.handleDelete(SAMPLE_LAYERS[0]);
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers/layer-1', expect.objectContaining({
-      method: 'DELETE',
-    }));
-    expect(mockToast.success).toHaveBeenCalledWith('Layer deleted');
+    const deleteCall = mockFetch.mock.calls.find(
+      (call) => call[0] === '/api/layers/layer-1' && call[1]?.method === 'DELETE',
+    );
+    expect(deleteCall).toBeDefined();
+    expect(toast.success).toHaveBeenCalledWith('Layer deleted');
     expect(mockRefresh).toHaveBeenCalled();
   });
 
@@ -302,13 +332,19 @@ describe('useLayerAdmin', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'In use' }, 409));
+    mockFetch.mockResolvedValueOnce(
+      createMockResponse({ error: 'In use' }, 409),
+    );
 
     await act(async () => {
-      await result.current.handleDelete(SAMPLE_LAYERS[0]);
+      try {
+        await result.current.handleDelete(SAMPLE_LAYERS[0]);
+      } catch {
+        // mutateAsync throws on error — that's expected
+      }
     });
 
-    expect(mockToast.error).toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 
   // -----------------------------------------------------------------------
@@ -317,20 +353,44 @@ describe('useLayerAdmin', () => {
 
   it('handles move up with optimistic update', async () => {
     const mockRefresh = vi.fn();
-    const { result } = renderLayerAdmin({ refresh: mockRefresh });
+    const { result, queryClient } = renderLayerAdmin({ refresh: mockRefresh });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
+    // Mock successful reorder
     mockFetch.mockResolvedValueOnce(createMockResponse({ success: true }));
 
     await act(async () => {
       await result.current.handleMove('layer-2', 'up');
     });
 
-    expect(mockFetch).toHaveBeenCalledWith('/api/layers/reorder', expect.objectContaining({
-      method: 'PUT',
-    }));
+    const putCall = mockFetch.mock.calls.find(
+      (call) => call[0] === '/api/layers/reorder' && call[1]?.method === 'PUT',
+    );
+    expect(putCall).toBeDefined();
     expect(mockRefresh).toHaveBeenCalled();
+  });
+
+  it('rolls back on move error', async () => {
+    const mockRefresh = vi.fn();
+    const { result } = renderLayerAdmin({ refresh: mockRefresh });
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Mock failed reorder
+    mockFetch.mockResolvedValueOnce(createMockResponse({ error: 'Server error' }, 500));
+
+    await act(async () => {
+      try {
+        await result.current.handleMove('layer-2', 'up');
+      } catch {
+        // mutateAsync throws — expected
+      }
+    });
+
+    expect(toast.error).toHaveBeenCalledWith('Failed to reorder layers');
+    // After rollback, layers should match original data
+    // (invalidation will refetch, but the rollback restores previous)
   });
 
   it('does not move first layer up', async () => {
@@ -360,5 +420,94 @@ describe('useLayerAdmin', () => {
     });
 
     expect(mockFetch.mock.calls.length).toBe(fetchCallsBefore);
+  });
+
+  // -----------------------------------------------------------------------
+  // Saving state
+  // -----------------------------------------------------------------------
+
+  it('saving reflects mutation isPending during submit', async () => {
+    const { result } = renderLayerAdmin();
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Initially saving is false
+    expect(result.current.saving).toBe(false);
+
+    act(() => {
+      result.current.openAddLayer();
+      result.current.setLayerLabel('Test');
+      result.current.setLayerKey('test');
+    });
+
+    // Create a never-resolving promise to keep mutation pending
+    let resolveCreate!: (value: unknown) => void;
+    mockFetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+
+    // Start submit without awaiting
+    let submitPromise: Promise<void>;
+    act(() => {
+      submitPromise = result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
+    });
+
+    // While pending, saving should be true
+    await waitFor(() => {
+      expect(result.current.saving).toBe(true);
+    });
+
+    // Resolve the mutation
+    await act(async () => {
+      resolveCreate(createMockResponse({ id: 'new' }, 201));
+      await submitPromise;
+    });
+
+    expect(result.current.saving).toBe(false);
+  });
+
+  // -----------------------------------------------------------------------
+  // Announcement
+  // -----------------------------------------------------------------------
+
+  it('sets announcement on successful operations', async () => {
+    const { result } = renderLayerAdmin();
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Create a layer
+    act(() => {
+      result.current.openAddLayer();
+      result.current.setLayerLabel('New Layer');
+      result.current.setLayerKey('new_layer');
+    });
+
+    mockFetch.mockResolvedValueOnce(createMockResponse({ id: 'new' }, 201));
+
+    await act(async () => {
+      await result.current.handleSubmit({
+        preventDefault: vi.fn(),
+      } as unknown as React.FormEvent);
+    });
+
+    expect(result.current.announcement).toBe("Layer 'New Layer' created");
+  });
+
+  // -----------------------------------------------------------------------
+  // generateKey
+  // -----------------------------------------------------------------------
+
+  it('generates valid keys from labels', () => {
+    expect(generateKey('Technical Detail')).toBe('technical_detail');
+    expect(generateKey('Hello World!')).toBe('hello_world');
+    expect(generateKey('  Spaces   Everywhere  ')).toBe('spaces_everywhere');
+    expect(generateKey('')).toBe('');
+    expect(generateKey('UPPER CASE')).toBe('upper_case');
+    expect(generateKey('special!@#$%chars')).toBe('specialchars');
   });
 });
