@@ -1,19 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
 // ---------------------------------------------------------------------------
 
-const { mockRpc, mockFrom } = vi.hoisted(() => ({
+const { mockRpc } = vi.hoisted(() => ({
   mockRpc: vi.fn(),
-  mockFrom: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     rpc: mockRpc,
-    from: mockFrom,
   }),
 }));
 
@@ -31,6 +31,24 @@ import { useFilterData } from '@/hooks/browse/use-filter-data';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return {
+    queryClient,
+    Wrapper: function Wrapper({ children }: { children: React.ReactNode }) {
+      return React.createElement(
+        QueryClientProvider,
+        { client: queryClient },
+        children,
+      );
+    },
+  };
+}
 
 const MOCK_COUNTS = {
   domain: { Technology: 10, People: 5 },
@@ -105,9 +123,10 @@ describe('useFilterData', () => {
   // -----------------------------------------------------------------------
 
   it('does not fetch any data when isOpen is false', async () => {
-    renderHook(() => useFilterData({ isOpen: false }));
+    const { Wrapper } = createWrapper();
+    renderHook(() => useFilterData({ isOpen: false }), { wrapper: Wrapper });
 
-    // Give effects a chance to run
+    // Give queries a chance to (not) run
     await new Promise((r) => setTimeout(r, 50));
 
     expect(mockRpc).not.toHaveBeenCalled();
@@ -119,7 +138,10 @@ describe('useFilterData', () => {
   // -----------------------------------------------------------------------
 
   it('fetches filter counts when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
@@ -130,7 +152,10 @@ describe('useFilterData', () => {
   });
 
   it('fetches authors when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.allAuthors).toHaveLength(2);
@@ -141,7 +166,10 @@ describe('useFilterData', () => {
   });
 
   it('fetches popular keywords when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.popularKeywords).toEqual(['ai', 'cloud', 'security']);
@@ -149,7 +177,10 @@ describe('useFilterData', () => {
   });
 
   it('fetches workspaces when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.allWorkspaces).toHaveLength(2);
@@ -159,7 +190,10 @@ describe('useFilterData', () => {
   });
 
   it('fetches user tags when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.allUserTags).toHaveLength(2);
@@ -172,7 +206,10 @@ describe('useFilterData', () => {
   });
 
   it('fetches entities when panel opens', async () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
     await waitFor(() => {
       expect(result.current.allEntities).toHaveLength(2);
@@ -183,13 +220,39 @@ describe('useFilterData', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Count cache TTL
+  // Entity type counts (derived)
   // -----------------------------------------------------------------------
 
-  it('serves counts from cache when re-opened within 30 seconds', async () => {
+  it('derives entity type counts from entity data', async () => {
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.entityTypeCounts).toHaveLength(2);
+    });
+
+    // Sorted by count descending: organisation (8) > technology (3)
+    expect(result.current.entityTypeCounts[0]).toEqual({
+      type: 'organisation',
+      count: 8,
+    });
+    expect(result.current.entityTypeCounts[1]).toEqual({
+      type: 'technology',
+      count: 3,
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Cache behaviour — staleTime controls refetch
+  // -----------------------------------------------------------------------
+
+  it('serves counts from cache when re-opened within staleTime', async () => {
+    const { Wrapper } = createWrapper();
     const { result, rerender } = renderHook(
       ({ isOpen }: { isOpen: boolean }) => useFilterData({ isOpen }),
-      { initialProps: { isOpen: true } },
+      { initialProps: { isOpen: true }, wrapper: Wrapper },
     );
 
     await waitFor(() => {
@@ -200,7 +263,7 @@ describe('useFilterData', () => {
       (c: unknown[]) => c[0] === 'get_filter_counts',
     ).length;
 
-    // Close and reopen — should use cache
+    // Close and reopen — TanStack should serve from cache (staleTime: 30s)
     rerender({ isOpen: false });
     rerender({ isOpen: true });
 
@@ -222,6 +285,7 @@ describe('useFilterData', () => {
 
   it('handles filter counts RPC error gracefully', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { Wrapper } = createWrapper();
 
     mockRpc.mockImplementation(async (name: string) => {
       if (name === 'get_filter_counts') {
@@ -230,41 +294,80 @@ describe('useFilterData', () => {
       return { data: null, error: null };
     });
 
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
-    // Should still have empty default counts, not crash
-    await new Promise((r) => setTimeout(r, 50));
+    // The queryFn returns EMPTY_COUNTS on error, so counts should be empty
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Failed to fetch filter counts:',
+        'RPC failed',
+      );
+    });
+
     expect(result.current.counts.domain).toEqual({});
 
     consoleSpy.mockRestore();
   });
 
-  it('handles keywords fetch failure silently', async () => {
+  it('handles keywords fetch failure gracefully', async () => {
+    const { Wrapper } = createWrapper();
+
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => {
-        throw new Error('Network error');
+      vi.fn(async (url: string) => {
+        if (url === '/api/search/suggestions') {
+          return { ok: false, json: async () => ({ error: 'Not found' }) };
+        }
+        if (url === '/api/workspaces') {
+          return {
+            ok: true,
+            json: async () => [{ id: 'ws-1', name: 'Bid Alpha', type: 'bid' }],
+          };
+        }
+        return { ok: false, json: async () => ({}) };
       }),
     );
 
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
-    await new Promise((r) => setTimeout(r, 50));
+    // Keywords should fall back to empty array (fetchJson throws on non-OK,
+    // TanStack retries are disabled, so data stays undefined -> defaults to [])
+    await waitFor(() => {
+      expect(result.current.allWorkspaces).toHaveLength(1);
+    });
+
     expect(result.current.popularKeywords).toEqual([]);
   });
 
   it('handles entities RPC error without crashing', async () => {
+    const { Wrapper } = createWrapper();
+
     mockRpc.mockImplementation(async (name: string) => {
-      if (name === 'get_entity_name_counts') {
+      if (name === 'get_entity_summary') {
         return { data: null, error: { message: 'Entity RPC failed' } };
+      }
+      if (name === 'get_filter_counts') {
+        return { data: MOCK_COUNTS, error: null };
       }
       return { data: null, error: null };
     });
 
-    const { result } = renderHook(() => useFilterData({ isOpen: true }));
+    const { result } = renderHook(() => useFilterData({ isOpen: true }), {
+      wrapper: Wrapper,
+    });
 
-    await new Promise((r) => setTimeout(r, 50));
+    // Wait for counts to load (proves queries ran)
+    await waitFor(() => {
+      expect(result.current.counts.domain).toEqual({ Technology: 10, People: 5 });
+    });
+
+    // Entities should be empty due to error (queryFn returns [])
     expect(result.current.allEntities).toEqual([]);
+    expect(result.current.entityTypeCounts).toEqual([]);
   });
 
   // -----------------------------------------------------------------------
@@ -272,8 +375,47 @@ describe('useFilterData', () => {
   // -----------------------------------------------------------------------
 
   it('exposes authorSearch and setAuthorSearch', () => {
-    const { result } = renderHook(() => useFilterData({ isOpen: false }));
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: false }), {
+      wrapper: Wrapper,
+    });
     expect(result.current.authorSearch).toBe('');
     expect(typeof result.current.setAuthorSearch).toBe('function');
+  });
+
+  it('updates authorSearch via setAuthorSearch', () => {
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: false }), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current.setAuthorSearch('alice');
+    });
+
+    expect(result.current.authorSearch).toBe('alice');
+  });
+
+  // -----------------------------------------------------------------------
+  // Default values before data loads
+  // -----------------------------------------------------------------------
+
+  it('returns empty defaults before queries resolve', () => {
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useFilterData({ isOpen: false }), {
+      wrapper: Wrapper,
+    });
+
+    expect(result.current.counts).toEqual({
+      domain: {},
+      content_type: {},
+      platform: {},
+    });
+    expect(result.current.allAuthors).toEqual([]);
+    expect(result.current.popularKeywords).toEqual([]);
+    expect(result.current.allWorkspaces).toEqual([]);
+    expect(result.current.allUserTags).toEqual([]);
+    expect(result.current.allEntities).toEqual([]);
+    expect(result.current.entityTypeCounts).toEqual([]);
   });
 });

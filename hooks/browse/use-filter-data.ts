@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson } from '@/lib/query/fetchers';
 import {
   parseJsonb,
   parseJsonbArray,
@@ -20,221 +23,157 @@ interface UseFilterDataParams {
   isOpen: boolean;
 }
 
+const EMPTY_COUNTS: FilterCounts = {
+  domain: {},
+  content_type: {},
+  platform: {},
+};
+
 /**
  * Manages async data loading for filter panel options.
  *
- * All fetches are lazy-loaded: they only fire when the panel is opened,
- * and each category is fetched at most once per mount. Filter counts
- * are cached with a 30-second TTL.
+ * All fetches are lazy-loaded: they only fire when the panel is opened
+ * (via `enabled: isOpen`). TanStack Query manages caching and deduplication.
+ *
+ * Filter counts use `staleTime: 30_000` to match the previous 30-second
+ * cache TTL. All other categories use `staleTime: Infinity` to match the
+ * previous "fetch once per mount" behaviour.
  */
 export function useFilterData({ isOpen }: UseFilterDataParams) {
   const supabase = createClient();
 
-  // Filter counts (M8) — cached with a 30-second TTL to avoid re-fetching on every panel open
-  const [counts, setCounts] = useState<FilterCounts>({
-    domain: {},
-    content_type: {},
-    platform: {},
-  });
-  const countsCache = useRef<{ data: FilterCounts; timestamp: number } | null>(null);
-  const COUNTS_CACHE_TTL_MS = 30_000;
-
-  // Author autocomplete state
+  // UI-only search state — not server data
   const [authorSearch, setAuthorSearch] = useState('');
-  const [allAuthors, setAllAuthors] = useState<
-    { name: string; count: number }[]
-  >([]);
-  const [authorsLoaded, setAuthorsLoaded] = useState(false);
 
-  // Popular keywords for quick-filter chips
-  const [popularKeywords, setPopularKeywords] = useState<string[]>([]);
-  const [keywordsLoaded, setKeywordsLoaded] = useState(false);
+  // ─── Filter counts (30s stale time, matching previous TTL) ───
 
-  // Workspaces for filter
-  const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
-  const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
-
-  // User tags for filter
-  const [allUserTags, setAllUserTags] = useState<{ tag: string; count: number }[]>([]);
-  const [userTagsLoaded, setUserTagsLoaded] = useState(false);
-
-  // Entity names for filter
-  const [allEntities, setAllEntities] = useState<{ name: string; type: string; count: number }[]>([]);
-  const [entitiesLoaded, setEntitiesLoaded] = useState(false);
-
-  // Entity type counts for filter
-  const [entityTypeCounts, setEntityTypeCounts] = useState<{ type: string; count: number }[]>([]);
-
-  // Fetch counts when panel opens via server-side aggregation RPC.
-  // Results are cached for 30 seconds to avoid redundant fetches.
-  useEffect(() => {
-    if (!isOpen) return;
-
-    // Serve from cache if still fresh
-    if (
-      countsCache.current &&
-      Date.now() - countsCache.current.timestamp < COUNTS_CACHE_TTL_MS
-    ) {
-      setCounts(countsCache.current.data);
-      return;
-    }
-
-    const fetchCounts = async () => {
+  const countsQuery = useQuery({
+    queryKey: queryKeys.filters.counts,
+    queryFn: async () => {
       const { data, error } = await supabase.rpc('get_filter_counts');
-
       if (error || !data) {
         console.error('Failed to fetch filter counts:', error?.message);
-        return;
+        return EMPTY_COUNTS;
       }
-
       const parsed = parseJsonb(FilterCountsSchema, data);
-      const result: FilterCounts = {
+      return {
         domain: parsed?.domain ?? {},
         content_type: parsed?.content_type ?? {},
         platform: parsed?.platform ?? {},
-      };
-      countsCache.current = { data: result, timestamp: Date.now() };
-      setCounts(result);
-    };
+      } satisfies FilterCounts;
+    },
+    enabled: isOpen,
+    staleTime: 30_000,
+  });
 
-    fetchCounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [isOpen]);
+  // ─── Authors (fetch once per session) ───
 
-  // Fetch unique authors when panel opens
-  useEffect(() => {
-    if (!isOpen || authorsLoaded) return;
-
-    const fetchAuthors = async () => {
+  const authorsQuery = useQuery({
+    queryKey: queryKeys.filters.authors,
+    queryFn: async () => {
       const { data, error } = await supabase.rpc('get_unique_authors');
-
       if (error || !data) {
         console.error('Failed to fetch authors:', error?.message);
-        return;
+        return [];
       }
-
-      const authors = parseJsonbArray(AuthorCountSchema, data).map((row) => ({
+      return parseJsonbArray(AuthorCountSchema, data).map((row) => ({
         name: row.author_name,
         count: Number(row.count),
       }));
-      setAllAuthors(authors);
-      setAuthorsLoaded(true);
-    };
+    },
+    enabled: isOpen,
+    staleTime: Infinity,
+  });
 
-    fetchAuthors();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [isOpen, authorsLoaded]);
+  // ─── Popular keywords (fetch once per session) ───
 
-  // Fetch popular keywords when panel opens
-  useEffect(() => {
-    if (!isOpen || keywordsLoaded) return;
+  const keywordsQuery = useQuery({
+    queryKey: queryKeys.filters.keywords,
+    queryFn: async () => {
+      const data = await fetchJson<{ keywords?: string[] }>(
+        '/api/search/suggestions',
+      );
+      return data.keywords ?? [];
+    },
+    enabled: isOpen,
+    staleTime: Infinity,
+  });
 
-    const fetchKeywords = async () => {
-      try {
-        const res = await fetch('/api/search/suggestions');
-        if (res.ok) {
-          const data = await res.json();
-          setPopularKeywords(data.keywords ?? []);
-        }
-      } catch {
-        // Non-critical — fail silently
-      }
-      setKeywordsLoaded(true);
-    };
+  // ─── Workspaces (fetch once per session) ───
 
-    fetchKeywords();
-  }, [isOpen, keywordsLoaded]);
+  const workspacesQuery = useQuery({
+    queryKey: queryKeys.filters.workspaces,
+    queryFn: () => fetchJson<Workspace[]>('/api/workspaces'),
+    enabled: isOpen,
+    staleTime: Infinity,
+  });
 
-  // Fetch workspaces when panel opens
-  useEffect(() => {
-    if (!isOpen || workspacesLoaded) return;
-    const fetchWorkspaces = async () => {
-      try {
-        const res = await fetch('/api/workspaces');
-        if (res.ok) {
-          setAllWorkspaces(await res.json());
-        }
-      } catch {
-        // Non-critical
-      }
-      setWorkspacesLoaded(true);
-    };
-    fetchWorkspaces();
-  }, [isOpen, workspacesLoaded]);
+  // ─── User tags (fetch once per session) ───
 
-  // Fetch user tags when panel opens
-  useEffect(() => {
-    if (!isOpen || userTagsLoaded) return;
-    const fetchUserTags = async () => {
-      try {
-        const { data } = await supabase.rpc('get_user_tag_counts');
-        if (data && typeof data === 'object') {
-          const tagCounts = data as Record<string, number>;
-          setAllUserTags(
-            Object.entries(tagCounts)
-              .map(([tag, count]) => ({ tag, count }))
-              .sort((a, b) => b.count - a.count),
-          );
-        }
-      } catch {
-        // Non-critical
-      }
-      setUserTagsLoaded(true);
-    };
-    fetchUserTags();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [isOpen, userTagsLoaded]);
+  const userTagsQuery = useQuery({
+    queryKey: queryKeys.filters.userTags,
+    queryFn: async () => {
+      const { data } = await supabase.rpc('get_user_tag_counts');
+      if (!data || typeof data !== 'object') return [];
+      const tagCounts = data as Record<string, number>;
+      return Object.entries(tagCounts)
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count);
+    },
+    enabled: isOpen,
+    staleTime: Infinity,
+  });
 
-  // Fetch entity names and type counts when panel opens
-  useEffect(() => {
-    if (!isOpen || entitiesLoaded) return;
-    const fetchEntities = async () => {
-      try {
-        // Use get_entity_summary RPC to get entities with their types
-        const { data, error } = await supabase.rpc('get_entity_summary', {
-          p_limit: 50,
-        });
+  // ─── Entities (fetch once per session) ───
 
-        if (error || !data) {
-          setEntitiesLoaded(true);
-          return;
-        }
-
-        const entities = (data ?? []).map((row: { canonical_name: string; entity_type: string; mention_count: number }) => ({
+  const entitiesQuery = useQuery({
+    queryKey: queryKeys.filters.entities,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_entity_summary', {
+        p_limit: 50,
+      });
+      if (error || !data) return [];
+      return (data ?? []).map(
+        (row: {
+          canonical_name: string;
+          entity_type: string;
+          mention_count: number;
+        }) => ({
           name: row.canonical_name,
           type: row.entity_type,
           count: Number(row.mention_count),
-        }));
-        setAllEntities(entities);
+        }),
+      );
+    },
+    enabled: isOpen,
+    staleTime: Infinity,
+  });
 
-        // Compute type counts from entity data
-        const typeCounts = new Map<string, number>();
-        for (const entity of entities) {
-          typeCounts.set(entity.type, (typeCounts.get(entity.type) ?? 0) + entity.count);
-        }
-        setEntityTypeCounts(
-          Array.from(typeCounts.entries())
-            .map(([type, count]) => ({ type, count }))
-            .sort((a, b) => b.count - a.count),
-        );
-      } catch {
-        // Non-critical
-      }
-      setEntitiesLoaded(true);
-    };
-    fetchEntities();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, [isOpen, entitiesLoaded]);
+  // ─── Derived: entity type counts ───
+
+  const entityTypeCounts = useMemo(() => {
+    const entities = entitiesQuery.data ?? [];
+    const typeCounts = new Map<string, number>();
+    for (const entity of entities) {
+      typeCounts.set(
+        entity.type,
+        (typeCounts.get(entity.type) ?? 0) + entity.count,
+      );
+    }
+    return Array.from(typeCounts.entries())
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [entitiesQuery.data]);
 
   return {
-    counts,
+    counts: countsQuery.data ?? EMPTY_COUNTS,
     authorSearch,
     setAuthorSearch,
-    allAuthors,
-    popularKeywords,
-    allWorkspaces,
-    allUserTags,
-    allEntities,
+    allAuthors: authorsQuery.data ?? [],
+    popularKeywords: keywordsQuery.data ?? [],
+    allWorkspaces: workspacesQuery.data ?? [],
+    allUserTags: userTagsQuery.data ?? [],
+    allEntities: entitiesQuery.data ?? [],
     entityTypeCounts,
   };
 }
