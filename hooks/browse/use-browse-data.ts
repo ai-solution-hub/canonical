@@ -468,7 +468,8 @@ export function useBrowseData(): UseBrowseDataReturn {
       const sort = filters.sort ?? 'captured_date';
 
       // Use cached resolver results if filter values haven't changed
-      let resolved: typeof resolverCacheRef.current extends { result: infer R } ? R : never;
+      type ResolverResult = { keywordIds: string[] | null; projectIds: string[] | null; qualityIds: string[] | null; entityIds: string[] | null; resolvedOwner: string | null };
+      let resolved: ResolverResult;
       if (resolverCacheRef.current?.key === resolverCacheKey) {
         resolved = resolverCacheRef.current.result;
       } else {

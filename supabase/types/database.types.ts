@@ -2100,6 +2100,19 @@ export type Database = {
               title: string
             }[]
           }
+      get_aggregate_win_rate_stats: {
+        Args: never
+        Returns: {
+          losing_citations: number
+          pending_citations: number
+          scope: string
+          total_citations: number
+          unique_bids: number
+          unique_items_cited: number
+          win_rate: number
+          winning_citations: number
+        }[]
+      }
       get_all_tag_counts: {
         Args: never
         Returns: {

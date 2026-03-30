@@ -154,7 +154,7 @@ export async function GET(
         workspace_name: workspace.name ?? 'Untitled bid',
         buyer: (workspace.domain_metadata?.buyer as string | null) ?? null,
         outcome: validOutcome,
-        cited_at: citation.created_at,
+        cited_at: citation.created_at ?? new Date().toISOString(),
       });
     }
 
