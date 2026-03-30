@@ -1183,15 +1183,6 @@ describe('GP10: Cross-feature data integrity', () => {
 // - vitest.integration.config.ts with 120s timeout
 // ---------------------------------------------------------------------------
 
-describe('[Phase 3b] real DB golden path — requires SUPABASE_SECRET_KEY', () => {
-  it.todo('Step 1: create content item via service client insert');
-  it.todo('Step 2: call classifyContent() with real Claude mock and verify DB state');
-  it.todo('Step 3: verify entity_mentions rows in DB with correct canonical_name normalisation');
-  it.todo('Step 4: verify content_items.metadata.ai_temporal_references populated in DB');
-  it.todo('Step 5: verify entity_mentions.metadata.expiry_date populated by bridge function');
-  it.todo('Step 6: verify get_guide_content RPC returns the item for matching domain_filter');
-  it.todo('Step 7: verify hybrid_search RPC returns the item (requires embedding)');
-  it.todo('Step 8: verify certification status tool query finds entity with expiry data');
-  it.todo('Full chain: create → classify → entities → temporal → guide → search → cert status');
-  it.todo('Cleanup: FK-ordered deletion of test data with GOLDEN-PATH prefix');
-});
+// Phase 3b IMPLEMENTED — see __tests__/integration/golden-path-real-db.integration.test.ts
+// Run via: bun run test:integration
+// 10 real DB tests using SUPABASE_SECRET_KEY service client (S131)
