@@ -189,6 +189,8 @@ export const queryKeys = {
     detail: (id: string) => ['bids', 'detail', id] as const,
     questions: (bidId: string) => ['bids', 'questions', bidId] as const,
     readiness: (bidId: string) => ['bids', 'readiness', bidId] as const,
+    responseByQuestion: (bidId: string, questionId: string) =>
+      ['bids', 'response-by-question', bidId, questionId] as const,
   },
 
   // Topic layers

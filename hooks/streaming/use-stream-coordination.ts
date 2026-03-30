@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDraftStream } from '@/hooks/streaming/use-draft-stream';
-import { insertLibraryContent } from '@/lib/drawer-insert';
+import { useBidSession } from '@/hooks/bid/use-bid-session';
+import { useBidResponseActions } from '@/hooks/bid/use-bid-response-actions';
 import { responseToHtml } from '@/lib/markdown-to-html';
+import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import type { useContentLibraryDrawer } from '@/hooks/use-content-library-drawer';
 import type { Editor } from '@/components/bid/response-editor';
@@ -12,7 +13,7 @@ import type { ResponseAction } from '@/components/bid/response-actions';
 import type { BidQuestion, BidMetadata, ConfidencePosture } from '@/types/bid';
 import type { CitationEntry, QualityData } from '@/types/bid-metadata';
 
-// ── Interfaces ──
+// ── Interfaces (exported for consumers and sub-hooks) ──
 
 export interface NavigatorQuestion {
   id: string;
@@ -83,7 +84,7 @@ interface UseStreamCoordinationReturn {
   loadingAction: ResponseAction | null;
   // Handlers
   handleNavigate: (index: number) => void;
-  handleAction: (action: ResponseAction, instructions?: string) => void;
+  handleAction: (action: ResponseAction, instructions?: string) => Promise<void>;
   handleLibraryInsert: (html: string, sourceId: string, sourceTitle: string) => Promise<void>;
   handleCitationClick: (contentId: string) => void;
   // Derived
@@ -97,135 +98,106 @@ interface UseStreamCoordinationReturn {
  * Coordinates streaming draft generation, bid/response data fetching,
  * question navigation, and response actions for the bid session page.
  *
- * Extracts all non-rendering logic from the session page into a single
- * composable hook so the page component focuses solely on layout and JSX.
+ * Composes three sub-hooks:
+ * - `useBidSession` — TanStack Query data layer (bid, questions, response)
+ * - `useDraftStream` — SSE streaming (unchanged imperative hook)
+ * - `useBidResponseActions` — TanStack mutations (save, accept, flag, regenerate)
+ *
+ * This orchestrator manages editor content state, streaming throttle effects,
+ * keyboard shortcuts, and navigation with stream cancellation.
  */
 export function useStreamCoordination({
   bidId,
   contentLibrary,
   editorInstanceRef,
 }: UseStreamCoordinationParams): UseStreamCoordinationReturn {
-  const router = useRouter();
+  // ── Data layer (TanStack Query) ──
+  const {
+    bid,
+    questions,
+    loading,
+    error,
+    currentIndex,
+    setCurrentIndex,
+    currentQuestion,
+    response,
+    responseLoading,
+    navigatorQuestions,
+    invalidateBidData,
+    invalidateResponse,
+    queryClient,
+  } = useBidSession(bidId);
 
-  // ── Bid data state ──
-  const [bid, setBid] = useState<BidSummary | null>(null);
-  const [questions, setQuestions] = useState<BidQuestion[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // ── Response data for current question ──
-  const [response, setResponse] = useState<BidResponse | null>(null);
-  const [responseLoading, setResponseLoading] = useState(false);
-  const [editorContent, setEditorContent] = useState('');
-
-  // ── Action states ──
-  const [actionLoading, setActionLoading] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<ResponseAction | null>(null);
-
-  // ── Streaming draft ──
+  // ── Streaming (SSE) ──
   const stream = useDraftStream(bidId);
-  const streamTextRef = useRef<string>('');
-  const rafRef = useRef<number | null>(null);
-  const lastEditorUpdateRef = useRef<number>(0);
-  const fetchResponseRef = useRef<() => Promise<void>>(() => Promise.resolve());
-  const fetchBidDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
-
-  // Track whether we are actively streaming to lock the editor
   const isStreaming =
     stream.phase !== 'idle' && stream.phase !== 'done' && stream.phase !== 'error';
 
-  const currentQuestion = questions[currentIndex] ?? null;
+  // ── Editor content state ──
+  const [editorContent, setEditorContent] = useState('');
 
-  // ── Fetch bid and questions ──
-  const fetchBidData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // lastServerContentRef tracks the last value written to the editor from
+  // server data. The sync effect only overwrites when editorContent matches
+  // this ref (meaning the user has not edited since the last sync).
+  // This replaces a dirty-flag approach which had a flaw: streaming updates,
+  // author_manually, and internal resets would permanently set the dirty flag.
+  // (S129 adversarial fix)
+  const lastServerContentRef = useRef('');
 
-      const [bidRes, questionsRes] = await Promise.all([
-        fetch(`/api/bids/${bidId}`),
-        fetch(`/api/bids/${bidId}/questions`),
-      ]);
+  // Streaming throttle refs
+  const streamTextRef = useRef<string>('');
+  const rafRef = useRef<number | null>(null);
+  const lastEditorUpdateRef = useRef<number>(0);
 
-      if (!bidRes.ok) {
-        if (bidRes.status === 404) {
-          toast.error('Bid not found');
-          router.push('/bid');
-          return;
-        }
-        throw new Error('Failed to fetch bid');
-      }
-
-      const bidData = await bidRes.json();
-      setBid(bidData);
-
-      if (questionsRes.ok) {
-        const questionsData = await questionsRes.json();
-        setQuestions(questionsData.questions ?? []);
-      }
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to load bid data';
-      setError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [bidId, router]);
-
+  // ── Editor content sync from response query data ──
+  // Guarded against overwriting user edits and streaming content.
   useEffect(() => {
-    fetchBidData();
-  }, [fetchBidData]);
+    if (isStreaming) return; // Streaming updates handled by throttle effect
 
-  // ── Fetch response for current question ──
-  const fetchResponse = useCallback(async () => {
-    if (!currentQuestion) {
-      setResponse(null);
-      setEditorContent('');
-      return;
-    }
-
-    // Check if the question has a response via the response summary
-    const responseSummary = currentQuestion.response;
-    if (!responseSummary?.id) {
-      setResponse(null);
-      setEditorContent('');
-      return;
-    }
-
-    setResponseLoading(true);
-    try {
-      const res = await fetch(
-        `/api/bids/${bidId}/responses/${responseSummary.id}`,
-      );
-      if (!res.ok) {
-        setResponse(null);
+    if (response?.response_text) {
+      const serverHtml = responseToHtml(response.response_text);
+      // Only overwrite if user has not changed the content since last sync
+      if (editorContent === lastServerContentRef.current) {
+        setEditorContent(serverHtml);
+        lastServerContentRef.current = serverHtml;
+      }
+    } else if (!response) {
+      if (editorContent === lastServerContentRef.current) {
         setEditorContent('');
-        return;
+        lastServerContentRef.current = '';
       }
-
-      const data: BidResponse = await res.json();
-      setResponse(data);
-      setEditorContent(responseToHtml(data.response_text));
-    } catch (err) {
-      console.error('Failed to fetch response:', err);
-      setResponse(null);
-      setEditorContent('');
-    } finally {
-      setResponseLoading(false);
     }
-  }, [currentQuestion, bidId]);
+  }, [response, isStreaming, editorContent]);
 
+  // Reset lastServerContent when navigating to a different question
+  // so the sync effect can write fresh data for the new question
   useEffect(() => {
-    fetchResponse();
-  }, [fetchResponse]);
+    lastServerContentRef.current = '';
+  }, [currentQuestion?.id]);
 
-  // Keep refs in sync so completion effect always calls latest versions
-  fetchResponseRef.current = fetchResponse;
-  fetchBidDataRef.current = fetchBidData;
+  // ── Mutation layer ──
+  const {
+    handleAction,
+    handleLibraryInsert,
+    handleCitationClick,
+    actionLoading,
+    loadingAction,
+  } = useBidResponseActions({
+    bidId,
+    response,
+    currentQuestion,
+    editorContent,
+    setEditorContent,
+    lastServerContentRef,
+    streamTextRef,
+    lastEditorUpdateRef,
+    stream,
+    editorInstanceRef,
+    invalidateBidData,
+    invalidateResponse,
+  });
 
-  // ── Throttled editor update: accumulate text in ref, push to editor at ~60ms intervals ──
+  // ── Throttled editor update during streaming (~60ms intervals) ──
   useEffect(() => {
     if (stream.phase !== 'drafting') return;
     if (stream.text === streamTextRef.current) return;
@@ -260,24 +232,45 @@ export function useStreamCoordination({
     };
   }, []);
 
-  // Handle stream completion
+  // ── Stream completion — final sync + cache invalidation ──
   useEffect(() => {
     if (stream.phase === 'done') {
       // Final content sync — convert Markdown from AI to HTML for TipTap
       if (stream.text) {
-        setEditorContent(responseToHtml(stream.text));
+        const streamedHtml = responseToHtml(stream.text);
+        setEditorContent(streamedHtml);
+        // Update lastServerContent so the sync effect can overwrite when
+        // the invalidated response query returns
+        lastServerContentRef.current = streamedHtml;
       }
-      // Refresh data from database
-      void fetchResponseRef.current();
-      void fetchBidDataRef.current();
+      // Invalidate cached data — TanStack refetches in the background
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.responseByQuestion(
+          bidId,
+          currentQuestion?.id ?? '',
+        ),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.detail(bidId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.bids.questions(bidId),
+      });
       const costMsg = stream.totalCost
         ? ` (cost: $${stream.totalCost.toFixed(4)})`
         : '';
       toast.success(`Response drafted successfully${costMsg}`);
     }
-  }, [stream.phase, stream.text, stream.totalCost]);
+  }, [
+    stream.phase,
+    stream.text,
+    stream.totalCost,
+    queryClient,
+    bidId,
+    currentQuestion?.id,
+  ]);
 
-  // Handle stream error
+  // ── Stream error toast ──
   useEffect(() => {
     if (stream.phase === 'error' && stream.error) {
       toast.error(stream.error);
@@ -296,221 +289,27 @@ export function useStreamCoordination({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [contentLibrary, currentQuestion?.question_text]);
 
-  // ── Navigation ──
+  // ── Navigation with stream cancellation ──
   const handleNavigate = useCallback(
     (index: number) => {
       if (index >= 0 && index < questions.length) {
-        // Cancel any in-flight stream when navigating away
         if (isStreaming) {
           stream.cancel();
         }
         setCurrentIndex(index);
       }
     },
-    [questions.length, isStreaming, stream],
+    [questions.length, isStreaming, stream, setCurrentIndex],
   );
 
-  // ── Response actions ──
-  const handleAction = useCallback(
-    async (action: ResponseAction, instructions?: string) => {
-      if (!currentQuestion) return;
+  // ── Imperative refetch wrappers (exposed for version history restore) ──
+  const fetchBidData = useCallback(async () => {
+    await invalidateBidData();
+  }, [invalidateBidData]);
 
-      setActionLoading(true);
-      setLoadingAction(action);
-
-      try {
-        switch (action) {
-          case 'save': {
-            if (!response?.id) {
-              toast.error('No response to save');
-              break;
-            }
-            const saveRes = await fetch(
-              `/api/bids/${bidId}/responses/${response.id}`,
-              {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  response_text: editorContent,
-                }),
-              },
-            );
-            if (!saveRes.ok) throw new Error('Failed to save response');
-            toast.success('Response saved');
-            await fetchResponse();
-            break;
-          }
-
-          case 'accept': {
-            if (!response?.id) {
-              toast.error('No response to accept');
-              break;
-            }
-            // Save current content first, then mark as approved
-            const acceptRes = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                response_text: editorContent,
-                review_status: 'approved',
-              }),
-            });
-            if (!acceptRes.ok) throw new Error('Failed to approve response');
-            toast.success('Response approved');
-            await fetchResponse();
-            await fetchBidData();
-            break;
-          }
-
-          case 'regenerate': {
-            if (response?.id) {
-              // Regenerate existing response (non-streaming, uses instructions)
-              const regenRes = await fetch(
-                `/api/bids/${bidId}/responses/${response.id}/regenerate`,
-                {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    instructions: instructions ?? 'Improve this response',
-                  }),
-                },
-              );
-              if (!regenRes.ok) {
-                const err = await regenRes.json().catch(() => ({}));
-                throw new Error(
-                  (err as Record<string, string>).error ?? 'Regeneration failed',
-                );
-              }
-              toast.success('Response regenerated');
-              await fetchResponse();
-              await fetchBidData();
-            } else {
-              // Draft new response via SSE streaming
-              // Clear editor and reset streaming refs
-              setEditorContent('');
-              streamTextRef.current = '';
-              lastEditorUpdateRef.current = 0;
-              // startDraft is async but completion is handled by the
-              // stream.phase effects above, so we don't await here
-              void stream.startDraft(currentQuestion.id);
-              // Don't await fetchResponse — the done effect handles that
-            }
-            break;
-          }
-
-          case 'author_manually': {
-            // Create an empty response for manual authoring
-            setEditorContent('<p></p>');
-            toast.info(
-              'Start typing your response. Save when ready.',
-            );
-            break;
-          }
-
-          case 'flag_for_review': {
-            if (!response?.id) {
-              toast.error('No response to flag');
-              break;
-            }
-            const flagRes = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                review_status: 'needs_review',
-              }),
-            });
-            if (!flagRes.ok) throw new Error('Failed to flag response for review');
-            toast.success('Response flagged for review');
-            await fetchResponse();
-            break;
-          }
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : 'Action failed',
-        );
-      } finally {
-        setActionLoading(false);
-        setLoadingAction(null);
-      }
-    },
-    [currentQuestion, response, editorContent, bidId, fetchResponse, fetchBidData, stream],
-  );
-
-  // ── Content Library insert ──
-  const handleLibraryInsert = useCallback(
-    async (html: string, sourceId: string, sourceTitle: string) => {
-      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
-      if (isMobile || !editorInstanceRef.current) {
-        // Mobile / no editor fallback — copy to clipboard
-        try {
-          // Strip HTML tags for plain text clipboard
-          const plainText = html.replace(/<[^>]+>/g, '');
-          await navigator.clipboard.writeText(plainText);
-          toast.success('Copied to clipboard — paste into your response');
-        } catch {
-          toast.error('Failed to copy to clipboard');
-        }
-      } else {
-        const inserted = insertLibraryContent({
-          editor: editorInstanceRef.current,
-          html,
-          sourceId,
-          sourceTitle,
-        });
-        if (inserted) {
-          toast.success(`Inserted content from "${sourceTitle}"`);
-        } else {
-          toast.error('Failed to insert content');
-          return;
-        }
-      }
-
-      // PATCH source_content_ids on the response to track provenance
-      if (response?.id) {
-        try {
-          const existingIds = (response.source_content ?? []).map((s) => s.id);
-          if (!existingIds.includes(sourceId)) {
-            const res = await fetch(`/api/bids/${bidId}/responses/${response.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                source_content_ids: [...existingIds, sourceId],
-              }),
-            });
-            if (!res.ok) {
-              console.error('Failed to update provenance:', res.status);
-            }
-            // Refresh response to pick up new source_content
-            void fetchResponse();
-          }
-        } catch (err) {
-          // Non-blocking — content was already inserted, but log for audit trail
-          console.error('Failed to update source_content_ids for provenance tracking:', err);
-        }
-      }
-    },
-    [response, bidId, fetchResponse, editorInstanceRef],
-  );
-
-  // ── Citation click ──
-  const handleCitationClick = useCallback((contentId: string) => {
-    window.open(`/item/${contentId}`, '_blank');
-  }, []);
-
-  // ── Transform questions for navigator ──
-  const navigatorQuestions: NavigatorQuestion[] = useMemo(
-    () =>
-      questions.map((q) => ({
-        id: q.id,
-        question_text: q.question_text,
-        section_name: q.section_name,
-        confidence_posture: q.confidence_posture,
-        status: q.status,
-      })),
-    [questions],
-  );
+  const fetchResponse = useCallback(async () => {
+    await invalidateResponse();
+  }, [invalidateResponse]);
 
   return {
     bid,

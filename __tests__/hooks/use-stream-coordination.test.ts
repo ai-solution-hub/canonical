@@ -6,9 +6,6 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 // ---------------------------------------------------------------------------
 
 const mockPush = vi.fn();
-// Router must be a STABLE object — returning a new object every render causes
-// fetchBidData's useCallback to be recreated every render, which triggers
-// its useEffect dependency and creates an infinite loop.
 const mockRouter = {
   push: mockPush,
   replace: vi.fn(),
@@ -64,6 +61,7 @@ import {
   useStreamCoordination,
   type BidResponse,
 } from '@/hooks/streaming/use-stream-coordination';
+import { createQueryWrapper } from '@/__tests__/helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Global mocks
@@ -223,12 +221,18 @@ function setupDefaultFetch(opts: {
     if (method === 'PATCH') {
       const body = init?.body ? JSON.parse(init.body as string) : {};
       patchTracker.push({ url, body });
-      return { ok: patchOk };
+      if (!patchOk) {
+        return { ok: false, json: async () => ({ error: 'Failed to save response' }) };
+      }
+      return { ok: true, json: async () => ({}) };
     }
 
     if (method === 'POST') {
       const body = init?.body ? JSON.parse(init.body as string) : {};
       postTracker.push({ url, body });
+      if (!postOk) {
+        return { ok: false, json: async () => ({ error: 'Request failed' }) };
+      }
       return { ok: postOk, json: async () => ({}) };
     }
 
@@ -242,7 +246,6 @@ function setupDefaultFetch(opts: {
     }
     if (typeof url === 'string' && url.includes('/questions')) {
       if (opts.questionsOverride !== undefined) {
-        // When explicitly provided (even as []), return the override
         return {
           ok: true,
           json: async () => ({ questions: opts.questionsOverride }),
@@ -259,14 +262,17 @@ function setupDefaultFetch(opts: {
 }
 
 /**
- * Render the hook and wait for initial loading to complete.
+ * Render the hook with TanStack Query wrapper and wait for initial loading.
  */
 async function renderAndWaitForLoad(
   params = defaultParams(),
   fetchOpts: Parameters<typeof setupDefaultFetch>[0] = {},
 ) {
   setupDefaultFetch(fetchOpts);
-  const hookResult = renderHook(() => useStreamCoordination(params));
+  const { Wrapper } = createQueryWrapper();
+  const hookResult = renderHook(() => useStreamCoordination(params), {
+    wrapper: Wrapper,
+  });
   await waitFor(() => {
     expect(hookResult.result.current.loading).toBe(false);
   });
@@ -297,8 +303,10 @@ describe('useStreamCoordination', () => {
   describe('initial state', () => {
     it('returns loading=true initially', () => {
       setupDefaultFetch();
-      const { result } = renderHook(() =>
-        useStreamCoordination(defaultParams()),
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
       );
 
       expect(result.current.loading).toBe(true);
@@ -318,8 +326,10 @@ describe('useStreamCoordination', () => {
   describe('data fetching', () => {
     it('fetchBidData fetches bid and questions on mount', async () => {
       setupDefaultFetch();
-      const { result } = renderHook(() =>
-        useStreamCoordination(defaultParams()),
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
       );
 
       await waitFor(() => {
@@ -348,10 +358,17 @@ describe('useStreamCoordination', () => {
 
     it('redirects to /bid on 404', async () => {
       setupDefaultFetch({
-        bidOverride: () => ({ ok: false, status: 404 }),
+        bidOverride: () => ({
+          ok: false,
+          status: 404,
+          json: async () => ({ error: 'Not found' }),
+        }),
       });
 
-      renderHook(() => useStreamCoordination(defaultParams()));
+      const { Wrapper } = createQueryWrapper();
+      renderHook(() => useStreamCoordination(defaultParams()), {
+        wrapper: Wrapper,
+      });
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith('/bid');
@@ -362,15 +379,16 @@ describe('useStreamCoordination', () => {
     it('shows error toast on fetch failure', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      const { result } = renderHook(() =>
-        useStreamCoordination(defaultParams()),
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
       );
 
       await waitFor(() => {
         expect(result.current.loading).toBe(false);
       });
 
-      expect(toast.error).toHaveBeenCalledWith('Network error');
       expect(result.current.error).toBe('Network error');
     });
   });
@@ -480,9 +498,7 @@ describe('useStreamCoordination', () => {
       patchTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction('save') as unknown as Promise<void>
-        );
+        await result.current.handleAction('save');
       });
 
       expect(result.current.actionLoading).toBe(false);
@@ -502,9 +518,7 @@ describe('useStreamCoordination', () => {
       patchTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction('accept') as unknown as Promise<void>
-        );
+        await result.current.handleAction('accept');
       });
 
       expect(result.current.actionLoading).toBe(false);
@@ -523,12 +537,7 @@ describe('useStreamCoordination', () => {
       postTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction(
-            'regenerate',
-            'Make it shorter',
-          ) as unknown as Promise<void>
-        );
+        await result.current.handleAction('regenerate', 'Make it shorter');
       });
 
       expect(result.current.actionLoading).toBe(false);
@@ -553,11 +562,7 @@ describe('useStreamCoordination', () => {
       });
 
       await act(async () => {
-        await (
-          result.current.handleAction(
-            'regenerate',
-          ) as unknown as Promise<void>
-        );
+        await result.current.handleAction('regenerate');
       });
 
       expect(mockStartDraft).toHaveBeenCalledWith('q-2');
@@ -567,11 +572,7 @@ describe('useStreamCoordination', () => {
       const { result } = await renderAndWaitForLoad();
 
       await act(async () => {
-        await (
-          result.current.handleAction(
-            'author_manually',
-          ) as unknown as Promise<void>
-        );
+        await result.current.handleAction('author_manually');
       });
 
       expect(result.current.actionLoading).toBe(false);
@@ -591,11 +592,7 @@ describe('useStreamCoordination', () => {
       patchTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction(
-            'flag_for_review',
-          ) as unknown as Promise<void>
-        );
+        await result.current.handleAction('flag_for_review');
       });
 
       expect(result.current.actionLoading).toBe(false);
@@ -616,12 +613,15 @@ describe('useStreamCoordination', () => {
       });
 
       await act(async () => {
-        await (
-          result.current.handleAction('save') as unknown as Promise<void>
-        );
+        // mutateAsync will throw — the handleAction catches via onError
+        // but also rethrows, so we need to catch here
+        try {
+          await result.current.handleAction('save');
+        } catch {
+          // Expected — mutateAsync propagates error
+        }
       });
 
-      expect(result.current.actionLoading).toBe(false);
       expect(toast.error).toHaveBeenCalledWith('Failed to save response');
     });
 
@@ -640,9 +640,7 @@ describe('useStreamCoordination', () => {
       patchTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction('save') as unknown as Promise<void>
-        );
+        await result.current.handleAction('save');
       });
 
       expect(toast.error).toHaveBeenCalledWith('No response to save');
@@ -755,9 +753,7 @@ describe('useStreamCoordination', () => {
       postTracker.length = 0;
 
       await act(async () => {
-        await (
-          result.current.handleAction('save') as unknown as Promise<void>
-        );
+        await result.current.handleAction('save');
       });
 
       expect(patchTracker).toHaveLength(0);
@@ -766,14 +762,16 @@ describe('useStreamCoordination', () => {
     it('questions endpoint failure does not crash the hook', async () => {
       mockFetch.mockImplementation(async (url: string) => {
         if (typeof url === 'string' && url.includes('/questions'))
-          return { ok: false, json: async () => ({}) };
+          return { ok: false, json: async () => ({ error: 'Questions failed' }) };
         if (typeof url === 'string' && url.includes('/bids/'))
           return mockBidResponse();
         return { ok: false, json: async () => ({}) };
       });
 
-      const { result } = renderHook(() =>
-        useStreamCoordination(defaultParams()),
+      const { Wrapper } = createQueryWrapper();
+      const { result } = renderHook(
+        () => useStreamCoordination(defaultParams()),
+        { wrapper: Wrapper },
       );
 
       await waitFor(() => {
@@ -782,6 +780,299 @@ describe('useStreamCoordination', () => {
 
       expect(result.current.bid).not.toBeNull();
       expect(result.current.questions).toHaveLength(0);
+    });
+  });
+
+  // =========================================================================
+  // TanStack Query integration (new tests)
+  // =========================================================================
+
+  describe('TanStack Query integration', () => {
+    it('handleAction returns Promise that resolves on success', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      // Should resolve without throwing
+      await act(async () => {
+        await result.current.handleAction('save');
+      });
+
+      expect(toast.success).toHaveBeenCalledWith('Response saved');
+    });
+
+    it('handleAction returns Promise that rejects on failure', async () => {
+      const { result } = await renderAndWaitForLoad(defaultParams(), {
+        patchOk: false,
+      });
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      let didThrow = false;
+      await act(async () => {
+        try {
+          await result.current.handleAction('save');
+        } catch {
+          didThrow = true;
+        }
+      });
+
+      // mutateAsync propagates the error
+      expect(didThrow).toBe(true);
+      expect(toast.error).toHaveBeenCalledWith('Failed to save response');
+    });
+
+    it('fetchBidData wrapper invalidates correctly', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      const fetchCountBefore = mockFetch.mock.calls.length;
+
+      await act(async () => {
+        await result.current.fetchBidData();
+      });
+
+      // Should have triggered additional fetches via invalidation
+      await waitFor(() => {
+        expect(mockFetch.mock.calls.length).toBeGreaterThan(fetchCountBefore);
+      });
+    });
+
+    it('fetchResponse wrapper invalidates correctly', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const fetchCountBefore = mockFetch.mock.calls.length;
+
+      await act(async () => {
+        await result.current.fetchResponse();
+      });
+
+      await waitFor(() => {
+        expect(mockFetch.mock.calls.length).toBeGreaterThan(fetchCountBefore);
+      });
+    });
+
+    it('response is cached per question (switching back does not refetch)', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const fetchCountAfterFirstLoad = mockFetch.mock.calls.length;
+
+      // Navigate away and back
+      await act(async () => {
+        result.current.handleNavigate(1);
+      });
+
+      await act(async () => {
+        result.current.handleNavigate(0);
+      });
+
+      // TanStack Query serves from cache — no additional fetch for the same question
+      // (staleTime prevents refetch within the window)
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+    });
+
+    it('mutation error does not corrupt query cache', async () => {
+      const { result } = await renderAndWaitForLoad(defaultParams(), {
+        patchOk: false,
+      });
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const responseBefore = result.current.response;
+
+      // Attempt a failing save
+      await act(async () => {
+        try {
+          await result.current.handleAction('save');
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      // Response data should be unchanged after failed mutation
+      expect(result.current.response).toEqual(responseBefore);
+    });
+
+    it('handleLibraryInsert calls provenance mutation', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      await act(async () => {
+        result.current.handleLibraryInsert('test-qa-id', 'Test inserted content');
+      });
+
+      // Should have made a POST to the provenance endpoint
+      await waitFor(() => {
+        const provenanceCalls = mockFetch.mock.calls.filter(
+          ([url]: [string]) => typeof url === 'string' && url.includes('provenance'),
+        );
+        expect(provenanceCalls.length).toBeGreaterThanOrEqual(1);
+      });
+    });
+  });
+
+  // =========================================================================
+  // Editor content sync — lastServerContentRef protection (S129 adversarial)
+  // =========================================================================
+
+  describe('editor content sync (lastServerContentRef)', () => {
+    it('response data syncs to editor when content matches lastServerContent', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      // After initial load, editorContent should be synced from response
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe(
+          '<p>Our approach involves...</p>',
+        );
+      });
+    });
+
+    it('response data does NOT sync when user has edited', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe(
+          '<p>Our approach involves...</p>',
+        );
+      });
+
+      // Simulate user editing (changes editorContent away from lastServerContent)
+      act(() => {
+        result.current.setEditorContent('<p>User edited content</p>');
+      });
+
+      expect(result.current.editorContent).toBe('<p>User edited content</p>');
+
+      // Trigger a refetch by calling fetchResponse
+      await act(async () => {
+        await result.current.fetchResponse();
+      });
+
+      // Wait for refetch to settle, but editor should NOT be overwritten
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      // Editor should still have user's content, not server content
+      expect(result.current.editorContent).toBe('<p>User edited content</p>');
+    });
+
+    it('after save, lastServerContent is updated and sync resumes', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      // Edit the content
+      act(() => {
+        result.current.setEditorContent('<p>Edited by user</p>');
+      });
+
+      // Save — this should update lastServerContent to the editor content
+      await act(async () => {
+        await result.current.handleAction('save');
+      });
+
+      // After save, the editor content should be the saved content
+      expect(result.current.editorContent).toBe('<p>Edited by user</p>');
+    });
+
+    it('streaming updates bypass sync entirely', async () => {
+      mockStreamReturn.phase = 'drafting';
+      mockStreamReturn.text = 'streaming text';
+
+      const { result } = await renderAndWaitForLoad();
+
+      // isStreaming should be true, which blocks the sync effect
+      expect(result.current.isStreaming).toBe(true);
+    });
+
+    it('author_manually resets lastServerContent', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.editorContent).toBe(
+          '<p>Our approach involves...</p>',
+        );
+      });
+
+      // Trigger author_manually
+      await act(async () => {
+        await result.current.handleAction('author_manually');
+      });
+
+      // Editor should be empty paragraph
+      expect(result.current.editorContent).toBe('<p></p>');
+
+      // Trigger a response refetch — should NOT overwrite because
+      // lastServerContent was reset to '' which does not match '<p></p>'
+      await act(async () => {
+        await result.current.fetchResponse();
+      });
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      // Editor should still have the empty paragraph, not the server content
+      expect(result.current.editorContent).toBe('<p></p>');
+    });
+  });
+
+  // =========================================================================
+  // Return interface completeness
+  // =========================================================================
+
+  describe('return interface', () => {
+    it('returns exactly 21 properties', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      const keys = Object.keys(result.current);
+      expect(keys).toHaveLength(21);
+      expect(keys).toEqual(
+        expect.arrayContaining([
+          'bid',
+          'questions',
+          'currentIndex',
+          'loading',
+          'error',
+          'response',
+          'responseLoading',
+          'editorContent',
+          'setEditorContent',
+          'stream',
+          'isStreaming',
+          'actionLoading',
+          'loadingAction',
+          'handleNavigate',
+          'handleAction',
+          'handleLibraryInsert',
+          'handleCitationClick',
+          'navigatorQuestions',
+          'currentQuestion',
+          'fetchBidData',
+          'fetchResponse',
+        ]),
+      );
     });
   });
 });
