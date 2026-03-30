@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 import type { CitationEntry } from '@/types/bid-metadata';
 
 export type StreamPhase = 'idle' | 'analysing' | 'drafting' | 'quality' | 'saving' | 'done' | 'error';
@@ -30,8 +32,17 @@ const INITIAL_STATE: StreamState = {
  * Shows response text appearing in real time as it's generated.
  */
 export function useDraftStream(bidId: string) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<StreamState>(INITIAL_STATE);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Invalidate bid caches when stream completes
+  useEffect(() => {
+    if (state.phase === 'done') {
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(bidId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(bidId) });
+    }
+  }, [state.phase, bidId, queryClient]);
 
   const startDraft = useCallback(
     async (questionId: string, modelTier?: 'analysis' | 'drafting') => {
