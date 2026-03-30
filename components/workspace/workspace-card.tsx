@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ICON_MAP, type WorkspaceIconName } from '@/components/workspace/workspace-icon-picker';
 import { formatRelativeDate } from '@/lib/format';
+import { getWorkspaceType } from '@/lib/workspace-types';
 import { cn } from '@/lib/utils';
 import type { Workspace } from '@/types/content';
 
@@ -28,6 +29,7 @@ export function WorkspaceCard({
   readOnly = false,
 }: WorkspaceCardProps) {
   const Icon = ICON_MAP[workspace.icon as WorkspaceIconName] ?? Folder;
+  const typeConfig = getWorkspaceType(workspace.type);
 
   return (
     <div
@@ -56,19 +58,14 @@ export function WorkspaceCard({
             <h3 className="truncate text-base font-semibold leading-tight">
               {workspace.name}
             </h3>
-            {workspace.type === 'bid' && (
+            {typeConfig && (
               <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">
-                Bid
-              </Badge>
-            )}
-            {workspace.type === 'kb_section' && (
-              <Badge variant="outline" className="shrink-0 text-[10px] px-1.5 py-0">
-                KB Section
+                {typeConfig.label}
               </Badge>
             )}
           </div>
-          {workspace.type === 'bid' && (
-            <span title="Opens bid detail page">
+          {typeConfig?.route && (
+            <span title={`Opens ${typeConfig.label.toLowerCase()} detail page`}>
               <ArrowUpRight
                 className="size-3.5 shrink-0 text-muted-foreground"
                 aria-hidden="true"

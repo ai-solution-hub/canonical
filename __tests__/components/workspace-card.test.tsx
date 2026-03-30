@@ -101,14 +101,30 @@ describe('WorkspaceCard', () => {
       expect(screen.getByText('Bid for council contract')).toBeInTheDocument();
     });
 
-    it('shows Bid badge for bid type workspaces', () => {
+    it('shows badge label from registry for bid type', () => {
       renderCard({ type: 'bid' });
       expect(screen.getByText('Bid')).toBeInTheDocument();
     });
 
-    it('shows KB Section badge for kb_section type workspaces', () => {
+    it('shows badge label from registry for kb_section type', () => {
       renderCard({ type: 'kb_section' });
       expect(screen.getByText('KB Section')).toBeInTheDocument();
+    });
+
+    it('shows no badge for unknown workspace type', () => {
+      renderCard({ type: 'unknown_type' });
+      expect(screen.queryByText('Bid')).not.toBeInTheDocument();
+      expect(screen.queryByText('KB Section')).not.toBeInTheDocument();
+    });
+
+    it('shows arrow icon for types with a route', () => {
+      renderCard({ type: 'bid' });
+      expect(screen.getByTitle('Opens bid detail page')).toBeInTheDocument();
+    });
+
+    it('does not show arrow icon for types without a route', () => {
+      renderCard({ type: 'kb_section' });
+      expect(screen.queryByTitle(/Opens .* detail page/)).not.toBeInTheDocument();
     });
   });
 });

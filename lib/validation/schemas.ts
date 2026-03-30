@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FALLBACK_LAYERS } from '@/lib/client-config';
+import { getValidTypeValues } from '@/lib/workspace-types';
 
 // ──────────────────────────────────────────
 // Shared enums / constants
@@ -251,7 +252,7 @@ export const WorkspaceCreateBodySchema = z.object({
     .regex(/^#[0-9a-fA-F]{6}$/, 'Invalid hex colour')
     .optional(),
   icon: z.string().max(50).optional(),
-  type: z.enum(['bid', 'kb_section']).optional(),
+  type: z.enum(getValidTypeValues()).optional(),
 });
 
 /** PATCH /api/workspaces/[id] */
