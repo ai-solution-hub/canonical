@@ -406,3 +406,338 @@ class TestSetValidTaxonomy:
         set_valid_taxonomy(None, None)
         assert mod._valid_domains is None
         assert mod._valid_subtopics is None
+
+
+# ──────────────────────────────────────────
+# Fix 5: Confidence defaults
+# ──────────────────────────────────────────
+
+class TestConfidenceDefaults:
+    """Tests for AI and keyword entity confidence defaults."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_client(self):
+        """Reset the module-level client and taxonomy before each test."""
+        import kb_pipeline.classify as mod
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+        yield
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_ai_entities_default_confidence_is_1_0(self, _mock_prompt, mock_get_client):
+        """AI-extracted entities without explicit confidence get default 1.0."""
+        parsed = _valid_classification_json(entities=[
+            {"name": "GDPR", "type": "regulation", "canonical_name": "GDPR"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content about GDPR compliance")
+
+        ai_entity = next(e for e in result.entities if e["entity_name"] == "GDPR" and e["confidence"] == 1.0)
+        assert ai_entity["confidence"] == 1.0
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_ai_entities_explicit_confidence_preserved(self, _mock_prompt, mock_get_client):
+        """AI-extracted entities with explicit confidence preserve that value."""
+        parsed = _valid_classification_json(entities=[
+            {"name": "GDPR", "type": "regulation", "canonical_name": "GDPR", "confidence": 0.85},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content about GDPR compliance")
+
+        ai_entity = next(e for e in result.entities if e["entity_name"] == "GDPR" and e["confidence"] == 0.85)
+        assert ai_entity["confidence"] == 0.85
+
+    def test_keyword_entities_get_0_9_confidence(self):
+        """Keyword-extracted entities get 0.9 confidence."""
+        from kb_pipeline.classify import extract_entities_by_keyword
+        entities = extract_entities_by_keyword("We comply with GDPR requirements")
+        gdpr = next(e for e in entities if e["canonical_name"] == "GDPR")
+        assert gdpr["confidence"] == 0.9
+
+
+# ──────────────────────────────────────────
+# Fix 3: Relationship parsing
+# ──────────────────────────────────────────
+
+class TestRelationshipParsing:
+    """Tests for relationship extraction from Claude response."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_client(self):
+        import kb_pipeline.classify as mod
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+        yield
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_valid_relationships_parsed(self, _mock_prompt, mock_get_client):
+        """Valid relationship types are parsed and canonicalised."""
+        parsed = _valid_classification_json(relationships=[
+            {"source": "Acme Ltd", "relationship": "holds", "target": "ISO 27001"},
+            {"source": "Acme Ltd", "relationship": "complies_with", "target": "gdpr"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.relationships) == 2
+        assert result.relationships[0]["relationship_type"] == "holds"
+        assert result.relationships[0]["source"] == "Acme Limited"  # canonicalised Ltd -> Limited
+        assert result.relationships[0]["target"] == "ISO 27001"
+        assert result.relationships[1]["relationship_type"] == "complies_with"
+        assert result.relationships[1]["target"] == "GDPR"  # canonicalised
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_invalid_relationship_types_filtered(self, _mock_prompt, mock_get_client):
+        """Invalid relationship types are filtered out."""
+        parsed = _valid_classification_json(relationships=[
+            {"source": "Acme Ltd", "relationship": "owns", "target": "ISO 27001"},
+            {"source": "Acme Ltd", "relationship": "holds", "target": "ISO 27001"},
+            {"source": "Acme Ltd", "relationship": "likes", "target": "GDPR"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.relationships) == 1
+        assert result.relationships[0]["relationship_type"] == "holds"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_relationships_missing_fields_filtered(self, _mock_prompt, mock_get_client):
+        """Relationships with missing source or target are filtered out."""
+        parsed = _valid_classification_json(relationships=[
+            {"source": "", "relationship": "holds", "target": "ISO 27001"},
+            {"source": "Acme Ltd", "relationship": "holds", "target": ""},
+            {"source": "Acme Ltd", "relationship": "holds", "target": "ISO 27001"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.relationships) == 1
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_no_relationships_in_response(self, _mock_prompt, mock_get_client):
+        """Missing relationships array defaults to empty list."""
+        parsed = _valid_classification_json()  # no relationships key
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert result.relationships == []
+
+
+# ──────────────────────────────────────────
+# Fix 4: Temporal reference parsing
+# ──────────────────────────────────────────
+
+class TestTemporalReferenceParsing:
+    """Tests for temporal reference extraction from Claude response."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_client(self):
+        import kb_pipeline.classify as mod
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+        yield
+        mod._client = None
+        mod._valid_domains = None
+        mod._valid_subtopics = None
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_valid_temporal_references_parsed(self, _mock_prompt, mock_get_client):
+        """Valid temporal references are parsed correctly."""
+        parsed = _valid_classification_json(temporal_references=[
+            {"date": "2025-09-15", "context": "ISO 27001 surveillance audit", "context_type": "historical"},
+            {"date": "2026-09-15", "context": "ISO 27001 recertification due", "context_type": "expiry"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.temporal_references) == 2
+        assert result.temporal_references[0]["date"] == "2025-09-15"
+        assert result.temporal_references[0]["context_type"] == "historical"
+        assert result.temporal_references[1]["context_type"] == "expiry"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_invalid_context_type_defaults_to_unknown(self, _mock_prompt, mock_get_client):
+        """Invalid context_type defaults to 'unknown'."""
+        parsed = _valid_classification_json(temporal_references=[
+            {"date": "2025-01-01", "context": "Some date", "context_type": "invalid_type"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.temporal_references) == 1
+        assert result.temporal_references[0]["context_type"] == "unknown"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_missing_context_type_defaults_to_unknown(self, _mock_prompt, mock_get_client):
+        """Missing context_type defaults to 'unknown'."""
+        parsed = _valid_classification_json(temporal_references=[
+            {"date": "2025-01-01", "context": "Some date"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.temporal_references) == 1
+        assert result.temporal_references[0]["context_type"] == "unknown"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_temporal_refs_missing_date_or_context_filtered(self, _mock_prompt, mock_get_client):
+        """Temporal references with missing date or context are filtered out."""
+        parsed = _valid_classification_json(temporal_references=[
+            {"date": "", "context": "Some date", "context_type": "expiry"},
+            {"date": "2025-01-01", "context": "", "context_type": "expiry"},
+            {"date": "2025-06-01", "context": "Valid entry", "context_type": "effective"},
+        ])
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert len(result.temporal_references) == 1
+        assert result.temporal_references[0]["date"] == "2025-06-01"
+
+    @patch("kb_pipeline.classify._get_client")
+    @patch("kb_pipeline.classify.get_system_prompt", return_value="system prompt")
+    def test_no_temporal_references_in_response(self, _mock_prompt, mock_get_client):
+        """Missing temporal_references array defaults to empty list."""
+        parsed = _valid_classification_json()
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = _make_api_response(parsed)
+        mock_get_client.return_value = mock_client
+
+        result = classify("Test", "Content")
+
+        assert result.temporal_references == []
+
+
+# ──────────────────────────────────────────
+# Fix 3: store_relationships
+# ──────────────────────────────────────────
+
+class TestStoreRelationships:
+    """Tests for the store_relationships function."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_aliases(self):
+        """Reset entity alias cache before each test."""
+        import kb_pipeline.classify as mod
+        mod._entity_aliases = {}
+        yield
+        mod._entity_aliases = None
+
+    @patch("kb_pipeline.store._request")
+    def test_stores_valid_relationships(self, mock_request):
+        """Valid relationships are stored via POST requests."""
+        from kb_pipeline.classify import store_relationships
+        mock_request.return_value = (201, [{}])
+
+        stored, skipped = store_relationships("item-123", [
+            {"source": "Acme Limited", "relationship_type": "holds", "target": "ISO 27001"},
+        ])
+
+        assert stored == 1
+        assert skipped == 0
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "POST"
+        assert call_args[0][1] == "entity_relationships"
+        record = call_args[0][2]
+        assert record["relationship_type"] == "holds"
+        assert record["source_item_id"] == "item-123"
+        assert record["confidence"] == 1.0
+
+    @patch("kb_pipeline.store._request")
+    def test_handles_409_duplicates(self, mock_request):
+        """409 duplicates are skipped gracefully."""
+        from kb_pipeline.classify import store_relationships
+        mock_request.return_value = (409, "duplicate")
+
+        stored, skipped = store_relationships("item-123", [
+            {"source": "Acme Limited", "relationship_type": "holds", "target": "ISO 27001"},
+        ])
+
+        assert stored == 0
+        assert skipped == 1
+
+    @patch("kb_pipeline.store._request")
+    def test_skips_incomplete_relationships(self, mock_request):
+        """Relationships with missing fields are skipped without making API calls."""
+        from kb_pipeline.classify import store_relationships
+
+        stored, skipped = store_relationships("item-123", [
+            {"source": "", "relationship_type": "holds", "target": "ISO 27001"},
+            {"source": "Acme", "relationship_type": "", "target": "ISO 27001"},
+        ])
+
+        assert stored == 0
+        assert skipped == 2
+        mock_request.assert_not_called()
+
+    def test_empty_relationships_returns_zero(self):
+        """Empty relationship list returns (0, 0) without errors."""
+        from kb_pipeline.classify import store_relationships
+        stored, skipped = store_relationships("item-123", [])
+        assert stored == 0
+        assert skipped == 0
+
+    @patch("kb_pipeline.store._request")
+    def test_applies_canonicalisation_and_lowercase(self, mock_request):
+        """Source and target are canonicalised and lowercased before storage."""
+        from kb_pipeline.classify import store_relationships
+        mock_request.return_value = (201, [{}])
+
+        store_relationships("item-123", [
+            {"source": "Acme Ltd", "relationship_type": "holds", "target": "ISO27001"},
+        ])
+
+        record = mock_request.call_args[0][2]
+        # "Acme Ltd" -> canonicalise -> "Acme Limited" -> lowercase -> "acme limited"
+        assert record["source_entity"] == "acme limited"
+        # "ISO27001" -> canonicalise -> "ISO 27001" -> lowercase -> "iso 27001"
+        assert record["target_entity"] == "iso 27001"

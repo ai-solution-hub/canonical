@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, List
 
-from .classify import classify, estimate_cost as classify_cost, store_entities, load_entity_aliases
+from .classify import classify, estimate_cost as classify_cost, store_entities, store_relationships, load_entity_aliases
 from .config import SHORT_CONTENT_THRESHOLD, LOW_CONFIDENCE_THRESHOLD
 from .dedup import is_duplicate
 from .embed import build_embedding_text, generate_embedding, estimate_cost as embed_cost
@@ -245,6 +245,28 @@ def process_url(
                 print(f"  [Entities] Stored {stored}, skipped {skipped}")
             except Exception as e:
                 print(f"  [Entities] ERROR (non-blocking): {e}")
+
+        # ── Step 7b: Relationship storage (non-blocking) ────────────
+        if cls and cls.relationships:
+            try:
+                rel_stored, rel_skipped = store_relationships(id_or_error, cls.relationships)
+                print(f"  [Relationships] Stored {rel_stored}, skipped {rel_skipped}")
+            except Exception as e:
+                print(f"  [Relationships] ERROR (non-blocking): {e}")
+
+        # ── Step 7c: Temporal reference storage (non-blocking) ──────
+        if cls and cls.temporal_references:
+            try:
+                from .store import merge_item_metadata
+                success = merge_item_metadata(id_or_error, {
+                    "ai_temporal_references": cls.temporal_references,
+                })
+                if success:
+                    print(f"  [Temporal] {len(cls.temporal_references)} references stored")
+                else:
+                    print(f"  [Temporal] Storage failed")
+            except Exception as e:
+                print(f"  [Temporal] ERROR (non-blocking): {e}")
 
         # ── Step 8: Quality logging ──────────────────────────────────
         _log_quality_flags(id_or_error, extracted, cls, batch_name, result)
