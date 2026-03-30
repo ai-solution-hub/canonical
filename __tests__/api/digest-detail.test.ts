@@ -3,7 +3,7 @@ import {
   createMockSupabaseClient,
   configureUnauthenticated,
 } from '../helpers/mock-supabase';
-import { createTestRequest } from '../helpers/mock-next';
+import { createTestRequest, createTestParams } from '../helpers/mock-next';
 
 // ---------------------------------------------------------------------------
 // Shared mock client
@@ -93,9 +93,6 @@ function resetMocks() {
   mockSupabase.rpc.mockResolvedValue({ data: null, error: null });
 }
 
-function createParams(id: string): Promise<{ id: string }> {
-  return Promise.resolve({ id });
-}
 
 // ---------------------------------------------------------------------------
 // GET /api/digest/[id]
@@ -110,7 +107,7 @@ describe('GET /api/digest/[id]', () => {
     configureUnauthenticated(mockSupabase);
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createParams(VALID_UUID) });
+    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(res.status).toBe(401);
     const json = await res.json();
@@ -121,7 +118,7 @@ describe('GET /api/digest/[id]', () => {
 
   it('returns 400 for invalid UUID format', async () => {
     const req = createTestRequest('/api/digest/not-a-uuid');
-    const res = await GET(req, { params: createParams('not-a-uuid') });
+    const res = await GET(req, { params: createTestParams({ id: 'not-a-uuid' }) });
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -130,7 +127,7 @@ describe('GET /api/digest/[id]', () => {
 
   it('returns 400 for empty ID', async () => {
     const req = createTestRequest('/api/digest/');
-    const res = await GET(req, { params: createParams('') });
+    const res = await GET(req, { params: createTestParams({ id: '' }) });
 
     expect(res.status).toBe(400);
     const json = await res.json();
@@ -146,7 +143,7 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createParams(VALID_UUID) });
+    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(res.status).toBe(404);
     const json = await res.json();
@@ -162,7 +159,7 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createParams(VALID_UUID) });
+    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -189,7 +186,7 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    await GET(req, { params: createParams(VALID_UUID) });
+    await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(mockSupabase.from).toHaveBeenCalledWith('digests');
     expect(mockSupabase._chain.select).toHaveBeenCalledWith(
@@ -210,7 +207,7 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createParams(VALID_UUID) });
+    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -226,7 +223,7 @@ describe('GET /api/digest/[id]', () => {
     });
 
     const req = createTestRequest(`/api/digest/${VALID_UUID}`);
-    const res = await GET(req, { params: createParams(VALID_UUID) });
+    const res = await GET(req, { params: createTestParams({ id: VALID_UUID }) });
 
     expect(res.status).toBe(500);
     const json = await res.json();
