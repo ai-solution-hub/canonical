@@ -823,6 +823,7 @@ export const TaxonomyReorderSchema = z.object({
 export const VALID_ENTITY_TYPES = [
   'organisation', 'certification', 'regulation', 'framework',
   'capability', 'person', 'technology', 'project', 'sector', 'product',
+  'standard', 'methodology',
 ] as const;
 
 /** GET /api/entities — query params */
