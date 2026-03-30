@@ -1,20 +1,23 @@
 /**
  * Batch Reclassification + Entity Extraction
  *
- * Reclassifies content items with garbled keywords (pre-v4.0 classification)
- * using the v4.0 classification prompt. Simultaneously extracts named entities
- * and relationships for the context graph (entity_mentions + entity_relationships
- * tables).
+ * Reclassifies content items against the current taxonomy. Supports filtering
+ * by current domain and forced reclassification of all items. Simultaneously
+ * extracts named entities and relationships for the context graph
+ * (entity_mentions + entity_relationships tables).
  *
  * Also generates a data quality report identifying duplicates, fragments, and
  * items with editorial notes in content.
  *
+ * SAFE BY DEFAULT: runs in dry-run mode unless --execute is passed.
+ *
  * Usage:
- *   bun run scripts/batch-reclassify.ts --limit 20
- *   bun run scripts/batch-reclassify.ts --limit 50 --batch-size 3
- *   bun run scripts/batch-reclassify.ts --dry-run
- *   bun run scripts/batch-reclassify.ts --force
- *   bun run scripts/batch-reclassify.ts --entities-only --limit 10
+ *   bun run scripts/batch-reclassify.ts --limit 10                  # dry-run preview of 10 items
+ *   bun run scripts/batch-reclassify.ts --execute                   # reclassify all active items
+ *   bun run scripts/batch-reclassify.ts --execute --limit 50        # reclassify 50 items
+ *   bun run scripts/batch-reclassify.ts --execute --domain security # only items currently in 'security'
+ *   bun run scripts/batch-reclassify.ts --execute --force           # force reclassify even if already classified
+ *   bun run scripts/batch-reclassify.ts --entities-only --limit 10  # extract entities only (no reclassification)
  */
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -53,26 +56,31 @@ loadEnvFile(`${PROJECT_ROOT}.env`);
 
 interface CliArgs {
   limit: number;
-  dryRun: boolean;
+  execute: boolean;
   batchSize: number;
   force: boolean;
   entitiesOnly: boolean;
+  domain: string | null;
 }
 
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
-  let limit = 20;
-  let dryRun = false;
-  let batchSize = 3;
+  let limit = 0; // 0 = no limit (process all)
+  let execute = false;
+  let batchSize = 1; // 1 item at a time (1/sec rate limit for Claude API)
   let force = false;
   let entitiesOnly = false;
+  let domain: string | null = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--limit' && args[i + 1]) {
       limit = parseInt(args[i + 1], 10);
       i++;
+    } else if (args[i] === '--execute') {
+      execute = true;
     } else if (args[i] === '--dry-run') {
-      dryRun = true;
+      // Legacy flag — dry-run is now the default, but accept for backwards compat
+      execute = false;
     } else if (args[i] === '--batch-size' && args[i + 1]) {
       batchSize = parseInt(args[i + 1], 10);
       i++;
@@ -80,15 +88,18 @@ function parseArgs(): CliArgs {
       force = true;
     } else if (args[i] === '--entities-only') {
       entitiesOnly = true;
+    } else if (args[i] === '--domain' && args[i + 1]) {
+      domain = args[i + 1];
+      i++;
     }
   }
 
-  if (isNaN(limit) || limit < 1) limit = 20;
-  if (isNaN(batchSize) || batchSize < 1) batchSize = 3;
-  // Cap concurrent requests at 5
-  if (batchSize > 5) batchSize = 5;
+  if (isNaN(limit) || limit < 0) limit = 0;
+  if (isNaN(batchSize) || batchSize < 1) batchSize = 1;
+  // Cap concurrent requests at 3 to respect rate limits
+  if (batchSize > 3) batchSize = 3;
 
-  return { limit, dryRun, batchSize, force, entitiesOnly };
+  return { limit, execute, batchSize, force, entitiesOnly, domain };
 }
 
 // ── Constants ──
@@ -400,7 +411,8 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
 // ── Main ──
 
 async function main(): Promise<void> {
-  const { limit, dryRun, batchSize, force, entitiesOnly } = parseArgs();
+  const { limit, execute, batchSize, force, entitiesOnly, domain } = parseArgs();
+  const dryRun = !execute;
 
   // Validate env
   const supabaseUrl =
@@ -470,25 +482,34 @@ async function main(): Promise<void> {
   const modeLabel = entitiesOnly
     ? 'entity extraction only'
     : force
-      ? 'forced reclassification'
-      : 'reclassification';
+      ? 'forced reclassification (all items)'
+      : 'reclassification (garbled/low-confidence/unclassified)';
+  const limitLabel = limit > 0 ? `limit ${limit}` : 'no limit';
+  const domainLabel = domain ? `, domain=${domain}` : '';
   console.log(
-    `Fetching content items for ${modeLabel} (limit ${limit})...\n`,
+    `Fetching content items for ${modeLabel} (${limitLabel}${domainLabel})...\n`,
   );
 
   let candidates: ContentRow[];
 
   if (entitiesOnly) {
     // Entities-only mode: fetch items that ARE classified but don't have entity mentions yet
-    const { data: items, error: fetchError } = await supabase
+    let entitiesQuery = supabase
       .from('content_items')
       .select(
         'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at',
       )
       .not('classified_at', 'is', null)
       .not('content', 'is', null)
+      .or('is_archived.is.null,is_archived.eq.false')
       .order('captured_date', { ascending: false })
       .limit(500);
+
+    if (domain) {
+      entitiesQuery = entitiesQuery.eq('primary_domain', domain);
+    }
+
+    const { data: items, error: fetchError } = await entitiesQuery;
 
     if (fetchError) {
       console.error('Failed to fetch items:', fetchError.message);
@@ -526,7 +547,7 @@ async function main(): Promise<void> {
       mentionOffset += mentionPageSize;
     }
 
-    candidates = (items as ContentRow[])
+    const entitiesFiltered = (items as ContentRow[])
       .filter(
         (item) =>
           item.content &&
@@ -537,18 +558,26 @@ async function main(): Promise<void> {
         (a, b) =>
           contentTypeSortKey(a.content_type) -
           contentTypeSortKey(b.content_type),
-      )
-      .slice(0, limit);
+      );
+
+    candidates = limit > 0 ? entitiesFiltered.slice(0, limit) : entitiesFiltered;
   } else {
-    // Normal reclassification mode: fetch items with garbled keywords, low confidence, or unclassified
-    const { data: items, error: fetchError } = await supabase
+    // Normal reclassification mode: fetch active (non-archived) items
+    let reclassQuery = supabase
       .from('content_items')
       .select(
         'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at',
       )
       .not('content', 'is', null)
+      .or('is_archived.is.null,is_archived.eq.false')
       .order('captured_date', { ascending: false })
-      .limit(500);
+      .limit(5000);
+
+    if (domain) {
+      reclassQuery = reclassQuery.eq('primary_domain', domain);
+    }
+
+    const { data: items, error: fetchError } = await reclassQuery;
 
     if (fetchError) {
       console.error('Failed to fetch items:', fetchError.message);
@@ -561,7 +590,7 @@ async function main(): Promise<void> {
     }
 
     // Filter to items needing reclassification
-    candidates = (items as ContentRow[])
+    const filtered = (items as ContentRow[])
       .filter((item) => {
         if (!item.content || item.content.trim().length === 0) return false;
 
@@ -584,8 +613,9 @@ async function main(): Promise<void> {
         (a, b) =>
           contentTypeSortKey(a.content_type) -
           contentTypeSortKey(b.content_type),
-      )
-      .slice(0, limit);
+      );
+
+    candidates = limit > 0 ? filtered.slice(0, limit) : filtered;
   }
 
   if (candidates.length === 0) {
@@ -709,8 +739,11 @@ async function main(): Promise<void> {
   }
 
   console.log('='.repeat(60));
-  console.log(`  Mode:                 ${modeLabel}`);
+  console.log(`  Mode:                 ${dryRun ? 'DRY RUN' : 'EXECUTE'} — ${modeLabel}`);
   console.log(`  Items to process:     ${candidates.length}`);
+  if (domain) {
+    console.log(`  Domain filter:        ${domain}`);
+  }
   console.log(`  Model:                ${model}`);
   console.log(`  Batch size:           ${batchSize} concurrent`);
   console.log(`  Service role:         ${usingServiceRole ? 'yes' : 'no (using anon key)'}`);
@@ -768,22 +801,36 @@ async function main(): Promise<void> {
     console.log('\n' + '='.repeat(60));
   }
 
+  // Domain distribution of items to be processed
+  const domainCounts: Record<string, number> = {};
+  for (const item of candidates) {
+    const d = item.primary_domain || '(unclassified)';
+    domainCounts[d] = (domainCounts[d] || 0) + 1;
+  }
+  console.log('');
+  console.log('  Current domain distribution:');
+  for (const [d, count] of Object.entries(domainCounts).sort((a, b) => b[1] - a[1])) {
+    console.log(`    ${d.padEnd(30)} ${count}`);
+  }
+  console.log('='.repeat(60));
+
   if (dryRun) {
-    console.log('\n-- DRY RUN -- Items that would be processed:\n');
+    console.log('\n-- DRY RUN -- Items that would be reclassified:\n');
     for (let i = 0; i < candidates.length; i++) {
       const item = candidates[i];
       const displayTitle = item.suggested_title || item.title || 'Untitled';
       const contentLen = item.content?.length ?? 0;
       const garbled = hasGarbledKeywords(item.ai_keywords) ? ' [GARBLED]' : '';
+      const currentDomain = item.primary_domain || '(none)';
       const conf =
         item.classification_confidence !== null
           ? ` (conf: ${item.classification_confidence.toFixed(2)})`
           : ' (unclassified)';
       console.log(
-        `  ${String(i + 1).padStart(3)}. [${(item.content_type || 'other').padEnd(22)}] ${truncate(displayTitle, 50)} (${contentLen.toLocaleString()} chars)${conf}${garbled}`,
+        `  ${String(i + 1).padStart(3)}. [${currentDomain.padEnd(28)}] ${truncate(displayTitle, 45)} (${contentLen.toLocaleString()} chars)${conf}${garbled}`,
       );
     }
-    console.log('\nRun without --dry-run to process.');
+    console.log('\nPass --execute to run reclassification.');
     return;
   }
 
@@ -796,6 +843,8 @@ async function main(): Promise<void> {
   let totalEntities = 0;
   let totalRelationships = 0;
   let embeddingErrors = 0;
+  let domainChanges = 0;
+  const domainMigrations: Record<string, number> = {}; // "old -> new" => count
   const startTime = Date.now();
 
   for (
@@ -806,8 +855,8 @@ async function main(): Promise<void> {
     const batch = candidates.slice(batchStart, batchStart + batchSize);
 
     if (batchStart > 0) {
-      // 2-second delay between batches to avoid rate limiting
-      await sleep(2000);
+      // 1-second delay between batches to respect Claude API rate limits
+      await sleep(1000);
     }
 
     const results = await Promise.allSettled(
@@ -987,11 +1036,22 @@ Classify this content and extract entities and relationships. Return the classif
 
           successCount++;
 
+          // Track domain changes
+          const oldDomain = item.primary_domain || '(none)';
+          const newDomain = result.primary_domain;
+          const changed = oldDomain !== newDomain;
+          if (changed) {
+            domainChanges++;
+            const migrationKey = `${oldDomain} -> ${newDomain}`;
+            domainMigrations[migrationKey] = (domainMigrations[migrationKey] || 0) + 1;
+          }
+
           const tokensUsed = inputTokens + outputTokens;
           const entityCount = entities.length;
           const relCount = relationships.length;
+          const changeMarker = changed ? ` [CHANGED: ${oldDomain} -> ${newDomain}]` : '';
           console.log(
-            `  [${String(index).padStart(String(candidates.length).length)}/${candidates.length}] ${truncate(displayTitle, 45)} — ${result.primary_domain}/${result.primary_subtopic} (${result.classification_confidence.toFixed(2)}) ${entityCount}E ${relCount}R (${tokensUsed.toLocaleString()} tok)`,
+            `  [${String(index).padStart(String(candidates.length).length)}/${candidates.length}] ${truncate(displayTitle, 40)} — ${newDomain}/${result.primary_subtopic} (${result.classification_confidence.toFixed(2)}) ${entityCount}E ${relCount}R (${tokensUsed.toLocaleString()} tok)${changeMarker}`,
           );
         } catch (err) {
           errorCount++;
@@ -1042,6 +1102,14 @@ Classify this content and extract entities and relationships. Return the classif
   console.log('');
   console.log(`  Entities extracted: ${totalEntities}`);
   console.log(`  Relationships:      ${totalRelationships}`);
+  console.log(`  Domain changes:     ${domainChanges} of ${successCount} items`);
+  if (Object.keys(domainMigrations).length > 0) {
+    console.log('');
+    console.log('  Domain migrations:');
+    for (const [migration, count] of Object.entries(domainMigrations).sort((a, b) => b[1] - a[1])) {
+      console.log(`    ${migration.padEnd(50)} ${count}`);
+    }
+  }
   if (qualityFlags.length > 0) {
     const issueGroups: Record<string, number> = {};
     for (const flag of qualityFlags) {
