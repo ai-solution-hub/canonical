@@ -124,13 +124,24 @@ export function useBatchCreate(): UseBatchCreateReturn {
         }
       }
 
-      const result = await mutationFetchJson<BatchCreateResult>(
-        '/api/items/batch',
-        body,
-      );
+      try {
+        const result = await mutationFetchJson<BatchCreateResult>(
+          '/api/items/batch',
+          body,
+        );
 
-      setProgress({ current: pairs.length, total: pairs.length });
-      return result;
+        setProgress({ current: pairs.length, total: pairs.length });
+        return result;
+      } catch (err) {
+        // Re-throw with domain-specific fallback if the error is generic
+        if (
+          err instanceof Error &&
+          err.message.startsWith('Request failed:')
+        ) {
+          throw new Error('Batch creation failed');
+        }
+        throw err;
+      }
     },
     onSuccess: () => {
       // Invalidate content items cache — new items were created
@@ -194,6 +205,8 @@ export function useBatchCreate(): UseBatchCreateReturn {
       },
     ): Promise<BatchCreateResult | null> => {
       try {
+        // Reset stale results/error from a previous attempt before re-submitting
+        submitMutation.reset();
         return await submitMutation.mutateAsync({ pairs, options });
       } catch {
         // mutateAsync throws on error — return null to match original interface

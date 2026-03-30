@@ -280,6 +280,39 @@ describe('useBatchCreate', () => {
       expect(body.source_document_id).toBeUndefined();
     });
 
+    it('handles empty pairs array by calling the API with empty items', async () => {
+      const mockResponse = {
+        created: 0,
+        failed: 0,
+        items: [],
+        pipeline_run_id: null,
+        batch_id: 'batch-empty',
+      };
+
+      global.fetch = vi.fn().mockImplementation(() =>
+        createMockFetchResponse(mockResponse),
+      );
+
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
+
+      let submitResult: unknown;
+      await act(async () => {
+        submitResult = await result.current.submit([]);
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith('/api/items/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [] }),
+      });
+
+      expect(submitResult).toEqual(mockResponse);
+      expect(result.current.results).toEqual(mockResponse);
+      expect(result.current.progress).toEqual({ current: 0, total: 0 });
+    });
+
     it('resets error and results on new submission', async () => {
       // First call fails
       global.fetch = vi.fn().mockImplementation(() =>

@@ -358,4 +358,167 @@ describe('useQuickAssign', () => {
 
     expect(result.current.isAssigning('item-1')).toBe(false);
   });
+
+  it('rolls back optimistic update when toggle mutation fails', async () => {
+    // Phase 1: Set up mocks for loading — workspace + assignments succeed
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([WS_ACTIVE_1]),
+        });
+      }
+      if (url === '/api/items/batch-workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              assignments: { 'item-1': ['ws-1'] },
+            }),
+        });
+      }
+      // Default success for any other calls during loading
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    });
+
+    const { result } = renderHook(() => useQuickAssign(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingWorkspaces).toBe(false);
+    });
+
+    // Load initial assignments — item-1 is assigned to ws-1
+    await act(async () => {
+      await result.current.loadAssignments(['item-1']);
+    });
+
+    expect(result.current.itemAssignments.get('item-1')).toEqual(
+      new Set(['ws-1']),
+    );
+
+    // Phase 2: Reconfigure mock so toggle endpoint returns error (non-ok response)
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([WS_ACTIVE_1]),
+        });
+      }
+      // Toggle endpoint — return error to trigger rollback
+      return Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ error: 'Server error' }),
+      });
+    });
+
+    // Toggle to unassign — should optimistically remove ws-1 then rollback
+    await act(async () => {
+      await result.current.toggleAssignment(
+        'item-1',
+        'ws-1',
+        'Active Bid Alpha',
+      );
+    });
+
+    // After error: should have rolled back — ws-1 should be present again
+    await waitFor(() => {
+      expect(
+        result.current.itemAssignments.get('item-1')?.has('ws-1'),
+      ).toBe(true);
+    });
+  });
+
+  it('isAssigning returns true while a toggle mutation is in-flight', async () => {
+    let resolveToggle: ((value: unknown) => void) | null = null;
+    let fetchCalled: (() => void) | null = null;
+    const fetchCalledPromise = new Promise<void>((resolve) => {
+      fetchCalled = resolve;
+    });
+
+    // Phase 1: Loading mocks — return immediately
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([WS_ACTIVE_1]),
+        });
+      }
+      if (url === '/api/items/batch-workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ assignments: {} }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+    });
+
+    const { result } = renderHook(() => useQuickAssign(), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingWorkspaces).toBe(false);
+    });
+
+    // Load initial empty assignments
+    await act(async () => {
+      await result.current.loadAssignments(['item-1']);
+    });
+
+    // Phase 2: Reconfigure mock so toggle endpoint is held in-flight
+    mockFetch.mockImplementation((url: string) => {
+      if (url === '/api/workspaces') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve([WS_ACTIVE_1]),
+        });
+      }
+      // Toggle endpoint — hold in-flight until explicitly resolved
+      fetchCalled!();
+      return new Promise((resolve) => {
+        resolveToggle = resolve;
+      });
+    });
+
+    // Start toggle — mutation is now in-flight
+    let togglePromise: Promise<void>;
+    act(() => {
+      togglePromise = result.current.toggleAssignment(
+        'item-1',
+        'ws-1',
+        'Active Bid Alpha',
+      );
+    });
+
+    // Wait for the fetch to actually be called (microtask flush)
+    await act(async () => {
+      await fetchCalledPromise;
+    });
+
+    // isAssigning should be true while the mutation is pending
+    expect(result.current.isAssigning('item-1')).toBe(true);
+
+    // Resolve the mutation
+    await act(async () => {
+      resolveToggle!({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+      await togglePromise!;
+    });
+
+    // isAssigning should be false after settlement
+    await waitFor(() => {
+      expect(result.current.isAssigning('item-1')).toBe(false);
+    });
+  });
 });
