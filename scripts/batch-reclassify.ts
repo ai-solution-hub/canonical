@@ -501,7 +501,7 @@ async function main(): Promise<void> {
       )
       .not('classified_at', 'is', null)
       .not('content', 'is', null)
-      .or('is_archived.is.null,is_archived.eq.false')
+      .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(500);
 
@@ -569,7 +569,7 @@ async function main(): Promise<void> {
         'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at',
       )
       .not('content', 'is', null)
-      .or('is_archived.is.null,is_archived.eq.false')
+      .is('archived_at', null)
       .order('captured_date', { ascending: false })
       .limit(5000);
 
