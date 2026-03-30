@@ -256,6 +256,13 @@ findings before merge, worktrees for parallel work, sequential merges only.
   which the sandbox blocks. Run `supabase migration new`, `supabase db push`,
   and `supabase gen types` with `dangerouslyDisableSandbox: true`.
   `SUPABASE_DB_PASSWORD` must be set as a shell env var (source from `.env`).
+- **Empty migration files from worktree cherry-picks:** When cherry-picking
+  from worktrees, migration files may arrive as 0-byte files. Supabase CLI
+  marks them as "applied" even though no SQL ran. Always verify migration
+  file content after cherry-pick. If an empty migration was already
+  recorded, the SQL must be applied directly via `execute_sql` and the
+  local file backfilled. S123 hit this with `hybrid_search` verification
+  columns.
 - **Supabase default row limit:** Max Rows is set to 5000 (raised from 1000).
   Scripts fetching large result sets should still paginate with `.range()` or
   add explicit `.limit()` rather than relying on the default.

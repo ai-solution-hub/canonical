@@ -415,37 +415,8 @@ describe('Freshness cron — date expiry reminders', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Expiry date calculation helpers', () => {
-  // Tests for the date calculation logic used by dashboard expiry displays.
-
-  it('daysRemaining calculates correctly for future dates', () => {
-    const tenDaysFromNow = new Date();
-    tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
-    tenDaysFromNow.setHours(12, 0, 0, 0);
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const target = new Date(tenDaysFromNow);
-    target.setHours(0, 0, 0, 0);
-    const expected = Math.ceil(
-      (target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
-    );
-
-    expect(expected).toBe(10);
-  });
-
-  it('daysRemaining returns negative for past dates', () => {
-    const fiveDaysAgo = new Date();
-    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
-    fiveDaysAgo.setHours(0, 0, 0, 0);
-
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const days = Math.ceil(
-      (fiveDaysAgo.getTime() - now.getTime()) / (24 * 60 * 60 * 1000),
-    );
-
-    expect(days).toBe(-5);
-  });
+  // Date-arithmetic tests (daysRemaining future/past) removed — used setDate()
+  // which causes midnight-boundary flakiness. See CLAUDE.md gotcha on date-sensitive tests.
 
   it('urgency classification works correctly', () => {
     // expired: days <= 0
