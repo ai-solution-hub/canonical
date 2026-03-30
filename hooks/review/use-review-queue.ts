@@ -1,27 +1,23 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { toast } from 'sonner';
 import type {
   ReviewQueueItem,
   ReviewProgress,
   ReviewFilters as ReviewFiltersType,
   ReviewStatsResponse,
-  ReviewQueueSortField,
 } from '@/types/review';
 import type { QueueSortField } from '@/components/review/review-queue-panel';
 import { useReviewShortcuts } from '@/hooks/review/use-review-shortcuts';
+import { useReviewSession } from '@/hooks/review/use-review-session';
+import { useReviewQueueData } from '@/hooks/review/use-review-queue-data';
+import { useReviewNavigation } from '@/hooks/review/use-review-navigation';
+import { useReviewActions } from '@/hooks/review/use-review-actions';
 
-const BATCH_SIZE = 20;
-const PREFETCH_THRESHOLD = 15;
-
-interface UndoableAction {
-  itemId: string;
-  itemTitle: string;
-  action: 'verify' | 'flag';
-  previousIndex: number;
-}
+// ---------------------------------------------------------------------------
+// Types (preserved for consumer compatibility)
+// ---------------------------------------------------------------------------
 
 export interface ReviewAssignmentInfo {
   id: string;
@@ -85,724 +81,164 @@ export interface UseReviewQueueReturn {
   setShowHelp: (show: boolean) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Orchestrator
+// ---------------------------------------------------------------------------
+
 /**
- * Custom hook encapsulating all review queue state, data fetching, and handlers.
+ * Orchestrator hook that composes 4 sub-hooks into the original 36-property
+ * return interface. The consumer (`review-content.tsx`) requires zero changes.
  *
- * Extracts the full queue workflow from ReviewContent so the component
- * is left with pure JSX rendering only.
+ * Dependency graph (no cycles):
+ *   useReviewSession -> useReviewQueueData -> useReviewNavigation -> useReviewActions
  */
 export function useReviewQueue(): UseReviewQueueReturn {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Initialise filters from URL search params (for shareability / back-button support)
-  const initialFilters = useMemo((): ReviewFiltersType => {
-    const status = searchParams.get('status');
-    const domain = searchParams.getAll('domain').filter(Boolean);
-    const content_type = searchParams.getAll('content_type').filter(Boolean);
-    const source_file = searchParams.get('source_file');
-    const source_document_id = searchParams.get('source_document_id');
+  // -------------------------------------------------------------------------
+  // 1. Session state (filters, progress, UI toggles, announcements)
+  // -------------------------------------------------------------------------
+  const session = useReviewSession(searchParams);
 
-    return {
-      status: (['unverified', 'verified', 'flagged', 'draft', 'all'].includes(status ?? '')
-        ? (status as ReviewFiltersType['status'])
-        : 'unverified'),
-      domain: domain.length > 0 ? domain : undefined,
-      content_type: content_type.length > 0 ? content_type : undefined,
-      source_file: source_file ?? undefined,
-      source_document_id: source_document_id ?? undefined,
-    };
-    // Only compute once on mount — searchParams changes are handled by setFilters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // -------------------------------------------------------------------------
+  // 2. Server data (queue via infinite query, stats, assignments)
+  // -------------------------------------------------------------------------
+  const data = useReviewQueueData(session.filters, session.serverSort);
 
-  // Queue state
-  const [queue, setQueue] = useState<ReviewQueueItem[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isActioning, setIsActioning] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+  // -------------------------------------------------------------------------
+  // 3. Navigation (index, sorting, selection, focus, prefetch)
+  // -------------------------------------------------------------------------
+  const nav = useReviewNavigation(
+    data.queue,
+    data.isLoading,
+    session.queueSort,
+    data.queueQuery,
+  );
 
-  // Progress state
-  const [progress, setProgress] = useState<ReviewProgress>({
-    verified: 0,
-    flagged: 0,
-    skipped: 0,
-    total: 0,
-    sessionReviewed: 0,
+  // -------------------------------------------------------------------------
+  // 4. Actions (verify, flag, publish, undo mutations)
+  // -------------------------------------------------------------------------
+  const actions = useReviewActions({
+    queue: data.queue,
+    currentIndex: nav.currentIndex,
+    currentItem: nav.currentItem,
+    queueFiltersKey: data.queueFiltersKey,
+    queryClient: data.queryClient,
+    progress: session.progress,
+    setProgress: session.setProgress,
+    advanceToNext: nav.advanceToNext,
+    setCurrentIndex: nav.setCurrentIndex,
   });
 
-  // Filter state (initialised from URL)
-  const [filters, setFilters] = useState<ReviewFiltersType>(initialFilters);
+  // -------------------------------------------------------------------------
+  // Cross-hook effects
+  // -------------------------------------------------------------------------
 
-  // Sync filters to URL search params for shareability
+  // Sync stats into progress with Math.max guard (S126 #1)
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filters.status && filters.status !== 'unverified') {
-      params.set('status', filters.status);
-    }
-    if (filters.domain?.length) {
-      for (const d of filters.domain) {
-        params.append('domain', d);
-      }
-    }
-    if (filters.content_type?.length) {
-      for (const ct of filters.content_type) {
-        params.append('content_type', ct);
-      }
-    }
-    if (filters.source_file) {
-      params.set('source_file', filters.source_file);
-    }
-    if (filters.source_document_id) {
-      params.set('source_document_id', filters.source_document_id);
-    }
-
-    const search = params.toString();
-    const newPath = search ? `/review?${search}` : '/review';
-    // Use replaceState to avoid polluting browser history on every filter change
-    window.history.replaceState(null, '', newPath);
-  }, [filters]);
-
-  // Stats for filter counts and progress
-  const [stats, setStats] = useState<ReviewStatsResponse | null>(null);
-
-  // Flag input state
-  const [showFlagInput, setShowFlagInput] = useState(false);
-  const [flagDetails, setFlagDetails] = useState('');
-
-  // Queue panel state
-  const [showQueuePanel, setShowQueuePanel] = useState(false);
-  const [queueSort, setQueueSortInternal] = useState<QueueSortField>('default');
-
-  /** Map client-side sort field to server-side API sort parameter */
-  const apiSortForQueueSort = useCallback((sort: QueueSortField): ReviewQueueSortField | undefined => {
-    if (sort === 'confidence') return 'confidence_asc';
-    if (sort === 'quality_score') return 'quality_score_asc';
-    return undefined; // Other sorts are client-side only
-  }, []);
-
-  // Track which server-side sort is active (triggers refetch)
-  const [serverSort, setServerSort] = useState<ReviewQueueSortField | undefined>(undefined);
-
-  const setQueueSort = useCallback((sort: QueueSortField) => {
-    setQueueSortInternal(sort);
-    const newServerSort = apiSortForQueueSort(sort);
-    setServerSort(newServerSort);
-  }, [apiSortForQueueSort]);
-
-  // Undo state (tracked for potential future use, e.g. multi-undo)
-  const [, setLastAction] = useState<UndoableAction | null>(null);
-
-  // Flagged items tracking (for context summary)
-  const flaggedThisSessionRef = useRef<Set<string>>(new Set());
-
-  // Refs for focus management
-  const cardRef = useRef<HTMLDivElement>(null);
-  const flagInputRef = useRef<HTMLInputElement>(null);
-  const isPrefetchingRef = useRef(false);
-
-  // Announcements for screen readers
-  const [announcement, setAnnouncement] = useState('');
-
-  // Active assignment state
-  const [activeAssignment, setActiveAssignment] = useState<ReviewAssignmentInfo | null>(null);
-
-  const currentItem = queue[currentIndex] ?? null;
-
-  // Sorted queue for the side panel
-  const sortedQueue = useMemo(() => {
-    if (queueSort === 'default') return queue;
-
-    const sorted = [...queue];
-    switch (queueSort) {
-      case 'flagged':
-        sorted.sort((a, b) => {
-          const aFlagged = a.governance_review_status === 'pending' ? 1 : 0;
-          const bFlagged = b.governance_review_status === 'pending' ? 1 : 0;
-          if (bFlagged !== aFlagged) return bFlagged - aFlagged;
-          // Tiebreaker: default order (by index, already stable)
-          return 0;
-        });
-        break;
-      case 'domain':
-        sorted.sort((a, b) => (a.primary_domain ?? '').localeCompare(b.primary_domain ?? ''));
-        break;
-      case 'content_type':
-        sorted.sort((a, b) => (a.content_type ?? '').localeCompare(b.content_type ?? ''));
-        break;
-      case 'confidence':
-        sorted.sort((a, b) => (b.classification_confidence ?? 0) - (a.classification_confidence ?? 0));
-        break;
-      case 'quality_score':
-        sorted.sort((a, b) => (a.quality_score ?? Infinity) - (b.quality_score ?? Infinity));
-        break;
-      case 'date':
-        sorted.sort((a, b) => (b.captured_date ?? '').localeCompare(a.captured_date ?? ''));
-        break;
-    }
-    return sorted;
-  }, [queue, queueSort]);
-
-  // Map sorted index back to real queue index
-  const handleSelectItem = useCallback(
-    (sortedIndex: number) => {
-      const selectedItem = sortedQueue[sortedIndex];
-      if (!selectedItem) return;
-      const realIndex = queue.findIndex((q) => q.id === selectedItem.id);
-      if (realIndex >= 0) setCurrentIndex(realIndex);
-    },
-    [sortedQueue, queue],
-  );
-
-  // Current item's index in sorted queue (for panel highlighting)
-  const currentSortedIndex = useMemo(() => {
-    if (!currentItem) return -1;
-    return sortedQueue.findIndex((q) => q.id === currentItem.id);
-  }, [sortedQueue, currentItem]);
-
-  // -- Data Fetching --
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await fetch('/api/review/stats');
-      if (!res.ok) return;
-      const data: ReviewStatsResponse = await res.json();
-      setStats(data);
-      setProgress((prev) => ({
-        ...prev,
-        total: data.total,
-        verified: data.verified,
-        flagged: data.flagged,
-      }));
-    } catch (err) {
-      console.error('Failed to fetch review stats:', err);
-    }
-  }, []);
-
-  const fetchQueue = useCallback(
-    async (pageOffset: number = 0) => {
-      const params = new URLSearchParams();
-      params.set('limit', String(BATCH_SIZE));
-      params.set('offset', String(pageOffset));
-      if (filters.status) params.set('status', filters.status);
-      if (filters.source_file) params.set('source_file', filters.source_file);
-      if (filters.source_document_id) params.set('source_document_id', filters.source_document_id);
-      if (filters.domain?.length) {
-        for (const d of filters.domain) {
-          params.append('domain', d);
-        }
-      }
-      if (filters.content_type?.length) {
-        for (const ct of filters.content_type) {
-          params.append('content_type', ct);
-        }
-      }
-      if (serverSort) params.set('sort', serverSort);
-
-      const res = await fetch(`/api/review/queue?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error(`Queue fetch failed: ${res.status}`);
-      }
-      return res.json();
-    },
-    [filters, serverSort],
-  );
-
-  // Initial load + reload on filter change
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadInitial() {
-      setIsLoading(true);
-      setQueue([]);
-      setCurrentIndex(0);
-      setOffset(0);
-      setHasMore(false);
-
-      try {
-        const data = await fetchQueue(0);
-        if (cancelled) return;
-
-        setQueue(data.items ?? []);
-        setOffset(data.items?.length ?? 0);
-        setHasMore(data.has_more ?? false);
-        setProgress((prev) => ({
-          ...prev,
-          total: data.total ?? prev.total,
-          verified: data.verified_count ?? prev.verified,
-          flagged: data.flagged_count ?? prev.flagged,
-          sessionReviewed: 0,
-        }));
-      } catch (err) {
-        console.error('Failed to load review queue:', err);
-        if (!cancelled) {
-          toast.error('Failed to load review queue');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadInitial();
-    return () => { cancelled = true; };
-  }, [fetchQueue]);
-
-  // Fetch stats on mount
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  // Fetch active assignment for current user on mount.
-  // If an assignment exists and URL has no explicit filters, auto-apply its criteria.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadAssignment() {
-      try {
-        const res = await fetch('/api/review/assignments?status=active');
-        if (!res.ok) return;
-        const data = await res.json();
-        const assignments = data.assignments ?? [];
-        if (cancelled || assignments.length === 0) return;
-
-        const assignment = assignments[0];
-        setActiveAssignment({
-          id: assignment.id,
-          notes: assignment.notes,
-          filter_domains: assignment.filter_domains ?? [],
-          filter_content_types: assignment.filter_content_types ?? [],
-          filter_freshness: assignment.filter_freshness ?? [],
-          filter_date_from: assignment.filter_date_from,
-          filter_date_to: assignment.filter_date_to,
-          item_count: assignment.item_count,
-          due_date: assignment.due_date,
-        });
-
-        // Only auto-apply filters if URL didn't specify any
-        const hasUrlFilters =
-          searchParams.getAll('domain').length > 0 ||
-          searchParams.getAll('content_type').length > 0 ||
-          searchParams.get('source_file');
-
-        if (!hasUrlFilters) {
-          const domains = assignment.filter_domains ?? [];
-          const contentTypes = assignment.filter_content_types ?? [];
-          if (domains.length > 0 || contentTypes.length > 0) {
-            setFilters((prev: ReviewFiltersType) => ({
-              ...prev,
-              domain: domains.length > 0 ? domains : prev.domain,
-              content_type: contentTypes.length > 0 ? contentTypes : prev.content_type,
-            }));
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load review assignment:', err);
-      }
-    }
-
-    loadAssignment();
-    return () => { cancelled = true; };
-    // Only run on mount — searchParams is used for initial check only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Prefetch next batch when approaching the end
-  useEffect(() => {
-    if (
-      currentIndex >= PREFETCH_THRESHOLD &&
-      currentIndex >= queue.length - (BATCH_SIZE - PREFETCH_THRESHOLD) &&
-      hasMore &&
-      !isPrefetchingRef.current
-    ) {
-      isPrefetchingRef.current = true;
-
-      fetchQueue(offset)
-        .then((data) => {
-          const newItems = data.items ?? [];
-          if (newItems.length > 0) {
-            setQueue((prev) => [...prev, ...newItems]);
-            setOffset((prev) => prev + newItems.length);
-            setHasMore(data.has_more ?? false);
-          } else {
-            setHasMore(false);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to prefetch next batch:', err);
-        })
-        .finally(() => {
-          isPrefetchingRef.current = false;
-        });
-    }
-  }, [currentIndex, queue.length, hasMore, offset, fetchQueue]);
-
-  // Focus management: focus the card and scroll to top after navigation
-  useEffect(() => {
-    if (!isLoading && currentItem) {
-      // Scroll to top so the user always sees the start of the new item
-      window.scrollTo({ top: 0, behavior: 'instant' });
-      // Small delay to allow React to render the new card
-      requestAnimationFrame(() => {
-        cardRef.current?.focus({ preventScroll: true });
-      });
-    }
-  }, [currentIndex, isLoading, currentItem]);
-
-  // -- Undo Handler --
-
-  const handleUndo = useCallback(
-    async (undoAction: UndoableAction) => {
-      try {
-        const apiAction = undoAction.action === 'verify' ? 'unverify' : 'unflag';
-        const res = await fetch('/api/review/action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item_id: undoAction.itemId, action: apiAction }),
-        });
-        if (!res.ok) throw new Error('Undo failed');
-
-        // Roll back progress
-        setProgress((prev) => ({
-          ...prev,
-          verified: undoAction.action === 'verify' ? prev.verified - 1 : prev.verified,
-          flagged: undoAction.action === 'flag' ? prev.flagged - 1 : prev.flagged,
-          sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
-        }));
-
-        // Roll back queue state if verify
-        if (undoAction.action === 'verify') {
-          setQueue((prev) =>
-            prev.map((item) =>
-              item.id === undoAction.itemId
-                ? { ...item, verified_at: null, verified_by: null }
-                : item,
-            ),
-          );
-        }
-
-        // Navigate back to the undone item
-        setCurrentIndex(undoAction.previousIndex);
-        setLastAction(null);
-
-        toast.success(`Undone: ${undoAction.itemTitle}`);
-      } catch (err) {
-        console.error('Failed to undo review action:', err);
-        toast.error('Failed to undo. Please try again.');
-      }
-    },
-    [],
-  );
-
-  // -- Actions --
-
-  const advanceToNext = useCallback(() => {
-    setCurrentIndex((prev) => {
-      if (prev < queue.length - 1) return prev + 1;
-      return prev;
-    });
-  }, [queue.length]);
-
-  const handleVerify = useCallback(async (note?: string) => {
-    if (!currentItem || isActioning) return;
-    setIsActioning(true);
-
-    const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
-    const wasAlreadyVerified = !!currentItem.verified_at;
-    const previousIndex = currentIndex;
-    const isLastItem = currentIndex >= queue.length - 1;
-    const nextDisplayPosition = isLastItem ? currentIndex + 1 : currentIndex + 2;
-
-    // Optimistic update
-    setProgress((prev) => ({
+    if (!data.stats) return;
+    session.setProgress((prev) => ({
       ...prev,
-      verified: prev.verified + (wasAlreadyVerified ? 0 : 1),
-      sessionReviewed: prev.sessionReviewed + 1,
+      total: data.stats!.total,
+      verified: Math.max(data.stats!.verified, prev.verified),
+      flagged: Math.max(data.stats!.flagged, prev.flagged),
     }));
-    setQueue((prev) =>
-      prev.map((item, i) =>
-        i === currentIndex
-          ? { ...item, verified_at: new Date().toISOString(), verified_by: 'current-user' }
-          : item,
-      ),
-    );
-    advanceToNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.stats]);
 
-    setAnnouncement(
-      isLastItem
-        ? (wasAlreadyVerified
-          ? `Re-verified. Last item in queue.`
-          : `Verified. Last item in queue.`)
-        : (wasAlreadyVerified
-          ? `Re-verified. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`
-          : `Verified. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`),
-    );
-
-    // Undo toast
-    const undoAction: UndoableAction = {
-      itemId: currentItem.id,
-      itemTitle,
-      action: 'verify',
-      previousIndex,
-    };
-    setLastAction(undoAction);
-    toast.success(`Verified: ${itemTitle}`, {
-      duration: 5000,
-      action: {
-        label: 'Undo',
-        onClick: () => handleUndo(undoAction),
-      },
-    });
-
-    try {
-      const res = await fetch('/api/review/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: currentItem.id, action: 'verify', ...(note ? { note } : {}) }),
-      });
-      if (!res.ok) throw new Error('Verify failed');
-    } catch (err) {
-      console.error('Failed to verify item:', err);
-      toast.error('Action failed. Check your connection and try again.');
-      // Rollback the counter, the optimistic verified_at/verified_by fields, and the index
-      setProgress((prev) => ({
-        ...prev,
-        verified: prev.verified - (wasAlreadyVerified ? 0 : 1),
-        sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
-      }));
-      setQueue((prev) =>
-        prev.map((item) =>
-          item.id === currentItem.id
-            ? { ...item, verified_at: null, verified_by: null }
-            : item,
-        ),
-      );
-      setCurrentIndex(previousIndex);
-    } finally {
-      setIsActioning(false);
+  // Sync action announcements into session announcement state
+  useEffect(() => {
+    if (actions.lastAnnouncement) {
+      session.setAnnouncement(actions.lastAnnouncement);
     }
-  }, [currentItem, isActioning, currentIndex, queue.length, progress.total, advanceToNext, handleUndo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actions.lastAnnouncement]);
 
-  const handlePublish = useCallback(async () => {
-    if (!currentItem || isActioning) return;
-    if (currentItem.governance_review_status !== 'draft') return;
-    setIsActioning(true);
-
-    const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
-
-    try {
-      // Publish via PATCH — set governance_review_status to null
-      const res = await fetch(`/api/items/${currentItem.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: 'governance_review_status', value: null }),
-      });
-      if (!res.ok) throw new Error('Publish failed');
-
-      // Optimistic: remove from queue (it's no longer a draft).
-      // Compute new index inside the setQueue updater to avoid stale queue.length closure.
-      setQueue((prev) => {
-        const next = prev.filter((_, i) => i !== currentIndex);
-        // Clamp currentIndex to the new last valid index
-        const maxIndex = Math.max(0, next.length - 1);
-        setCurrentIndex((idx) => Math.min(idx, maxIndex));
-        return next;
-      });
-
-      toast.success(`Published: ${itemTitle}`);
-      setAnnouncement(`Published. ${itemTitle} is now live.`);
-
-      // Refresh stats
-      fetchStats();
-    } catch (err) {
-      console.error('Failed to publish item:', err);
-      toast.error('Failed to publish. Check your connection and try again.');
-    } finally {
-      setIsActioning(false);
-    }
-  }, [currentItem, isActioning, currentIndex, fetchStats]);
-
-  const handleFlagSubmit = useCallback(
-    async (details?: string) => {
-      if (!currentItem || isActioning) return;
-      setIsActioning(true);
-      setShowFlagInput(false);
-      setFlagDetails('');
-
-      const itemTitle = currentItem.title ?? currentItem.suggested_title ?? 'Item';
-      const previousIndex = currentIndex;
-      const isLastItem = currentIndex >= queue.length - 1;
-      const nextDisplayPosition = isLastItem ? currentIndex + 1 : currentIndex + 2;
-
-      // Track flagged items
-      flaggedThisSessionRef.current.add(currentItem.id);
-
-      // Optimistic update
-      setProgress((prev) => ({
-        ...prev,
-        flagged: prev.flagged + 1,
-        sessionReviewed: prev.sessionReviewed + 1,
-      }));
-      advanceToNext();
-
-      setAnnouncement(
-        isLastItem
-          ? `Flagged for review. Last item in queue.`
-          : `Flagged for review. Item ${nextDisplayPosition} of ${progress.total}. ${itemTitle}.`,
-      );
-
-      // Undo toast
-      const undoAction: UndoableAction = {
-        itemId: currentItem.id,
-        itemTitle,
-        action: 'flag',
-        previousIndex,
-      };
-      setLastAction(undoAction);
-      toast.success(`Flagged: ${itemTitle}`, {
-        duration: 5000,
-        action: {
-          label: 'Undo',
-          onClick: () => handleUndo(undoAction),
-        },
-      });
-
-      try {
-        const body: Record<string, unknown> = {
-          item_id: currentItem.id,
-          action: 'flag',
-        };
-        if (details?.trim()) {
-          body.flag_details = details.trim();
-        }
-
-        const res = await fetch('/api/review/action', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error('Flag failed');
-      } catch (err) {
-        console.error('Failed to flag item:', err);
-        toast.error('Action failed. Check your connection and try again.');
-        setProgress((prev) => ({
-          ...prev,
-          flagged: prev.flagged - 1,
-          sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
-        }));
-        setCurrentIndex(previousIndex);
-      } finally {
-        setIsActioning(false);
-      }
-    },
-    [currentItem, isActioning, currentIndex, queue.length, progress.total, advanceToNext, handleUndo],
-  );
+  // -------------------------------------------------------------------------
+  // Orchestrator-only handlers (not owned by any sub-hook)
+  // -------------------------------------------------------------------------
 
   const handleFlag = useCallback(() => {
-    if (!currentItem || isActioning) return;
-    setShowFlagInput(true);
-    // Focus the input after render
+    if (!nav.currentItem || actions.isActioning) return;
+    session.setShowFlagInput(true);
     requestAnimationFrame(() => {
-      flagInputRef.current?.focus();
+      session.flagInputRef.current?.focus();
     });
-  }, [currentItem, isActioning]);
-
-  const handleSkip = useCallback(() => {
-    if (!currentItem || isActioning) return;
-    // Guard: don't advance if already at the last item
-    if (currentIndex >= queue.length - 1) return;
-
-    advanceToNext();
-
-    const nextTitle = queue[currentIndex + 1]?.title ?? queue[currentIndex + 1]?.suggested_title ?? 'Item';
-    setAnnouncement(
-      `Item ${currentIndex + 2} of ${queue.length}. ${nextTitle}.`,
-    );
-  }, [currentItem, isActioning, currentIndex, queue, advanceToNext]);
-
-  const handleBack = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex((prev) => prev - 1);
-    }
-  }, [currentIndex]);
+  }, [nav.currentItem, actions.isActioning, session]);
 
   const handleExit = useCallback(() => {
     router.push('/browse');
   }, [router]);
 
   const handleEdit = useCallback(() => {
-    if (!currentItem) return;
-    window.open(`/item/${currentItem.id}`, '_blank');
-  }, [currentItem]);
+    if (!nav.currentItem) return;
+    window.open(`/item/${nav.currentItem.id}`, '_blank');
+  }, [nav.currentItem]);
 
-  const handleFiltersChange = useCallback((newFilters: ReviewFiltersType) => {
-    setFilters(newFilters);
-  }, []);
-
-  const handleTogglePanel = useCallback(() => {
-    setShowQueuePanel((prev) => !prev);
-  }, []);
-
-  // -- Keyboard Shortcuts --
+  // -------------------------------------------------------------------------
+  // Keyboard shortcuts
+  // -------------------------------------------------------------------------
 
   const { showHelp, setShowHelp } = useReviewShortcuts({
-    onVerify: handleVerify,
+    onVerify: actions.handleVerify,
     onFlag: handleFlag,
-    onSkip: handleSkip,
-    onBack: handleBack,
+    onSkip: nav.handleSkip,
+    onBack: nav.handleBack,
     onExit: handleExit,
     onEdit: handleEdit,
-    onTogglePanel: handleTogglePanel,
-    enabled: !showFlagInput,
+    onTogglePanel: session.handleTogglePanel,
+    enabled: !session.showFlagInput,
   });
+
+  // -------------------------------------------------------------------------
+  // Return — exact same 36 properties as UseReviewQueueReturn
+  // -------------------------------------------------------------------------
 
   return {
     // State
-    queue,
-    currentIndex,
-    isLoading,
-    isActioning,
-    hasMore,
-    progress,
-    filters,
-    stats,
-    showFlagInput,
-    flagDetails,
-    showQueuePanel,
-    queueSort,
-    announcement,
+    queue: data.queue,
+    currentIndex: nav.currentIndex,
+    isLoading: data.isLoading,
+    isActioning: actions.isActioning,
+    hasMore: data.hasMore,
+    progress: session.progress,
+    filters: session.filters,
+    stats: data.stats,
+    showFlagInput: session.showFlagInput,
+    flagDetails: session.flagDetails,
+    showQueuePanel: session.showQueuePanel,
+    queueSort: session.queueSort,
+    announcement: session.announcement,
 
     // Assignment
-    activeAssignment,
+    activeAssignment: data.activeAssignment,
 
     // Refs
-    cardRef,
-    flagInputRef,
+    cardRef: nav.cardRef,
+    flagInputRef: session.flagInputRef,
 
     // Computed
-    currentItem,
-    sortedQueue,
-    currentSortedIndex,
+    currentItem: nav.currentItem,
+    sortedQueue: nav.sortedQueue,
+    currentSortedIndex: nav.currentSortedIndex,
 
     // Handlers
-    handleSelectItem,
-    handleVerify,
-    handlePublish,
-    handleFlagSubmit,
+    handleSelectItem: nav.handleSelectItem,
+    handleVerify: actions.handleVerify,
+    handlePublish: actions.handlePublish,
+    handleFlagSubmit: actions.handleFlagSubmit,
     handleFlag,
-    handleSkip,
-    handleBack,
+    handleSkip: nav.handleSkip,
+    handleBack: nav.handleBack,
     handleExit,
     handleEdit,
-    handleFiltersChange,
-    handleTogglePanel,
-    setShowFlagInput,
-    setFlagDetails,
-    setFilters,
-    setQueueSort,
+    handleFiltersChange: session.handleFiltersChange,
+    handleTogglePanel: session.handleTogglePanel,
+    setShowFlagInput: session.setShowFlagInput,
+    setFlagDetails: session.setFlagDetails,
+    setFilters: session.setFilters,
+    setQueueSort: session.setQueueSort,
 
     // Keyboard shortcuts
     showHelp,
