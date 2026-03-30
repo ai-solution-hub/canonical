@@ -49,6 +49,37 @@ export async function POST(
       userId: user.id,
     });
 
+    // Non-blocking topic inference — mirrors the upload route pattern
+    if (result.primary_domain && result.primary_subtopic) {
+      try {
+        const { suggestTopic } = await import('@/lib/topic-inference');
+        const { data: item } = await supabase
+          .from('content_items')
+          .select('title, layer')
+          .eq('id', id)
+          .single();
+
+        if (item) {
+          const suggestion = await suggestTopic(supabase, {
+            primaryDomain: result.primary_domain,
+            primarySubtopic: result.primary_subtopic,
+            title: item.title || '',
+            suggestedLayer: item.layer || '',
+          });
+
+          if (suggestion) {
+            await supabase.rpc('merge_item_metadata', {
+              p_item_id: id,
+              p_new_data: { topic_id: suggestion.topicId },
+            });
+          }
+        }
+      } catch (topicErr) {
+        console.error('Topic suggestion after classification failed:', topicErr);
+        // Non-fatal — classification result is still valid
+      }
+    }
+
     return NextResponse.json(result);
   } catch (err) {
     if (err instanceof AIServiceError) {

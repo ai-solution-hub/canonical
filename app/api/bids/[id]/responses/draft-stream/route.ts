@@ -252,6 +252,31 @@ export async function POST(
             return;
           }
 
+          // Record content citations for win-rate tracking
+          if (response?.id && matchedContent.length > 0) {
+            try {
+              const citationRows = matchedContent.map((c) => ({
+                bid_response_id: response.id,
+                content_item_id: c.id,
+                citation_type: 'reference' as const,
+                created_by: user.id,
+              }));
+
+              // Delete existing citations for this response (in case of re-draft)
+              await supabase
+                .from('content_citations')
+                .delete()
+                .eq('bid_response_id', response.id);
+
+              await supabase
+                .from('content_citations')
+                .insert(citationRows);
+            } catch (citationErr) {
+              console.error('Failed to record content citations:', citationErr);
+              // Non-fatal — response is already saved
+            }
+          }
+
           // Update question status
           await supabase
             .from('bid_questions')

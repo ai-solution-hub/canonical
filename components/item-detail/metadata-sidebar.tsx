@@ -456,19 +456,42 @@ export function MetadataSidebar({
         </AccordionItem>
       </Accordion>
 
-      {/* Temporal references — extracted dates from content */}
-      {item.metadata &&
-        Array.isArray(
-          (item.metadata as Record<string, unknown>).temporal_references,
-        ) &&
-        ((item.metadata as Record<string, unknown>).temporal_references as unknown[]).length > 0 && (
-          <TemporalReferencesSection
-            temporalReferences={
-              (item.metadata as Record<string, unknown>)
-                .temporal_references as import('@/lib/date-extraction').TemporalReference[]
-            }
-          />
-        )}
+      {/* Temporal references — merged from regex extraction and AI classification */}
+      {(() => {
+        const meta = item.metadata as Record<string, unknown> | null;
+        if (!meta) return null;
+
+        const regexRefs = Array.isArray(meta.temporal_references)
+          ? (meta.temporal_references as import('@/lib/date-extraction').TemporalReference[])
+          : [];
+
+        // Normalise AI temporal references to the TemporalReference shape
+        const aiRefs = Array.isArray(meta.ai_temporal_references)
+          ? (meta.ai_temporal_references as Array<{ date: string; context: string; context_type: string }>).map(
+              (ref) => ({
+                date: ref.date,
+                type: (ref.context_type || 'unknown') as import('@/lib/date-extraction').DateContextType,
+                confidence: 'medium' as import('@/lib/date-extraction').ConfidenceLevel,
+                context: ref.context,
+              }),
+            )
+          : [];
+
+        // Merge and deduplicate by date + type
+        const seen = new Set<string>();
+        const merged: import('@/lib/date-extraction').TemporalReference[] = [];
+        for (const ref of [...regexRefs, ...aiRefs]) {
+          const key = `${ref.date}|${ref.type}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            merged.push(ref);
+          }
+        }
+
+        if (merged.length === 0) return null;
+
+        return <TemporalReferencesSection temporalReferences={merged} />;
+      })()}
 
       <SourceMetadata
         contentType={item.content_type as string}
