@@ -52,35 +52,35 @@
     },
     {
       "id": "52eb10ea-eaa6-433d-9c56-d573240b5cf8",
-      "name": "Safeguarding & Child Protection",
+      "name": "safeguarding-child-protection",
       "display_order": 8,
       "colour": "security",
       "provenance": "client"
     },
     {
       "id": "7ced99c1-cc93-4074-a4fb-d3c6f30b817b",
-      "name": "Safeguarding Adults",
+      "name": "safeguarding-adults",
       "display_order": 9,
       "colour": "compliance",
       "provenance": "client"
     },
     {
       "id": "9da13d3a-5ccb-4363-adc0-ce32dc442423",
-      "name": "Multi-Academy Trusts",
+      "name": "multi-academy-trusts",
       "display_order": 10,
       "colour": "implementation",
       "provenance": "client"
     },
     {
       "id": "e6be270b-5ee4-4b5a-ab51-3627fbed2372",
-      "name": "Education",
+      "name": "education",
       "display_order": 11,
       "colour": "methodology",
       "provenance": "client"
     },
     {
       "id": "406054e3-8e00-46e2-9bff-038b9daff1b9",
-      "name": "Products & Services",
+      "name": "products-services",
       "display_order": 12,
       "colour": "product",
       "provenance": "client"

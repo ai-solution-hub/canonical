@@ -15,6 +15,7 @@ export type TaxonomyProvenance = 'baseline' | 'client' | 'recommended';
 export interface TaxonomyDomain {
   id: string;
   name: string;
+  display_name?: string | null;
   display_order: number;
   colour: string | null;
   is_active: boolean;
@@ -25,6 +26,7 @@ export interface TaxonomySubtopic {
   id: string;
   domain_id: string;
   name: string;
+  display_name?: string | null;
   display_order: number;
   is_active: boolean;
   provenance: TaxonomyProvenance;

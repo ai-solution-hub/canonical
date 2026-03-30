@@ -118,14 +118,13 @@ describe('Taxonomy Consistency', () => {
       promptMap = parseCanonicalTaxonomy(CANONICAL_PATH);
     });
 
-    it('prompt domains should match baseline DB domains (case-insensitive)', () => {
+    it('prompt domains should match all active DB domains (case-insensitive)', () => {
       const promptDomains = [...promptMap.keys()].sort();
-      const baselineDbDomains = snapshot.domains
-        .filter((d) => d.provenance === 'baseline')
+      const allDbDomains = snapshot.domains
         .map((d) => d.name.toLowerCase())
         .sort();
 
-      expect(promptDomains).toEqual(baselineDbDomains);
+      expect(promptDomains).toEqual(allDbDomains);
     });
 
     it('prompt subtopics should be a subset of DB subtopics for each baseline domain', () => {

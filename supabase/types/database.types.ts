@@ -1471,6 +1471,7 @@ export type Database = {
           colour: string | null
           created_at: string
           description: string | null
+          display_name: string | null
           display_order: number
           id: string
           is_active: boolean | null
@@ -1484,6 +1485,7 @@ export type Database = {
           colour?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -1497,6 +1499,7 @@ export type Database = {
           colour?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -1512,6 +1515,7 @@ export type Database = {
           accepted_at: string | null
           created_at: string
           description: string | null
+          display_name: string | null
           display_order: number
           domain_id: string
           id: string
@@ -1525,6 +1529,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           domain_id: string
           id?: string
@@ -1538,6 +1543,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           domain_id?: string
           id?: string
@@ -2100,6 +2106,19 @@ export type Database = {
               title: string
             }[]
           }
+      get_aggregate_win_rate_stats: {
+        Args: never
+        Returns: {
+          losing_citations: number
+          pending_citations: number
+          scope: string
+          total_citations: number
+          unique_bids: number
+          unique_items_cited: number
+          win_rate: number
+          winning_citations: number
+        }[]
+      }
       get_all_tag_counts: {
         Args: never
         Returns: {
@@ -2175,6 +2194,8 @@ export type Database = {
       get_content_win_rate: {
         Args: { p_content_item_id: string }
         Returns: {
+          losing_citations: number
+          pending_citations: number
           total_citations: number
           win_rate: number
           winning_citations: number
