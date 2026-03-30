@@ -46,6 +46,7 @@ const ABBREVIATIONS: Record<string, string> = {
   cctv: 'CCTV',
   dpia: 'DPIA',
   ppon: 'PPON',
+  hl7: 'HL7',
 };
 
 /** Entity types where trailing plural 's' should be stripped */
@@ -55,6 +56,9 @@ const DEPLURAL_TYPES = new Set([
   'regulation',
   'certification',
   'technology',
+  'standard',
+  'methodology',
+  'product',
 ]);
 
 /**
