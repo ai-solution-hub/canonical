@@ -56,9 +56,10 @@ Full directory layout with file-level detail: `.planning/codebase/STRUCTURE.md`
 
 Key directories:
 
+Key file: `proxy.ts` — Next.js 16 convention file (auto-discovered, not imported) — auth middleware, `publicRoutes` allowlist
+
 | Directory | Contents |
 |-----------|----------|
-| `proxy.ts` | Next.js 16 convention file (auto-discovered, not imported) — auth middleware, `publicRoutes` allowlist |
 | `app/` | Next.js 16 App Router — API routes, page routes |
 | `mcp-apps/` | MCP App UIs (Vite single-file builds for Claude Desktop/Claude.ai) |
 | `components/` | 20 domain subdirs — new components go in their domain dir, never at root |
@@ -106,7 +107,6 @@ Required env vars (in `.env` and `.env.local`; see `.env.example` for template):
   `SET search_path = public, extensions` to avoid security warnings
 - **Prefer proper schema** -- tables and columns over JSONB for key data
 - One Supabase project per client — simple isolation, not multi-tenant RLS
-- **IMS reference project:** `ngsxwlaeybexlgsurnhy` (read-only, do not modify)
 
 ## Schema
 
@@ -126,7 +126,6 @@ columns use CHECK constraints. Canonical constants: `lib/validation/schemas.ts`.
 - **Python tests:** `python3 -m pytest scripts/tests/`
 - **E2E:** Playwright — specs in `e2e/tests/`. Worker-scoped fixtures,
   multi-role auth (admin/editor/viewer).
-- **Strategy:** Archived in `.planning/.archive/.specs/` (all waves complete)
 - **Agent escalation rule:** When test agents encounter unexpected production
   behaviour (e.g. a component renders incorrectly, a function returns wrong
   data, dead code paths, or tests that can only pass by not actually testing
@@ -202,82 +201,106 @@ findings before merge, worktrees for parallel work, sequential merges only.
 
 ## Gotchas
 
-- **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
-  `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
+### Supabase
+
 - **Embedding vector serialisation:** `JSON.stringify(embedding)` for Supabase
   RPC vector params, not raw array.
 - **Metadata double-serialisation:** Pass metadata as dict not `json.dumps()`
   — Supabase serialises it again.
-- **Supabase REST PATCH on wrong UUID:** Returns 200 OK with 0 rows (silent
-  no-op). Always verify updates by re-querying.
-- **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
+- **REST PATCH on wrong UUID:** Returns 200 OK with 0 rows (silent no-op).
+  Always verify updates by re-querying.
 - **RLS requires user_roles entry:** New users cannot write until seeded.
-- **Playwright browser install:** Must run `python3 -m playwright install
-  chromium` after pip install — version mismatches cause failures.
-- **taxonomy.ts dual-source:** App uses DB-driven taxonomy
-  (`contexts/taxonomy-context.tsx`), but `lib/taxonomy.ts` remains for the
-  Python pipeline. Constants in `lib/validation/schemas.ts`.
-- **Content review vs governance review:** `/review` = content quality (speed
-  review cards). `/api/governance/review` = freshness/ownership. Separate workflows.
-- **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions
-  in `mockImplementation()` cannot be used with `new` — use `function` keyword.
-- **Concurrent Claude sessions:** Two sessions on same working tree destroy each
-  other's files. Use git worktrees or sequence sessions.
-- **Proxy blocks non-API public routes:** New public endpoints must be added to
-  `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
-- **mcp-handler breaks on Vercel:** Use MCP SDK's
-  `WebStandardStreamableHTTPServerTransport` directly, not `createMcpHandler`.
-  Fresh server + transport per request. `mcp-handler` only for `.well-known`.
-- **Plugin not auto-discovered:** Must be published to local marketplace and
-  enabled in settings. Existing in `.claude/plugins/` is not enough.
-- **Plugin bundle is committed:** `lib/mcp/plugin-bundle.ts` must be committed.
-  Run `bun run build:plugin` after changing plugin files.
-- **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
-  backticks in any project file (including docs). Use `{name}` not `*`.
-- **E2E mobile:** Pixel 5 viewport may need `click({ force: true })` or
-  `dispatchEvent('click')` for partially obscured buttons.
-- **E2E auth timing:** Always `waitFor({ state: 'visible' })` before `fill()`
-  on login inputs.
 - **notifications_type_check:** Valid types listed in schema reference
   (§29 CHECK Constraints). Other values fail the DB constraint.
-- **python-docx and Track Changes:** Use `open_document_safe()` from
-  `scripts/docx_utils.py`, not `Document(path)` directly. Mammoth (TypeScript
-  path) handles Track Changes correctly.
-- **Browser testing:** Never use `mcp__playwright__*` for parallel testing. Use
-  `agent-browser` skill with `--session` for isolated sessions.
-- **Plugin marketplaces:** After pushing plugins to remote, `git pull` in
-  `~/.claude/plugins/marketplaces/{name}/` to refresh.
-- **Worktree agents leak files:** Before merging worktree branches, run
-  `git status` on main and clean with `git checkout -- .` and `git clean -fd`.
-- **React compiler memoisation:** Destructure nested properties before using
-  in `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
-- **Supabase CLI in Claude Code sandbox:** The CLI uses direct Postgres
-  connections via the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`)
-  which the sandbox blocks. Run `supabase migration new`, `supabase db push`,
-  and `supabase gen types` with `dangerouslyDisableSandbox: true`.
+- **CLI in Claude Code sandbox:** The CLI uses direct Postgres connections via
+  the pooler hostname (`aws-1-eu-west-2.pooler.supabase.com`) which the
+  sandbox blocks. Run `supabase migration new`, `supabase db push`, and
+  `supabase gen types` with `dangerouslyDisableSandbox: true`.
   `SUPABASE_DB_PASSWORD` must be set as a shell env var (source from `.env`).
 - **Empty migration files from worktree cherry-picks:** When cherry-picking
   from worktrees, migration files may arrive as 0-byte files. Supabase CLI
   marks them as "applied" even though no SQL ran. Always verify migration
   file content after cherry-pick. If an empty migration was already
   recorded, the SQL must be applied directly via `execute_sql` and the
-  local file backfilled. S123 hit this with `hybrid_search` verification
-  columns.
-- **Supabase default row limit:** Max Rows is set to 5000 (raised from 1000).
-  Scripts fetching large result sets should still paginate with `.range()` or
-  add explicit `.limit()` rather than relying on the default.
-- **`getAuthorisedClient()` discriminated union:** Returns
-  `{ success: boolean }` — check `auth.success` not `auth.authorised`.
-- **No barrel re-exports:** Always use direct file imports
-  (`@/lib/bid/helpers`), never import from index files.
-- **"Change Reports" not "Digest":** User-facing label is "Change Reports".
-  Internal code, types, routes, and file names still use "digest".
-- **Taxonomy changes require `bun run sync:taxonomy`:** After adding/editing
-  domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
-  classification prompt and plugin files. DB is the single source of truth.
+  local file backfilled.
+- **Default row limit:** Max Rows is set to 5000 (raised from 1000). Scripts
+  fetching large result sets should still paginate with `.range()` or add
+  explicit `.limit()` rather than relying on the default.
+
+### Testing
+
+- **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions
+  in `mockImplementation()` cannot be used with `new` — use `function` keyword.
 - **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122
   (version nibble = 4, variant nibble in `[89ab]`). Test UUIDs like
   `00000000-0000-0000-0000-000000000001` will fail — use v4-compliant values.
 - **Date-sensitive tests need pinned time:** Tests that compute "days ago"
   must use `vi.spyOn(Date, 'now')` with a fixed timestamp or the `daysAgo()`
   buffer pattern — `setDate()` rounding causes midnight-boundary flakiness.
+
+### E2E / Playwright
+
+- **Browser install:** Must run `python3 -m playwright install chromium` after
+  pip install — version mismatches cause failures.
+- **Mobile viewports:** Pixel 5 viewport may need `click({ force: true })` or
+  `dispatchEvent('click')` for partially obscured buttons.
+- **Auth timing:** Always `waitFor({ state: 'visible' })` before `fill()` on
+  login inputs.
+- **Browser testing:** Never use `mcp__playwright__*` for parallel testing. Use
+  `agent-browser` skill with `--session` for isolated sessions.
+
+### Plugin / MCP
+
+- **Plugin not auto-discovered:** Must be published to local marketplace and
+  enabled in settings. Existing in `.claude/plugins/` is not enough.
+- **Plugin bundle is committed:** `lib/mcp/plugin-bundle.ts` must be committed.
+  Run `bun run build:plugin` after changing plugin files.
+- **Plugin marketplaces:** After pushing plugins to remote, `git pull` in
+  `~/.claude/plugins/marketplaces/{name}/` to refresh.
+- **mcp-handler breaks on Vercel:** Use MCP SDK's
+  `WebStandardStreamableHTTPServerTransport` directly, not `createMcpHandler`.
+  Fresh server + transport per request. `mcp-handler` only for `.well-known`.
+
+### Data & Architecture
+
+- **TanStack Query migration in progress:** ~6 hooks migrated (`lib/query/`,
+  `use-entity-detail`, `use-digest-data`, `use-tags-data`, `use-library-data`,
+  `use-diff-review`, `use-library-bulk-actions`). ~24 hooks still use
+  useState+fetch. New data-fetching hooks should use TanStack Query with
+  `lib/query/query-keys.ts` and `lib/query/fetchers.ts`.
+- **`getAuthorisedClient()` discriminated union:** Returns
+  `{ success: boolean }` — check `auth.success` not `auth.authorised`.
+- **No barrel re-exports:** Always use direct file imports
+  (`@/lib/bid/helpers`), never import from index files.
+- **taxonomy.ts dual-source:** App uses DB-driven taxonomy
+  (`contexts/taxonomy-context.tsx`), but `lib/taxonomy.ts` remains for the
+  Python pipeline. Constants in `lib/validation/schemas.ts`.
+- **Taxonomy changes require `bun run sync:taxonomy`:** After adding/editing
+  domains or subtopics via admin UI, run `sync:taxonomy` to regenerate the
+  classification prompt and plugin files. DB is the single source of truth.
+- **Content review vs governance review:** `/review` = content quality (speed
+  review cards). `/api/governance/review` = freshness/ownership. Separate workflows.
+- **"Change Reports" not "Digest":** User-facing label is "Change Reports".
+  Internal code, types, routes, and file names still use "digest".
+
+### UI / Frontend
+
+- **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
+  `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
+- **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
+  backticks in any project file (including docs). Use `{name}` not `*`.
+- **React compiler memoisation:** Destructure nested properties before using
+  in `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
+
+### General
+
+- **Python background output:** Use `PYTHONUNBUFFERED=1` or output is invisible.
+- **python-docx and Track Changes:** Use `open_document_safe()` from
+  `scripts/docx_utils.py`, not `Document(path)` directly. Mammoth (TypeScript
+  path) handles Track Changes correctly.
+- **Concurrent Claude sessions:** Two sessions on same working tree destroy each
+  other's files. Use git worktrees or sequence sessions.
+- **Worktree agents leak files:** Before merging worktree branches, run
+  `git status` on main and clean with `git checkout -- .` and `git clean -fd`.
+- **Proxy blocks non-API public routes:** New public endpoints must be added to
+  `publicRoutes` in `proxy.ts` (project root) or they silently redirect to `/login`.
