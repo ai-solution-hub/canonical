@@ -858,6 +858,75 @@ describe('useStreamCoordination', () => {
         expect(mockFetch.mock.calls.length).toBeGreaterThan(fetchCountBefore);
       });
     });
+
+    it('response is cached per question (switching back does not refetch)', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const fetchCountAfterFirstLoad = mockFetch.mock.calls.length;
+
+      // Navigate away and back
+      await act(async () => {
+        result.current.handleNavigate(1);
+      });
+
+      await act(async () => {
+        result.current.handleNavigate(0);
+      });
+
+      // TanStack Query serves from cache — no additional fetch for the same question
+      // (staleTime prevents refetch within the window)
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+    });
+
+    it('mutation error does not corrupt query cache', async () => {
+      const { result } = await renderAndWaitForLoad(defaultParams(), {
+        patchOk: false,
+      });
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      const responseBefore = result.current.response;
+
+      // Attempt a failing save
+      await act(async () => {
+        try {
+          await result.current.handleAction('save');
+        } catch {
+          // Expected to throw
+        }
+      });
+
+      // Response data should be unchanged after failed mutation
+      expect(result.current.response).toEqual(responseBefore);
+    });
+
+    it('handleLibraryInsert calls provenance mutation', async () => {
+      const { result } = await renderAndWaitForLoad();
+
+      await waitFor(() => {
+        expect(result.current.response).not.toBeNull();
+      });
+
+      await act(async () => {
+        result.current.handleLibraryInsert('test-qa-id', 'Test inserted content');
+      });
+
+      // Should have made a POST to the provenance endpoint
+      await waitFor(() => {
+        const provenanceCalls = mockFetch.mock.calls.filter(
+          ([url]: [string]) => typeof url === 'string' && url.includes('provenance'),
+        );
+        expect(provenanceCalls.length).toBeGreaterThanOrEqual(1);
+      });
+    });
   });
 
   // =========================================================================

@@ -218,7 +218,6 @@ export function useBidResponseActions({
       editorContent,
       stream,
       responseMutation,
-      bidId,
       setEditorContent,
       lastServerContentRef,
       streamTextRef,
