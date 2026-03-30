@@ -1471,6 +1471,7 @@ export type Database = {
           colour: string | null
           created_at: string
           description: string | null
+          display_name: string | null
           display_order: number
           id: string
           is_active: boolean | null
@@ -1484,6 +1485,7 @@ export type Database = {
           colour?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -1497,6 +1499,7 @@ export type Database = {
           colour?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           id?: string
           is_active?: boolean | null
@@ -1512,6 +1515,7 @@ export type Database = {
           accepted_at: string | null
           created_at: string
           description: string | null
+          display_name: string | null
           display_order: number
           domain_id: string
           id: string
@@ -1525,6 +1529,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           domain_id: string
           id?: string
@@ -1538,6 +1543,7 @@ export type Database = {
           accepted_at?: string | null
           created_at?: string
           description?: string | null
+          display_name?: string | null
           display_order?: number
           domain_id?: string
           id?: string

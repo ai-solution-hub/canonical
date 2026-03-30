@@ -39,6 +39,11 @@ export const FALLBACK_COLOUR_MAP: Record<string, string> = {
   corporate: 'corporate',
   'product-feature': 'product',
   methodology: 'methodology',
+  'safeguarding-child-protection': 'security',
+  'safeguarding-adults': 'security',
+  'multi-academy-trusts': 'corporate',
+  education: 'implementation',
+  'products-services': 'product',
 };
 
 // ---------------------------------------------------------------------------
@@ -56,8 +61,9 @@ export function formatSubtopic(subtopic: string): string {
     .join(' ');
 }
 
-/** Format a domain name for display (kebab-case to Title Case, abbreviations uppercased) */
-export function formatDomainName(domain: string): string {
+/** Format a domain name for display. Uses displayName if provided, otherwise converts kebab-case to Title Case. */
+export function formatDomainName(domain: string, displayName?: string | null): string {
+  if (displayName) return displayName;
   return domain
     .split('-')
     .map((word) => {

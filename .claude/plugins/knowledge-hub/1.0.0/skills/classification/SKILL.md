@@ -21,7 +21,7 @@ Domain (Level 1)
 **Domains** are broad knowledge areas (e.g., Security, Compliance, Methodology). Each domain contains multiple **subtopics** that provide finer-grained classification.
 
 <!-- TAXONOMY_INJECT_START -->
-### Full Taxonomy (7 domains, 34 subtopics)
+### Full Taxonomy (12 domains, 38 subtopics)
 
 ```
 Security (5 subtopics)
@@ -31,14 +31,16 @@ Security (5 subtopics)
   ├── access-control (Authentication, authorisation, role-based access, multi-factor authentication)
   └── iso-27001 (ISO 27001 certification, ISMS, security management framework compliance)
 
-Compliance (7 subtopics)
+Compliance (9 subtopics)
   ├── standards (Industry standards compliance, best practice frameworks, governance requirements)
   ├── regulatory (Legal and regulatory requirements, sector-specific regulations, compliance obligations)
   ├── audit (Audit processes, evidence gathering, compliance reporting, third-party audits)
   ├── certification (Professional certifications, organisational accreditations, quality marks)
   ├── health-and-safety (Health and safety policy, risk assessments, incident reporting, RIDDOR, CDM regulations)
   ├── environmental (Carbon reduction plan, net zero targets, environmental policy, ISO 14001, sustainability, PPN 06/20)
-  └── modern-slavery (Modern slavery statement, supply chain due diligence, forced labour prevention, PPN 02/23)
+  ├── modern-slavery (Modern slavery statement, supply chain due diligence, forced labour prevention, PPN 02/23)
+  ├── equalities (Equalities Act 2010, written equalities statement, equal opportunities policy, diversity and inclusion)
+  └── safeguarding (Safeguarding policy, DBS checks, vulnerable persons, duty of care, child protection)
 
 Implementation (4 subtopics)
   ├── deployment (Solution rollout, environment setup, go-live planning, deployment processes)
@@ -52,13 +54,15 @@ Support (4 subtopics)
   ├── maintenance (Scheduled maintenance, patching, updates, system health monitoring)
   └── incident (Incident response, disaster recovery, business continuity, root cause analysis)
 
-Corporate (6 subtopics)
+Corporate (8 subtopics)
   ├── company-info (Company overview, history, mission, organisational structure)
   ├── financial (Financial statements, turnover, profitability, financial stability)
   ├── insurance (Professional indemnity, public liability, cyber insurance, coverage details)
   ├── references (Client references, case studies, testimonials, similar contract experience)
   ├── staffing (Team structure, key personnel, CVs, recruitment and retention)
-  └── supply-chain (Supply chain management, prompt payment, subcontractor oversight, PPN 02/23)
+  ├── supply-chain (Supply chain management, prompt payment, subcontractor oversight, PPN 02/23)
+  ├── financial-standing (Turnover thresholds, credit checks, bankruptcy declarations, financial statements, accounts)
+  └── methodology (Method statements, service delivery approach, working arrangements, key steps, efficiencies, risk mitigation)
 
 Product-Feature (4 subtopics)
   ├── functionality (Core product features, capabilities, modules, feature descriptions)
@@ -71,6 +75,16 @@ Methodology (4 subtopics)
   ├── project-management (Project governance, milestones, risk management, stakeholder communication)
   ├── quality (Quality assurance, testing strategy, acceptance criteria, continuous improvement)
   └── delivery (Delivery timelines, phased rollout, resource planning, capacity management)
+
+Safeguarding-child-protection (0 subtopics)
+
+Safeguarding-adults (0 subtopics)
+
+Multi-academy-trusts (0 subtopics)
+
+Education (0 subtopics)
+
+Products-services (0 subtopics)
 ```
 <!-- TAXONOMY_INJECT_END -->
 
@@ -104,7 +118,7 @@ Each KB item is classified with one content type:
 | **methodology** | Methodology or approach description | Process evidence for bids |
 | **capability** | Service or product capability statement | Capability evidence |
 | **product_description** | Product or service description | Marketing and technical detail |
-| **document** | General document (Word, uploaded files) | Imported business documents |
+| **document** | Generic content item | General knowledge |
 <!-- CONTENT_TYPES_INJECT_END -->
 
 ### Content Type Selection Guidance

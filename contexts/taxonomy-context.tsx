@@ -74,12 +74,12 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
       const [domainsResult, subtopicsResult] = await Promise.all([
         supabase
           .from('taxonomy_domains')
-          .select('id, name, display_order, colour, is_active, provenance')
+          .select('id, name, display_name, display_order, colour, is_active, provenance')
           .eq('is_active', true)
           .order('display_order', { ascending: true }),
         supabase
           .from('taxonomy_subtopics')
-          .select('id, domain_id, name, display_order, is_active, provenance, description')
+          .select('id, domain_id, name, display_name, display_order, is_active, provenance, description')
           .eq('is_active', true)
           .order('display_order', { ascending: true }),
       ]);
@@ -174,8 +174,12 @@ export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
   );
 
   const formatDomainName = useCallback(
-    (domain: string): string => formatDomainNameUtil(domain),
-    [],
+    (domain: string): string => {
+      const domainRecord = domainByName.get(domain);
+      if (domainRecord?.display_name) return domainRecord.display_name;
+      return formatDomainNameUtil(domain);
+    },
+    [domainByName],
   );
 
   const contextValue: TaxonomyContextValue = useMemo(

@@ -35,6 +35,27 @@ export function isExcludedEntity(name: string): boolean {
 }
 
 // ──────────────────────────────────────────
+// Domain validation
+// ──────────────────────────────────────────
+
+/**
+ * Normalise an AI-returned domain string to a valid taxonomy slug.
+ * Converts to lowercase kebab-case, strips non-alphanumeric characters,
+ * then matches against the list of valid domain slugs.
+ */
+export function validateDomain(domain: string, validDomains: string[]): string {
+  const slug = domain
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+  const exact = validDomains.find((d) => d === slug);
+  if (exact) return exact;
+  // Fuzzy match: find closest valid domain by substring containment
+  const closest = validDomains.find((d) => d.includes(slug) || slug.includes(d));
+  return closest ?? validDomains[0]; // Fallback to first domain
+}
+
+// ──────────────────────────────────────────
 // Types
 // ──────────────────────────────────────────
 
@@ -371,6 +392,15 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
     response,
     'return_classification',
   );
+
+  // Validate domains against taxonomy slugs
+  const validDomainSlugs = (domains ?? []).map((d) => d.name);
+  if (validDomainSlugs.length > 0) {
+    result.primary_domain = validateDomain(result.primary_domain, validDomainSlugs);
+    if (result.secondary_domain) {
+      result.secondary_domain = validateDomain(result.secondary_domain, validDomainSlugs);
+    }
+  }
 
   // Normalise AI keywords before storage to prevent duplicates
   const normalisedKeywords = result.ai_keywords
