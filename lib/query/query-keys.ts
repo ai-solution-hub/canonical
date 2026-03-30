@@ -158,7 +158,10 @@ export const queryKeys = {
   // Progress
   progress: {
     all: ['progress'] as const,
-    stats: ['progress', 'stats'] as const,
+    stats: (readCount?: number) =>
+      readCount !== undefined
+        ? (['progress', 'stats', readCount] as const)
+        : (['progress', 'stats'] as const),
   },
 
   // Topic layers

@@ -134,7 +134,7 @@ export function useProgress(): UseProgressReturn {
 
   // Streak and items this week from read_marks — uses TanStack Query
   const { data: stats } = useQuery({
-    queryKey: [...queryKeys.progress.stats, readCount],
+    queryKey: queryKeys.progress.stats(readCount),
     queryFn: fetchProgressStats,
     enabled: isLoaded,
     staleTime: 60_000,

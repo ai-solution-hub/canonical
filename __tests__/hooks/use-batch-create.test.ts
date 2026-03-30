@@ -2,10 +2,12 @@
  * useBatchCreate Hook Tests
  *
  * Tests successful batch submission, error handling, progress tracking,
- * and duplicate detection.
+ * and duplicate detection. Migrated to use QueryClientProvider wrapper.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -33,6 +35,22 @@ import { useBatchCreate, type BatchQAPair } from '@/hooks/use-batch-create';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
+}
+
 function createMockFetchResponse(data: unknown, ok = true, status = 201) {
   return Promise.resolve({
     ok,
@@ -59,7 +77,9 @@ describe('useBatchCreate', () => {
 
   describe('submit', () => {
     it('returns initial state', () => {
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       expect(result.current.isSubmitting).toBe(false);
       expect(result.current.isCheckingDuplicates).toBe(false);
@@ -84,7 +104,9 @@ describe('useBatchCreate', () => {
         createMockFetchResponse(mockResponse),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       const pairs: BatchQAPair[] = [
         { question: 'What is X?', answer: 'X is a thing' },
@@ -130,7 +152,9 @@ describe('useBatchCreate', () => {
         ),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       const pairs: BatchQAPair[] = [
         { question: 'What is X?', answer: 'X is a thing' },
@@ -150,7 +174,9 @@ describe('useBatchCreate', () => {
     it('handles network errors gracefully', async () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       const pairs: BatchQAPair[] = [
         { question: 'What is X?', answer: 'X is a thing' },
@@ -183,7 +209,9 @@ describe('useBatchCreate', () => {
         createMockFetchResponse(mockResponse),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       const pairs: BatchQAPair[] = [
         { question: 'Q1', answer: 'A1' },
@@ -209,7 +237,9 @@ describe('useBatchCreate', () => {
         }),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       await act(async () => {
         await result.current.submit(
@@ -234,7 +264,9 @@ describe('useBatchCreate', () => {
         }),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       await act(async () => {
         await result.current.submit(
@@ -254,7 +286,9 @@ describe('useBatchCreate', () => {
         createMockFetchResponse({ error: 'Failed' }, false, 500),
       );
 
-      const { result } = renderHook(() => useBatchCreate());
+      const wrapper = createWrapper();
+
+      const { result } = renderHook(() => useBatchCreate(), { wrapper });
 
       await act(async () => {
         await result.current.submit([{ question: 'Q1', answer: 'A1' }]);
@@ -286,7 +320,9 @@ describe('useBatchCreate', () => {
     it('returns empty array when no duplicates found', async () => {
       mockLimit.mockResolvedValue({ data: [], error: null });
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       let matches: unknown;
       await act(async () => {
@@ -305,7 +341,9 @@ describe('useBatchCreate', () => {
         error: null,
       });
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       let matches: unknown;
       await act(async () => {
@@ -326,7 +364,9 @@ describe('useBatchCreate', () => {
         error: null,
       });
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       let matches: unknown;
       await act(async () => {
@@ -345,7 +385,9 @@ describe('useBatchCreate', () => {
     it('handles errors gracefully by returning empty array', async () => {
       mockLimit.mockRejectedValue(new Error('DB error'));
 
-      const { result } = renderHook(() => useBatchCreate());
+      const { result } = renderHook(() => useBatchCreate(), {
+        wrapper: createWrapper(),
+      });
 
       let matches: unknown;
       await act(async () => {

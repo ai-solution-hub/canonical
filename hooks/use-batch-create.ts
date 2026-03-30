@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { mutationFetchJson } from '@/lib/query/fetchers';
 import { createClient } from '@/lib/supabase/client';
 import { formatQAContent } from '@/components/qa/batch-qa-preview-table';
 
@@ -57,6 +60,19 @@ export interface UseBatchCreateReturn {
 }
 
 // ---------------------------------------------------------------------------
+// Mutation variables types
+// ---------------------------------------------------------------------------
+
+interface SubmitVariables {
+  pairs: BatchQAPair[];
+  options?: {
+    domain?: string;
+    subtopic?: string;
+    sourceDocumentLink?: string;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
@@ -64,29 +80,82 @@ export interface UseBatchCreateReturn {
  * Hook wrapping the `POST /api/items/batch` endpoint for batch Q&A creation.
  *
  * Provides submit, progress tracking, duplicate checking, and error handling.
+ *
+ * Migrated to TanStack Query: submit and checkDuplicates use useMutation,
+ * with cache invalidation on successful batch creation.
  */
 export function useBatchCreate(): UseBatchCreateReturn {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingDuplicates, setIsCheckingDuplicates] = useState(false);
-  const [progress, setProgress] = useState<BatchCreateProgress>({ current: 0, total: 0 });
-  const [results, setResults] = useState<BatchCreateResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  /**
-   * Check for potential duplicate titles before submission.
-   * Uses a lightweight `ilike` search — best-effort, not semantic.
-   */
-  const checkDuplicates = useCallback(async (pairs: BatchQAPair[]): Promise<DuplicateMatch[]> => {
-    setIsCheckingDuplicates(true);
-    try {
+  // Progress is updated mid-mutation (before/after API call) so stays as useState
+  const [progress, setProgress] = useState<BatchCreateProgress>({
+    current: 0,
+    total: 0,
+  });
+
+  // -------------------------------------------------------------------------
+  // Submit mutation
+  // -------------------------------------------------------------------------
+
+  const submitMutation = useMutation<
+    BatchCreateResult,
+    Error,
+    SubmitVariables
+  >({
+    mutationFn: async ({ pairs, options }: SubmitVariables) => {
+      setProgress({ current: 0, total: pairs.length });
+
+      const items = pairs.map((pair) => ({
+        title: pair.question,
+        content: formatQAContent(pair),
+        contentType: 'q_a_pair' as const,
+      }));
+
+      const body: Record<string, unknown> = { items };
+
+      // The batch API accepts source_document_id (UUID). The sourceDocumentLink
+      // is a URL, so we do not pass it as source_document_id. Instead, we pass
+      // it via metadata if needed in the future. For now, we only support UUID.
+      if (options?.sourceDocumentLink) {
+        const uuidPattern =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidPattern.test(options.sourceDocumentLink)) {
+          body.source_document_id = options.sourceDocumentLink;
+        }
+      }
+
+      const result = await mutationFetchJson<BatchCreateResult>(
+        '/api/items/batch',
+        body,
+      );
+
+      setProgress({ current: pairs.length, total: pairs.length });
+      return result;
+    },
+    onSuccess: () => {
+      // Invalidate content items cache — new items were created
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Duplicate check mutation
+  // -------------------------------------------------------------------------
+
+  const duplicateMutation = useMutation<
+    DuplicateMatch[],
+    Error,
+    BatchQAPair[]
+  >({
+    mutationFn: async (pairs: BatchQAPair[]) => {
       const supabase = createClient();
       const matches: DuplicateMatch[] = [];
 
-      // Check each question against existing content_items titles.
-      // Batch into a single query using `or` filters to reduce round-trips.
       for (const pair of pairs) {
         // Trim to first 100 chars for the search to avoid overly long queries
-        const searchTerm = pair.question.slice(0, 100).replace(/%/g, '\\%');
+        const searchTerm = pair.question
+          .slice(0, 100)
+          .replace(/%/g, '\\%');
         const { data } = await supabase
           .from('content_items')
           .select('id, title')
@@ -108,90 +177,55 @@ export function useBatchCreate(): UseBatchCreateReturn {
       }
 
       return matches;
-    } catch {
-      // Non-fatal — duplicate checking is best-effort
-      return [];
-    } finally {
-      setIsCheckingDuplicates(false);
-    }
-  }, []);
-
-  /**
-   * Submit batch Q&A pairs to the API.
-   * Each pair is formatted as "Q: {question}\n\nA: {answer}".
-   */
-  const submit = useCallback(async (
-    pairs: BatchQAPair[],
-    options?: {
-      domain?: string;
-      subtopic?: string;
-      sourceDocumentLink?: string;
     },
-  ): Promise<BatchCreateResult | null> => {
-    setIsSubmitting(true);
-    setError(null);
-    setResults(null);
-    setProgress({ current: 0, total: pairs.length });
+  });
 
-    try {
-      const items = pairs.map((pair) => ({
-        title: pair.question,
-        content: formatQAContent(pair),
-        contentType: 'q_a_pair' as const,
-      }));
+  // -------------------------------------------------------------------------
+  // Wrapped submit that preserves the original return signature
+  // -------------------------------------------------------------------------
 
-      const body: Record<string, unknown> = { items };
-
-      // The batch API accepts source_document_id (UUID). The sourceDocumentLink
-      // is a URL, so we do not pass it as source_document_id. Instead, we pass
-      // it via metadata if needed in the future. For now, we only support UUID.
-      if (options?.sourceDocumentLink) {
-        // Only pass if it looks like a UUID
-        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidPattern.test(options.sourceDocumentLink)) {
-          body.source_document_id = options.sourceDocumentLink;
-        }
+  const submit = useCallback(
+    async (
+      pairs: BatchQAPair[],
+      options?: {
+        domain?: string;
+        subtopic?: string;
+        sourceDocumentLink?: string;
+      },
+    ): Promise<BatchCreateResult | null> => {
+      try {
+        return await submitMutation.mutateAsync({ pairs, options });
+      } catch {
+        // mutateAsync throws on error — return null to match original interface
+        return null;
       }
+    },
+    [submitMutation],
+  );
 
-      const res = await fetch('/api/items/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+  // -------------------------------------------------------------------------
+  // Wrapped checkDuplicates that preserves the original return signature
+  // -------------------------------------------------------------------------
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Batch creation failed');
+  const checkDuplicates = useCallback(
+    async (pairs: BatchQAPair[]): Promise<DuplicateMatch[]> => {
+      try {
+        return await duplicateMutation.mutateAsync(pairs);
+      } catch {
+        // Non-fatal — duplicate checking is best-effort
+        return [];
       }
-
-      const result: BatchCreateResult = {
-        created: data.created,
-        failed: data.failed,
-        items: data.items,
-        pipeline_run_id: data.pipeline_run_id,
-        batch_id: data.batch_id,
-      };
-
-      setProgress({ current: pairs.length, total: pairs.length });
-      setResults(result);
-      return result;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Batch creation failed';
-      setError(message);
-      return null;
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, []);
+    },
+    [duplicateMutation],
+  );
 
   return {
     submit,
     checkDuplicates,
-    isSubmitting,
-    isCheckingDuplicates,
+    isSubmitting: submitMutation.isPending,
+    isCheckingDuplicates: duplicateMutation.isPending,
     progress,
-    results,
-    error,
+    results: submitMutation.data ?? null,
+    error: submitMutation.error?.message ?? null,
   };
 }

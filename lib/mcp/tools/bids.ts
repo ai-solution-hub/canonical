@@ -421,6 +421,7 @@ export async function registerBidTools(server: McpServer): Promise<void> {
       },
       annotations: {
         readOnlyHint: true,
+        destructiveHint: false,
         idempotentHint: true,
         openWorldHint: false,
       },
