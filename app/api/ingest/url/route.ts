@@ -190,6 +190,8 @@ export async function POST(request: NextRequest) {
     let topicSuggestion: { topicId: string; reason: string } | undefined;
     let classifiedDomain = '';
     let classifiedSubtopic = '';
+    let classifiedSecondaryDomain = '';
+    let classifiedSecondarySubtopic = '';
     try {
       const { suggestTopic } = await import('@/lib/topic-inference');
       const { createServiceClient } = await import('@/lib/supabase/server');
@@ -198,12 +200,14 @@ export async function POST(request: NextRequest) {
       // Re-fetch domain/subtopic (set by classification in step 14)
       const { data: classified } = await supabase
         .from('content_items')
-        .select('primary_domain, primary_subtopic')
+        .select('primary_domain, primary_subtopic, secondary_domain, secondary_subtopic')
         .eq('id', newItem.id)
         .single();
 
       classifiedDomain = classified?.primary_domain || '';
       classifiedSubtopic = classified?.primary_subtopic || '';
+      classifiedSecondaryDomain = classified?.secondary_domain || '';
+      classifiedSecondarySubtopic = classified?.secondary_subtopic || '';
 
       if (classifiedDomain && classifiedSubtopic) {
         const suggestion = await suggestTopic(serviceClient, {
@@ -237,6 +241,8 @@ export async function POST(request: NextRequest) {
         const matches = await suggestGuideSections(serviceClient, {
           primaryDomain: classifiedDomain,
           primarySubtopic: classifiedSubtopic,
+          secondaryDomain: classifiedSecondaryDomain || undefined,
+          secondarySubtopic: classifiedSecondarySubtopic || undefined,
           layer: suggestedLayer?.suggestedLayer,
           contentType,
         });

@@ -2506,6 +2506,8 @@ export type Database = {
           suggested_title: string
           thumbnail_url: string
           title: string
+          verified_at: string
+          verified_by: string
         }[]
       }
       merge_entities: {

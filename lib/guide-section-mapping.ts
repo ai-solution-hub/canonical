@@ -24,6 +24,10 @@ export interface GuideSectionMatchInput {
   primaryDomain: string;
   /** Item's classified primary subtopic */
   primarySubtopic: string;
+  /** Item's secondary domain (optional) */
+  secondaryDomain?: string;
+  /** Item's secondary subtopic (optional) */
+  secondarySubtopic?: string;
   /** Item's layer (from inferLayer() or item metadata) */
   layer?: string;
   /** Item's content type (from classification or user input) */
@@ -90,15 +94,21 @@ export async function suggestGuideSections(
   supabase: SupabaseClient<Database>,
   input: GuideSectionMatchInput,
 ): Promise<GuideSectionMatch[]> {
-  const { primaryDomain, primarySubtopic, layer, contentType } = input;
+  const { primaryDomain, primarySubtopic, secondaryDomain, secondarySubtopic, layer, contentType } = input;
 
   // Guard: domain is required (sections are always scoped to a guide domain)
   if (!primaryDomain) {
     return [];
   }
 
+  // Build list of domains to match against guide domain_filter
+  const matchDomains = [primaryDomain];
+  if (secondaryDomain && secondaryDomain !== primaryDomain) {
+    matchDomains.push(secondaryDomain);
+  }
+
   // ---------------------------
-  // Query: fetch all sections from published guides matching this domain
+  // Query: fetch all sections from published guides matching primary or secondary domain
   // ---------------------------
   const { data: sections, error } = await supabase
     .from('guide_sections')
@@ -106,7 +116,7 @@ export async function suggestGuideSections(
       'id, section_name, subtopic_filter, expected_layer, content_type_filter, display_order, is_required, guides!inner(id, name, slug, domain_filter, display_order, is_published)',
     )
     .eq('guides.is_published', true)
-    .eq('guides.domain_filter', primaryDomain);
+    .in('guides.domain_filter', matchDomains);
 
   if (error || !sections || sections.length === 0) {
     return [];
@@ -134,9 +144,12 @@ export async function suggestGuideSections(
     const filterChecks: { name: string; matches: boolean }[] = [];
 
     if (section.subtopic_filter !== null) {
+      const subtopicMatches =
+        section.subtopic_filter === primarySubtopic ||
+        (secondarySubtopic != null && section.subtopic_filter === secondarySubtopic);
       filterChecks.push({
         name: 'subtopic',
-        matches: section.subtopic_filter === primarySubtopic,
+        matches: subtopicMatches,
       });
     }
 
@@ -169,6 +182,15 @@ export async function suggestGuideSections(
       matchStrength = 'domain_only';
     }
 
+    // Cap match strength to 'partial' for secondary-domain-only matches
+    const isSecondaryDomainMatch =
+      guide.domain_filter !== primaryDomain &&
+      guide.domain_filter === secondaryDomain;
+
+    if (isSecondaryDomainMatch && matchStrength === 'exact') {
+      matchStrength = 'partial';
+    }
+
     // Build human-readable reason
     const matchReason = buildMatchReason(
       matchStrength,
@@ -176,6 +198,7 @@ export async function suggestGuideSections(
       section.section_name,
       matchedFilters.map((f) => f.name),
       filterChecks.filter((f) => !f.matches).map((f) => f.name),
+      isSecondaryDomainMatch,
     );
 
     matches.push({
@@ -234,18 +257,30 @@ function buildMatchReason(
   sectionName: string,
   matchedFilters: string[],
   unmatchedFilters: string[],
+  isSecondaryDomainMatch: boolean,
 ): string {
+  const prefix = `"${guideName}" > "${sectionName}"`;
+
   switch (strength) {
     case 'exact':
       if (matchedFilters.length === 0) {
-        return `Matches "${guideName}" > "${sectionName}" — section accepts all content in this domain`;
+        return `Matches ${prefix} — section accepts all content in this domain`;
       }
-      return `Matches "${guideName}" > "${sectionName}" — all filters match (${matchedFilters.join(', ')})`;
+      return `Matches ${prefix} — all filters match (${matchedFilters.join(', ')})`;
 
-    case 'partial':
-      return `Partially matches "${guideName}" > "${sectionName}" — matches ${matchedFilters.join(', ')} but not ${unmatchedFilters.join(', ')}`;
+    case 'partial': {
+      if (isSecondaryDomainMatch && unmatchedFilters.length === 0) {
+        // Capped from exact due to secondary domain — all filters matched
+        // but domain is secondary, not primary
+        const filterNote = matchedFilters.length > 0
+          ? ` (${matchedFilters.join(', ')} match)`
+          : '';
+        return `Matches ${prefix} via secondary domain${filterNote}`;
+      }
+      return `Partially matches ${prefix} — matches ${matchedFilters.join(', ')} but not ${unmatchedFilters.join(', ')}`;
+    }
 
     case 'domain_only':
-      return `Domain match for "${guideName}" > "${sectionName}" — only domain matches (${unmatchedFilters.join(', ')} differ)`;
+      return `Domain match for ${prefix} — only domain matches (${unmatchedFilters.join(', ')} differ)`;
   }
 }

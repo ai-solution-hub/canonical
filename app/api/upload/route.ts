@@ -721,6 +721,8 @@ export async function POST(request: NextRequest) {
     let topicSuggestion: { topicId: string; reason: string } | undefined;
     let classifiedDomain = '';
     let classifiedSubtopic = '';
+    let classifiedSecondaryDomain = '';
+    let classifiedSecondarySubtopic = '';
     if (extractedText) {
       try {
         const { suggestTopic } = await import('@/lib/topic-inference');
@@ -728,12 +730,14 @@ export async function POST(request: NextRequest) {
         // Fetch domain/subtopic (set by classification above)
         const { data: classified } = await serviceClient
           .from('content_items')
-          .select('primary_domain, primary_subtopic')
+          .select('primary_domain, primary_subtopic, secondary_domain, secondary_subtopic')
           .eq('id', itemId)
           .single();
 
         classifiedDomain = classified?.primary_domain || '';
         classifiedSubtopic = classified?.primary_subtopic || '';
+        classifiedSecondaryDomain = classified?.secondary_domain || '';
+        classifiedSecondarySubtopic = classified?.secondary_subtopic || '';
 
         if (classifiedDomain && classifiedSubtopic) {
           const suggestion = await suggestTopic(serviceClient, {
@@ -765,6 +769,8 @@ export async function POST(request: NextRequest) {
         const matches = await suggestGuideSections(serviceClient, {
           primaryDomain: classifiedDomain,
           primarySubtopic: classifiedSubtopic,
+          secondaryDomain: classifiedSecondaryDomain || undefined,
+          secondarySubtopic: classifiedSecondarySubtopic || undefined,
           layer: suggestedLayer?.suggestedLayer,
           contentType,
         });

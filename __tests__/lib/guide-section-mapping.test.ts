@@ -409,7 +409,7 @@ describe('suggestGuideSections — no matches', () => {
     expect(mockClient.from).not.toHaveBeenCalled();
   });
 
-  it('queries the correct table and passes domain filter', async () => {
+  it('queries the correct table and passes domain filter via .in()', async () => {
     configureSectionResponse(mockClient, []);
 
     await suggestGuideSections(
@@ -419,9 +419,30 @@ describe('suggestGuideSections — no matches', () => {
 
     expect(mockClient.from).toHaveBeenCalledWith('guide_sections');
     expect(mockClient._chain.select).toHaveBeenCalled();
-    // The .eq calls are on the chain — verify they were called
     expect(mockClient._chain.eq).toHaveBeenCalledWith('guides.is_published', true);
-    expect(mockClient._chain.eq).toHaveBeenCalledWith('guides.domain_filter', 'Technology');
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Technology']);
+  });
+
+  it('queries with both domains when secondaryDomain is provided', async () => {
+    configureSectionResponse(mockClient, []);
+
+    await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'corporate' }),
+    );
+
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Compliance', 'corporate']);
+  });
+
+  it('does not duplicate domain in query when secondaryDomain equals primaryDomain', async () => {
+    configureSectionResponse(mockClient, []);
+
+    await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'Compliance' }),
+    );
+
+    expect(mockClient._chain.in).toHaveBeenCalledWith('guides.domain_filter', ['Compliance']);
   });
 });
 
@@ -716,6 +737,152 @@ describe('suggestGuideSections — content type filter', () => {
     expect(results).toHaveLength(1);
     // Subtopic and layer match, but content_type does not (undefined != 'q_a_pair')
     expect(results[0].matchStrength).toBe('partial');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Secondary domain matching
+// ---------------------------------------------------------------------------
+
+describe('suggestGuideSections — secondary domain matching', () => {
+  let mockClient: MockSupabaseClient;
+
+  beforeEach(() => {
+    mockClient = createMockSupabaseClient();
+  });
+
+  it('caps match strength to partial for secondary-domain-only matches with all NULL filters', async () => {
+    // Guide matched via secondary domain, section has no filters
+    configureSectionResponse(mockClient, [
+      mockSection({
+        subtopic_filter: null,
+        expected_layer: null,
+        content_type_filter: null,
+        guides: {
+          id: 'corp-guide',
+          name: 'Corporate Guide',
+          slug: 'corporate-guide',
+          domain_filter: 'corporate', // matches secondary, not primary
+          display_order: 1,
+        },
+      }),
+    ]);
+
+    const results = await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'corporate' }),
+    );
+
+    expect(results).toHaveLength(1);
+    // Would be 'exact' for primary domain, but capped to 'partial' for secondary
+    expect(results[0].matchStrength).toBe('partial');
+  });
+
+  it('does not cap match strength for primary domain matches', async () => {
+    configureSectionResponse(mockClient, [
+      mockSection({
+        subtopic_filter: null,
+        expected_layer: null,
+        content_type_filter: null,
+        guides: {
+          domain_filter: 'Compliance', // matches primary domain
+        },
+      }),
+    ]);
+
+    const results = await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'corporate' }),
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].matchStrength).toBe('exact');
+  });
+
+  it('returns matches from both primary and secondary domain guides', async () => {
+    configureSectionResponse(mockClient, [
+      mockSection({
+        id: 'primary-section',
+        section_name: 'Compliance Section',
+        subtopic_filter: 'Certification',
+        expected_layer: 'bid_detail',
+        guides: {
+          id: 'compliance-guide',
+          name: 'Compliance Guide',
+          slug: 'compliance-guide',
+          domain_filter: 'Compliance',
+          display_order: 1,
+        },
+      }),
+      mockSection({
+        id: 'secondary-section',
+        section_name: 'Corporate Section',
+        subtopic_filter: null,
+        expected_layer: null,
+        guides: {
+          id: 'corporate-guide',
+          name: 'Corporate Guide',
+          slug: 'corporate-guide',
+          domain_filter: 'corporate',
+          display_order: 2,
+        },
+      }),
+    ]);
+
+    const results = await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({ primaryDomain: 'Compliance', secondaryDomain: 'corporate' }),
+    );
+
+    expect(results).toHaveLength(2);
+    // Primary domain match should be exact, secondary capped to partial
+    const primaryMatch = results.find((r) => r.sectionId === 'primary-section');
+    const secondaryMatch = results.find((r) => r.sectionId === 'secondary-section');
+    expect(primaryMatch?.matchStrength).toBe('exact');
+    expect(secondaryMatch?.matchStrength).toBe('partial');
+  });
+
+  it('matches secondary subtopic against section subtopic_filter', async () => {
+    configureSectionResponse(mockClient, [
+      mockSection({
+        subtopic_filter: 'Financial Controls', // matches secondary subtopic
+        expected_layer: null,
+        content_type_filter: null,
+        guides: {
+          domain_filter: 'Compliance', // primary domain
+        },
+      }),
+    ]);
+
+    const results = await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput({
+        primaryDomain: 'Compliance',
+        primarySubtopic: 'Certification', // does not match
+        secondarySubtopic: 'Financial Controls', // matches
+      }),
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].matchStrength).toBe('exact');
+  });
+
+  it('works correctly without secondary domain (backwards compatible)', async () => {
+    configureSectionResponse(mockClient, [
+      mockSection({
+        subtopic_filter: 'Certification',
+        expected_layer: 'bid_detail',
+        content_type_filter: null,
+      }),
+    ]);
+
+    const results = await suggestGuideSections(
+      asSupabase(mockClient),
+      baseInput(), // no secondary domain or subtopic
+    );
+
+    expect(results).toHaveLength(1);
+    expect(results[0].matchStrength).toBe('exact');
   });
 });
 
