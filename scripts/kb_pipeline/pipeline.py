@@ -237,10 +237,16 @@ def process_url(
         result.item_id = id_or_error
         print(f"             ID: {id_or_error}")
 
-        # ── Step 7: Entity storage ───────────────────────────────────
-        if cls and cls.entities:
+        # ── Step 7: Load entity aliases (needed for both entities and relationships)
+        if cls and (cls.entities or cls.relationships):
             try:
                 load_entity_aliases()
+            except Exception as e:
+                print(f"  [Aliases] WARNING: Failed to load aliases: {e}")
+
+        # ── Step 7a: Entity storage ──────────────────────────────────
+        if cls and cls.entities:
+            try:
                 stored, skipped = store_entities(id_or_error, cls.entities)
                 print(f"  [Entities] Stored {stored}, skipped {skipped}")
             except Exception as e:
@@ -258,10 +264,10 @@ def process_url(
         if cls and cls.temporal_references:
             try:
                 from .store import merge_item_metadata
-                success = merge_item_metadata(id_or_error, {
+                meta_ok = merge_item_metadata(id_or_error, {
                     "ai_temporal_references": cls.temporal_references,
                 })
-                if success:
+                if meta_ok:
                     print(f"  [Temporal] {len(cls.temporal_references)} references stored")
                 else:
                     print(f"  [Temporal] Storage failed")

@@ -873,8 +873,9 @@ def store_relationships(
             continue
 
         # Apply alias resolution and lowercase for index compatibility
-        source = resolve_entity_alias(canonicalise(source)).lower()
-        target = resolve_entity_alias(canonicalise(target)).lower()
+        # (canonicalisation already applied during parsing in classify())
+        source = resolve_entity_alias(source).lower()
+        target = resolve_entity_alias(target).lower()
 
         record = {
             "source_entity": source,

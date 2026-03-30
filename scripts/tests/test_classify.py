@@ -727,17 +727,22 @@ class TestStoreRelationships:
         assert skipped == 0
 
     @patch("kb_pipeline.store._request")
-    def test_applies_canonicalisation_and_lowercase(self, mock_request):
-        """Source and target are canonicalised and lowercased before storage."""
+    def test_applies_alias_resolution_and_lowercase(self, mock_request):
+        """Source and target have alias resolution and lowercasing applied.
+
+        Canonicalisation is done during parsing in classify(), not in
+        store_relationships(). This test verifies only alias resolution
+        and lowercasing are applied at storage time.
+        """
         from kb_pipeline.classify import store_relationships
         mock_request.return_value = (201, [{}])
 
+        # Values arrive pre-canonicalised from classify() parsing stage
         store_relationships("item-123", [
-            {"source": "Acme Ltd", "relationship_type": "holds", "target": "ISO27001"},
+            {"source": "Acme Limited", "relationship_type": "holds", "target": "ISO 27001"},
         ])
 
         record = mock_request.call_args[0][2]
-        # "Acme Ltd" -> canonicalise -> "Acme Limited" -> lowercase -> "acme limited"
+        # Already canonicalised by classify() -> alias resolution (no-op) -> lowercase
         assert record["source_entity"] == "acme limited"
-        # "ISO27001" -> canonicalise -> "ISO 27001" -> lowercase -> "iso 27001"
         assert record["target_entity"] == "iso 27001"
