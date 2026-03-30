@@ -9,7 +9,34 @@ import type { TemporalReference } from '@/lib/date-extraction';
 import { reconcileTemporalReferences } from '@/lib/entities/temporal-reconciliation';
 
 describe('reconcileTemporalReferences', () => {
-  it('T5.1: deduplicates when AI and regex detect same date and context_type', () => {
+  it('T5.1: deduplicates when AI and regex detect dates within the same month (fuzzy match)', () => {
+    // AI returns "2025-06-25" and regex returns "2025-06-01" — different days,
+    // same year-month. The spec requires these to be deduplicated as the same
+    // reference, with AI's more precise date and context preserved.
+    const aiRefs: ClassificationTemporalReference[] = [
+      { date: '2025-06-25', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+    ];
+    const regexRefs: TemporalReference[] = [
+      {
+        date: '2025-06-01',
+        type: 'expiry',
+        confidence: 'high',
+        context: 'certification expires June 2025',
+      },
+    ];
+
+    const result = reconcileTemporalReferences(aiRefs, regexRefs);
+
+    expect(result).toHaveLength(1);
+    // AI's date should be preserved (AI takes precedence)
+    expect(result[0].date).toBe('2025-06-25');
+    expect(result[0].context_type).toBe('expiry');
+    expect(result[0].source).toBe('both');
+    // AI context should be preserved
+    expect(result[0].context).toBe('ISO 27001 certification expiry');
+  });
+
+  it('T5.1b: deduplicates exact date+context_type matches', () => {
     const aiRefs: ClassificationTemporalReference[] = [
       { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
     ];
@@ -28,8 +55,26 @@ describe('reconcileTemporalReferences', () => {
     expect(result[0].date).toBe('2025-06-30');
     expect(result[0].context_type).toBe('expiry');
     expect(result[0].source).toBe('both');
-    // AI context should be preserved (AI takes precedence)
     expect(result[0].context).toBe('ISO 27001 certification expiry');
+  });
+
+  it('T5.1c: does NOT deduplicate dates in different months', () => {
+    const aiRefs: ClassificationTemporalReference[] = [
+      { date: '2025-06-30', context: 'ISO 27001 certification expiry', context_type: 'expiry' },
+    ];
+    const regexRefs: TemporalReference[] = [
+      {
+        date: '2025-07-01',
+        type: 'expiry',
+        confidence: 'high',
+        context: 'certification expires July 2025',
+      },
+    ];
+
+    const result = reconcileTemporalReferences(aiRefs, regexRefs);
+
+    // Different months — should NOT be deduplicated
+    expect(result).toHaveLength(2);
   });
 
   it('T5.2: handles only AI references', () => {

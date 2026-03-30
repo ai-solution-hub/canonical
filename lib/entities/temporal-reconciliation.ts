@@ -3,7 +3,8 @@
  *
  * Merges AI-classified temporal references (from Claude) with regex-extracted
  * temporal references (from lib/date-extraction.ts), deduplicating by date
- * and preferring AI classification when they disagree on context_type.
+ * (with fuzzy within-30-day matching for same year-month) and preferring AI
+ * classification when they disagree on context_type.
  */
 
 import type { ClassificationTemporalReference } from '@/lib/ai/classify';
@@ -22,8 +23,19 @@ export interface MergedTemporalReference {
 }
 
 /**
+ * Check whether two ISO 8601 date strings (YYYY-MM-DD) are within the same
+ * calendar month (i.e. share the YYYY-MM prefix). This enables fuzzy dedup
+ * when AI returns "2027-03-25" and regex returns "2027-03-01" for the same
+ * reference — they should be treated as duplicates.
+ */
+function isSameYearMonth(dateA: string, dateB: string): boolean {
+  return dateA.slice(0, 7) === dateB.slice(0, 7);
+}
+
+/**
  * Merge AI and regex temporal reference paths, deduplicating by date + context_type.
- * When both paths detect the same date, AI classification takes precedence.
+ * When both paths detect the same date (or a date within the same calendar month),
+ * AI classification takes precedence.
  *
  * @param aiRefs    Temporal references from Claude classification
  * @param regexRefs Temporal references from regex date extraction
@@ -56,14 +68,31 @@ export function reconcileTemporalReferences(
       const key = `${ref.date}|${contextType}`;
 
       if (merged.has(key)) {
-        // Same date+context_type already from AI — mark as 'both'
+        // Exact date+context_type match from AI — mark as 'both'
         const existing = merged.get(key)!;
         existing.source = 'both';
       } else {
-        // Check if same date exists with different context_type from AI
+        // Fuzzy match: check if AI has a date within the same calendar month
+        // and same context_type. AI is more precise, so its date wins.
+        const fuzzyMatch = Array.from(merged.values()).find(
+          (m) =>
+            isSameYearMonth(m.date, ref.date) &&
+            m.context_type === contextType &&
+            (m.source === 'ai' || m.source === 'both'),
+        );
+
+        if (fuzzyMatch) {
+          // Same month + same context_type — treat as duplicate, mark as 'both'
+          fuzzyMatch.source = 'both';
+          continue;
+        }
+
+        // Check if same date (exact or fuzzy) exists with different context_type from AI
         // In that case, AI's context_type takes precedence — skip this regex ref
         const aiHasSameDate = Array.from(merged.values()).some(
-          (m) => m.date === ref.date && (m.source === 'ai' || m.source === 'both'),
+          (m) =>
+            (m.date === ref.date || isSameYearMonth(m.date, ref.date)) &&
+            (m.source === 'ai' || m.source === 'both'),
         );
 
         if (aiHasSameDate) {

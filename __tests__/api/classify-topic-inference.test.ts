@@ -141,7 +141,31 @@ describe('classify route — topic inference wiring', () => {
     });
   });
 
-  it('T3.3: suggestTopic returning null skips metadata merge', async () => {
+  it('T3.3: suggestTopic returns consistent result regardless of route', async () => {
+    // Spec: suggestTopic returns the same result from the classify route as from the items route.
+    // Both routes call suggestTopic with the same domain/subtopic/title args.
+    mockSuggestTopic.mockResolvedValue({ topicId: 'topic-consistent' });
+
+    await callRoute();
+
+    // Verify suggestTopic was called with the classification output fields
+    expect(mockSuggestTopic).toHaveBeenCalledWith(
+      mockClient,
+      expect.objectContaining({
+        primaryDomain: 'security',
+        primarySubtopic: 'certifications',
+        title: 'Test Item',
+      }),
+    );
+
+    // And the result was used for metadata merge
+    expect(mockClient.rpc).toHaveBeenCalledWith('merge_item_metadata', {
+      p_item_id: itemId,
+      p_new_data: { topic_id: 'topic-consistent' },
+    });
+  });
+
+  it('T3.3b: suggestTopic returning null skips metadata merge', async () => {
     mockSuggestTopic.mockResolvedValue(null);
 
     const response = await callRoute();

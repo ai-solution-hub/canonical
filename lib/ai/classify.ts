@@ -459,10 +459,9 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
   }
 
   // Store extracted entities (non-blocking — failures must not break classification)
-  // Note: the entity_mentions table has a `context_snippet` column that is
-  // reserved for future use (short excerpt showing where the entity was found).
-  // It is intentionally not populated during classification — a future enhancement
-  // could extract surrounding text from the content to populate it.
+  // Note: the entity_mentions table has a `context_snippet` column populated
+  // via extractEntityContext() — a short excerpt showing where the entity was
+  // found in the source content.
   // Load entity aliases from DB before entity/relationship storage
   await loadAliases(supabase);
 

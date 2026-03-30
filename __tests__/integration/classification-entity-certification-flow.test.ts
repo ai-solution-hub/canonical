@@ -159,15 +159,19 @@ describe('classification → entity → certification flow', () => {
     expect(result.entities).toHaveLength(1);
     expect(result.entities![0].canonical_name).toBe('ISO 27001');
 
-    // Verify entity upsert included context_snippet
+    // Verify entity upsert was called with correct canonical_name, entity_type, AND context_snippet
     const upsertCall = mockClient._chain.upsert.mock.calls[0];
     expect(upsertCall).toBeDefined();
     const entityRows = upsertCall[0] as Array<Record<string, unknown>>;
+    expect(entityRows).toHaveLength(1);
+    expect(entityRows[0].canonical_name).toBe('iso 27001');
+    expect(entityRows[0].entity_type).toBe('certification');
     expect(entityRows[0].context_snippet).toBeTruthy();
     expect(typeof entityRows[0].context_snippet).toBe('string');
+    expect(entityRows[0].content_item_id).toBe(itemId);
   });
 
-  it('T2.2: temporal reference bridge is called after entity storage', async () => {
+  it('T2.2: temporal reference bridge is called after entity storage with correct contentItemId', async () => {
     mockCreate.mockResolvedValue(
       createToolUseResponse({
         ...baseClassificationInput,
@@ -187,9 +191,16 @@ describe('classification → entity → certification flow', () => {
       userId,
     });
 
+    // Verify bridge was called exactly once with the correct supabase client and contentItemId
+    expect(mockBridge).toHaveBeenCalledTimes(1);
     expect(mockBridge).toHaveBeenCalledWith(mockClient, itemId);
+    // Bridge must be called after entity upsert (entities must exist before bridging)
+    expect(mockClient._chain.upsert).toHaveBeenCalled();
   });
 
+  // T2.3: Partial implementation — verifies ai_temporal_references are stored in the
+  // metadata update call. The full spec requires calling GET /api/certifications and
+  // verifying the response, which needs real DB integration tests (planned for next session).
   it('T2.3: temporal references stored in item metadata', async () => {
     mockCreate.mockResolvedValue(
       createToolUseResponse({
@@ -217,6 +228,8 @@ describe('classification → entity → certification flow', () => {
     ]);
   });
 
+  it.todo('T2.3b: GET /api/certifications returns derived certification status from temporal references (requires real DB integration)');
+
   it('T2.4: multiple certifications in one document are all stored', async () => {
     mockCreate.mockResolvedValue(
       createToolUseResponse({
@@ -237,13 +250,27 @@ describe('classification → entity → certification flow', () => {
 
     expect(result.entities).toHaveLength(2);
 
-    // Verify upsert was called with both entities
+    // Verify upsert was called with both entities and correct fields
     const upsertCall = mockClient._chain.upsert.mock.calls[0];
     const entityRows = upsertCall[0] as Array<Record<string, unknown>>;
     expect(entityRows).toHaveLength(2);
-    expect(entityRows.map((r) => r.canonical_name)).toContain('iso 27001');
-    expect(entityRows.map((r) => r.canonical_name)).toContain('cyber essentials plus');
+
+    // Verify canonical_name values (lowercased)
+    const canonicalNames = entityRows.map((r) => r.canonical_name);
+    expect(canonicalNames).toContain('iso 27001');
+    expect(canonicalNames).toContain('cyber essentials plus');
+
+    // Verify entity_type for all rows
+    expect(entityRows.every((r) => r.entity_type === 'certification')).toBe(true);
+
+    // Verify content_item_id is set correctly for all rows
+    expect(entityRows.every((r) => r.content_item_id === itemId)).toBe(true);
+
+    // Verify each row has a context_snippet (populated by extractEntityContext)
+    expect(entityRows.every((r) => typeof r.context_snippet === 'string')).toBe(true);
   });
+
+  it.todo('T2.4b: each certification entity has correct metadata and expiry_status (requires bridge integration)');
 
   it('T2.5: reclassification (force=true) updates entity metadata', async () => {
     // First, simulate a previously classified item
@@ -292,11 +319,24 @@ describe('classification → entity → certification flow', () => {
       userId,
     });
 
+    // Verify the classification result contains the UPDATED temporal references (not old ones)
     expect(result.temporal_references).toEqual([
       { date: '2026-12-31', context: 'ISO 27001 expiry after renewal', context_type: 'expiry' },
     ]);
+    expect(result.temporal_references).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ date: '2025-06-30' })]),
+    );
+
+    // Verify entity upsert was called with the correct entity
+    const upsertCall = mockClient._chain.upsert.mock.calls[0];
+    expect(upsertCall).toBeDefined();
+    const entityRows = upsertCall[0] as Array<Record<string, unknown>>;
+    expect(entityRows[0].canonical_name).toBe('iso 27001');
 
     // Bridge should be called to update entity metadata with the new date
+    expect(mockBridge).toHaveBeenCalledTimes(1);
     expect(mockBridge).toHaveBeenCalledWith(mockClient, itemId);
   });
+
+  it.todo('T2.5b: reclassification metadata update replaces old temporal references in DB (requires real DB integration)');
 });
