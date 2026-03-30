@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 import { toast } from 'sonner';
 import {
   canTransition,
@@ -35,89 +37,71 @@ interface UseBidActionsParams {
 }
 
 // ---------------------------------------------------------------------------
-// useBidData — fetching bid and questions, loading state, error handling
+// useBidData — TanStack Query-based bid and questions fetching
 // ---------------------------------------------------------------------------
 
 function useBidData(id: string) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const [bid, setBid] = useState<Bid | null>(null);
-  const [questions, setQuestions] = useState<BidQuestion[]>([]);
-  const [stats, setStats] = useState<BidQuestionStats | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchBid = useCallback(async () => {
-    try {
+  const bidQuery = useQuery({
+    queryKey: queryKeys.bids.detail(id),
+    queryFn: async () => {
       const response = await fetch(`/api/bids/${id}`);
       if (!response.ok) {
         if (response.status === 404) {
           toast.error('Bid not found');
           router.push('/bid');
-          return;
+          return null;
         }
         throw new Error('Failed to fetch bid');
       }
-      const data = await response.json();
-      setBid(data);
-      setStats(data.question_stats ?? null);
-    } catch (err) {
-      console.error('Failed to load bid:', err);
-      toast.error('Failed to load bid');
-    } finally {
-      setLoading(false);
-    }
-  }, [id, router]);
+      return response.json();
+    },
+  });
+
+  const questionsQuery = useQuery({
+    queryKey: queryKeys.bids.questions(id),
+    queryFn: async () => {
+      const response = await fetch(`/api/bids/${id}/questions`);
+      if (!response.ok) throw new Error('Failed to fetch questions');
+      return response.json();
+    },
+  });
+
+  const { refetch: refetchBid } = bidQuery;
+  const { refetch: refetchQuestions } = questionsQuery;
+
+  const fetchBid = useCallback(async () => {
+    await refetchBid();
+  }, [refetchBid]);
 
   const fetchQuestions = useCallback(async () => {
-    try {
-      const response = await fetch(`/api/bids/${id}/questions`);
-      if (!response.ok) return;
-      const data = await response.json();
-      setQuestions(data.questions ?? []);
-      if (data.stats) setStats(data.stats);
-    } catch (err) {
-      console.error('Failed to fetch bid questions:', err);
-      // Non-critical, questions tab still shows empty
-    }
-  }, [id]);
-
-  // Initial data load
-  useEffect(() => {
-    fetchBid();
-    fetchQuestions();
-  }, [fetchBid, fetchQuestions]);
+    await refetchQuestions();
+  }, [refetchQuestions]);
 
   return {
-    bid,
-    questions,
-    stats,
-    loading,
+    bid: bidQuery.data ?? null,
+    questions: questionsQuery.data?.questions ?? [],
+    stats: questionsQuery.data?.stats ?? bidQuery.data?.question_stats ?? null,
+    loading: bidQuery.isLoading,
     fetchBid,
     fetchQuestions,
+    queryClient,
   };
 }
 
 // ---------------------------------------------------------------------------
-// useBidTransitions — status transition handlers
+// useBidTransitions — status transition via useMutation
 // ---------------------------------------------------------------------------
 
 function useBidTransitions(
   bid: Bid | null,
   id: string,
-  fetchBid: () => Promise<void>,
+  queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  const [transitioning, setTransitioning] = useState(false);
-
-  async function handleStatusTransition(newStatus: BidState) {
-    if (!bid) return;
-    const currentStatus = bid.status as BidState;
-    if (!canTransition(currentStatus, newStatus)) {
-      toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
-      return;
-    }
-
-    setTransitioning(true);
-    try {
+  const transitionMutation = useMutation({
+    mutationFn: async (newStatus: BidState) => {
       const body: Record<string, string> = { status: newStatus };
       if (newStatus === 'submitted') {
         body.submission_date = new Date().toISOString();
@@ -134,23 +118,38 @@ function useBidTransitions(
         throw new Error(data.error || 'Failed to update status');
       }
 
+      return newStatus;
+    },
+    onSuccess: (newStatus: BidState) => {
       toast.success(`Bid moved to ${BID_STATE_LABELS[newStatus]}`);
-      fetchBid();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update status');
-    } finally {
-      setTransitioning(false);
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to update status');
+    },
+  });
+
+  const handleStatusTransition = useCallback(
+    async (newStatus: BidState) => {
+      if (!bid) return;
+      const currentStatus = bid.status as BidState;
+      if (!canTransition(currentStatus, newStatus)) {
+        toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
+        return;
+      }
+      transitionMutation.mutate(newStatus);
+    },
+    [bid, transitionMutation],
+  );
 
   return {
-    transitioning,
+    transitioning: transitionMutation.isPending,
     handleStatusTransition,
   };
 }
 
 // ---------------------------------------------------------------------------
-// useBidDialogs — dialog open/close state
+// useBidDialogs — dialog open/close state (pure UI state, no changes)
 // ---------------------------------------------------------------------------
 
 function useBidDialogs() {
@@ -244,8 +243,9 @@ function useQuestionExtraction(
 
 export function useBidActions({ id }: UseBidActionsParams) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  // Data fetching
+  // Data fetching (TanStack Query)
   const {
     bid,
     questions,
@@ -258,11 +258,11 @@ export function useBidActions({ id }: UseBidActionsParams) {
   // Tab state (kept here as it bridges data and extraction concerns)
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
-  // Status transitions
+  // Status transitions (useMutation)
   const {
     transitioning,
     handleStatusTransition,
-  } = useBidTransitions(bid, id, fetchBid);
+  } = useBidTransitions(bid, id, queryClient);
 
   // Dialog state
   const {
@@ -289,32 +289,27 @@ export function useBidActions({ id }: UseBidActionsParams) {
     handleQuestionReviewCancelled,
   } = useQuestionExtraction(id, fetchBid, fetchQuestions, setActiveTab, setExtractedMetadata);
 
-  // Drafting state (lives here as it uses dialog + data concerns)
-  const [draftingAll, setDraftingAll] = useState(false);
-
-  // Handlers that coordinate across concerns
-
-  function handleDelete() {
-    setDeleteConfirmOpen(true);
-  }
-
-  async function handleDeleteConfirmed() {
-    setDeleteConfirmOpen(false);
-    try {
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch(`/api/bids/${id}`, { method: 'DELETE' });
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.error || 'Failed to delete bid');
       }
+    },
+    onSuccess: () => {
       toast.success('Bid deleted');
       router.push('/bid');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete bid');
-    }
-  }
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to delete bid');
+    },
+  });
 
-  async function handleMatchQuestions() {
-    try {
+  // Match questions mutation
+  const matchMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch(`/api/bids/${id}/questions/match`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -326,18 +321,21 @@ export function useBidActions({ id }: UseBidActionsParams) {
         throw new Error(data.error || 'Failed to match questions');
       }
 
-      const result = await response.json();
+      return response.json();
+    },
+    onSuccess: (result: { matched: number }) => {
       toast.success(`Matched ${result.matched} questions against KB`);
-      fetchBid();
-      fetchQuestions();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to match questions');
-    }
-  }
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(id) });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to match questions');
+    },
+  });
 
-  async function handleDraftAll() {
-    setDraftingAll(true);
-    try {
+  // Draft all mutation
+  const draftAllMutation = useMutation({
+    mutationFn: async () => {
       const response = await fetch(`/api/bids/${id}/responses/draft-all`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -349,7 +347,9 @@ export function useBidActions({ id }: UseBidActionsParams) {
         throw new Error(data.error || 'Failed to draft responses');
       }
 
-      const result = await response.json();
+      return response.json();
+    },
+    onSuccess: (result: { drafted: number; skipped: number; failed: number; total_cost: number }) => {
       const { drafted, skipped, failed } = result;
 
       if (failed > 0) {
@@ -362,18 +362,36 @@ export function useBidActions({ id }: UseBidActionsParams) {
         toast.info(`Total cost: $${result.total_cost.toFixed(4)}`);
       }
 
-      fetchBid();
-      fetchQuestions();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to draft responses');
-    } finally {
-      setDraftingAll(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.bids.questions(id) });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message || 'Failed to draft responses');
+    },
+  });
+
+  // Handlers that coordinate across concerns
+
+  function handleDelete() {
+    setDeleteConfirmOpen(true);
+  }
+
+  async function handleDeleteConfirmed() {
+    setDeleteConfirmOpen(false);
+    deleteMutation.mutate();
+  }
+
+  async function handleMatchQuestions() {
+    matchMutation.mutate();
+  }
+
+  async function handleDraftAll() {
+    draftAllMutation.mutate();
   }
 
   function handleOutcomeRecorded(outcome: string, candidates: KBCandidate[]) {
     setShowOutcomeDialog(false);
-    fetchBid();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
     if (candidates.length > 0) {
       setKBCandidates(candidates);
       setShowKBReview(true);
@@ -382,13 +400,13 @@ export function useBidActions({ id }: UseBidActionsParams) {
 
   function clearExtractedMetadata() {
     setExtractedMetadata(null);
-    fetchBid();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
   }
 
   function handleKBIntegrationComplete(result: { created: number; updated: number }) {
     setShowKBReview(false);
     setKBCandidates([]);
-    fetchBid();
+    queryClient.invalidateQueries({ queryKey: queryKeys.bids.detail(id) });
     toast.success(
       `KB integration complete: ${result.created} created, ${result.updated} updated`,
     );
@@ -435,7 +453,7 @@ export function useBidActions({ id }: UseBidActionsParams) {
     // UI dialog state
     showCostEstimate,
     setShowCostEstimate,
-    draftingAll,
+    draftingAll: draftAllMutation.isPending,
     showOutcomeDialog,
     setShowOutcomeDialog,
     showKBReview,
