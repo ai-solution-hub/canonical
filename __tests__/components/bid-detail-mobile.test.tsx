@@ -102,6 +102,16 @@ vi.mock('@/hooks/bid/use-bid-actions', () => ({
   useBidActions: (args: { id: string }) => mockUseBidActions(args),
 }));
 
+vi.mock('@/hooks/bid/use-bid-readiness', () => ({
+  useBidReadiness: () => ({
+    bidStatus: null,
+    readinessPercentage: 0,
+    isLoading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock('@/lib/format', () => ({
   formatDateUK: (d: string) => mockFormatDateUK(d),
 }));
