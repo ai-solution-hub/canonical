@@ -1,5 +1,13 @@
+/**
+ * useDisplayNames Hook Tests (TanStack Query migration)
+ *
+ * Tests the useDisplayNames hook — batch user ID resolution via useQuery,
+ * module-level caching with TTL, deduplication, and error handling.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
+import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -12,6 +20,21 @@ function createFetchMock(responseData: Record<string, string> = {}) {
     ok: true,
     json: async () => responseData,
   }));
+}
+
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return React.createElement(
+      QueryClientProvider,
+      { client: queryClient },
+      children,
+    );
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -45,20 +68,29 @@ describe('useDisplayNames', () => {
 
   it('returns empty map for empty input', async () => {
     const useDisplayNames = await importHook();
-    const { result } = renderHook(() => useDisplayNames([]));
+    const { result } = renderHook(() => useDisplayNames([]), {
+      wrapper: createWrapper(),
+    });
     expect(result.current.size).toBe(0);
   });
 
   it('returns empty map for null/undefined IDs', async () => {
     const useDisplayNames = await importHook();
-    const { result } = renderHook(() => useDisplayNames([null, undefined, '']));
+    const { result } = renderHook(
+      () => useDisplayNames([null, undefined, '']),
+      { wrapper: createWrapper() },
+    );
     expect(result.current.size).toBe(0);
+    // The query should not be enabled for empty IDs
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it('fetches and resolves user IDs to display names', async () => {
     const useDisplayNames = await importHook();
-    const { result } = renderHook(() => useDisplayNames(['user-1', 'user-2']));
+    const { result } = renderHook(
+      () => useDisplayNames(['user-1', 'user-2']),
+      { wrapper: createWrapper() },
+    );
 
     await waitFor(() => {
       expect(result.current.size).toBe(2);
@@ -70,7 +102,9 @@ describe('useDisplayNames', () => {
 
   it('sends POST request with IDs to display-names endpoint', async () => {
     const useDisplayNames = await importHook();
-    renderHook(() => useDisplayNames(['user-1']));
+    renderHook(() => useDisplayNames(['user-1']), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
@@ -93,8 +127,10 @@ describe('useDisplayNames', () => {
   it('serves from cache on subsequent renders with same IDs', async () => {
     const useDisplayNames = await importHook();
 
-    const { result, rerender } = renderHook(() =>
-      useDisplayNames(['user-1']),
+    const wrapper = createWrapper();
+    const { result, rerender } = renderHook(
+      () => useDisplayNames(['user-1']),
+      { wrapper },
     );
 
     await waitFor(() => {
@@ -103,7 +139,7 @@ describe('useDisplayNames', () => {
 
     const fetchCountAfterFirst = mockFetch.mock.calls.length;
 
-    // Re-render with same IDs — should use cache
+    // Re-render with same IDs -- TanStack Query serves from cache
     rerender();
 
     await waitFor(() => {
@@ -126,9 +162,11 @@ describe('useDisplayNames', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const useDisplayNames = await importHook();
-    const { result } = renderHook(() => useDisplayNames(['user-1']));
+    const { result } = renderHook(() => useDisplayNames(['user-1']), {
+      wrapper: createWrapper(),
+    });
 
-    // Should not crash — returns empty map
+    // Should not crash -- returns empty map
     await new Promise((r) => setTimeout(r, 100));
     expect(result.current.size).toBe(0);
 
@@ -143,7 +181,9 @@ describe('useDisplayNames', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const useDisplayNames = await importHook();
-    const { result } = renderHook(() => useDisplayNames(['user-1']));
+    const { result } = renderHook(() => useDisplayNames(['user-1']), {
+      wrapper: createWrapper(),
+    });
 
     await new Promise((r) => setTimeout(r, 100));
     // Should not crash, just returns empty map
@@ -151,20 +191,22 @@ describe('useDisplayNames', () => {
   });
 
   // -----------------------------------------------------------------------
-  // Deduplication — same IDs only trigger one fetch
+  // Deduplication -- same IDs only trigger one fetch
   // -----------------------------------------------------------------------
 
   it('only makes one fetch call for duplicate IDs across re-renders', async () => {
     const useDisplayNames = await importHook();
-    const { result, rerender } = renderHook(() =>
-      useDisplayNames(['user-1', 'user-1', 'user-1']),
+    const wrapper = createWrapper();
+    const { result, rerender } = renderHook(
+      () => useDisplayNames(['user-1', 'user-1', 'user-1']),
+      { wrapper },
     );
 
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
-    // Re-render with same duplicated IDs — idsRef guard prevents re-fetch
+    // Re-render with same duplicated IDs -- TanStack Query cache guard prevents re-fetch
     rerender();
 
     await waitFor(() => {

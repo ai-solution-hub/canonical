@@ -1,6 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
+import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
 
 export interface Notification {
   id: string;
@@ -38,78 +41,99 @@ export const NOTIFICATIONS_UPDATED_EVENT = 'notifications:updated';
  * The `unreadCount` is provided by the server (not computed client-side
  * from the capped list) so it remains accurate regardless of how many
  * notifications exist.
+ *
+ * Migrated from useState+useEffect to TanStack Query.
  */
 export function useNotifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchNotifications = useCallback(async () => {
-    try {
-      const res = await fetch('/api/notifications');
-      if (!res.ok) return;
-      const data: NotificationsResponse = await res.json();
-      setNotifications(data.notifications);
-      setUnreadCount(data.unreadCount);
-    } catch {
-      // Fail silently — notifications are non-critical
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.notifications.list,
+    queryFn: () =>
+      fetchJson<NotificationsResponse>('/api/notifications').catch(() => ({
+        notifications: [] as Notification[],
+        unreadCount: 0,
+      })),
+    refetchInterval: POLL_INTERVAL_MS,
+  });
 
-  const markAsRead = useCallback(async (notificationIds: string[]) => {
-    if (notificationIds.length === 0) return;
+  const notifications = data?.notifications ?? [];
+  const unreadCount = data?.unreadCount ?? 0;
 
-    try {
-      const res = await fetch('/api/notifications/read', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notification_ids: notificationIds }),
-      });
+  const markAsReadMutation = useMutation({
+    mutationFn: (notificationIds: string[]) =>
+      mutationFetchJson<Record<string, unknown>>(
+        '/api/notifications/read',
+        { notification_ids: notificationIds },
+      ),
+    onMutate: async (notificationIds: string[]) => {
+      // Cancel outgoing refetches so they don't overwrite our optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list });
 
-      if (res.ok) {
-        setNotifications((prev) =>
-          prev.map((n) =>
-            notificationIds.includes(n.id)
-              ? { ...n, read_at: new Date().toISOString() }
-              : n,
-          ),
+      // Snapshot the previous value for rollback
+      const previous = queryClient.getQueryData<NotificationsResponse>(
+        queryKeys.notifications.list,
+      );
+
+      // Optimistically update the cache
+      queryClient.setQueryData<NotificationsResponse>(
+        queryKeys.notifications.list,
+        (old) => {
+          if (!old) return old;
+          return {
+            notifications: old.notifications.map((n) =>
+              notificationIds.includes(n.id)
+                ? { ...n, read_at: new Date().toISOString() }
+                : n,
+            ),
+            unreadCount: Math.max(0, old.unreadCount - notificationIds.length),
+          };
+        },
+      );
+
+      return { previous };
+    },
+    onError: (_error, _variables, context) => {
+      // Roll back to snapshot on error
+      if (context?.previous) {
+        queryClient.setQueryData(
+          queryKeys.notifications.list,
+          context.previous,
         );
-        setUnreadCount((prev) => Math.max(0, prev - notificationIds.length));
-
-        // Notify other components (e.g. dashboard QuickStatsStrip) that
-        // the notification count has changed so they can refresh stale
-        // server-rendered values.
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
-        }
       }
-    } catch {
-      // Fail silently
-    }
-  }, []);
+    },
+    onSuccess: () => {
+      // Dispatch custom event so other components (e.g. dashboard QuickStatsStrip)
+      // can refresh stale server-rendered values.
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure server state is in sync
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list });
+    },
+  });
+
+  const markAsRead = useCallback(
+    async (notificationIds: string[]) => {
+      if (notificationIds.length === 0) return;
+      markAsReadMutation.mutate(notificationIds);
+    },
+    [markAsReadMutation],
+  );
 
   const markAllAsRead = useCallback(async () => {
     const unreadIds = notifications
       .filter((n) => !n.read_at)
       .map((n) => n.id);
-    await markAsRead(unreadIds);
-  }, [notifications, markAsRead]);
-
-  // Initial fetch + polling
-  useEffect(() => {
-    fetchNotifications();
-
-    intervalRef.current = setInterval(fetchNotifications, POLL_INTERVAL_MS);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [fetchNotifications]);
+    if (unreadIds.length === 0) return;
+    markAsReadMutation.mutate(unreadIds);
+  }, [notifications, markAsReadMutation]);
 
   return {
     notifications,
@@ -117,6 +141,6 @@ export function useNotifications() {
     loading,
     markAsRead,
     markAllAsRead,
-    refresh: fetchNotifications,
+    refresh: refetch,
   };
 }
