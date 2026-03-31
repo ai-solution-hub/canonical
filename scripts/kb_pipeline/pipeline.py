@@ -274,7 +274,16 @@ def process_url(
             except Exception as e:
                 print(f"  [Temporal] ERROR (non-blocking): {e}")
 
-        # ── Step 7d: Layer inference (non-blocking) ────────────────
+        # ── Step 7d: Temporal-to-entity bridge (non-blocking) ─────
+        try:
+            from .temporal_bridge import bridge_temporal_to_entities
+            bridged = bridge_temporal_to_entities(id_or_error)
+            if bridged:
+                print(f"  [Bridge]  {bridged} entity mentions updated")
+        except Exception as e:
+            print(f"  [Bridge]  ERROR (non-blocking): {e}")
+
+        # ── Step 7e: Layer inference (non-blocking) ────────────────
         try:
             from .layer_inference import infer_layer
             suggestion = infer_layer(

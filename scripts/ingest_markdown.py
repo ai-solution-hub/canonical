@@ -556,6 +556,15 @@ def process_markdown_file(
             except Exception as e:
                 log.error("  [Temporal] ERROR (non-blocking): %s", e)
 
+        # ── Temporal-to-entity bridge (non-blocking) ───────────────────
+        try:
+            from kb_pipeline.temporal_bridge import bridge_temporal_to_entities
+            bridged = bridge_temporal_to_entities(id_or_error)
+            if bridged:
+                log.info("  [Bridge]  %d entity mentions updated", bridged)
+        except Exception as e:
+            log.error("  [Bridge]  ERROR (non-blocking): %s", e)
+
     else:
         result["status"] = "error"
         result["error"] = f"Insert failed: {id_or_error}"
