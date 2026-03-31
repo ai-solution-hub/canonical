@@ -292,6 +292,10 @@ findings before merge, worktrees for parallel work, sequential merges only.
   `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
 - **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
   backticks in any project file (including docs). Use `{name}` not `*`.
+- **Tailwind v4 removed default border-color preflight:** Bare `border` uses
+  `currentColor` not `--border`. The base rule in `globals.css`
+  (`*, ::after, ::before { border-color: var(--border) }`) restores the
+  expected behaviour. Never remove it.
 - **React compiler memoisation:** Destructure nested properties before using
   in `useCallback` deps (e.g. `const { fn } = data;` not `data.fn`).
 
