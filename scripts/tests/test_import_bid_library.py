@@ -286,3 +286,50 @@ class TestBuildContentRecordTrackChanges:
         pair = self._make_pair(_batch_tag="")
         record = build_content_record(pair, "test-batch")
         assert "user_tags" not in record
+
+
+# ── classified_at timestamp ──────────────────────────────────────────────
+
+
+class TestClassifiedAtTimestamp:
+    """Tests for classified_at field in build_content_record."""
+
+    def _make_pair(self, **overrides):
+        """Create a minimal Q&A pair dict for testing."""
+        pair = {
+            "question_text": "What security measures do you have?",
+            "answer_standard": "We implement comprehensive security controls.",
+            "answer_advanced": "",
+            "section_name": "Security",
+            "source_file": "test.docx",
+            "table_index": 0,
+            "row_index": 1,
+            "primary_domain": "security",
+            "primary_subtopic": "access-control",
+            "classification_confidence": 0.7,
+        }
+        pair.update(overrides)
+        return pair
+
+    def test_classified_at_present(self):
+        """build_content_record includes classified_at timestamp."""
+        pair = self._make_pair()
+        record = build_content_record(pair, "test-batch")
+        assert "classified_at" in record
+        assert record["classified_at"] is not None
+
+    def test_classified_at_is_iso_format(self):
+        """classified_at is in ISO 8601 format."""
+        pair = self._make_pair()
+        record = build_content_record(pair, "test-batch")
+        from datetime import datetime
+        # Should parse without error
+        parsed = datetime.fromisoformat(record["classified_at"])
+        assert parsed is not None
+
+    def test_classified_at_is_utc(self):
+        """classified_at timestamp includes timezone info (UTC)."""
+        pair = self._make_pair()
+        record = build_content_record(pair, "test-batch")
+        # UTC isoformat includes +00:00
+        assert "+00:00" in record["classified_at"]

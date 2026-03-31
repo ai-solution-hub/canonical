@@ -254,6 +254,7 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         "secondary_domain": pair.get("secondary_domain", ""),
         "secondary_subtopic": pair.get("secondary_subtopic", ""),
         "classification_confidence": pair.get("classification_confidence", 0.0),
+        "classified_at": datetime.now(timezone.utc).isoformat(),
         "ai_summary": ai_summary,
         "ai_keywords": keywords,
         "source_file": pair.get("source_file", "") or None,
@@ -323,6 +324,11 @@ def main():
         "--require-clean",
         action="store_true",
         help="Abort if any .docx file contains unresolved Track Changes",
+    )
+    parser.add_argument(
+        "--entities",
+        action="store_true",
+        help="Run entity extraction on imported items (separate AI pass, slower)",
     )
 
     args = parser.parse_args()
@@ -540,6 +546,7 @@ def main():
         print()
 
         # ── Step 9: Store ────────────────────────────────────────────
+        stored_pairs = []
         if pairs_to_import:
             print(f"[9/9] Storing {len(pairs_to_import)} items in Supabase...")
             try:
@@ -558,6 +565,7 @@ def main():
                 success, id_or_error = insert_content_item(record)
                 if success:
                     store_success += 1
+                    stored_pairs.append((pair, id_or_error))
                     if (i + 1) % 10 == 0:
                         print(f"  Stored {i + 1}/{len(pairs_to_import)}")
                 else:
@@ -567,6 +575,45 @@ def main():
             print(f"  Stored: {store_success}")
             if store_fail:
                 print(f"  Failed: {store_fail}")
+
+        # ── Step 10: Entity extraction (optional) ────────────────────
+        entity_count = 0
+        rel_count = 0
+        if args.entities and stored_pairs:
+            print(f"\n[10/10] Running entity extraction on {len(stored_pairs)} items...")
+            try:
+                from kb_pipeline.classify import (
+                    classify as ai_classify,
+                    store_entities,
+                    store_relationships,
+                    load_entity_aliases,
+                )
+                load_entity_aliases()
+            except ImportError as e:
+                print(f"  ERROR: Could not import entity extraction module: {e}")
+                stored_pairs = []
+
+            for i, (pair, item_id) in enumerate(stored_pairs):
+                try:
+                    record = build_content_record(pair, batch_name)
+                    cls_result = ai_classify(
+                        title=record["title"],
+                        content=record["content"],
+                        content_type="q_a_pair",
+                        platform="extraction",
+                    )
+                    if cls_result.entities:
+                        stored, _skipped = store_entities(item_id, cls_result.entities)
+                        entity_count += stored
+                    if cls_result.relationships:
+                        rel_stored, _skipped = store_relationships(item_id, cls_result.relationships)
+                        rel_count += rel_stored
+                    if (i + 1) % 10 == 0:
+                        print(f"  Processed {i + 1}/{len(stored_pairs)}...")
+                except Exception as e:
+                    print(f"  Entity extraction error for item {item_id}: {e}")
+
+            print(f"  Entities stored: {entity_count}, Relationships: {rel_count}")
 
     # ── Summary ─────────────────────────────────────────────────────
     elapsed = time.time() - start_time

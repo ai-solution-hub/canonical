@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 # Add parent dir to path so we can import kb_pipeline
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from kb_pipeline.classify import classify, estimate_cost as classify_cost
+from kb_pipeline.classify import classify, estimate_cost as classify_cost, store_entities, store_relationships, load_entity_aliases
 from kb_pipeline.config import (
     get_supabase_url,
     get_supabase_secret_key,
@@ -507,6 +507,41 @@ def process_markdown_file(
                 "",
                 BATCH_NAME,
             )
+
+        # ── Entity storage (non-blocking) ──────────────────────────────
+        if cls and (cls.entities or cls.relationships):
+            try:
+                load_entity_aliases()
+            except Exception as e:
+                log.warning("  [Aliases] Failed to load aliases: %s", e)
+
+        if cls and cls.entities:
+            try:
+                stored, skipped = store_entities(id_or_error, cls.entities)
+                log.info("  [Entities] Stored %d, skipped %d", stored, skipped)
+            except Exception as e:
+                log.error("  [Entities] ERROR (non-blocking): %s", e)
+
+        if cls and cls.relationships:
+            try:
+                rel_stored, rel_skipped = store_relationships(id_or_error, cls.relationships)
+                log.info("  [Relationships] Stored %d, skipped %d", rel_stored, rel_skipped)
+            except Exception as e:
+                log.error("  [Relationships] ERROR (non-blocking): %s", e)
+
+        if cls and cls.temporal_references:
+            try:
+                from kb_pipeline.store import merge_item_metadata
+                meta_ok = merge_item_metadata(id_or_error, {
+                    "ai_temporal_references": cls.temporal_references,
+                })
+                if meta_ok:
+                    log.info("  [Temporal] %d references stored", len(cls.temporal_references))
+                else:
+                    log.info("  [Temporal] Storage failed")
+            except Exception as e:
+                log.error("  [Temporal] ERROR (non-blocking): %s", e)
+
     else:
         result["status"] = "error"
         result["error"] = f"Insert failed: {id_or_error}"
