@@ -245,6 +245,8 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                   },
                   type: {
                     type: 'string',
+                    description:
+                      'Entity type. organisation: named companies/bodies. certification: accreditations held (ISO 27001, Cyber Essentials). regulation: laws with legal force (GDPR, DPA 2018, Equality Act 2010). framework: external standards, methodologies, or best-practice frameworks an organisation adopts (ITIL, PRINCE2, COBIT) — do NOT use for internal policies or procedures. capability: something the organisation does, provides, or maintains — includes internal policies (Information Security Policy, Acceptable Use Policy), service offerings, and operational competencies. person: named individuals. technology: general technology categories (cloud computing, AI, blockchain). project: named projects or programmes. sector: industry sectors. product: commercial products, platforms, or named software systems (WordPress, SharePoint). standard: published technical standards (BS 5839, WCAG 2.1, HL7). methodology: delivery approaches and principles (Agile, Lean, Six Sigma).',
                     enum: [
                       'organisation',
                       'certification',
@@ -378,6 +380,10 @@ Classify this content. Return a JSON object with:
 Also extract named entities and relationships from the content:
 - entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors, products, standards, and methodologies mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001"). Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numeric identifiers as entities.
   Entity type guidance:
+  - framework: EXTERNAL standards, methodologies, or best-practice frameworks that an organisation chooses to adopt (e.g. ITIL, PRINCE2, COBIT, TOGAF). Do NOT classify internal policies or procedures as framework — those are capabilities.
+  - capability: something the organisation does, provides, or maintains. This includes internal policies (Information Security Policy, Acceptable Use Policy, Data Protection Policy, Business Continuity Policy), service offerings, and operational competencies. If a document title ends in "Policy" or "Procedure", it is almost certainly a capability, not a framework.
+  - regulation: laws and regulations with legal force (GDPR, DPA 2018, Equality Act 2010, PECR). Must be externally imposed by a government or regulatory body.
+  - certification: accreditations or certifications held by the organisation (ISO 27001 certification, Cyber Essentials Plus, ISO 9001). The credential itself, not the standard behind it.
   - product: commercial products, platforms, or named software systems. Not technologies (those are general tech categories). Examples: WordPress, example-client LMS, SharePoint.
   - standard: published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
   - methodology: approaches, principles, and delivery methods. Not frameworks (those have formal structure). Examples: Agile, Lean, Six Sigma, Principle of Least Privilege.

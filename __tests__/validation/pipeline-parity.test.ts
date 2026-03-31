@@ -62,7 +62,7 @@ describe('Pipeline Parity', () => {
     // TS: extract from the tool schema enum array for entity_type
     // The enum is inside the 'type' property of the entities items schema
     const tsEnumMatch = tsContent.match(
-      /type:\s*\{\s*\n\s*type:\s*'string',\s*\n\s*enum:\s*\[([\s\S]*?)\]/,
+      /type:\s*\{\s*\n\s*type:\s*'string',\s*\n[\s\S]*?enum:\s*\[([\s\S]*?)\]/,
     );
     expect(
       tsEnumMatch,
