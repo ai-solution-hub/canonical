@@ -106,6 +106,7 @@ export function useReviewActions(
         action,
       }),
     onMutate: async ({ itemId, action }) => {
+      await queryClient.cancelQueries({ queryKey: queueQueryKey });
       const snapshot = queryClient.getQueryData<InfiniteQueueData>(queueQueryKey);
       const prevProgress = { ...progress };
 
@@ -113,8 +114,8 @@ export function useReviewActions(
       setProgress((prev) => ({
         ...prev,
         verified:
-          action === 'unverify' ? prev.verified - 1 : prev.verified,
-        flagged: action === 'unflag' ? prev.flagged - 1 : prev.flagged,
+          action === 'unverify' ? Math.max(0, prev.verified - 1) : prev.verified,
+        flagged: action === 'unflag' ? Math.max(0, prev.flagged - 1) : prev.flagged,
         sessionReviewed: Math.max(0, prev.sessionReviewed - 1),
       }));
 
