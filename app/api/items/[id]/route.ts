@@ -75,10 +75,37 @@ export async function PATCH(
       );
     }
 
+    if (field === 'expiry_date' && value !== null && typeof value === 'string') {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(value)) {
+        return NextResponse.json(
+          { error: 'expiry_date must be a valid ISO date (YYYY-MM-DD) or null' },
+          { status: 400 },
+        );
+      }
+      const parsed = new Date(value);
+      if (isNaN(parsed.getTime())) {
+        return NextResponse.json(
+          { error: 'expiry_date must be a valid date' },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (field === 'lifecycle_type' && value !== null && typeof value === 'string') {
+      const validTypes = ['evergreen', 'date_bound', 'regulation', 'bid_discovered'];
+      if (!validTypes.includes(value)) {
+        return NextResponse.json(
+          { error: `lifecycle_type must be one of: ${validTypes.join(', ')}` },
+          { status: 400 },
+        );
+      }
+    }
+
     // Fetch current state before update (for version history)
     const { data: currentItem, error: fetchError } = await supabase
       .from('content_items')
-      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status')
+      .select('title, content, brief, detail, reference, suggested_title, ai_keywords, primary_domain, primary_subtopic, secondary_domain, secondary_subtopic, priority, ai_summary, content_type, platform, author_name, user_tags, answer_standard, answer_advanced, governance_review_status, expiry_date, lifecycle_type')
       .eq('id', id)
       .single();
 

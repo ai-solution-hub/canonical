@@ -88,6 +88,44 @@ export async function PATCH(
       );
     }
 
+    // Reverse bridge: propagate expiry_date to linked content items
+    // Only for entity types where expiry dates are entity-level (cert, reg, standard)
+    const entityExpiry = mergedMetadata.expiry_date as string | undefined;
+    if (entityExpiry !== undefined) {
+      try {
+        const { data: entityInfo } = await supabase
+          .from('entity_mentions')
+          .select('entity_type, content_item_id')
+          .eq('canonical_name', decodedName);
+
+        if (entityInfo && entityInfo.length > 0) {
+          const entityType = entityInfo[0].entity_type;
+          const propagateTypes = ['certification', 'regulation', 'standard'];
+
+          if (propagateTypes.includes(entityType)) {
+            const contentIds = [...new Set(
+              entityInfo.map((e) => e.content_item_id).filter(Boolean) as string[]
+            )];
+
+            if (contentIds.length > 0) {
+              const updatePayload: Record<string, unknown> = {
+                expiry_date: entityExpiry || null,
+              };
+              if (entityExpiry) {
+                updatePayload.lifecycle_type = 'date_bound';
+              }
+              await supabase
+                .from('content_items')
+                .update(updatePayload)
+                .in('id', contentIds);
+            }
+          }
+        }
+      } catch (bridgeErr) {
+        console.error('Reverse bridge propagation failed:', bridgeErr);
+      }
+    }
+
     return NextResponse.json(updated);
   } catch (err) {
     return NextResponse.json(

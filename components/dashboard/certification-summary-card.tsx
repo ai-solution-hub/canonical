@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Shield, Copy, Check, ChevronDown, ChevronRight, Clock, RefreshCw } from 'lucide-react';
+import { Shield, Copy, Check, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -207,7 +207,6 @@ function CertificationRow({
   onEdit?: (name: string) => void;
 }) {
   const needsRenewal = cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
-  const needsExpiryUpdate = cert.expiry_status === 'unknown' || cert.expiry_status === 'expired';
   // Navigate to the first content item for renewal context
   const renewalItemId = cert.content_items?.[0]?.id;
 
@@ -259,27 +258,11 @@ function CertificationRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(cert.canonical_name)}`}
-                aria-label={`Upload renewed ${cert.canonical_name} document`}
+                href={`/item/${renewalItemId}`}
+                aria-label={`View ${cert.canonical_name} for renewal`}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
-              </Link>
-            </Button>
-          )}
-          {needsExpiryUpdate && renewalItemId && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1 text-xs"
-              asChild
-            >
-              <Link
-                href={`/item/${renewalItemId}?update_expiry=${encodeURIComponent(cert.canonical_name)}`}
-                aria-label={`Update expiry date for ${cert.canonical_name}`}
-              >
-                <Clock className="size-3" aria-hidden="true" />
-                Update expiry
               </Link>
             </Button>
           )}
@@ -349,8 +332,8 @@ function RegistrationRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(reg.canonical_name)}`}
-                aria-label={`Upload renewed ${reg.canonical_name} document`}
+                href={`/item/${renewalItemId}`}
+                aria-label={`View ${reg.canonical_name} for renewal`}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
