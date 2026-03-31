@@ -9,6 +9,23 @@ import { rateLimitResponse } from '@/lib/auth';
 
 export const maxDuration = 30;
 
+/** Row shape returned by the get_guide_coverage() RPC */
+interface GuideSectionRow {
+  guide_id: string;
+  guide_name: string;
+  guide_slug: string;
+  guide_type: string;
+  domain_filter: string;
+  section_id: string;
+  section_name: string;
+  section_order: number;
+  expected_layer: string | null;
+  is_required: boolean;
+  content_count: number;
+  fresh_count: number;
+  stale_count: number;
+}
+
 /** GET /api/guides — list guides (published only for non-admins) */
 export async function GET(request: NextRequest) {
   try {
@@ -47,24 +64,14 @@ export async function GET(request: NextRequest) {
     }
 
     // When ?include=stats, enrich each guide with section/content counts
+    // Uses the same get_guide_coverage() RPC as the coverage page to ensure
+    // consistent stats (the previous manual calculation always returned zeros
+    // because all seeded sections have subtopic_filter = NULL).
     const includeStats = include === 'stats';
     if (includeStats && data && data.length > 0) {
-      const guideIds = data.map((g) => g.id);
-      const { data: sections, error: secErr } = await supabase
-        .from('guide_sections')
-        .select('guide_id, id, is_required, subtopic_filter')
-        .in('guide_id', guideIds);
+      const { data: coverageRows, error: covErr } = await supabase.rpc('get_guide_coverage');
 
-      if (!secErr && sections) {
-        // Group sections by guide
-        const sectionsByGuide = new Map<string, typeof sections>();
-        for (const sec of sections) {
-          const arr = sectionsByGuide.get(sec.guide_id) ?? [];
-          arr.push(sec);
-          sectionsByGuide.set(sec.guide_id, arr);
-        }
-
-        // Build stats per guide
+      if (!covErr && coverageRows) {
         const statsMap = new Map<string, {
           total_sections: number;
           populated_sections: number;
@@ -72,44 +79,20 @@ export async function GET(request: NextRequest) {
           populated_required: number;
         }>();
 
-        for (const guide of data) {
-          const guideSections = sectionsByGuide.get(guide.id) ?? [];
-          const total = guideSections.length;
-          const required = guideSections.filter((s) => s.is_required).length;
-          let populated = 0;
-          let populatedRequired = 0;
+        for (const row of coverageRows as unknown as GuideSectionRow[]) {
+          const existing = statsMap.get(row.guide_id) ?? {
+            total_sections: 0,
+            populated_sections: 0,
+            required_sections: 0,
+            populated_required: 0,
+          };
 
-          if (total > 0 && guide.domain_filter) {
-            const subtopicFilters = guideSections
-              .map((s) => s.subtopic_filter)
-              .filter(Boolean) as string[];
+          existing.total_sections += 1;
+          if (row.content_count > 0) existing.populated_sections += 1;
+          if (row.is_required) existing.required_sections += 1;
+          if (row.is_required && row.content_count > 0) existing.populated_required += 1;
 
-            if (subtopicFilters.length > 0) {
-              const { data: contentCounts } = await supabase
-                .from('content_items')
-                .select('primary_subtopic')
-                .eq('primary_domain', guide.domain_filter)
-                .in('primary_subtopic', subtopicFilters);
-
-              const populatedSubtopics = new Set(
-                (contentCounts ?? []).map((c) => c.primary_subtopic),
-              );
-
-              for (const sec of guideSections) {
-                if (sec.subtopic_filter && populatedSubtopics.has(sec.subtopic_filter)) {
-                  populated++;
-                  if (sec.is_required) populatedRequired++;
-                }
-              }
-            }
-          }
-
-          statsMap.set(guide.id, {
-            total_sections: total,
-            populated_sections: populated,
-            required_sections: required,
-            populated_required: populatedRequired,
-          });
+          statsMap.set(row.guide_id, existing);
         }
 
         const enriched = data.map((guide) => ({
