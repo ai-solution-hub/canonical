@@ -62,8 +62,10 @@ async function main() {
   // Fetch CHECK constraint values for content_types and platforms
   const { data: checkConstraints } = await supabase
     .rpc('get_check_constraint_values', undefined)
-    .throwOnError()
-    .catch(() => ({ data: null }));
+    .then((res) => {
+      if (res.error) return { data: null };
+      return res;
+    });
 
   // Fallback: extract from SCHEMA-QUICK-REFERENCE if RPC not available
   let contentTypes: string[] = [];
