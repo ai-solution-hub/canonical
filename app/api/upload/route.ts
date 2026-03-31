@@ -707,10 +707,10 @@ export async function POST(request: NextRequest) {
         });
         suggestedLayer = suggestion;
 
-        await serviceClient.rpc('merge_item_metadata', {
-          p_item_id: itemId,
-          p_new_data: { layer: suggestion.suggestedLayer },
-        });
+        await serviceClient
+          .from('content_items')
+          .update({ layer: suggestion.suggestedLayer })
+          .eq('id', itemId);
       } catch (layerErr) {
         console.error('Layer inference failed:', layerErr);
         // Non-fatal — item is still usable without a layer suggestion

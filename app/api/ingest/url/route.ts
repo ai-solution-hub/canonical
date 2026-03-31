@@ -143,6 +143,41 @@ export async function POST(request: NextRequest) {
       });
     } catch { /* best-effort */ }
 
+    // 13b. Date extraction — temporal references and expiry date
+    let expiryDate: string | null = null;
+    try {
+      const { extractTemporalReferences, findExpiryDate, extractDates } =
+        await import('@/lib/date-extraction');
+      const temporalReferences = extractTemporalReferences(extracted.content);
+      const dates = extractDates(extracted.content);
+      expiryDate = findExpiryDate(dates);
+
+      if (temporalReferences.length > 0 || expiryDate) {
+        const { createServiceClient: createDateSvcClient } = await import('@/lib/supabase/server');
+        const dateServiceClient = createDateSvcClient();
+
+        if (temporalReferences.length > 0) {
+          await dateServiceClient.rpc('merge_item_metadata', {
+            p_item_id: newItem.id,
+            p_new_data: { temporal_references: temporalReferences },
+          });
+        }
+        if (expiryDate) {
+          await supabase
+            .from('content_items')
+            .update({ expiry_date: expiryDate, lifecycle_type: 'date_bound' })
+            .eq('id', newItem.id);
+        }
+      }
+
+      if (expiryDate) {
+        const formatted = new Date(expiryDate).toLocaleDateString('en-GB');
+        warnings.push(`Expiry date detected: ${formatted} - lifecycle type set to date_bound`);
+      }
+    } catch (dateErr) {
+      console.error('Date extraction failed:', dateErr);
+    }
+
     // 14. Classify (awaited)
     try {
       const { classifyContent } = await import('@/lib/ai/classify');
@@ -161,6 +196,42 @@ export async function POST(request: NextRequest) {
       warnings.push(`Summary generation failed: ${msg}`);
     }
 
+    // 15b. Quality score calculation
+    try {
+      const { calculateAndRoundQualityScore } =
+        await import('@/lib/quality/quality-score');
+      const { createServiceClient: createQualitySvcClient } = await import('@/lib/supabase/server');
+      const qualityServiceClient = createQualitySvcClient();
+
+      const { data: latestItem } = await qualityServiceClient
+        .from('content_items')
+        .select('freshness, classification_confidence, brief, detail, reference, ai_summary, citation_count')
+        .eq('id', newItem.id)
+        .single();
+
+      if (latestItem) {
+        const score = calculateAndRoundQualityScore({
+          freshness: latestItem.freshness,
+          classification_confidence: latestItem.classification_confidence,
+          brief: latestItem.brief,
+          detail: latestItem.detail,
+          reference: latestItem.reference,
+          ai_summary: latestItem.ai_summary,
+          citation_count: latestItem.citation_count ?? 0,
+        });
+
+        await qualityServiceClient
+          .from('content_items')
+          .update({
+            quality_score: score,
+            quality_score_updated_at: new Date().toISOString(),
+          })
+          .eq('id', newItem.id);
+      }
+    } catch (qualityErr) {
+      console.error('Quality score calculation failed:', qualityErr);
+    }
+
     // 16. Layer inference — suggest and store a layer
     let suggestedLayer: { suggestedLayer: string; reason: string; confidence: string } | undefined;
     try {
@@ -177,10 +248,12 @@ export async function POST(request: NextRequest) {
       });
       suggestedLayer = suggestion;
 
-      await supabase.rpc('merge_item_metadata', {
-        p_item_id: newItem.id,
-        p_new_data: { layer: suggestion.suggestedLayer },
-      });
+      const { createServiceClient: createSvcClient } = await import('@/lib/supabase/server');
+      const layerServiceClient = createSvcClient();
+      await layerServiceClient
+        .from('content_items')
+        .update({ layer: suggestion.suggestedLayer })
+        .eq('id', newItem.id);
     } catch (layerErr) {
       console.error('Layer inference failed:', layerErr);
       // Non-fatal — item is still usable without a layer suggestion

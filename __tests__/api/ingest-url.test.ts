@@ -40,6 +40,10 @@ const {
   mockCheckForDuplicates,
   mockFormatDedupWarning,
   mockSuggestTopic,
+  mockExtractTemporalReferences,
+  mockFindExpiryDate,
+  mockExtractDates,
+  mockCalculateAndRoundQualityScore,
 } = vi.hoisted(() => ({
   mockCheckRateLimit: vi.fn(),
   mockValidateUrl: vi.fn(),
@@ -51,6 +55,10 @@ const {
   mockCheckForDuplicates: vi.fn(),
   mockFormatDedupWarning: vi.fn(),
   mockSuggestTopic: vi.fn(),
+  mockExtractTemporalReferences: vi.fn(),
+  mockFindExpiryDate: vi.fn(),
+  mockExtractDates: vi.fn(),
+  mockCalculateAndRoundQualityScore: vi.fn(),
 }));
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -90,6 +98,16 @@ vi.mock('@/lib/topic-inference', () => ({
   suggestTopic: mockSuggestTopic,
 }));
 
+vi.mock('@/lib/date-extraction', () => ({
+  extractTemporalReferences: mockExtractTemporalReferences,
+  findExpiryDate: mockFindExpiryDate,
+  extractDates: mockExtractDates,
+}));
+
+vi.mock('@/lib/quality/quality-score', () => ({
+  calculateAndRoundQualityScore: mockCalculateAndRoundQualityScore,
+}));
+
 // Import route AFTER mocks are registered
 import { POST } from '@/app/api/ingest/url/route';
 
@@ -122,6 +140,10 @@ function setupSuccessPath() {
   mockFormatDedupWarning.mockReturnValue(null);
   mockClassifyContent.mockResolvedValue(undefined);
   mockGenerateSummary.mockResolvedValue(undefined);
+  mockExtractTemporalReferences.mockReturnValue([]);
+  mockFindExpiryDate.mockReturnValue(null);
+  mockExtractDates.mockReturnValue([]);
+  mockCalculateAndRoundQualityScore.mockReturnValue(65);
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +322,12 @@ describe('POST /api/ingest/url — Successful Import', () => {
       resolve({ data: null, error: null }),
     );
 
+    // single for quality score fetch (latestItem)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      error: null,
+    });
+
     // single for domain/subtopic re-fetch (topic suggestion step)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: 'General Business', primary_subtopic: 'Strategy' },
@@ -448,6 +476,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      error: null,
+    });
     // single for domain/subtopic re-fetch (topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
@@ -511,6 +544,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      error: null,
+    });
     // single for domain/subtopic re-fetch (topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
@@ -556,6 +594,11 @@ describe('POST /api/ingest/url — Warnings & Edge Cases', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      error: null,
+    });
     // single for domain/subtopic re-fetch (topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
       data: { primary_domain: null, primary_subtopic: null },
@@ -605,6 +648,12 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
     mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
       resolve({ data: null, error: null }),
     );
+
+    // single for quality score fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { freshness: 'fresh', classification_confidence: 0.9, brief: null, detail: null, reference: null, ai_summary: null, citation_count: 0 },
+      error: null,
+    });
 
     // single for domain/subtopic re-fetch (for topic suggestion)
     mockSupabase._chain.single.mockResolvedValueOnce({
@@ -663,5 +712,214 @@ describe('POST /api/ingest/url — Topic Suggestion', () => {
     const body = await res.json();
     expect(body.id).toBe('new-item-id');
     expect(body.topic_suggestion).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Layer Column Write (Gap 1b)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Layer Column Write', () => {
+  beforeEach(() => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+  });
+
+  it('writes layer to column via .update() not rpc merge_item_metadata', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    // Layer should be written via .update() on content_items, not via rpc
+    const rpcCalls = mockSupabase.rpc.mock.calls;
+    const layerRpcCalls = rpcCalls.filter(
+      (call: unknown[]) =>
+        call[0] === 'merge_item_metadata' &&
+        typeof call[1] === 'object' &&
+        call[1] !== null &&
+        'p_new_data' in call[1] &&
+        typeof (call[1] as Record<string, unknown>).p_new_data === 'object' &&
+        (call[1] as Record<string, unknown>).p_new_data !== null &&
+        'layer' in ((call[1] as Record<string, unknown>).p_new_data as Record<string, unknown>),
+    );
+    expect(layerRpcCalls).toHaveLength(0);
+
+    // Verify .update() was called (the from/update/eq chain)
+    expect(mockSupabase._chain.update).toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Date Extraction (Gap 13a)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Date Extraction', () => {
+  beforeEach(() => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+  });
+
+  it('calls date extraction functions on extracted content', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    expect(mockExtractTemporalReferences).toHaveBeenCalledWith(SAMPLE_EXTRACTION.content);
+    expect(mockExtractDates).toHaveBeenCalledWith(SAMPLE_EXTRACTION.content);
+    expect(mockFindExpiryDate).toHaveBeenCalled();
+  });
+
+  it('adds expiry date warning when expiry date detected', async () => {
+    mockFindExpiryDate.mockReturnValue('2027-06-30');
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.warnings.some((w: string) => w.includes('Expiry date detected'))).toBe(true);
+  });
+
+  it('still succeeds when date extraction fails', async () => {
+    mockExtractTemporalReferences.mockImplementation(() => {
+      throw new Error('Parse failure');
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe('new-item-id');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Quality Score (Gap 13b)
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('POST /api/ingest/url — Quality Score', () => {
+  beforeEach(() => {
+    configureRole(mockSupabase, 'editor');
+    setupSuccessPath();
+
+    // maybeSingle for URL check
+    mockSupabase._chain.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    // single for insert
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { id: 'new-item-id', title: 'Test Article', content_type: 'article', created_at: '2026-03-19T00:00:00Z' },
+      error: null,
+    });
+    // then for content_history
+    mockSupabase._chain.then.mockImplementationOnce((resolve: (v: unknown) => void) =>
+      resolve({ data: null, error: null }),
+    );
+    // single for quality score fetch (latestItem)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: {
+        freshness: 'fresh',
+        classification_confidence: 0.85,
+        brief: null,
+        detail: null,
+        reference: null,
+        ai_summary: 'A summary',
+        citation_count: 0,
+      },
+      error: null,
+    });
+    // single for domain/subtopic re-fetch (topic suggestion)
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null },
+      error: null,
+    });
+    // single for final fetch
+    mockSupabase._chain.single.mockResolvedValueOnce({
+      data: { primary_domain: null, primary_subtopic: null, ai_summary: null },
+      error: null,
+    });
+  });
+
+  it('calls calculateAndRoundQualityScore after summarise', async () => {
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    await POST(req);
+
+    expect(mockCalculateAndRoundQualityScore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        freshness: 'fresh',
+        classification_confidence: 0.85,
+        ai_summary: 'A summary',
+        citation_count: 0,
+      }),
+    );
+  });
+
+  it('still succeeds when quality score calculation fails', async () => {
+    mockCalculateAndRoundQualityScore.mockImplementation(() => {
+      throw new Error('Score calculation error');
+    });
+
+    const req = createTestRequest('/api/ingest/url', {
+      method: 'POST',
+      body: { url: SAMPLE_URL },
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe('new-item-id');
   });
 });

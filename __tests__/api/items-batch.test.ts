@@ -503,6 +503,29 @@ describe('POST /api/items/batch', () => {
       }
     });
 
+    it('writes layer to column via .update() not rpc merge_item_metadata', async () => {
+      configureRole(mockSupabase, 'editor');
+
+      await POST(makeRequest({ items: makeSampleItems(1) }));
+
+      // Layer should NOT be written via rpc('merge_item_metadata') with layer in p_new_data
+      const rpcCalls = mockServiceClient.rpc.mock.calls;
+      const layerRpcCalls = rpcCalls.filter(
+        (call: unknown[]) =>
+          call[0] === 'merge_item_metadata' &&
+          typeof call[1] === 'object' &&
+          call[1] !== null &&
+          'p_new_data' in call[1] &&
+          typeof (call[1] as Record<string, unknown>).p_new_data === 'object' &&
+          (call[1] as Record<string, unknown>).p_new_data !== null &&
+          'layer' in ((call[1] as Record<string, unknown>).p_new_data as Record<string, unknown>),
+      );
+      expect(layerRpcCalls).toHaveLength(0);
+
+      // Verify .update() was called on the content chain (layer column update)
+      expect(mockContentChain.update).toHaveBeenCalled();
+    });
+
     it('creates content_history entry per item', async () => {
       configureRole(mockSupabase, 'editor');
 

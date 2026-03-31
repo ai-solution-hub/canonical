@@ -253,10 +253,10 @@ export async function POST(request: NextRequest) {
             title: item.title,
           });
 
-          await serviceClient.rpc('merge_item_metadata', {
-            p_item_id: newItem.id,
-            p_new_data: { layer: suggestion.suggestedLayer },
-          });
+          await serviceClient
+            .from('content_items')
+            .update({ layer: suggestion.suggestedLayer })
+            .eq('id', newItem.id);
         } catch (layerErr) {
           console.error(`Layer inference failed for batch item ${i}:`, layerErr);
         }
