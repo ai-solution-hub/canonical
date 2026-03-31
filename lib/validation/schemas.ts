@@ -782,6 +782,7 @@ export const TaxonomyDomainCreateSchema = z.object({
   name: z.string().trim().min(1, 'Domain name is required').max(100),
   colour: z.string().trim().max(50).optional(),
   display_order: z.number().int().min(0).max(999).optional(),
+  key_signal: z.string().trim().max(1000).optional(),
 });
 
 /** PATCH /api/taxonomy/domains/:id */
@@ -791,6 +792,7 @@ export const TaxonomyDomainUpdateSchema = z.object({
   display_order: z.number().int().min(0).max(999).optional(),
   is_active: z.boolean().optional(),
   accepted_at: z.string().datetime().nullable().optional(),
+  key_signal: z.string().trim().max(1000).nullable().optional(),
 });
 
 /** POST /api/taxonomy/subtopics */

@@ -21,7 +21,7 @@ export async function GET() {
     // Fetch all domains with subtopic counts via relational count
     const { data: domains, error } = await supabase
       .from('taxonomy_domains')
-      .select('id, name, display_order, colour, is_active, provenance, taxonomy_subtopics(count)')
+      .select('id, name, display_order, colour, key_signal, is_active, provenance, taxonomy_subtopics(count)')
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     const parsed = parseBody(TaxonomyDomainCreateSchema, raw);
     if (!parsed.success) return parsed.response;
 
-    const { name, colour, display_order } = parsed.data;
+    const { name, colour, display_order, key_signal } = parsed.data;
 
     // Auto-assign display_order if not provided
     let order = display_order;
@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
       .insert({
         name,
         colour: colour ?? null,
+        key_signal: key_signal ?? null,
         display_order: order,
         is_active: true,
         provenance: 'client',

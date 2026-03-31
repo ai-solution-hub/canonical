@@ -18,6 +18,7 @@ export interface AdminDomain {
   name: string;
   display_order: number;
   colour: string | null;
+  key_signal: string | null;
   is_active: boolean;
   subtopic_count: number;
   provenance: TaxonomyProvenance;
@@ -54,6 +55,8 @@ export interface UseTaxonomyAdminReturn {
   setDomainColour: (value: string) => void;
   domainOrder: string;
   setDomainOrder: (value: string) => void;
+  domainKeySignal: string;
+  setDomainKeySignal: (value: string) => void;
   domainSaving: boolean;
 
   // Subtopic dialog state
@@ -202,6 +205,7 @@ export function useTaxonomyAdmin({
   const [domainName, setDomainName] = useState('');
   const [domainColour, setDomainColour] = useState('');
   const [domainOrder, setDomainOrder] = useState('');
+  const [domainKeySignal, setDomainKeySignal] = useState('');
 
   // -----------------------------------------------------------------------
   // Subtopic dialog state (pure UI — stays as useState)
@@ -483,6 +487,7 @@ export function useTaxonomyAdmin({
     setDomainName('');
     setDomainColour('');
     setDomainOrder('');
+    setDomainKeySignal('');
     setDomainDialogOpen(true);
   }
 
@@ -491,6 +496,7 @@ export function useTaxonomyAdmin({
     setDomainName(domain.name);
     setDomainColour(domain.colour ?? '');
     setDomainOrder(String(domain.display_order));
+    setDomainKeySignal(domain.key_signal ?? '');
     setDomainDialogOpen(true);
   }
 
@@ -508,6 +514,9 @@ export function useTaxonomyAdmin({
       if (!isNaN(orderVal) && orderVal !== editingDomain.display_order) {
         body.display_order = orderVal;
       }
+      if ((domainKeySignal.trim() || null) !== editingDomain.key_signal) {
+        body.key_signal = domainKeySignal.trim() || null;
+      }
 
       if (Object.keys(body).length === 0) {
         setDomainDialogOpen(false);
@@ -524,6 +533,7 @@ export function useTaxonomyAdmin({
       if (domainColour.trim()) body.colour = domainColour.trim();
       const orderVal = parseInt(domainOrder, 10);
       if (!isNaN(orderVal)) body.display_order = orderVal;
+      if (domainKeySignal.trim()) body.key_signal = domainKeySignal.trim();
 
       await domainSaveMutation.mutateAsync({ body, name: domainName.trim() });
     }
@@ -734,6 +744,8 @@ export function useTaxonomyAdmin({
     setDomainColour,
     domainOrder,
     setDomainOrder,
+    domainKeySignal,
+    setDomainKeySignal,
     domainSaving,
 
     // Subtopic dialog state

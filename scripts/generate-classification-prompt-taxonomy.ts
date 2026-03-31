@@ -6,8 +6,8 @@
  * markers in docs/reference/classification-prompt.md.
  *
  * Domain descriptions come from the DB `taxonomy_domains.description` column.
- * "Key signal" paragraphs are editorial content maintained in this script
- * (Option B per spec) — they change rarely and are not stored in the DB.
+ * "Key signal" paragraphs come from the DB `taxonomy_domains.key_signal` column
+ * (migrated from hardcoded map in WP2 of the taxonomy chain automation).
  *
  * Usage: bun run scripts/generate-classification-prompt-taxonomy.ts
  */
@@ -43,63 +43,13 @@ function loadEnvFile(path: string): void {
 loadEnvFile(join(PROJECT_ROOT, '.env.local'));
 loadEnvFile(join(PROJECT_ROOT, '.env'));
 
-// ── Key signal paragraphs (editorial, Option B per spec) ──
-// These are hand-curated and change rarely. Keyed by lowercase domain name.
-
-const KEY_SIGNALS: Record<string, string> = {
-  security:
-    '**Key signal:** Content about protecting information, systems, and data —\n' +
-    'controls, policies, and security practices. The substance is about HOW security\n' +
-    'is managed, not merely that a certification exists.',
-  compliance:
-    '**Key signal:** Content about proving adherence to external requirements —\n' +
-    'standards bodies, regulators, auditors. The focus is on the obligation or\n' +
-    'evidence, not the underlying practice. For H&S, environmental, and modern\n' +
-    'slavery subtopics, the signal is physical safety, environmental impact, or\n' +
-    'ethical supply chain — not information security or data protection.',
-  implementation:
-    '**Key signal:** Content about concrete delivery activities — what happens, when\n' +
-    'it happens, and how the transition is managed. Answers the question "What do you\n' +
-    'do to get the client live?"',
-  support:
-    '**Key signal:** Content about keeping a live service running — BAU operations,\n' +
-    'response commitments, and what happens when things go wrong. Answers the\n' +
-    'question "How do you look after the service once it is live?"',
-  corporate:
-    '**Key signal:** Content about the organisation itself — who you are, your track\n' +
-    'record, your people, and your financial health. Answers the question "Tell us\n' +
-    'about your company."',
-  'product-feature':
-    '**Key signal:** Content about what the product or platform CAN do — its\n' +
-    'capabilities, architecture, and user experience. Answers the question "What does\n' +
-    'your system do?"',
-  methodology:
-    '**Key signal:** Content about HOW you work — your processes, governance, and\n' +
-    'quality practices. Answers the question "What is your approach to delivering\n' +
-    'projects?"',
-  'legislation-policy':
-    '**Key signal:** Content about laws, statutory guidance, regulatory policy\n' +
-    'updates, and legislative instruments. The substance is about WHAT THE LAW\n' +
-    'SAYS or HOW POLICY IS CHANGING, not about how an organisation complies.\n' +
-    'Answers the question "What does the legislation/guidance require?"',
-  'market-intelligence':
-    '**Key signal:** Content about competitors, market trends, procurement\n' +
-    'activity, and commercial landscape. The substance is about the EXTERNAL\n' +
-    "MARKET, not about the organisation's own capabilities or products.\n" +
-    'Answers the question "What is happening in our market?"',
-  'sector-news':
-    '**Key signal:** Content about sector events, leadership changes, inspections,\n' +
-    'audits, and organisational restructuring in target sectors. The substance is\n' +
-    'about WHAT IS HAPPENING in a sector, not about the organisation itself.\n' +
-    'Answers the question "What is happening in the sectors we serve?"',
-};
-
 // ── DB fetch ──
 
 interface DomainRow {
   id: string;
   name: string;
   description: string | null;
+  key_signal: string | null;
 }
 
 interface SubtopicRow {
@@ -121,7 +71,7 @@ async function fetchTaxonomy(): Promise<{ domains: DomainRow[]; subtopics: Subto
 
   const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')
-    .select('id, name, description')
+    .select('id, name, description, key_signal')
     .eq('is_active', true)
     .order('display_order');
 
@@ -175,11 +125,10 @@ function generateTaxonomySection(domains: DomainRow[], subtopics: SubtopicRow[])
       }
     }
 
-    // Add key signal if available
-    const signal = KEY_SIGNALS[domain.name.toLowerCase()];
-    if (signal) {
+    // Add key signal if available (stored in DB)
+    if (domain.key_signal) {
       lines.push('');
-      lines.push(signal);
+      lines.push(domain.key_signal);
     }
 
     lines.push('');

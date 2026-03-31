@@ -116,6 +116,8 @@ export function TaxonomySection() {
         setDomainColour={t.setDomainColour}
         domainOrder={t.domainOrder}
         setDomainOrder={t.setDomainOrder}
+        domainKeySignal={t.domainKeySignal}
+        setDomainKeySignal={t.setDomainKeySignal}
         domainSaving={t.domainSaving}
         handleDomainSubmit={t.handleDomainSubmit}
         subtopicDialogOpen={t.subtopicDialogOpen}

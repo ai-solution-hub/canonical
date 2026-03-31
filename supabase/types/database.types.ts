@@ -1802,6 +1802,7 @@ export type Database = {
           display_order: number
           id: string
           is_active: boolean | null
+          key_signal: string | null
           name: string
           provenance: string
           recommended_at: string | null
@@ -1816,6 +1817,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean | null
+          key_signal?: string | null
           name: string
           provenance?: string
           recommended_at?: string | null
@@ -1830,6 +1832,7 @@ export type Database = {
           display_order?: number
           id?: string
           is_active?: boolean | null
+          key_signal?: string | null
           name?: string
           provenance?: string
           recommended_at?: string | null
@@ -2831,7 +2834,7 @@ export type Database = {
         Args: {
           limit_count?: number
           query_embedding: string
-          query_text: string
+          query_text?: string
           similarity_threshold?: number
         }
         Returns: {

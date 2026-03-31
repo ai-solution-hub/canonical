@@ -5,6 +5,7 @@ import { formatDomainName } from '@/lib/taxonomy/taxonomy-format';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,8 @@ export interface TaxonomyDialogsProps {
   setDomainColour: (value: string) => void;
   domainOrder: string;
   setDomainOrder: (value: string) => void;
+  domainKeySignal: string;
+  setDomainKeySignal: (value: string) => void;
   domainSaving: boolean;
   handleDomainSubmit: (e: React.FormEvent) => Promise<void>;
 
@@ -75,6 +78,8 @@ export function TaxonomyDialogs({
   setDomainColour,
   domainOrder,
   setDomainOrder,
+  domainKeySignal,
+  setDomainKeySignal,
   domainSaving,
   handleDomainSubmit,
   subtopicDialogOpen,
@@ -145,6 +150,20 @@ export function TaxonomyDialogs({
               />
               <p className="text-xs text-muted-foreground">
                 Lower numbers appear first.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="domain-key-signal">Key Signal</Label>
+              <Textarea
+                id="domain-key-signal"
+                value={domainKeySignal}
+                onChange={(e) => setDomainKeySignal(e.target.value)}
+                placeholder="e.g. Content about protecting information, systems, and data..."
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Describes how to identify content belonging to this domain.
+                Used by the classification prompt generator.
               </p>
             </div>
             <DialogFooter>

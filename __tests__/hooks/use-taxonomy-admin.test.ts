@@ -58,8 +58,8 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 const sampleDomains: AdminDomain[] = [
-  { id: 'd1', name: 'Technical', display_order: 1, colour: '#0000FF', is_active: true, subtopic_count: 3, provenance: 'baseline' },
-  { id: 'd2', name: 'Corporate', display_order: 2, colour: null, is_active: true, subtopic_count: 1, provenance: 'baseline' },
+  { id: 'd1', name: 'Technical', display_order: 1, colour: '#0000FF', key_signal: null, is_active: true, subtopic_count: 3, provenance: 'baseline' },
+  { id: 'd2', name: 'Corporate', display_order: 2, colour: null, key_signal: null, is_active: true, subtopic_count: 1, provenance: 'baseline' },
 ];
 
 const sampleSubtopics: AdminSubtopic[] = [
