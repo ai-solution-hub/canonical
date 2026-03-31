@@ -21,7 +21,7 @@ Domain (Level 1)
 **Domains** are broad knowledge areas (e.g., Security, Compliance, Methodology). Each domain contains multiple **subtopics** that provide finer-grained classification.
 
 <!-- TAXONOMY_INJECT_START -->
-### Full Taxonomy (12 domains, 38 subtopics)
+### Full Taxonomy (15 domains, 57 subtopics)
 
 ```
 Security (5 subtopics)
@@ -85,6 +85,31 @@ Multi-academy-trusts (0 subtopics)
 Education (0 subtopics)
 
 Products-services (0 subtopics)
+
+Legislation-policy (7 subtopics)
+  ├── kcsie ()
+  ├── education-act-dfe ()
+  ├── health-social-care-legislation ()
+  ├── gdpr-data-protection ()
+  ├── funding-policy ()
+  ├── safeguarding-guidance ()
+  └── cpd-requirements ()
+
+Market-intelligence (5 subtopics)
+  ├── competitor-products ()
+  ├── competitor-market-activity ()
+  ├── competitor-leadership ()
+  ├── market-trends ()
+  └── procurement-activity ()
+
+Sector-news (7 subtopics)
+  ├── mat-leadership ()
+  ├── mat-restructuring ()
+  ├── mat-audits-ofsted ()
+  ├── education-sector-audits ()
+  ├── health-sector-audits ()
+  ├── local-authority-inspections ()
+  └── safeguarding-practice ()
 ```
 <!-- TAXONOMY_INJECT_END -->
 
