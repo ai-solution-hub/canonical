@@ -189,6 +189,9 @@ Consult these references when adding or modifying UI elements.
 | Documentation inventory | `docs/reference/documentation-inventory.md` |
 | Session handoffs | `docs/continuation-prompts/` |
 | Classification prompt | `docs/reference/classification-prompt.md` |
+| Classification architecture | `docs/reference/classification-architecture.md` |
+| Data entry points | `docs/reference/data-entry-points.md` |
+| Taxonomy change runbook | `docs/reference/taxonomy-change-runbook.md` |
 | Roadmap | `docs/reference/post-mvp-roadmap.md` |
 
 Historical planning documents are in `.planning/`.
