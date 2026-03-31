@@ -122,15 +122,14 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
       );
       if (!res.ok) {
-        // Suppress 401 — auth not yet established, will retry on next render
-        if (res.status === 401) {
-          // Remove from checked so they can be retried once auth is established
+        // Suppress auth-related failures (401, 403, redirects) — will retry on next render
+        if (res.status === 401 || res.status === 403 || res.redirected) {
           for (const id of uncheckedIds) {
             checkedIdsRef.current.delete(id);
           }
           return;
         }
-        throw new Error('Failed to check read status');
+        throw new Error(`Failed to check read status (${res.status})`);
       }
       const data = await res.json();
 

@@ -209,46 +209,33 @@ function CertificationRow({
   const needsRenewal = cert.expiry_status === 'expiring_soon' || cert.expiry_status === 'expired';
   // Navigate to the first content item for renewal context
   const renewalItemId = cert.content_items?.[0]?.id;
+  const itemLink = cert.content_items?.[0]?.id ? `/item/${cert.content_items[0].id}` : null;
 
-  return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
-      role="listitem"
-    >
+  const cardContent = (
+    <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          {renewalItemId ? (
-            <Link
-              href={`/item/${renewalItemId}`}
-              className="text-sm font-medium text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded-sm"
-              aria-label={`View ${formatEntityDisplayName(cert.canonical_name)} details`}
-            >
-              {formatEntityDisplayName(cert.canonical_name)}
-              {cert.metadata.version && (
-                <span className="ml-1 text-xs text-muted-foreground">
-                  v{cert.metadata.version}
-                </span>
-              )}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onEdit?.(cert.canonical_name)}
-              className={cn(
-                'text-sm font-medium text-foreground',
-                onEdit && 'cursor-pointer hover:underline',
-              )}
-              aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
-              disabled={!onEdit}
-            >
-              {formatEntityDisplayName(cert.canonical_name)}
-              {cert.metadata.version && (
-                <span className="ml-1 text-xs text-muted-foreground">
-                  v{cert.metadata.version}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onEdit?.(cert.canonical_name);
+            }}
+            className={cn(
+              'text-sm font-medium text-foreground',
+              onEdit && 'cursor-pointer hover:underline',
+            )}
+            aria-label={`Edit ${formatEntityDisplayName(cert.canonical_name)}`}
+            disabled={!onEdit}
+          >
+            {formatEntityDisplayName(cert.canonical_name)}
+            {cert.metadata.version && (
+              <span className="ml-1 text-xs text-muted-foreground">
+                v{cert.metadata.version}
+              </span>
+            )}
+          </button>
           <ExpiryBadge status={cert.expiry_status} />
           {needsRenewal && renewalItemId && (
             <Button
@@ -260,6 +247,7 @@ function CertificationRow({
               <Link
                 href={`/item/${renewalItemId}`}
                 aria-label={`View ${cert.canonical_name} for renewal`}
+                onClick={(e) => e.stopPropagation()}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
@@ -286,6 +274,27 @@ function CertificationRow({
       >
         {cert.content_item_count} linked {cert.content_item_count === 1 ? 'item' : 'items'}
       </span>
+    </>
+  );
+
+  if (itemLink) {
+    return (
+      <Link
+        href={itemLink}
+        className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        role="listitem"
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+      role="listitem"
+    >
+      {cardContent}
     </div>
   );
 }

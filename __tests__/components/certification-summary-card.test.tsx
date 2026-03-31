@@ -408,7 +408,7 @@ describe('CertificationSummaryCard', () => {
   // Edit callback
   // -------------------------------------------------------------------------
 
-  it('renders certification name as link when content items exist', () => {
+  it('renders certification card as clickable link when content items exist', () => {
     render(
       <CertificationSummaryCard
         certifications={[makeCert()]}
@@ -417,10 +417,11 @@ describe('CertificationSummaryCard', () => {
       />,
     );
 
-    // When content_items exist, the cert name is a link to the first item
-    const certLink = screen.getByLabelText('View ISO 27001 details');
-    expect(certLink).toBeInTheDocument();
-    expect(certLink).toHaveAttribute('href', '/item/ci-1');
+    // When content_items exist, the entire card is a link to the first item
+    const cardLinks = screen.getAllByRole('listitem');
+    const certCard = cardLinks[0];
+    expect(certCard.tagName).toBe('A');
+    expect(certCard).toHaveAttribute('href', '/item/ci-1');
   });
 
   it('calls onEditEntity when certification has no content items', () => {
