@@ -274,6 +274,20 @@ def process_url(
             except Exception as e:
                 print(f"  [Temporal] ERROR (non-blocking): {e}")
 
+        # ── Step 7d: Layer inference (non-blocking) ────────────────
+        try:
+            from .layer_inference import infer_layer
+            suggestion = infer_layer(
+                content_type=extracted.content_type,
+                content_length=len(extracted.content),
+                ingestion_source="url_import",
+                title=extracted.title,
+            )
+            update_content_item(id_or_error, {"layer": suggestion.suggested_layer})
+            print(f"  [Layer]   {suggestion.suggested_layer} ({suggestion.confidence})")
+        except Exception as e:
+            print(f"  [Layer]   ERROR (non-blocking): {e}")
+
         # ── Step 8: Quality logging ──────────────────────────────────
         _log_quality_flags(id_or_error, extracted, cls, batch_name, result)
 

@@ -479,6 +479,20 @@ def process_markdown_file(
         elif generate_summary_flag and not embedding:
             log.info("  [Summary] Skipped — no embedding available")
 
+        # Layer inference (non-blocking)
+        try:
+            from kb_pipeline.layer_inference import infer_layer
+            suggestion = infer_layer(
+                content_type="article",
+                content_length=len(cleaned_content),
+                ingestion_source="manual",
+                title=title,
+            )
+            update_content_item(id_or_error, {"layer": suggestion.suggested_layer})
+            log.info("  [Layer]   %s (%s)", suggestion.suggested_layer, suggestion.confidence)
+        except Exception as e:
+            log.error("  [Layer]   ERROR (non-blocking): %s", e)
+
         # Quality logging
         if len(cleaned_content) < SHORT_CONTENT_THRESHOLD:
             log_quality_issue(

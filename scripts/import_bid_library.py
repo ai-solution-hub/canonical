@@ -268,6 +268,19 @@ def build_content_record(pair: dict, batch_name: str) -> dict:
         },
     }
 
+    # Layer inference (non-blocking)
+    try:
+        from kb_pipeline.layer_inference import infer_layer
+        suggestion = infer_layer(
+            content_type="q_a_pair",
+            content_length=len(content),
+            ingestion_source="bid_library",
+            title=title,
+        )
+        record["layer"] = suggestion.suggested_layer
+    except Exception:
+        pass  # Non-blocking
+
     # Add batch tag to user_tags if present
     if pair.get("_batch_tag"):
         record["user_tags"] = [pair["_batch_tag"]]
