@@ -831,13 +831,7 @@
   --tw-prose-td-borders: var(--border);
 }
 
-/* Base styles — default border colour for all elements (shadcn/Tailwind v4) */
-*,
-::after,
-::before {
-  border-color: var(--color-border, var(--border));
-}
-
+/* Base styles */
 html,
 body {
   min-height: 100vh;
