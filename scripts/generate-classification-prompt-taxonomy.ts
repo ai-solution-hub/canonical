@@ -77,6 +77,21 @@ const KEY_SIGNALS: Record<string, string> = {
     '**Key signal:** Content about HOW you work — your processes, governance, and\n' +
     'quality practices. Answers the question "What is your approach to delivering\n' +
     'projects?"',
+  'legislation-policy':
+    '**Key signal:** Content about laws, statutory guidance, regulatory policy\n' +
+    'updates, and legislative instruments. The substance is about WHAT THE LAW\n' +
+    'SAYS or HOW POLICY IS CHANGING, not about how an organisation complies.\n' +
+    'Answers the question "What does the legislation/guidance require?"',
+  'market-intelligence':
+    '**Key signal:** Content about competitors, market trends, procurement\n' +
+    'activity, and commercial landscape. The substance is about the EXTERNAL\n' +
+    "MARKET, not about the organisation's own capabilities or products.\n" +
+    'Answers the question "What is happening in our market?"',
+  'sector-news':
+    '**Key signal:** Content about sector events, leadership changes, inspections,\n' +
+    'audits, and organisational restructuring in target sectors. The substance is\n' +
+    'about WHAT IS HAPPENING in a sector, not about the organisation itself.\n' +
+    'Answers the question "What is happening in the sectors we serve?"',
 };
 
 // ── DB fetch ──
