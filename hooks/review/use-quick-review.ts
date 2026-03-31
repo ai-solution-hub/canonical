@@ -105,6 +105,12 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
   });
 
   // -------------------------------------------------------------------------
+  // Destructure stable mutateAsync from the mutation object
+  // -------------------------------------------------------------------------
+
+  const { mutateAsync: reviewActionMutateAsync } = reviewActionMutation;
+
+  // -------------------------------------------------------------------------
   // Action helpers — preserve exact original signatures
   // -------------------------------------------------------------------------
 
@@ -117,7 +123,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
       // Optimistic update
       onOptimisticUpdate?.(itemId, { verified_at: null });
 
-      const ok = await reviewActionMutation.mutateAsync({
+      const ok = await reviewActionMutateAsync({
         itemId,
         itemTitle,
         action: 'unverify',
@@ -134,7 +140,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
       toast.success(`Unverified: ${itemTitle}`);
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync],
   );
 
   // --- quickVerify ---
@@ -146,7 +152,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
       const verifiedAt = new Date().toISOString();
       onOptimisticUpdate?.(itemId, { verified_at: verifiedAt });
 
-      const ok = await reviewActionMutation.mutateAsync({
+      const ok = await reviewActionMutateAsync({
         itemId,
         itemTitle,
         action: 'verify',
@@ -169,7 +175,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation, quickUnverify],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync, quickUnverify],
   );
 
   // --- quickUnflag ---
@@ -181,7 +187,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
       // Optimistic update
       onOptimisticUpdate?.(itemId, { hasQualityFlag: false });
 
-      const ok = await reviewActionMutation.mutateAsync({
+      const ok = await reviewActionMutateAsync({
         itemId,
         itemTitle,
         action: 'unflag',
@@ -198,7 +204,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
 
       toast.success(`Unflagged: ${itemTitle}`);
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync],
   );
 
   // --- quickFlag ---
@@ -209,7 +215,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
       // Optimistic update: flagging clears verification
       onOptimisticUpdate?.(itemId, { verified_at: null, hasQualityFlag: true });
 
-      const ok = await reviewActionMutation.mutateAsync({
+      const ok = await reviewActionMutateAsync({
         itemId,
         itemTitle,
         action: 'flag',
@@ -233,7 +239,7 @@ export function useQuickReview(options?: UseQuickReviewOptions) {
         },
       });
     },
-    [onOptimisticUpdate, setPending, clearPending, reviewActionMutation, quickUnflag],
+    [onOptimisticUpdate, setPending, clearPending, reviewActionMutateAsync, quickUnflag],
   );
 
   // Derive error from the last mutation error

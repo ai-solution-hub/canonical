@@ -114,9 +114,11 @@ export function useQAEditMode({
     setEditTitle('');
   }, []);
 
+  const { mutateAsync: saveAllMutateAsync } = mutation;
+
   const handleSaveAll = useCallback(async () => {
     try {
-      await mutation.mutateAsync({
+      await saveAllMutateAsync({
         editTitle,
         title,
         editStandard,
@@ -130,7 +132,7 @@ export function useQAEditMode({
     } catch {
       // Error already handled via onError callback
     }
-  }, [mutation, editTitle, title, editStandard, editAdvanced, answerStandard, answerAdvanced, isQAPair, itemId, onFieldSaved]);
+  }, [saveAllMutateAsync, editTitle, title, editStandard, editAdvanced, answerStandard, answerAdvanced, isQAPair, itemId, onFieldSaved]);
 
   return {
     isEditing,

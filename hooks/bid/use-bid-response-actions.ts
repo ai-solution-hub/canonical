@@ -151,6 +151,10 @@ export function useBidResponseActions({
     },
   });
 
+  // ── Destructure stable mutate/mutateAsync from mutation objects ──
+  const { mutateAsync: responseMutateAsync } = responseMutation;
+  const { mutate: provenanceMutate } = provenanceMutation;
+
   // ── Unified action handler ──
   // MUST remain async returning Promise<void> — the session page's
   // handleActionWithRecovery awaits this (S126 item 1, Section 9).
@@ -204,7 +208,7 @@ export function useBidResponseActions({
       // CRITICAL: mutateAsync (not mutate) — returns a Promise that the session
       // page's handleActionWithRecovery awaits. Using mutate() would return void,
       // silently breaking draft recovery (S126 item 1, Section 9).
-      await responseMutation.mutateAsync({ action, payload });
+      await responseMutateAsync({ action, payload });
 
       // After successful save, update lastServerContent so the sync effect
       // can write again when new server data arrives (S129 adversarial fix)
@@ -217,7 +221,7 @@ export function useBidResponseActions({
       response,
       editorContent,
       stream,
-      responseMutation,
+      responseMutateAsync,
       setEditorContent,
       lastServerContentRef,
       streamTextRef,
@@ -259,14 +263,14 @@ export function useBidResponseActions({
       if (response?.id) {
         const existingIds = (response.source_content ?? []).map((s) => s.id);
         if (!existingIds.includes(sourceId)) {
-          provenanceMutation.mutate({
+          provenanceMutate({
             responseId: response.id,
             sourceContentIds: [...existingIds, sourceId],
           });
         }
       }
     },
-    [response, editorInstanceRef, provenanceMutation],
+    [response, editorInstanceRef, provenanceMutate],
   );
 
   // ── Citation click ──

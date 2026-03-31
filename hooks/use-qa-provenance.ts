@@ -128,6 +128,8 @@ export function useQAProvenance({
     },
   });
 
+  const { mutateAsync: layerMutateAsync } = layerMutation;
+
   // Wrap mutation in a callback that preserves the original optimistic
   // update / rollback contract via onMetadataUpdate
   const handleLayerChange = useCallback(
@@ -145,7 +147,7 @@ export function useQAProvenance({
       });
 
       try {
-        await layerMutation.mutateAsync(newLayer);
+        await layerMutateAsync(newLayer);
       } catch (err) {
         console.error('Failed to update layer:', err);
         // Rollback
@@ -153,7 +155,7 @@ export function useQAProvenance({
         toast.error('Failed to update layer');
       }
     },
-    [itemId, metadata, onMetadataUpdate, layerMutation],
+    [itemId, metadata, onMetadataUpdate, layerMutateAsync],
   );
 
   return {

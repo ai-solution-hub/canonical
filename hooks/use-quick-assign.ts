@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/query/query-keys';
 import { fetchJson, mutationFetchJson } from '@/lib/query/fetchers';
@@ -127,13 +127,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
     },
   });
 
-  // Ref to break dependency cycle: useMutation returns a new object each render,
-  // which would make loadAssignments unstable and trigger infinite useEffect loops
-  // in consumers (e.g. browse-content.tsx loadAssignments effect).
-  const loadAssignmentsMutateRef = useRef(loadAssignmentsMutation.mutateAsync);
-  useEffect(() => {
-    loadAssignmentsMutateRef.current = loadAssignmentsMutation.mutateAsync;
-  });
+  const { mutateAsync: loadAssignmentsMutateAsync } = loadAssignmentsMutation;
 
   const loadAssignments = useCallback(
     async (itemIds: string[]) => {
@@ -141,7 +135,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
 
       try {
         const assignments =
-          await loadAssignmentsMutateRef.current(itemIds);
+          await loadAssignmentsMutateAsync(itemIds);
 
         setItemAssignments((prev) => {
           const next = new Map(prev);
@@ -154,7 +148,7 @@ export function useQuickAssign(): UseQuickAssignReturn {
         console.error('Failed to load assignments:', err);
       }
     },
-    [],
+    [loadAssignmentsMutateAsync],
   );
 
   // -------------------------------------------------------------------------
@@ -240,6 +234,8 @@ export function useQuickAssign(): UseQuickAssignReturn {
   // toggleAssignment wrapper — determines action and calls mutation
   // -------------------------------------------------------------------------
 
+  const { mutateAsync: toggleMutateAsync } = toggleMutation;
+
   const toggleAssignment = useCallback(
     async (
       itemId: string,
@@ -251,18 +247,16 @@ export function useQuickAssign(): UseQuickAssignReturn {
       const isCurrentlyAssigned = currentAssignments.has(workspaceId);
       const action = isCurrentlyAssigned ? 'unassign' : 'assign';
 
-      await toggleMutation
-        .mutateAsync({
-          itemId,
-          workspaceId,
-          workspaceName,
-          action,
-        })
-        .catch(() => {
-          // Error already handled in onError callback
-        });
+      await toggleMutateAsync({
+        itemId,
+        workspaceId,
+        workspaceName,
+        action,
+      }).catch(() => {
+        // Error already handled in onError callback
+      });
     },
-    [itemAssignments, toggleMutation],
+    [itemAssignments, toggleMutateAsync],
   );
 
   const isAssigning = useCallback(

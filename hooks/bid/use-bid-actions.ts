@@ -129,6 +129,8 @@ function useBidTransitions(
     },
   });
 
+  const { mutate: transitionMutate } = transitionMutation;
+
   const handleStatusTransition = useCallback(
     async (newStatus: BidState) => {
       if (!bid) return;
@@ -137,9 +139,9 @@ function useBidTransitions(
         toast.error(`Cannot transition from ${BID_STATE_LABELS[currentStatus]} to ${BID_STATE_LABELS[newStatus]}`);
         return;
       }
-      transitionMutation.mutate(newStatus);
+      transitionMutate(newStatus);
     },
-    [bid, transitionMutation],
+    [bid, transitionMutate],
   );
 
   return {

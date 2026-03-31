@@ -103,6 +103,8 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
     setEditValue('');
   }, []);
 
+  const { mutateAsync: fieldMutateAsync } = mutation;
+
   const saveEdit = useCallback(
     async (field: string, value: unknown) => {
       if (!validateEditableField(field)) {
@@ -112,12 +114,12 @@ export function useInlineFieldEdit<T extends object = Record<string, unknown>>({
       }
 
       try {
-        await mutation.mutateAsync({ field, value });
+        await fieldMutateAsync({ field, value });
       } catch {
         // Error already handled via onError callback
       }
     },
-    [mutation],
+    [fieldMutateAsync],
   );
 
   return {
