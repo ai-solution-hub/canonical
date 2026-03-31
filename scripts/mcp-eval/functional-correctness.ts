@@ -908,6 +908,69 @@ async function runWriteToolChecks(
     }
   }
 
+  // FC-63a: update_content_item — set expiry_date to valid ISO date
+  {
+    const futureDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+    const result = await callTool('update_content_item', {
+      id: evalItem.id,
+      fields: { expiry_date: futureDate },
+      reason: '[MCP-EVAL] FC-63a expiry_date test',
+    }, accessToken);
+
+    if (result.errorMessage) {
+      record('Write Tools', 'FC-63a', 'update_content_item expiry_date', 'FAIL', result.errorMessage);
+    } else if (result.isError) {
+      record('Write Tools', 'FC-63a', 'update_content_item expiry_date', 'FAIL', `Tool error: ${result.text.slice(0, 100)}`);
+    } else {
+      const textLower = result.text.toLowerCase();
+      const hasExpiry = textLower.includes('expiry') || textLower.includes('updated') || textLower.includes('expiry_date');
+      if (hasExpiry) {
+        record('Write Tools', 'FC-63a', 'update_content_item expiry_date', 'PASS', `expiry_date set successfully (${result.charCount} chars)`);
+      } else if (result.charCount > 20) {
+        record('Write Tools', 'FC-63a', 'update_content_item expiry_date', 'PASS', `Update response present (${result.charCount} chars)`);
+      } else {
+        record('Write Tools', 'FC-63a', 'update_content_item expiry_date', 'FAIL', 'No meaningful update response');
+      }
+    }
+
+    // Restore — clear expiry_date
+    await callTool('update_content_item', {
+      id: evalItem.id,
+      fields: { expiry_date: null },
+    }, accessToken);
+  }
+
+  // FC-63b: update_content_item — set lifecycle_type to valid value
+  {
+    const result = await callTool('update_content_item', {
+      id: evalItem.id,
+      fields: { lifecycle_type: 'date_bound' },
+      reason: '[MCP-EVAL] FC-63b lifecycle_type test',
+    }, accessToken);
+
+    if (result.errorMessage) {
+      record('Write Tools', 'FC-63b', 'update_content_item lifecycle_type', 'FAIL', result.errorMessage);
+    } else if (result.isError) {
+      record('Write Tools', 'FC-63b', 'update_content_item lifecycle_type', 'FAIL', `Tool error: ${result.text.slice(0, 100)}`);
+    } else {
+      const textLower = result.text.toLowerCase();
+      const hasLifecycle = textLower.includes('lifecycle') || textLower.includes('updated') || textLower.includes('lifecycle_type');
+      if (hasLifecycle) {
+        record('Write Tools', 'FC-63b', 'update_content_item lifecycle_type', 'PASS', `lifecycle_type set successfully (${result.charCount} chars)`);
+      } else if (result.charCount > 20) {
+        record('Write Tools', 'FC-63b', 'update_content_item lifecycle_type', 'PASS', `Update response present (${result.charCount} chars)`);
+      } else {
+        record('Write Tools', 'FC-63b', 'update_content_item lifecycle_type', 'FAIL', 'No meaningful update response');
+      }
+    }
+
+    // Restore — set back to evergreen (default)
+    await callTool('update_content_item', {
+      id: evalItem.id,
+      fields: { lifecycle_type: 'evergreen' },
+    }, accessToken);
+  }
+
   // FC-64: cite_content — use real bid response UUID when available, else fake UUID
   {
     if (knownUUIDs.bidResponseId) {

@@ -72,78 +72,84 @@ export function loadEnv(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical lists — updated to 35 tools (current as of S104)
+// Canonical lists — updated to 38 tools (current as of S134)
 // ---------------------------------------------------------------------------
 
-/** All 35 MCP tool names in registration order. */
+/** All 38 MCP tool names in registration order. */
 export const CANONICAL_TOOL_NAMES = [
   'search_knowledge_base',        // 1
-  'get_dashboard_summary',        // 2
-  'list_active_bids',             // 3
-  'get_content_item',             // 4
+  'search_qa_library',            // 2
+  'find_similar_items',           // 3
+  'get_dashboard_summary',        // 4
   'get_reorientation',            // 5
-  'get_bid_detail',               // 6
-  'get_bid_question',             // 7
-  'get_quality_summary',          // 8
-  'get_freshness_report',         // 9
-  'classify_content',             // 10
-  'generate_summary',             // 11
-  'create_content_item',          // 12
-  'search_qa_library',            // 13
-  'get_entity_relationships',     // 14
-  'cite_content',                 // 15
-  'get_content_effectiveness',    // 16
-  'get_coverage_gaps',            // 17
-  'audit_content',                // 18
-  'update_content_item',          // 19
-  'find_similar_items',           // 20
-  'get_content_items',            // 21
-  'show_coverage_matrix',         // 22
-  'show_bid_dashboard',           // 23
-  'show_reorient_me',             // 24
-  'delete_content_item',          // 25
-  'find_all_duplicates',          // 26
-  'list_templates',               // 27
-  'get_template_coverage',        // 28
-  'get_template_gaps',            // 29
-  'update_governance_status',     // 30
-  'assign_content_owner',         // 31
-  'get_document_versions',        // 32
-  'suggest_content_creation',     // 33
-  'get_certification_status',     // 34
-  'get_document_diff',            // 35
+  'get_freshness_report',         // 6
+  'get_expiring_content',         // 7
+  'list_active_bids',             // 8
+  'get_bid_detail',               // 9
+  'get_bid_question',             // 10
+  'cite_content',                 // 11
+  'get_content_effectiveness',    // 12
+  'get_content_item',             // 13
+  'create_content_item',          // 14
+  'update_content_item',          // 15
+  'get_content_items',            // 16
+  'assign_content_owner',         // 17
+  'get_document_versions',        // 18
+  'get_document_diff',            // 19
+  'get_quality_summary',          // 20
+  'get_coverage_gaps',            // 21
+  'audit_content',                // 22
+  'find_all_duplicates',          // 23
+  'suggest_content_creation',     // 24
+  'get_quality_briefing',         // 25
+  'get_quality_actions',          // 26
+  'classify_content',             // 27
+  'generate_summary',             // 28
+  'get_entity_relationships',     // 29
+  'get_certification_status',     // 30
+  'list_templates',               // 31
+  'get_template_coverage',        // 32
+  'get_template_gaps',            // 33
+  'show_coverage_matrix',         // 34
+  'show_bid_dashboard',           // 35
+  'show_reorient_me',             // 36
+  'delete_content_item',          // 37
+  'update_governance_status',     // 38
 ] as const;
 
-export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 35
+export const TOOL_COUNT = CANONICAL_TOOL_NAMES.length; // 38
 
 /** Read-only tools (no side effects). */
 export const READ_ONLY_TOOLS = new Set([
   'search_knowledge_base',
+  'search_qa_library',
+  'find_similar_items',
   'get_dashboard_summary',
-  'list_active_bids',
-  'get_content_item',
   'get_reorientation',
+  'get_freshness_report',
+  'get_expiring_content',
+  'list_active_bids',
   'get_bid_detail',
   'get_bid_question',
-  'get_quality_summary',
-  'get_freshness_report',
-  'search_qa_library',
-  'get_entity_relationships',
   'get_content_effectiveness',
+  'get_content_item',
+  'get_content_items',
+  'get_quality_summary',
   'get_coverage_gaps',
   'audit_content',
-  'find_similar_items',
-  'get_content_items',
-  'show_coverage_matrix',
-  'show_bid_dashboard',
-  'show_reorient_me',
   'find_all_duplicates',
+  'suggest_content_creation',
+  'get_quality_briefing',
+  'get_quality_actions',
+  'get_entity_relationships',
+  'get_certification_status',
   'list_templates',
   'get_template_coverage',
   'get_template_gaps',
+  'show_coverage_matrix',
+  'show_bid_dashboard',
+  'show_reorient_me',
   'get_document_versions',
-  'suggest_content_creation',
-  'get_certification_status',
   'get_document_diff',
 ]);
 
@@ -187,12 +193,13 @@ export const RESOURCE_TEMPLATE_URIS = [
   'kb://qa/{id}',
 ] as const;
 
-/** Static resource URIs (7 static + 3 app). */
+/** Static resource URIs (8 static + 3 app). */
 export const STATIC_RESOURCE_URIS = [
   'kb://coverage',
   'kb://dashboard',
   'kb://taxonomy',
   'kb://entities',
+  'kb://quality-briefing',
   'ui://coverage-matrix/app.html',
   'ui://bid-dashboard/app.html',
   'ui://reorient-me/app.html',
@@ -435,6 +442,18 @@ export function getMinimalArgs(
       return { template_name: 'Standard Selection Questionnaire' };
     case 'get_template_gaps':
       return { template_name: 'Standard Selection Questionnaire' };
+    case 'get_expiring_content':
+      return {};
+    case 'get_quality_briefing':
+      return {};
+    case 'get_quality_actions':
+      return {};
+    case 'get_document_versions':
+      return {};
+    case 'get_document_diff':
+      return {};
+    case 'get_certification_status':
+      return {};
 
     // Write tools — use eval item
     case 'classify_content':
@@ -453,6 +472,8 @@ export function getMinimalArgs(
       return { id: evalItemId, mode: 'archive', reason: '[MCP-EVAL] Protocol compliance test' };
     case 'update_governance_status':
       return { item_ids: [evalItemId], status: 'draft' };
+    case 'assign_content_owner':
+      return { item_ids: [evalItemId], owner_id: '00000000-0000-0000-0000-000000000000' };
 
     default:
       return {};
