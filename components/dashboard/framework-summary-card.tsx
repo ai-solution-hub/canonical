@@ -159,8 +159,8 @@ function FrameworkRow({
               asChild
             >
               <Link
-                href={`/item/${renewalItemId}?renewal_entity=${encodeURIComponent(framework.canonical_name)}`}
-                aria-label={`Upload renewed ${framework.canonical_name} document`}
+                href={`/item/${renewalItemId}`}
+                aria-label={`View ${framework.canonical_name} for renewal`}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew

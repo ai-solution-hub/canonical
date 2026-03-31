@@ -211,6 +211,8 @@ export const ItemUpdateBodySchema = z.object({
     'answer_standard',
     'answer_advanced',
     'governance_review_status',
+    'expiry_date',
+    'lifecycle_type',
   ]),
   value: z.union([
     z.string().max(500_000),
@@ -357,6 +359,8 @@ export const EDITABLE_FIELDS = new Set([
   'reference',
   'answer_standard',
   'answer_advanced',
+  'expiry_date',
+  'lifecycle_type',
 ] as const);
 
 export type EditableField =
@@ -377,7 +381,9 @@ export type EditableField =
   | 'detail'
   | 'reference'
   | 'answer_standard'
-  | 'answer_advanced';
+  | 'answer_advanced'
+  | 'expiry_date'
+  | 'lifecycle_type';
 
 export function validateEditableField(field: string): field is EditableField {
   return EDITABLE_FIELDS.has(field as EditableField);

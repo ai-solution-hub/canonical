@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Check, Pencil, AlertTriangle } from 'lucide-react';
+import { Check, Pencil, AlertTriangle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Accordion,
@@ -268,13 +268,107 @@ export function MetadataSidebar({
             </div>
           )}
 
-          {/* Expiry date — shown when item has an expiry_date set */}
-          {(item as ItemData & { expiry_date?: string | null; lifecycle_type?: string | null }).expiry_date && (
-            <ExpiryDateDisplay
-              expiryDate={(item as ItemData & { expiry_date?: string | null }).expiry_date!}
-              lifecycleType={(item as ItemData & { lifecycle_type?: string | null }).lifecycle_type ?? null}
-            />
-          )}
+          {/* Expiry date — editable when not readOnly */}
+          {(() => {
+            const itemExpiry = (item as ItemData & { expiry_date?: string | null; lifecycle_type?: string | null });
+            const hasExpiry = !!itemExpiry.expiry_date;
+
+            if (readOnly) {
+              return hasExpiry ? (
+                <ExpiryDateDisplay
+                  expiryDate={itemExpiry.expiry_date!}
+                  lifecycleType={itemExpiry.lifecycle_type ?? null}
+                />
+              ) : null;
+            }
+
+            if (editingField === 'expiry_date') {
+              return (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Expiry Date</dt>
+                  <dd className="flex items-center gap-2 mt-1">
+                    <input
+                      type="date"
+                      defaultValue={itemExpiry.expiry_date ?? ''}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const val = (e.target as HTMLInputElement).value || null;
+                          saveEdit('expiry_date', val);
+                          if (val) {
+                            saveEdit('lifecycle_type', 'date_bound');
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = e.target.value || null;
+                        saveEdit('expiry_date', val);
+                        if (val) {
+                          saveEdit('lifecycle_type', 'date_bound');
+                        }
+                      }}
+                      autoFocus
+                      aria-label="Set expiry date"
+                    />
+                    {hasExpiry && (
+                      <button
+                        onClick={() => {
+                          saveEdit('expiry_date', null);
+                        }}
+                        className="flex items-center justify-center rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                        aria-label="Clear expiry date"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </dd>
+                </div>
+              );
+            }
+
+            // Non-edit mode: clickable to enter edit
+            return (
+              <div className="group">
+                <dt className="text-xs text-muted-foreground">Expiry Date</dt>
+                <dd className="flex items-center gap-1.5">
+                  {hasExpiry ? (
+                    <>
+                      <span className="text-foreground">
+                        {new Date(itemExpiry.expiry_date!).toLocaleDateString('en-GB')}
+                      </span>
+                      {(() => {
+                        const now = new Date();
+                        now.setHours(0, 0, 0, 0);
+                        const exp = new Date(itemExpiry.expiry_date!);
+                        exp.setHours(0, 0, 0, 0);
+                        const days = Math.ceil((exp.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+                        if (days <= 0) {
+                          return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-freshness-expired-bg text-freshness-expired">Expired</span>;
+                        }
+                        if (days <= 30) {
+                          return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-freshness-aging-bg text-freshness-aging">{days}d</span>;
+                        }
+                        return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-freshness-fresh-bg text-freshness-fresh">{days}d</span>;
+                      })()}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">Not set</span>
+                  )}
+                  {saveSuccess === 'expiry_date' ? (
+                    <Check className="size-3 text-[var(--success)]" />
+                  ) : (
+                    <button
+                      onClick={() => startEdit('expiry_date')}
+                      className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-sm p-2 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label="Edit expiry date"
+                    >
+                      <Pencil className="size-3 text-muted-foreground" />
+                    </button>
+                  )}
+                </dd>
+              </div>
+            );
+          })()}
 
           {/* Governance review status */}
           {item.governance_review_status && (
