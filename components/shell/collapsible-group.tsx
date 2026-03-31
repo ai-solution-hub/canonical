@@ -28,7 +28,7 @@ export function CollapsibleGroup({ label, count, children }: CollapsibleGroupPro
         type="button"
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
-        className="flex w-full items-center gap-2 bg-muted/50 px-4 py-2.5 text-left border-l-4 border-primary/40 hover:bg-muted/80 transition-colors"
+        className="flex w-full items-center gap-2 bg-card px-4 py-2.5 text-left border-l-4 border-primary/40 hover:bg-accent transition-colors"
       >
         <span className="shrink-0 text-muted-foreground">
           {expanded ? (
