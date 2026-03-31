@@ -16,10 +16,8 @@
  * Spec: docs/specs/data-flow-content-to-guide-spec.md
  *
  * Known issues documented in test comments:
- * 1. `metadata->>'layer'` vs `ci.layer`: get_guide_content reads from JSONB, not the promoted column
  * 2. Seed script domain values: 7 example-client guides use client-specific domain names no content uses
  * 3. `get_guide_content` does not filter by `is_published` (intentional for preview)
- * 4. `get_guide_coverage` has identical secondary domain gap
  * 5. `suggestGuideSections` uses `.eq()` not `.in()` for primary domain only
  */
 
