@@ -119,12 +119,14 @@ export function useNotifications() {
     },
   });
 
+  const { mutate: markAsReadMutate } = markAsReadMutation;
+
   const markAsRead = useCallback(
     async (notificationIds: string[]) => {
       if (notificationIds.length === 0) return;
-      markAsReadMutation.mutate(notificationIds);
+      markAsReadMutate(notificationIds);
     },
-    [markAsReadMutation],
+    [markAsReadMutate],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -132,8 +134,8 @@ export function useNotifications() {
       .filter((n) => !n.read_at)
       .map((n) => n.id);
     if (unreadIds.length === 0) return;
-    markAsReadMutation.mutate(unreadIds);
-  }, [notifications, markAsReadMutation]);
+    markAsReadMutate(unreadIds);
+  }, [notifications, markAsReadMutate]);
 
   return {
     notifications,

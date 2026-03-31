@@ -192,6 +192,13 @@ export function useBatchCreate(): UseBatchCreateReturn {
   });
 
   // -------------------------------------------------------------------------
+  // Destructure stable functions from mutation objects
+  // -------------------------------------------------------------------------
+
+  const { mutateAsync: submitMutateAsync, reset: submitReset } = submitMutation;
+  const { mutateAsync: duplicateMutateAsync } = duplicateMutation;
+
+  // -------------------------------------------------------------------------
   // Wrapped submit that preserves the original return signature
   // -------------------------------------------------------------------------
 
@@ -206,14 +213,14 @@ export function useBatchCreate(): UseBatchCreateReturn {
     ): Promise<BatchCreateResult | null> => {
       try {
         // Reset stale results/error from a previous attempt before re-submitting
-        submitMutation.reset();
-        return await submitMutation.mutateAsync({ pairs, options });
+        submitReset();
+        return await submitMutateAsync({ pairs, options });
       } catch {
         // mutateAsync throws on error — return null to match original interface
         return null;
       }
     },
-    [submitMutation],
+    [submitMutateAsync, submitReset],
   );
 
   // -------------------------------------------------------------------------
@@ -223,13 +230,13 @@ export function useBatchCreate(): UseBatchCreateReturn {
   const checkDuplicates = useCallback(
     async (pairs: BatchQAPair[]): Promise<DuplicateMatch[]> => {
       try {
-        return await duplicateMutation.mutateAsync(pairs);
+        return await duplicateMutateAsync(pairs);
       } catch {
         // Non-fatal — duplicate checking is best-effort
         return [];
       }
     },
-    [duplicateMutation],
+    [duplicateMutateAsync],
   );
 
   return {

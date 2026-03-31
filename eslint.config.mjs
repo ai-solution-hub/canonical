@@ -1,10 +1,12 @@
 import { defineConfig, globalIgnores } from 'eslint/config';
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 import nextTypescript from 'eslint-config-next/typescript';
+import tanstackQuery from '@tanstack/eslint-plugin-query';
 
 const eslintConfig = defineConfig([
   ...nextCoreWebVitals,
   ...nextTypescript,
+  ...tanstackQuery.configs['flat/recommended'],
   globalIgnores([
     '.next/**',
     'out/**',
@@ -35,6 +37,8 @@ const eslintConfig = defineConfig([
           destructuredArrayIgnorePattern: '^_',
         },
       ],
+      '@tanstack/query/no-unstable-deps': 'warn',
+      '@tanstack/query/exhaustive-deps': 'warn',
     },
   },
 ]);

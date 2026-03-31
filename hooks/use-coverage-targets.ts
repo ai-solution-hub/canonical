@@ -50,10 +50,12 @@ export function useCoverageTargets() {
     },
   });
 
+  const { mutateAsync: targetsMutateAsync } = mutation;
+
   const saveTargets = useCallback(
     async (entries: SaveTargetEntry[]): Promise<{ success: boolean; error?: string }> => {
       try {
-        await mutation.mutateAsync(entries);
+        await targetsMutateAsync(entries);
         return { success: true };
       } catch (err) {
         return {
@@ -62,7 +64,7 @@ export function useCoverageTargets() {
         };
       }
     },
-    [mutation],
+    [targetsMutateAsync],
   );
 
   return {

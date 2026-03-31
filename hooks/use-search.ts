@@ -78,15 +78,17 @@ export function useSearch() {
     },
   });
 
+  const { mutate, reset } = mutation;
+
   const search = useCallback(
     async (query: string, threshold = 0.35, limit = 20) => {
       if (!query.trim()) {
-        mutation.reset();
+        reset();
         return;
       }
-      mutation.mutate({ query, threshold, limit });
+      mutate({ query, threshold, limit });
     },
-    [mutation],
+    [mutate, reset],
   );
 
   // Derive error message string from mutation error (preserving null convention)

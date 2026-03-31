@@ -343,12 +343,21 @@ export function useReviewActions(
   });
 
   // -----------------------------------------------------------------------
+  // Destructure stable mutate/mutateAsync functions from mutation objects
+  // -----------------------------------------------------------------------
+
+  const { mutateAsync: verifyMutateAsync, isPending: isVerifyPending } = verifyMutation;
+  const { mutate: undoMutate } = undoMutation;
+  const { mutateAsync: flagMutateAsync, isPending: isFlagPending } = flagMutation;
+  const { mutateAsync: publishMutateAsync, isPending: isPublishPending } = publishMutation;
+
+  // -----------------------------------------------------------------------
   // Handler wrappers — toast fires BEFORE mutate (S126 #2)
   // -----------------------------------------------------------------------
 
   const handleVerify = useCallback(
     async (note?: string) => {
-      if (!currentItem || verifyMutation.isPending) return;
+      if (!currentItem || isVerifyPending) return;
 
       const itemTitle =
         currentItem.title ?? currentItem.suggested_title ?? 'Item';
@@ -384,7 +393,7 @@ export function useReviewActions(
         action: {
           label: 'Undo',
           onClick: () => {
-            undoMutation.mutate({
+            undoMutate({
               itemId: undoAction.itemId,
               action: 'unverify',
             });
@@ -393,15 +402,16 @@ export function useReviewActions(
         },
       });
 
-      await verifyMutation.mutateAsync({
+      await verifyMutateAsync({
         itemId: currentItem.id,
         note,
       });
     },
     [
       currentItem,
-      verifyMutation,
-      undoMutation,
+      isVerifyPending,
+      verifyMutateAsync,
+      undoMutate,
       currentIndex,
       queue.length,
       progress.total,
@@ -411,7 +421,7 @@ export function useReviewActions(
 
   const handleFlagSubmit = useCallback(
     async (details?: string) => {
-      if (!currentItem || flagMutation.isPending) return;
+      if (!currentItem || isFlagPending) return;
 
       const itemTitle =
         currentItem.title ?? currentItem.suggested_title ?? 'Item';
@@ -442,7 +452,7 @@ export function useReviewActions(
         action: {
           label: 'Undo',
           onClick: () => {
-            undoMutation.mutate({
+            undoMutate({
               itemId: undoAction.itemId,
               action: 'unflag',
             });
@@ -451,15 +461,16 @@ export function useReviewActions(
         },
       });
 
-      await flagMutation.mutateAsync({
+      await flagMutateAsync({
         itemId: currentItem.id,
         flagDetails: details,
       });
     },
     [
       currentItem,
-      flagMutation,
-      undoMutation,
+      isFlagPending,
+      flagMutateAsync,
+      undoMutate,
       currentIndex,
       queue.length,
       progress.total,
@@ -468,7 +479,7 @@ export function useReviewActions(
   );
 
   const handlePublish = useCallback(async () => {
-    if (!currentItem || publishMutation.isPending) return;
+    if (!currentItem || isPublishPending) return;
     if (currentItem.governance_review_status !== 'draft') return;
 
     const itemTitle =
@@ -478,17 +489,17 @@ export function useReviewActions(
     toast.success(`Published: ${itemTitle}`);
     setLastAnnouncement(`Published. ${itemTitle} is now live.`);
 
-    await publishMutation.mutateAsync({ itemId: currentItem.id });
-  }, [currentItem, publishMutation]);
+    await publishMutateAsync({ itemId: currentItem.id });
+  }, [currentItem, isPublishPending, publishMutateAsync]);
 
   // -----------------------------------------------------------------------
   // Derived state
   // -----------------------------------------------------------------------
 
   const isActioning =
-    verifyMutation.isPending ||
-    flagMutation.isPending ||
-    publishMutation.isPending;
+    isVerifyPending ||
+    isFlagPending ||
+    isPublishPending;
 
   // -----------------------------------------------------------------------
   // Return

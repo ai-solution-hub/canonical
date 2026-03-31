@@ -284,6 +284,11 @@ export function useLayerAdmin({
     setDialogOpen(true);
   }, []);
 
+  const { mutateAsync: submitMutateAsync } = submitMutation;
+  const { mutateAsync: toggleActiveMutateAsync } = toggleActiveMutation;
+  const { mutateAsync: deleteMutateAsync } = deleteMutation;
+  const { mutateAsync: moveMutateAsync } = moveMutation;
+
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!layerLabel.trim()) return;
@@ -294,22 +299,22 @@ export function useLayerAdmin({
       return;
     }
 
-    await submitMutation.mutateAsync({
+    await submitMutateAsync({
       editingLayer,
       resolvedKey,
       label: layerLabel,
       description: layerDescription,
       order: layerOrder,
     });
-  }, [layerLabel, layerKey, layerDescription, layerOrder, editingLayer, submitMutation]);
+  }, [layerLabel, layerKey, layerDescription, layerOrder, editingLayer, submitMutateAsync]);
 
   const handleToggleActive = useCallback(async (layer: AdminLayer) => {
-    await toggleActiveMutation.mutateAsync(layer);
-  }, [toggleActiveMutation]);
+    await toggleActiveMutateAsync(layer);
+  }, [toggleActiveMutateAsync]);
 
   const handleDelete = useCallback(async (layer: AdminLayer) => {
-    await deleteMutation.mutateAsync(layer);
-  }, [deleteMutation]);
+    await deleteMutateAsync(layer);
+  }, [deleteMutateAsync]);
 
   const handleMove = useCallback(async (layerId: string, direction: 'up' | 'down') => {
     const currentLayers = queryClient.getQueryData<AdminLayer[]>(queryKeys.layers.list) ?? [];
@@ -327,8 +332,8 @@ export function useLayerAdmin({
       { id: swap.id, display_order: current.display_order },
     ];
 
-    await moveMutation.mutateAsync({ layerId, direction, items });
-  }, [moveMutation, queryClient]);
+    await moveMutateAsync({ layerId, direction, items });
+  }, [moveMutateAsync, queryClient]);
 
   return {
     layers,

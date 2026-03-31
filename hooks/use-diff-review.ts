@@ -211,6 +211,11 @@ export function useDiffReview(
     },
   });
 
+  // ─── Destructure stable mutate functions ───
+
+  const { mutate: statusMutate } = statusMutation;
+  const { mutate: sendToReviewMutate } = sendToReviewMutation;
+
   // ─── Handlers ───
 
   const handleNoteChange = useCallback((id: string, note: string) => {
@@ -219,23 +224,23 @@ export function useDiffReview(
 
   const handleStatusChange = useCallback(
     (id: string, status: string) => {
-      statusMutation.mutate({ entryIds: [id], status });
+      statusMutate({ entryIds: [id], status });
     },
-    [statusMutation],
+    [statusMutate],
   );
 
   const handleBulkStatusChange = useCallback(
     (ids: string[], status: string) => {
       if (ids.length === 0) return;
-      statusMutation.mutate({ entryIds: ids, status });
+      statusMutate({ entryIds: ids, status });
     },
-    [statusMutation],
+    [statusMutate],
   );
 
   const handleSendToReview = useCallback(() => {
     if (affectedItemIds.length === 0) return;
-    sendToReviewMutation.mutate(affectedItemIds);
-  }, [affectedItemIds, sendToReviewMutation]);
+    sendToReviewMutate(affectedItemIds);
+  }, [affectedItemIds, sendToReviewMutate]);
 
   const dismissError = useCallback(() => {
     setUpdateError(null);
