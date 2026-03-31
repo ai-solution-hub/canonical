@@ -51,6 +51,8 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
   const isLoadingRef = useRef(false);
   /** Track which item IDs have already been checked to avoid redundant requests */
   const checkedIdsRef = useRef<Set<string>>(new Set());
+  /** Track loaded state via ref so checkReadStatus can read it without dependency */
+  const isLoadedRef = useRef(false);
 
   // Cleanup mounted ref
   useEffect(() => {
@@ -74,12 +76,10 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch('/api/read-marks');
         if (!res.ok) {
-          // Suppress 401 — auth not yet established
-          if (res.status === 401) {
-            isLoadingRef.current = false;
-            return;
-          }
-          throw new Error('Failed to fetch read marks counts');
+          // During initial load, suppress ALL non-ok responses — auth may
+          // not yet be established (401, 307 redirect, 500 during handshake, etc.)
+          isLoadingRef.current = false;
+          return;
         }
         const data = await res.json();
 
@@ -90,10 +90,13 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
 
         setReadCount(data.read_count ?? 0);
         setTotalCount(data.total_count ?? 0);
+        isLoadedRef.current = true;
         setIsLoaded(true);
-      } catch (error) {
-        console.error('Failed to fetch read marks counts:', error);
+      } catch {
+        // Network errors during initial load are expected (auth establishment).
+        // Silently fail — the caller can retry via loadReadMarks once auth settles.
         if (isMountedRef.current) {
+          isLoadedRef.current = true;
           setIsLoaded(true);
         }
       }
@@ -122,14 +125,16 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
       );
       if (!res.ok) {
-        // Suppress auth-related failures (401, 403, redirects) — will retry on next render
-        if (res.status === 401 || res.status === 403 || res.redirected) {
-          for (const id of uncheckedIds) {
-            checkedIdsRef.current.delete(id);
-          }
-          return;
+        // Suppress ALL non-ok responses during auth establishment.
+        // Remove from checked so they can be retried once auth settles.
+        for (const id of uncheckedIds) {
+          checkedIdsRef.current.delete(id);
         }
-        throw new Error(`Failed to check read status (${res.status})`);
+        // Only log if we've previously loaded successfully (auth is established)
+        if (isLoadedRef.current) {
+          console.error(`Failed to check read status (${res.status})`);
+        }
+        return;
       }
       const data = await res.json();
 
@@ -150,7 +155,11 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       if (data.read_count != null) setReadCount(data.read_count);
       if (data.total_count != null) setTotalCount(data.total_count);
     } catch (error) {
-      console.error('Failed to check read status:', error);
+      // Only log network errors if auth has been established (isLoaded).
+      // During auth establishment, network errors are expected and silent.
+      if (isLoadedRef.current) {
+        console.error('Failed to check read status:', error);
+      }
       // Remove from checked so they can be retried
       for (const id of uncheckedIds) {
         checkedIdsRef.current.delete(id);
