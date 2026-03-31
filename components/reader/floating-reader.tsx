@@ -143,7 +143,7 @@ export function FloatingReader({
       onDragStop={handleDragStop}
       onResizeStop={handleResizeStop}
       style={{ zIndex: 40 }}
-      className="rounded-lg border border-border bg-background shadow-xl"
+      className="rounded-lg border border-border bg-card shadow-xl"
     >
       {/* Title bar -- draggable */}
       <div className="floating-reader-drag-handle flex cursor-move items-center justify-between rounded-t-lg border-b border-border bg-muted/50 px-3 py-2 backdrop-blur-sm">

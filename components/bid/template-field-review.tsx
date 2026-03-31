@@ -575,7 +575,7 @@ export function TemplateFieldReview({
                     </p>
                   ) : activeFieldId === field.id ? (
                     <select
-                      className="w-full rounded border bg-background px-2 py-1 text-xs"
+                      className="w-full rounded border bg-card px-2 py-1 text-xs"
                       defaultValue=""
                       onChange={(e) => {
                         if (e.target.value) handleManualMap(field.id, e.target.value);

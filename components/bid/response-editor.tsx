@@ -102,7 +102,7 @@ export function ResponseEditor({
   }, [editor, readOnly, handleSave]);
 
   return (
-    <div className={cn('rounded-md border bg-background', className)}>
+    <div className={cn('rounded-md border bg-card', className)}>
       {!readOnly && <EditorToolbar editor={editor} />}
       <EditorContent
         editor={editor}

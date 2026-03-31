@@ -463,7 +463,7 @@ export function ReviewContent() {
                     }
                   }}
                   placeholder="Reviewer note for this verification..."
-                  className="w-full resize-none rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="w-full resize-none rounded-md border border-input bg-card px-3 py-1.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   rows={2}
                   maxLength={500}
                 />

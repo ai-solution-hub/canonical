@@ -292,7 +292,7 @@ export function ContentTabs({
         <textarea
           value={editConfig.editValue}
           onChange={(e) => editConfig.onEditValueChange(e.target.value)}
-          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           rows={6}
           autoFocus
           aria-label={`Edit ${field}`}

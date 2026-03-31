@@ -100,7 +100,7 @@ export function ContentEditor({
   const wordCount = editor?.storage.characterCount.words() ?? 0;
 
   return (
-    <div className={cn('rounded-md border bg-background', className)}>
+    <div className={cn('rounded-md border bg-card', className)}>
       {!readOnly && <EditorToolbar editor={editor} />}
       <EditorContent
         editor={editor}

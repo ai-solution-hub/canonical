@@ -91,7 +91,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
             {digest.theme_clusters.map((cluster) => (
               <div
                 key={cluster.theme}
-                className="rounded-lg border border-border bg-background p-4"
+                className="rounded-lg border border-border bg-muted/30 p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-semibold text-foreground">

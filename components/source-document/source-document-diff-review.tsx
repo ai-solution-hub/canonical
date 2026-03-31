@@ -254,7 +254,7 @@ function ReviewerNoteInput({
         maxLength={REVIEWER_NOTE_MAX_LENGTH}
         placeholder="Add a note explaining your review decision..."
         rows={2}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        className="w-full rounded-md border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
         aria-label="Reviewer note"
       />
       <p

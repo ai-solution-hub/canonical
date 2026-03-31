@@ -290,7 +290,7 @@ export function MetadataSidebar({
                     <input
                       type="date"
                       defaultValue={itemExpiry.expiry_date ?? ''}
-                      className="h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                      className="h-8 rounded-md border border-input bg-card px-2 text-sm text-foreground"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const val = (e.target as HTMLInputElement).value || null;

@@ -55,7 +55,7 @@ function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
   return (
     <Link
       href={`/item/${id}`}
-      className="group flex items-start gap-3 rounded-md border border-border bg-background p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
+      className="group flex items-start gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
     >
       <Newspaper
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"

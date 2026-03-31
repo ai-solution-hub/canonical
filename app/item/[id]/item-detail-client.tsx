@@ -219,7 +219,7 @@ export function ItemDetailClient({
                 defaultSize={`${data.panelLayout.reader ?? 45}%`}
                 minSize="25%"
               >
-                <div className="h-full border-l border-border bg-background">
+                <div className="h-full border-l border-border bg-card">
                   <ReaderPanel {...readerPanelProps} isDetached={false} />
                 </div>
               </Panel>
