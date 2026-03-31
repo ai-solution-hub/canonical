@@ -91,7 +91,7 @@ export function GuideTableOfContents({
   return (
     <nav
       aria-label="Guide sections"
-      className={cn('rounded-md border border-border bg-muted/20 p-3', className)}
+      className={cn('rounded-lg border border-border bg-card p-4', className)}
     >
       <button
         type="button"
