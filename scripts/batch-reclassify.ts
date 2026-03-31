@@ -22,8 +22,16 @@
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import type { Database } from '@/supabase/types/database.types';
 import { generateEmbedding } from '@/lib/ai/embed';
 import { htmlToPlainText } from '@/lib/editor-utils';
+import { resolveAlias, loadAliases } from '@/lib/entities/entity-aliases';
+import { isExcludedEntity, validateDomain } from '@/lib/ai/classify';
+import { extractEntityContext } from '@/lib/entities/entity-context';
+import { bridgeTemporalReferencesToEntities } from '@/lib/entities/entity-metadata-bridge';
+import { normaliseTag } from '@/lib/validation/schemas';
+import { inferLayer } from '@/lib/layer-inference';
+import { CLIENT_CONFIG } from '@/lib/client-config';
 
 // ── Env loading ──
 
@@ -154,8 +162,14 @@ your classifications.
 
 In addition to classification, extract named entities and relationships from the
 content. Entities include organisations, certifications, regulations, frameworks,
-capabilities, people, technologies, projects, and sectors. Relationships describe
-how entities relate to each other.`;
+capabilities, people, technologies, projects, sectors, products, standards, and
+methodologies. Relationships describe how entities relate to each other.
+
+Also extract temporal references (dates, deadlines, expiry dates, renewal dates)
+from the content when present.
+
+Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other
+numeric identifiers as entities.`;
 
 // ── Types ──
 
@@ -170,6 +184,14 @@ interface ContentRow {
   ai_keywords: string[] | null;
   classification_confidence: number | null;
   classified_at: string | null;
+  metadata: Record<string, unknown> | null;
+  platform: string | null;
+}
+
+interface ClassificationTemporalRef {
+  date: string;
+  context: string;
+  context_type: 'expiry' | 'effective' | 'historical' | 'unknown';
 }
 
 interface ClassificationWithEntities {
@@ -184,6 +206,7 @@ interface ClassificationWithEntities {
   classification_reasoning: string;
   entities: EntityExtraction[];
   relationships: RelationshipExtraction[];
+  temporal_references?: ClassificationTemporalRef[];
 }
 
 interface EntityExtraction {
@@ -243,7 +266,7 @@ function hasEditorialNotes(content: string): boolean {
 
 // ── Taxonomy loader ──
 
-async function loadTaxonomy(supabase: SupabaseClient): Promise<string> {
+async function loadTaxonomy(supabase: SupabaseClient<Database>): Promise<{ taxonomyStr: string; validDomainSlugs: string[] }> {
   const { data: domains, error: dErr } = await supabase
     .from('taxonomy_domains')
     .select('id, name')
@@ -258,7 +281,7 @@ async function loadTaxonomy(supabase: SupabaseClient): Promise<string> {
 
   const { data: subtopics, error: sErr } = await supabase
     .from('taxonomy_subtopics')
-    .select('name, domain_id')
+    .select('name, domain_id, description')
     .eq('is_active', true)
     .order('display_order');
 
@@ -272,14 +295,18 @@ async function loadTaxonomy(supabase: SupabaseClient): Promise<string> {
     process.exit(1);
   }
 
-  return domains
+  const validDomainSlugs = domains.map((d) => d.name);
+
+  const taxonomyStr = domains
     .map((d) => {
       const subs = (subtopics ?? [])
         .filter((s) => s.domain_id === d.id)
-        .map((s) => s.name);
+        .map((s) => s.description ? `${s.name} (${s.description})` : s.name);
       return `- ${d.name}: ${subs.join(', ')}`;
     })
     .join('\n');
+
+  return { taxonomyStr, validDomainSlugs };
 }
 
 // ── Tool schema for Claude ──
@@ -349,6 +376,9 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
                 'technology',
                 'project',
                 'sector',
+                'product',
+                'standard',
+                'methodology',
               ],
             },
             canonical_name: {
@@ -393,6 +423,32 @@ const CLASSIFICATION_TOOL: Anthropic.Tool = {
         },
         description: 'Relationships between extracted entities',
       },
+      temporal_references: {
+        type: 'array',
+        description:
+          'Dates and temporal references found in the content (expiry dates, renewal dates, effective dates, etc.)',
+        items: {
+          type: 'object',
+          properties: {
+            date: {
+              type: 'string',
+              description: 'ISO 8601 date string (YYYY-MM-DD)',
+            },
+            context: {
+              type: 'string',
+              description:
+                'What this date refers to (e.g. "ICO registration expiry")',
+            },
+            context_type: {
+              type: 'string',
+              enum: ['expiry', 'effective', 'historical', 'unknown'],
+              description:
+                'Classification: expiry (when something becomes invalid), effective (when something started), historical (background context), unknown',
+            },
+          },
+          required: ['date', 'context', 'context_type'],
+        },
+      },
     },
     required: [
       'primary_domain',
@@ -436,7 +492,7 @@ async function main(): Promise<void> {
 
   const usingServiceRole = !!process.env.SUPABASE_SECRET_KEY;
   const model = process.env.AI_SUMMARY_MODEL || 'claude-sonnet-4-6';
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = createClient<Database>(supabaseUrl, supabaseKey);
   const anthropic = new Anthropic({ apiKey: anthropicKey });
 
   // If not using service role key, authenticate with email/password for RLS access
@@ -470,12 +526,15 @@ async function main(): Promise<void> {
   // ── Load taxonomy ──
 
   console.log('\nLoading taxonomy from database...');
-  const taxonomyStr = await loadTaxonomy(supabase);
+  const { taxonomyStr, validDomainSlugs } = await loadTaxonomy(supabase);
   if (!taxonomyStr) {
     console.error('Failed to load taxonomy — no domains found');
     process.exit(1);
   }
   console.log('Taxonomy loaded.\n');
+
+  // Load entity aliases once before processing loop
+  await loadAliases(supabase);
 
   // ── Fetch items needing reclassification ──
 
@@ -497,7 +556,7 @@ async function main(): Promise<void> {
     let entitiesQuery = supabase
       .from('content_items')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at',
+        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform',
       )
       .not('classified_at', 'is', null)
       .not('content', 'is', null)
@@ -566,7 +625,7 @@ async function main(): Promise<void> {
     let reclassQuery = supabase
       .from('content_items')
       .select(
-        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at',
+        'id, content, title, suggested_title, content_type, primary_domain, primary_subtopic, ai_keywords, classification_confidence, classified_at, metadata, platform',
       )
       .not('content', 'is', null)
       .is('archived_at', null)
@@ -874,13 +933,22 @@ async function main(): Promise<void> {
           const userMessage = `Available domains and subtopics:
 ${taxonomyStr}
 
+IMPORTANT disambiguation rules:
+- "${CLIENT_CONFIG.entity_examples.product_name}" is a SOFTWARE PRODUCT, not an auditing process. Questions about its features (action plans, invites, reports, exports, user interface) belong in product-feature/*, NOT compliance/audit.
+- Business continuity and disaster recovery (BC/DR) belong in security/cyber-security, not support/* or product-feature/*.
+- Security awareness training, confidentiality clauses, and security governance belong in security/data-protection or corporate/staffing, NOT support/sla.
+- Data security controls (encryption, access control, secure data transfer, infrastructure security) belong in security/*, NOT product-feature/*.
+- Financial questions (pricing, costs, audited accounts, hidden costs) belong in corporate/financial.
+
 Content type: ${item.content_type}
 Title: ${item.title || item.suggested_title || 'Untitled'}
 
 Content:
 ${contentForClassification}
 
-Classify this content and extract entities and relationships. Return the classification with entities.`;
+Classify this content and extract entities and relationships. Also extract any temporal references (dates, deadlines, expiry dates, renewal dates) — classify each as expiry, effective, historical, or unknown. Return the classification with entities.
+When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
+Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numeric identifiers as entities.`;
 
           // Call Claude API with tool_choice to force structured output
           const response = await anthropic.messages.create({
@@ -919,28 +987,61 @@ Classify this content and extract entities and relationships. Return the classif
           totalInputTokens += inputTokens;
           totalOutputTokens += outputTokens;
 
-          // ── Apply canonicalisation to entity names ──
-          const entities = (result.entities || []).map((e) => ({
-            ...e,
-            canonical_name: canonicalise(e.canonical_name),
-          }));
+          // ── Validate domains against taxonomy slugs (3.10) ──
+          if (validDomainSlugs.length > 0) {
+            result.primary_domain = validateDomain(result.primary_domain, validDomainSlugs);
+            if (result.secondary_domain) {
+              result.secondary_domain = validateDomain(result.secondary_domain, validDomainSlugs);
+            }
+          }
+
+          // ── Normalise keywords (3.9) ──
+          const normalisedKeywords = result.ai_keywords.map(normaliseTag).filter((k) => k.length > 0);
+          const uniqueKeywords = [...new Set(normalisedKeywords)];
+
+          // ── Apply canonicalisation + alias resolution to entity names (3.6) ──
+          const entities = (result.entities || [])
+            .filter((e) => !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name))
+            .map((e) => ({
+              ...e,
+              canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
+            }));
 
           const relationships = (result.relationships || []).map(
             (r) => ({
               ...r,
-              source: canonicalise(r.source),
-              target: canonicalise(r.target),
+              source: resolveAlias(canonicalise(r.source)).toLowerCase(),
+              target: resolveAlias(canonicalise(r.target)).toLowerCase(),
             }),
           );
 
           // ── Update content_items with classification results ──
           if (!entitiesOnly) {
+            // Infer layer from content metadata (3.5)
+            const platformToSource = (p: string | null): 'bid_library' | 'url_import' | 'upload' | 'manual' => {
+              if (p === 'extraction') return 'bid_library';
+              if (p === 'web') return 'url_import';
+              if (p === 'upload') return 'upload';
+              return 'manual';
+            };
+
+            const layerSuggestion = inferLayer({
+              contentType: item.content_type ?? 'other',
+              contentLength: plainText.length,
+              ingestionSource: platformToSource(item.platform),
+              hasBrief: false,
+              hasDetail: false,
+              hasReference: false,
+              isBidDiscovered: false,
+              title: item.title || item.suggested_title || '',
+            });
+
             const updateData: Record<string, unknown> = {
               primary_domain: result.primary_domain,
               primary_subtopic: result.primary_subtopic,
               secondary_domain: result.secondary_domain ?? null,
               secondary_subtopic: result.secondary_subtopic ?? null,
-              ai_keywords: result.ai_keywords,
+              ai_keywords: uniqueKeywords,
               ai_summary: result.ai_summary,
               suggested_title: result.suggested_title,
               classification_confidence:
@@ -948,7 +1049,17 @@ Classify this content and extract entities and relationships. Return the classif
               classification_reasoning:
                 result.classification_reasoning,
               classified_at: new Date().toISOString(),
+              layer: layerSuggestion.suggestedLayer,
             };
+
+            // Store temporal references in metadata (3.3)
+            if (result.temporal_references?.length) {
+              const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
+              updateData.metadata = {
+                ...existingMetadata,
+                ai_temporal_references: result.temporal_references,
+              };
+            }
 
             // Regenerate embedding with updated title + content
             try {
@@ -983,6 +1094,7 @@ Classify this content and extract entities and relationships. Return the classif
               entity_name: e.name,
               canonical_name: e.canonical_name,
               confidence: 1.0,
+              context_snippet: extractEntityContext(plainText, e.name),
             }));
 
             // Delete existing mentions for this item first (clean slate on reclassify)
@@ -1032,6 +1144,13 @@ Classify this content and extract entities and relationships. Return the classif
             } else {
               totalRelationships += relationships.length;
             }
+          }
+
+          // ── Bridge temporal references to entity mentions (3.4) ──
+          try {
+            await bridgeTemporalReferencesToEntities(supabase, item.id);
+          } catch (bridgeErr) {
+            console.error(`    Warning: temporal reference bridging failed: ${bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr)}`);
           }
 
           successCount++;
