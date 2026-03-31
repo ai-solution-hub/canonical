@@ -113,16 +113,12 @@ describe('CertificationSummaryCard — Renew button', () => {
     );
 
     const renewLink = screen.getByRole('link', {
-      name: /upload renewed ISO 27001 document/i,
+      name: /view ISO 27001 for renewal/i,
     });
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
       'href',
       expect.stringContaining('/item/item-1'),
-    );
-    expect(renewLink).toHaveAttribute(
-      'href',
-      expect.stringContaining('renewal_entity=ISO%2027001'),
     );
   });
 
@@ -138,7 +134,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: /upload renewed ISO 27001 document/i,
+        name: /view ISO 27001 for renewal/i,
       }),
     ).toBeInTheDocument();
   });
@@ -155,7 +151,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /upload renewed.*document/i,
+        name: /view.*for renewal/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -172,7 +168,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /upload renewed.*document/i,
+        name: /view.*for renewal/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -188,7 +184,7 @@ describe('CertificationSummaryCard — Renew button', () => {
     );
 
     const renewLink = screen.getByRole('link', {
-      name: /upload renewed ICO Registration document/i,
+      name: /view ICO Registration for renewal/i,
     });
     expect(renewLink).toBeInTheDocument();
     expect(renewLink).toHaveAttribute(
@@ -209,7 +205,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: /upload renewed ICO Registration document/i,
+        name: /view ICO Registration for renewal/i,
       }),
     ).toBeInTheDocument();
   });
@@ -229,7 +225,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.queryByRole('link', {
-        name: /upload renewed.*document/i,
+        name: /view.*for renewal/i,
       }),
     ).not.toBeInTheDocument();
   });
@@ -249,7 +245,7 @@ describe('CertificationSummaryCard — Renew button', () => {
 
     expect(
       screen.getByRole('link', {
-        name: 'Upload renewed Cyber Essentials Plus document',
+        name: 'View Cyber Essentials Plus for renewal',
       }),
     ).toBeInTheDocument();
   });

@@ -52,8 +52,8 @@ describe('validateEditableField', () => {
 });
 
 describe('EDITABLE_FIELDS set', () => {
-  it('should contain exactly 18 fields', () => {
-    expect(EDITABLE_FIELDS.size).toBe(18);
+  it('should contain exactly 20 fields', () => {
+    expect(EDITABLE_FIELDS.size).toBe(20);
   });
 
   it('should be a Set instance', () => {
