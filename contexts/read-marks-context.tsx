@@ -73,7 +73,14 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     async function fetchCounts() {
       try {
         const res = await fetch('/api/read-marks');
-        if (!res.ok) throw new Error('Failed to fetch read marks counts');
+        if (!res.ok) {
+          // Suppress 401 — auth not yet established
+          if (res.status === 401) {
+            isLoadingRef.current = false;
+            return;
+          }
+          throw new Error('Failed to fetch read marks counts');
+        }
         const data = await res.json();
 
         if (!isMountedRef.current) {
@@ -114,7 +121,17 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(
         `/api/read-marks?item_ids=${uncheckedIds.join(',')}`,
       );
-      if (!res.ok) throw new Error('Failed to check read status');
+      if (!res.ok) {
+        // Suppress 401 — auth not yet established, will retry on next render
+        if (res.status === 401) {
+          // Remove from checked so they can be retried once auth is established
+          for (const id of uncheckedIds) {
+            checkedIdsRef.current.delete(id);
+          }
+          return;
+        }
+        throw new Error('Failed to check read status');
+      }
       const data = await res.json();
 
       if (!isMountedRef.current) return;

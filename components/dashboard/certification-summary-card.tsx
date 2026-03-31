@@ -303,17 +303,19 @@ function RegistrationRow({
 }) {
   const needsRenewal = reg.expiry_status === 'expiring_soon' || reg.expiry_status === 'expired';
   const renewalItemId = reg.content_items?.[0]?.id;
+  const itemLink = reg.content_items?.[0]?.id ? `/item/${reg.content_items[0].id}` : null;
 
-  return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
-      role="listitem"
-    >
+  const cardContent = (
+    <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => onEdit?.(reg.canonical_name)}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onEdit?.(reg.canonical_name);
+            }}
             className={cn(
               'text-sm font-medium text-foreground',
               onEdit && 'cursor-pointer hover:underline',
@@ -334,6 +336,7 @@ function RegistrationRow({
               <Link
                 href={`/item/${renewalItemId}`}
                 aria-label={`View ${reg.canonical_name} for renewal`}
+                onClick={(e) => e.stopPropagation()}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
@@ -362,6 +365,27 @@ function RegistrationRow({
       >
         {reg.content_item_count} linked {reg.content_item_count === 1 ? 'item' : 'items'}
       </span>
+    </>
+  );
+
+  if (itemLink) {
+    return (
+      <Link
+        href={itemLink}
+        className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        role="listitem"
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+      role="listitem"
+    >
+      {cardContent}
     </div>
   );
 }

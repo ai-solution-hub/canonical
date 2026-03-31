@@ -324,7 +324,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
     'update_content_item',
     {
       title: 'Update Content Item',
-      description: 'Edit an existing content item\'s metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes. Use the kb://taxonomy resource for valid domain and subtopic values.',
+      description: 'Edit an existing content item\'s metadata and content fields. Updates are applied immediately and auto-versioned in content_history. Requires editor or admin role. Updatable fields: title, suggested_title, content, answer_standard, answer_advanced, primary_domain, primary_subtopic, priority, notes, expiry_date, lifecycle_type. Use the kb://taxonomy resource for valid domain and subtopic values.',
       inputSchema: {
         id: z.string().uuid().describe('The UUID of the content item to update'),
         fields: z.object({
@@ -337,6 +337,8 @@ export async function registerContentTools(server: McpServer): Promise<void> {
           primary_subtopic: z.string().optional().describe('Subtopic classification'),
           priority: z.enum(['high', 'medium', 'low']).optional().describe('Priority level'),
           notes: z.string().optional().describe('Editorial notes'),
+          expiry_date: z.string().nullable().optional().describe('Expiry date in ISO 8601 format (YYYY-MM-DD). Set to null to clear.'),
+          lifecycle_type: z.enum(['evergreen', 'date_bound', 'regulatory', 'version_bound']).optional().describe('Content lifecycle type'),
         }).describe('Fields to update — only include fields you want to change'),
         reason: z.string().optional().describe('Explanation of why the update was made (stored for audit trail)'),
       },
@@ -364,7 +366,7 @@ export async function registerContentTools(server: McpServer): Promise<void> {
         const allowedFields = [
           'title', 'suggested_title', 'content', 'answer_standard',
           'answer_advanced', 'primary_domain', 'primary_subtopic',
-          'priority', 'notes',
+          'priority', 'notes', 'expiry_date', 'lifecycle_type',
         ] as const;
 
         const updateData: Record<string, unknown> = {};

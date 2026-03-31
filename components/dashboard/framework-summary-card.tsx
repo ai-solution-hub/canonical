@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Layers, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import type { ExpiryStatus } from '@/lib/certification-status';
 
 // ---------------------------------------------------------------------------
@@ -130,25 +131,27 @@ function FrameworkRow({
     : undefined;
   const needsRenewal = framework.expiry_status === 'expiring_soon' || framework.expiry_status === 'expired';
   const renewalItemId = framework.content_items?.[0]?.id;
+  const itemLink = framework.content_items?.[0]?.id ? `/item/${framework.content_items[0].id}` : null;
 
-  return (
-    <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
-      role="listitem"
-    >
+  const cardContent = (
+    <>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => onEdit?.(framework.canonical_name)}
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onEdit?.(framework.canonical_name);
+            }}
             className={cn(
               'text-sm font-medium text-foreground',
               onEdit && 'cursor-pointer hover:underline',
             )}
-            aria-label={`Edit ${framework.canonical_name}`}
+            aria-label={`Edit ${formatEntityDisplayName(framework.canonical_name)}`}
             disabled={!onEdit}
           >
-            {framework.canonical_name}
+            {formatEntityDisplayName(framework.canonical_name)}
           </button>
           <ExpiryBadge status={framework.expiry_status} />
           {needsRenewal && renewalItemId && (
@@ -161,6 +164,7 @@ function FrameworkRow({
               <Link
                 href={`/item/${renewalItemId}`}
                 aria-label={`View ${framework.canonical_name} for renewal`}
+                onClick={(e) => e.stopPropagation()}
               >
                 <RefreshCw className="size-3" aria-hidden="true" />
                 Renew
@@ -188,10 +192,31 @@ function FrameworkRow({
       </div>
       <span
         className="shrink-0 text-xs text-muted-foreground"
-        aria-label={`${framework.content_item_count} evidence ${framework.content_item_count === 1 ? 'item' : 'items'}`}
+        aria-label={`${framework.content_item_count} linked ${framework.content_item_count === 1 ? 'item' : 'items'}`}
       >
-        {framework.content_item_count} evidence
+        {framework.content_item_count} linked {framework.content_item_count === 1 ? 'item' : 'items'}
       </span>
+    </>
+  );
+
+  if (itemLink) {
+    return (
+      <Link
+        href={itemLink}
+        className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        role="listitem"
+      >
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-start justify-between gap-3 rounded-lg border border-border/60 bg-muted/30 p-3"
+      role="listitem"
+    >
+      {cardContent}
     </div>
   );
 }

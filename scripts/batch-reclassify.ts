@@ -996,18 +996,18 @@ Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numer
           }
 
           // ── Normalise keywords (3.9) ──
-          const normalisedKeywords = result.ai_keywords.map(normaliseTag).filter((k) => k.length > 0);
+          const normalisedKeywords = (Array.isArray(result.ai_keywords) ? result.ai_keywords : []).map(normaliseTag).filter((k) => k.length > 0);
           const uniqueKeywords = [...new Set(normalisedKeywords)];
 
           // ── Apply canonicalisation + alias resolution to entity names (3.6) ──
-          const entities = (result.entities || [])
+          const entities = (Array.isArray(result.entities) ? result.entities : [])
             .filter((e) => !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name))
             .map((e) => ({
               ...e,
               canonical_name: resolveAlias(canonicalise(e.canonical_name, e.type)).toLowerCase(),
             }));
 
-          const relationships = (result.relationships || []).map(
+          const relationships = (Array.isArray(result.relationships) ? result.relationships : []).map(
             (r) => ({
               ...r,
               source: resolveAlias(canonicalise(r.source)).toLowerCase(),

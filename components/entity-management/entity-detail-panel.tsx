@@ -34,6 +34,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatContentType } from '@/lib/format';
+import { formatEntityDisplayName } from '@/lib/entities/entity-dedup';
 import {
   deriveExpiryStatus,
   type CertificationMetadata,
@@ -609,7 +610,7 @@ export function EntityDetailPanel({
           <SheetTitle className="flex items-center gap-2">
             <Network className="size-5 shrink-0" aria-hidden="true" />
             <span className="truncate">
-              {canonicalName ?? 'Entity Detail'}
+              {canonicalName ? formatEntityDisplayName(canonicalName) : 'Entity Detail'}
             </span>
           </SheetTitle>
           <SheetDescription className="sr-only">
@@ -631,7 +632,7 @@ export function EntityDetailPanel({
         )}
 
         {!loading && !error && detail && (
-          <div className="flex flex-col gap-6 pt-4">
+          <div className="flex flex-col gap-6 px-4 pt-4 sm:px-6">
             {/* -- Type and stats ----------------------------------------- */}
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-2">
@@ -782,7 +783,7 @@ export function EntityDetailPanel({
                           className="flex items-center gap-2 rounded-md border bg-muted/20 px-3 py-2 text-sm"
                         >
                           <span className="shrink-0 font-medium">
-                            {detail.canonical_name}
+                            {formatEntityDisplayName(detail.canonical_name)}
                           </span>
                           <ArrowRight
                             className={cn(
@@ -799,7 +800,7 @@ export function EntityDetailPanel({
                             aria-hidden="true"
                           />
                           <span className="min-w-0 flex-1 truncate font-medium">
-                            {otherEntity}
+                            {formatEntityDisplayName(otherEntity)}
                           </span>
                           {rel.confidence < 1 && (
                             <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
