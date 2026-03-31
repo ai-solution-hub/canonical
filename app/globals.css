@@ -591,9 +591,6 @@
 
 /* Register theme values for Tailwind v4 */
 @theme inline {
-  /* Tailwind v4: bare `border` utility uses this as default colour */
-  --default-border-color: var(--border);
-
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -834,7 +831,13 @@
   --tw-prose-td-borders: var(--border);
 }
 
-/* Base styles */
+/* Base styles — default border colour for all elements (shadcn/Tailwind v4) */
+*,
+::after,
+::before {
+  border-color: var(--color-border, var(--border));
+}
+
 html,
 body {
   min-height: 100vh;
