@@ -591,6 +591,9 @@
 
 /* Register theme values for Tailwind v4 */
 @theme inline {
+  /* Tailwind v4: bare `border` utility uses this as default colour */
+  --default-border-color: var(--border);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
