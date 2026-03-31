@@ -43,8 +43,8 @@
   --destructive: oklch(0.55 0.20 20);
   --destructive-foreground: oklch(0.99 0.003 48);
 
-  --border: oklch(0.90 0.012 48);
-  --input: oklch(0.90 0.012 48);
+  --border: oklch(0.86 0.012 48);
+  --input: oklch(0.86 0.012 48);
   --ring: oklch(0.65 0.16 55);
 
   --success: oklch(0.55 0.15 160);

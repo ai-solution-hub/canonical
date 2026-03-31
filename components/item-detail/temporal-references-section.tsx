@@ -113,7 +113,7 @@ export function TemporalReferencesSection({
           {temporalReferences.map((ref, index) => (
             <li
               key={`${ref.date}-${index}`}
-              className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-xs"
+              className="rounded-lg border border-border bg-muted/30 p-2.5 text-xs"
             >
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-foreground">

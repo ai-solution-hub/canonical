@@ -30,7 +30,7 @@ export function CoverageGapCell({
   return (
     <div
       className={cn(
-        'group flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-muted/30 p-3',
+        'group flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-muted/30 p-3',
         'min-h-[5.5rem]',
       )}
     >

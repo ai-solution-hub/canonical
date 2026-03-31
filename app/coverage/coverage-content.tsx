@@ -280,7 +280,7 @@ export function CoverageContent() {
               'inline-flex items-center gap-1.5 rounded-l-lg px-3 py-1.5 text-xs font-medium transition-colors',
               viewMode === 'cards'
                 ? 'bg-accent text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'border border-border text-muted-foreground hover:text-foreground',
             )}
             aria-pressed={viewMode === 'cards'}
           >
@@ -294,7 +294,7 @@ export function CoverageContent() {
               'inline-flex items-center gap-1.5 rounded-r-lg px-3 py-1.5 text-xs font-medium transition-colors',
               viewMode === 'heatmap'
                 ? 'bg-accent text-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                : 'border border-border text-muted-foreground hover:text-foreground',
             )}
             aria-pressed={viewMode === 'heatmap'}
           >
