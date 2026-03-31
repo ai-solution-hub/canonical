@@ -342,9 +342,9 @@ def build_user_prompt(
     content = content or "(no content)"
     author_name = author_name or "(unknown)"
 
-    # Truncate content at 2000 chars for classification
-    if len(content) > 2000:
-        content = content[:2000] + "..."
+    # Truncate content at 5000 chars for classification
+    if len(content) > 5000:
+        content = content[:5000] + "..."
 
     return f"""Classify this content item:
 

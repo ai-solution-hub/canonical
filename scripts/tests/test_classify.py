@@ -77,19 +77,26 @@ class TestBuildUserPrompt:
         result_none = build_user_prompt(title="T", content="C", author_name=None)
         assert "Author: (unknown)" in result_none
 
-    def test_content_over_2000_chars_truncated(self):
-        """Content longer than 2000 characters is truncated with ellipsis."""
-        long_content = "x" * 2500
+    def test_content_over_5000_chars_truncated(self):
+        """Content longer than 5000 characters is truncated with ellipsis."""
+        long_content = "x" * 6000
         result = build_user_prompt(title="T", content=long_content)
-        # Should contain exactly 2000 x's followed by "..."
-        assert ("x" * 2000 + "...") in result
-        assert ("x" * 2001) not in result
+        # Should contain exactly 5000 x's followed by "..."
+        assert ("x" * 5000 + "...") in result
+        assert ("x" * 5001) not in result
 
-    def test_content_exactly_2000_chars_not_truncated(self):
-        """Content at exactly 2000 characters is not truncated."""
-        exact_content = "y" * 2000
+    def test_content_exactly_5000_chars_not_truncated(self):
+        """Content at exactly 5000 characters is not truncated."""
+        exact_content = "y" * 5000
         result = build_user_prompt(title="T", content=exact_content)
-        assert ("y" * 2000) in result
+        assert ("y" * 5000) in result
+        assert "..." not in result
+
+    def test_content_between_2000_and_5000_not_truncated(self):
+        """Content between 2000 and 5000 characters is not truncated."""
+        mid_content = "z" * 3000
+        result = build_user_prompt(title="T", content=mid_content)
+        assert ("z" * 3000) in result
         assert "..." not in result
 
 
