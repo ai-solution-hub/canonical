@@ -160,7 +160,8 @@ export function SearchBar({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const placeholder = 'Search your knowledge base...';
+  const placeholder =
+    variant === 'hero' ? 'Search your knowledge base...' : 'Search...';
 
   const activeDescendantId =
     activeIndex >= 0 ? `search-option-${activeIndex}` : undefined;

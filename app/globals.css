@@ -19,7 +19,7 @@
   --stone-900: oklch(0.18 0.014 48);
 
   /* Semantic tokens (light mode) — shadcn compatible */
-  --background: oklch(0.98 0.008 48);
+  --background: oklch(0.96 0.008 48);
   --foreground: oklch(0.25 0.016 48);
 
   --card: oklch(1.0 0.002 48);

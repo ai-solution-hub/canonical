@@ -25,10 +25,10 @@ describe('SearchBar', () => {
 
   it('renders with default placeholder', () => {
     render(<SearchBar />);
-    expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument();
   });
 
-  it('shows same placeholder for all variants', () => {
+  it('shows full placeholder for hero variant', () => {
     render(<SearchBar variant="hero" />);
     expect(screen.getByPlaceholderText('Search your knowledge base...')).toBeInTheDocument();
   });
