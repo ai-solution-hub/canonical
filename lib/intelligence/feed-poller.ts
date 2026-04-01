@@ -51,17 +51,18 @@ export async function parseFeedItems(xml: string): Promise<ParsedFeedItem[]> {
   // Pre-extract Atom categories since rss-parser doesn't handle <category term="..."/>
   const atomCategories = extractAtomCategories(xml);
   return (feed.items ?? []).map((item) => {
-    const itemId = item.guid ?? item.id ?? '';
+    const rawItem = item as unknown as Record<string, unknown>;
+    const itemId = item.guid ?? (rawItem.id as string) ?? '';
     const rssCategories = item.categories ?? [];
     const atomCats = atomCategories.get(itemId) ?? [];
     const allCategories = [...new Set([...rssCategories, ...atomCats])];
     return {
       title: item.title ?? 'Untitled',
       url: item.link ?? '',
-      guid: item.guid ?? item.id ?? null,
+      guid: item.guid ?? (rawItem.id as string) ?? null,
       publishedAt: item.isoDate ?? null,
       summary: item.contentSnippet ?? item.summary ?? null,
-      contentEncoded: (item as Record<string, unknown>).contentEncoded as string | null ?? null,
+      contentEncoded: rawItem.contentEncoded as string | null ?? null,
       categories: allCategories,
     };
   });

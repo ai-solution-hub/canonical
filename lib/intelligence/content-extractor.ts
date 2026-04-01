@@ -102,20 +102,20 @@ export async function extractContent(item: ParsedFeedItem): Promise<ExtractionRe
     // Fall through to Firecrawl
   }
 
-  // 3. Firecrawl fallback — uses scrape() method, data under result.data
+  // 3. Firecrawl fallback — scrape() returns a Document directly
   try {
     const { default: Firecrawl } = await import('@mendable/firecrawl-js');
     const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
-    const result = await firecrawl.scrape(item.url, { formats: ['markdown'] });
+    const doc = await firecrawl.scrape(item.url, { formats: ['markdown'] as const });
 
-    if (result.success && result.data?.markdown) {
-      const text = result.data.markdown;
+    if (doc.markdown) {
+      const text = doc.markdown;
       return {
         ...baseResult,
         content: text,
-        title: result.data.metadata?.title ?? item.title,
-        description: result.data.metadata?.description ?? item.summary,
-        thumbnailUrl: result.data.metadata?.ogImage ?? null,
+        title: (doc.metadata as Record<string, string> | undefined)?.title ?? item.title,
+        description: (doc.metadata as Record<string, string> | undefined)?.description ?? item.summary,
+        thumbnailUrl: (doc.metadata as Record<string, string> | undefined)?.ogImage ?? null,
         method: 'firecrawl',
         wordCount: wordCount(text),
       };
