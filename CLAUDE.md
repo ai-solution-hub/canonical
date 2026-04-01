@@ -40,7 +40,7 @@ development partner. All code is written through human-AI collaboration.
 | `bun run build:plugin` | Regenerate plugin ZIP bundle (`lib/mcp/plugin-bundle.ts`) — commit after |
 | `bun run test:e2e` | Run Playwright E2E tests |
 | `bun run test:watch` | Vitest in watch mode |
-| `bun run sync:plugin-taxonomy` | Sync plugin taxonomy from DB |
+| `bun run sync:taxonomy` | Full taxonomy sync (classification prompt + snapshot + plugin + rebuild) |
 | `bun run test:mcp-eval` | Run MCP eval Layer 1 (protocol compliance, 42 checks) |
 | `bun run test:mcp-eval:rq` | Run MCP eval Layer 3 (response quality, 17 checks) |
 | `bun run test:mcp-eval:fc` | Run MCP eval Layer 4 (functional correctness, 37 checks, live DB) |
@@ -193,6 +193,12 @@ Consult these references when adding or modifying UI elements.
 | Data entry points | `docs/reference/data-entry-points.md` |
 | Taxonomy change runbook | `docs/reference/taxonomy-change-runbook.md` |
 | Roadmap | `docs/reference/post-mvp-roadmap.md` |
+| AI integration strategy | `docs/reference/ai-integration-strategy.md` |
+| AI visibility policy | `docs/reference/ai-visibility-policy.md` |
+| Sector intelligence pathway | `docs/reference/sector-intelligence-pathway.md` |
+| Client personas | `docs/reference/client-personas.md` |
+| Product differentiation audit | `docs/reference/product-differentiation-audit.md` |
+| Pipeline parity spec | `docs/specs/pipeline-parity-spec.md` |
 
 Historical planning documents are in `.planning/`.
 
@@ -232,6 +238,10 @@ findings before merge, worktrees for parallel work, sequential merges only.
 
 ### Testing
 
+- **Guard tests break on structural changes:** `mcp-fixture-sync.test.ts` (MCP
+  tool/prompt counts), `doc-freshness.test.ts` (reference doc paths), and
+  `pipeline-parity.test.ts` (TS/Python pipeline alignment) run on every
+  `bun run test`. Update fixtures when adding tools or changing doc paths.
 - **vi.mock() hoisting:** Use `vi.hoisted()` for mock variables. Arrow functions
   in `mockImplementation()` cannot be used with `new` — use `function` keyword.
 - **Zod UUID validation is strict:** `z.string().uuid()` enforces RFC 4122
@@ -266,9 +276,8 @@ findings before merge, worktrees for parallel work, sequential merges only.
 
 ### Data & Architecture
 
-- **TanStack Query migration complete (40/40).** New data-fetching hooks
-  should use TanStack Query with `lib/query/query-keys.ts` and
-  `lib/query/fetchers.ts`.
+- **Data fetching:** TanStack Query exclusively. Keys in `lib/query/query-keys.ts`,
+  fetchers in `lib/query/fetchers.ts`. No SWR or raw fetch in hooks.
 - **`getAuthorisedClient()` discriminated union:** Returns
   `{ success: boolean }` — check `auth.success` not `auth.authorised`.
 - **No barrel re-exports:** Always use direct file imports
@@ -288,6 +297,7 @@ findings before merge, worktrees for parallel work, sequential merges only.
 
 - **No raw Tailwind colours:** Always use semantic tokens. Define new ones in
   `app/globals.css`. See `docs/design/warm-meridian-implementation-spec.md`.
+- **Tailwind v4 dark mode is class-based:** `@custom-variant dark (&:is(.dark *))` in `globals.css` — without it, `dark:` compiles to a media query and class-based toggling (next-themes) breaks.
 - **Tailwind v4 scans ALL files:** Never put wildcard class patterns in
   backticks in any project file (including docs). Use `{name}` not `*`.
 - **Tailwind v4 removed default border-color preflight:** Bare `border` uses
