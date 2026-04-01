@@ -883,6 +883,9 @@ p + p {
   font-size: clamp(1.25rem, 1.5vw + 0.75rem, 1.5rem);
 }
 
+/* Tailwind v4 dark mode: use class-based toggling (next-themes), not media query */
+@custom-variant dark (&:is(.dark *));
+
 /* Tailwind custom variants for accessibility modes */
 @custom-variant dyslexia (&:is([data-a11y-mode='dyslexia'] *));
 @custom-variant high-contrast (&:is([data-a11y-mode='high-contrast'] *));
