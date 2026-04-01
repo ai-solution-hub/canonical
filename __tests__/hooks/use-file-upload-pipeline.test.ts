@@ -6,6 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -26,6 +27,12 @@ import {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Render the hook with a QueryClientProvider wrapper */
+function renderUploadHook(options: Parameters<typeof useFileUploadPipeline>[0] = {}) {
+  const { Wrapper } = createQueryWrapper();
+  return renderHook(() => useFileUploadPipeline(options), { wrapper: Wrapper });
+}
 
 /** Create a minimal File object for testing */
 function createTestFile(name = 'test-document.pdf', size = 1024): File {
@@ -91,42 +98,42 @@ describe('useFileUploadPipeline', () => {
 
   describe('initial state', () => {
     it('starts with select phase', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.phase).toBe('select');
     });
 
     it('starts with empty files array', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.files).toEqual([]);
     });
 
     it('starts with empty fileStates', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.fileStates).toEqual({});
     });
 
     it('starts not uploading', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.isUploading).toBe(false);
     });
 
     it('starts with empty review items', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.reviewItems).toEqual([]);
     });
 
     it('starts with zero pending count', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.pendingCount).toBe(0);
     });
 
     it('starts with no results', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.hasResults).toBe(false);
     });
 
     it('starts with no active uploads', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.hasActiveUploads).toBe(false);
     });
   });
@@ -137,7 +144,7 @@ describe('useFileUploadPipeline', () => {
 
   describe('handleFilesAdded', () => {
     it('populates the files array with upload file objects', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       const file = createTestFile();
 
       act(() => {
@@ -151,7 +158,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('assigns unique IDs to added files', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([
@@ -164,7 +171,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('appends to existing files', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile('doc1.pdf')]);
@@ -177,7 +184,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('increments pending count', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile(), createTestFile('doc2.pdf')]);
@@ -189,7 +196,7 @@ describe('useFileUploadPipeline', () => {
 
   describe('handleFileRemoved', () => {
     it('removes a file from the array', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -205,7 +212,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('removes the file state entry', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -221,7 +228,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('decrements pending count', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile(), createTestFile('doc2.pdf')]);
@@ -244,7 +251,7 @@ describe('useFileUploadPipeline', () => {
   describe('handleUpload', () => {
     it('posts FormData to /api/upload for each file', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -261,7 +268,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('does nothing when no pending files exist', async () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       let uploadResult: unknown;
       await act(async () => {
@@ -274,7 +281,7 @@ describe('useFileUploadPipeline', () => {
 
     it('returns successful items after upload completes', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -301,7 +308,7 @@ describe('useFileUploadPipeline', () => {
         .mockResolvedValueOnce(successResponse({ id: 'item-1', title: 'Doc 1' }))
         .mockResolvedValueOnce(successResponse({ id: 'item-2', title: 'Doc 2' }));
 
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([
@@ -322,7 +329,7 @@ describe('useFileUploadPipeline', () => {
 
     it('sets isUploading to false after upload completes', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -340,7 +347,7 @@ describe('useFileUploadPipeline', () => {
       // but we can verify the phase was set by checking it returns to uploading
       // when the upload finishes (the hook does not reset phase itself).
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -363,7 +370,7 @@ describe('useFileUploadPipeline', () => {
   describe('draft mode', () => {
     it('includes draft=true in FormData when draftMode is true', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline({ draftMode: true }));
+      const { result } = renderUploadHook({ draftMode: true });
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -379,7 +386,7 @@ describe('useFileUploadPipeline', () => {
 
     it('does not include draft field when draftMode is false', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline({ draftMode: false }));
+      const { result } = renderUploadHook({ draftMode: false });
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -397,7 +404,7 @@ describe('useFileUploadPipeline', () => {
       mockFetch.mockResolvedValue(successResponse());
       localStorage.setItem(SKIP_REVIEW_KEY, 'true');
 
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -413,7 +420,7 @@ describe('useFileUploadPipeline', () => {
 
     it('sends draft=true when localStorage skip-review is not set', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -431,7 +438,7 @@ describe('useFileUploadPipeline', () => {
       mockFetch.mockResolvedValue(successResponse());
       localStorage.setItem(SKIP_REVIEW_KEY, 'true');
 
-      const { result } = renderHook(() => useFileUploadPipeline({ draftMode: true }));
+      const { result } = renderUploadHook({ draftMode: true });
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -447,7 +454,7 @@ describe('useFileUploadPipeline', () => {
 
     it('draftMode=false overrides localStorage setting', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline({ draftMode: false }));
+      const { result } = renderUploadHook({ draftMode: false });
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -468,19 +475,19 @@ describe('useFileUploadPipeline', () => {
 
   describe('skip review preference', () => {
     it('getSkipReview returns false by default', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.getSkipReview()).toBe(false);
     });
 
     it('getSkipReview returns true when localStorage has the key', () => {
       localStorage.setItem(SKIP_REVIEW_KEY, 'true');
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.getSkipReview()).toBe(true);
     });
 
     it('getSkipReview returns false for non-true values', () => {
       localStorage.setItem(SKIP_REVIEW_KEY, 'false');
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
       expect(result.current.getSkipReview()).toBe(false);
     });
 
@@ -488,7 +495,7 @@ describe('useFileUploadPipeline', () => {
       mockFetch.mockResolvedValue(successResponse());
       localStorage.setItem(SKIP_REVIEW_KEY, 'true');
 
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -504,7 +511,7 @@ describe('useFileUploadPipeline', () => {
 
     it('returns skipReview=false in upload result when preference is not set', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -526,7 +533,7 @@ describe('useFileUploadPipeline', () => {
   describe('per-file state transitions', () => {
     it('marks all steps as done after successful upload', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -544,7 +551,7 @@ describe('useFileUploadPipeline', () => {
 
     it('marks file status as done with resultId after successful upload', async () => {
       mockFetch.mockResolvedValue(successResponse({ id: 'result-item-id' }));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -562,7 +569,7 @@ describe('useFileUploadPipeline', () => {
 
     it('sets hasResults to true after upload completes', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -577,7 +584,7 @@ describe('useFileUploadPipeline', () => {
 
     it('initialises file state with 5 pipeline steps', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -600,7 +607,7 @@ describe('useFileUploadPipeline', () => {
   describe('error handling', () => {
     it('marks active step as error on upload failure', async () => {
       mockFetch.mockResolvedValue(errorResponse('Server error'));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -619,7 +626,7 @@ describe('useFileUploadPipeline', () => {
 
     it('records error message on the file', async () => {
       mockFetch.mockResolvedValue(errorResponse('Server error'));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -636,7 +643,7 @@ describe('useFileUploadPipeline', () => {
 
     it('sets isUploading back to false after error', async () => {
       mockFetch.mockResolvedValue(errorResponse('Server error'));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -651,7 +658,7 @@ describe('useFileUploadPipeline', () => {
 
     it('returns error count in upload result', async () => {
       mockFetch.mockResolvedValue(errorResponse('Server error'));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -671,7 +678,7 @@ describe('useFileUploadPipeline', () => {
         .mockResolvedValueOnce(successResponse({ id: 'item-1' }))
         .mockResolvedValueOnce(errorResponse('Upload failed'));
 
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([
@@ -691,7 +698,7 @@ describe('useFileUploadPipeline', () => {
 
     it('uses fallback error message when fetch rejects with non-Error', async () => {
       mockFetch.mockRejectedValue('network failure string');
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -717,7 +724,7 @@ describe('useFileUploadPipeline', () => {
           classification: { domain: 'Technical', subtopic: 'Architecture', confidence: 0.85 },
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -740,7 +747,7 @@ describe('useFileUploadPipeline', () => {
       mockFetch.mockResolvedValue(
         successResponse({ ai_summary: 'A detailed summary of the document.' }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -765,7 +772,7 @@ describe('useFileUploadPipeline', () => {
           ],
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -792,7 +799,7 @@ describe('useFileUploadPipeline', () => {
           },
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -823,7 +830,7 @@ describe('useFileUploadPipeline', () => {
           source_document_id: 'new-doc-id',
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -846,7 +853,7 @@ describe('useFileUploadPipeline', () => {
 
     it('constructs review items with classification and summary', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -881,7 +888,7 @@ describe('useFileUploadPipeline', () => {
 
     it('uses filename as fallback title when API response has no title', async () => {
       mockFetch.mockResolvedValue(successResponse({ title: '' }));
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile('my-important-doc.pdf')]);
@@ -903,7 +910,7 @@ describe('useFileUploadPipeline', () => {
   describe('reset', () => {
     it('clears all files and states', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -927,7 +934,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('resets phase to select', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.setPhase('review');
@@ -954,7 +961,7 @@ describe('useFileUploadPipeline', () => {
           suggested_layer: { suggestedLayer: 'reference', reason: 'Test', confidence: 'high' },
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -977,7 +984,7 @@ describe('useFileUploadPipeline', () => {
 
     it('handleSetSelectedLayer updates the selected layer', async () => {
       mockFetch.mockResolvedValue(successResponse());
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -1002,7 +1009,7 @@ describe('useFileUploadPipeline', () => {
           duplicate_matches: [{ id: 'dup-1', title: 'Existing', similarity: 0.9 }],
         }),
       );
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       act(() => {
         result.current.handleFilesAdded([createTestFile()]);
@@ -1030,7 +1037,7 @@ describe('useFileUploadPipeline', () => {
 
   describe('phase management', () => {
     it('setPhase updates the phase', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       expect(result.current.phase).toBe('select');
 
@@ -1042,7 +1049,7 @@ describe('useFileUploadPipeline', () => {
     });
 
     it('setReviewItems updates the review items', () => {
-      const { result } = renderHook(() => useFileUploadPipeline());
+      const { result } = renderUploadHook();
 
       const items = [
         {
@@ -1068,7 +1075,7 @@ describe('useFileUploadPipeline', () => {
 
   describe('cleanup', () => {
     it('clears interval timers on unmount without error', () => {
-      const { unmount } = renderHook(() => useFileUploadPipeline());
+      const { unmount } = renderUploadHook();
 
       // Unmount should not throw
       expect(() => unmount()).not.toThrow();

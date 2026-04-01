@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useReadMarks } from '@/contexts/read-marks-context';
 import { useTranscript } from '@/hooks/use-transcript';
 import { useReaderPreferences } from '@/hooks/ui/use-reader-preferences';
@@ -13,6 +14,7 @@ import type { VisionAnalysisResult } from '@/hooks/use-vision-analysis';
 import { useQAProvenance } from '@/hooks/use-qa-provenance';
 import { useTopicLayerContent } from '@/hooks/use-topic-layer-content';
 import { createClient } from '@/lib/supabase/client';
+import { queryKeys } from '@/lib/query/query-keys';
 import { getDisplayTitle } from '@/lib/format';
 import { toast } from 'sonner';
 
@@ -157,6 +159,7 @@ export function useItemDetailData({
   relatedItems,
 }: UseItemDetailDataOptions): ItemDetailData {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { canEdit, canAdmin } = useUserRole();
   const [item, setItem] = useState<ItemData>(initialItem);
 
@@ -288,58 +291,75 @@ export function useItemDetailData({
     }
   }, []);
 
-  // --- Star toggle ---
-  const handleStarToggle = useCallback(async () => {
-    const newStarred = !item.starred;
-    setItem((prev) => ({
-      ...prev,
-      starred: newStarred,
-    }));
-    try {
+  // --- Star toggle (useMutation with optimistic update) ---
+  const starMutation = useMutation({
+    mutationFn: async (newStarred: boolean) => {
       const supabase = createClient();
       const { error } = await supabase.rpc('toggle_star', {
         p_item_id: item.id,
         p_starred: newStarred,
       });
-      if (error) {
-        console.error('Failed to toggle star:', error.message);
-        setItem((prev) => ({
-          ...prev,
-          starred: !newStarred,
-        }));
-        toast.error('Failed to update star');
-        return;
-      }
+      if (error) throw new Error(error.message);
+      return newStarred;
+    },
+    onMutate: async (newStarred) => {
+      const previousItem = { ...item };
+      setItem((prev) => ({ ...prev, starred: newStarred }));
+      return { previousItem };
+    },
+    onSuccess: (newStarred) => {
       toast(newStarred ? 'Starred' : 'Unstarred', { duration: 1500 });
-    } catch (err) {
-      console.error('Failed to toggle star:', err);
-      setItem((prev) => ({
-        ...prev,
-        starred: !newStarred,
-      }));
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+    },
+    onError: (_err, _newStarred, context) => {
+      if (context?.previousItem) {
+        setItem((prev) => ({ ...prev, starred: context.previousItem.starred }));
+      }
       toast.error('Failed to update star');
-    }
-  }, [item.id, item.starred]);
+    },
+  });
 
-  // --- Priority cycle ---
-  const handlePriorityCycle = useCallback(async () => {
-    const cycle: Priority[] = [null, 'high', 'medium', 'low'];
-    const currentIdx = cycle.indexOf((item.priority as Priority) ?? null);
-    const next = cycle[(currentIdx + 1) % cycle.length];
-    setItem((prev) => ({ ...prev, priority: next }));
-    try {
+  const { mutate: doStarToggle } = starMutation;
+
+  const handleStarToggle = useCallback(async () => {
+    doStarToggle(!item.starred);
+  }, [doStarToggle, item.starred]);
+
+  // --- Priority cycle (useMutation with optimistic update) ---
+  const priorityMutation = useMutation({
+    mutationFn: async (next: Priority) => {
       const res = await fetch(`/api/items/${item.id}/priority`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priority: next }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error('Failed to update priority');
+      return next;
+    },
+    onMutate: async (next) => {
+      const previousPriority = item.priority;
+      setItem((prev) => ({ ...prev, priority: next }));
+      return { previousPriority };
+    },
+    onSuccess: (next) => {
       toast(next ? `Priority: ${next}` : 'Priority cleared', { duration: 1500 });
-    } catch (err) {
-      console.error('Failed to cycle priority:', err);
-      setItem((prev) => ({ ...prev, priority: item.priority }));
-    }
-  }, [item.id, item.priority]);
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+    },
+    onError: (_err, _next, context) => {
+      if (context) {
+        setItem((prev) => ({ ...prev, priority: context.previousPriority }));
+      }
+    },
+  });
+
+  const { mutate: doPriorityCycle } = priorityMutation;
+
+  const handlePriorityCycle = useCallback(async () => {
+    const cycle: Priority[] = [null, 'high', 'medium', 'low'];
+    const currentIdx = cycle.indexOf((item.priority as Priority) ?? null);
+    const next = cycle[(currentIdx + 1) % cycle.length];
+    doPriorityCycle(next);
+  }, [item.priority, doPriorityCycle]);
 
   // --- Copy answer (Q&A pairs) ---
   const handleCopyAnswer = useCallback(

@@ -9,6 +9,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -169,6 +171,25 @@ vi.mock('@/components/bid/tender-metadata-prompt', () => ({
 import BidDetailPage from '@/app/bid/[id]/page';
 
 // ---------------------------------------------------------------------------
+// QueryClient wrapper for tests
+// ---------------------------------------------------------------------------
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+}
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Data factories
 // ---------------------------------------------------------------------------
 
@@ -298,55 +319,55 @@ describe('BidDetailPage', () => {
 
   it('renders skeleton when loading', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ loading: true }));
-    const { container } = render(<BidDetailPage params={mockParams} />);
+    const { container } = renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
   });
 
   it('shows not-found state when bid is null', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bid: null, bidStatus: 'drafting' }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Bid not found')).toBeInTheDocument();
     expect(screen.getByText('Return to Bids')).toBeInTheDocument();
   });
 
   it('shows not-found state when bidStatus is null', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ bidStatus: null }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Bid not found')).toBeInTheDocument();
   });
 
   // ---- Header rendering ----
 
   it('renders the bid name in the header', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Test Bid Alpha' })).toBeInTheDocument();
   });
 
   it('renders the bid state badge', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByTestId('bid-state-badge')).toHaveTextContent('drafting');
   });
 
   it('shows buyer name in the header', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Acme Council')).toBeInTheDocument();
   });
 
   it('shows the deadline in the header', () => {
     mockFormatDateUK.mockReturnValue('15/04/2026');
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     // Deadline appears in both header and details section
     expect(screen.getAllByText('15/04/2026').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows the reference number in the header', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     // Reference appears in both header and details section
     expect(screen.getAllByText('REF-001').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders back link to bids list', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const backLink = screen.getByText('Back to Bids');
     expect(backLink.closest('a')).toHaveAttribute('href', '/bid');
   });
@@ -355,20 +376,20 @@ describe('BidDetailPage', () => {
 
   it('shows deadline proximity badge when deadline is near', () => {
     mockGetDeadlineProximity.mockReturnValue({ label: '3 days left', isOverdue: false, daysLeft: 3 });
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('3 days left')).toBeInTheDocument();
   });
 
   it('shows overdue proximity badge with overdue styling', () => {
     mockGetDeadlineProximity.mockReturnValue({ label: 'Overdue', isOverdue: true, daysLeft: -2 });
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const badge = screen.getByText('Overdue');
     expect(badge).toBeInTheDocument();
   });
 
   it('does not show proximity badge when deadline is distant', () => {
     mockGetDeadlineProximity.mockReturnValue(null);
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.queryByText(/days left/)).not.toBeInTheDocument();
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
   });
@@ -379,14 +400,14 @@ describe('BidDetailPage', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
       regularTransitions: ['in_review'],
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByRole('button', { name: 'In Review' })).toBeInTheDocument();
   });
 
   it('hides action buttons for viewers', () => {
     mockUseUserRole.canEdit = false;
     mockUseUserRole.role = 'viewer';
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.queryByRole('button', { name: 'In Review' })).not.toBeInTheDocument();
   });
 
@@ -394,7 +415,7 @@ describe('BidDetailPage', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
       regularTransitions: ['in_review', 'withdrawn'],
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByRole('button', { name: 'In Review' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Withdrawn' })).not.toBeInTheDocument();
   });
@@ -405,7 +426,7 @@ describe('BidDetailPage', () => {
     const user = userEvent.setup();
     mockUseUserRole.role = 'admin';
     mockUseUserRole.canEdit = true;
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const moreButton = screen.getByRole('button', { name: 'More actions' });
     await user.click(moreButton);
     expect(screen.getByText('Delete bid')).toBeInTheDocument();
@@ -414,14 +435,14 @@ describe('BidDetailPage', () => {
   it('does not show delete menu for editor role', () => {
     mockUseUserRole.role = 'editor';
     mockUseUserRole.canEdit = true;
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument();
   });
 
   // ---- Tab navigation ----
 
   it('renders all four tabs', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     expect(within(nav).getByText('Overview')).toBeInTheDocument();
     expect(within(nav).getByText(/Questions/)).toBeInTheDocument();
@@ -430,7 +451,7 @@ describe('BidDetailPage', () => {
   });
 
   it('shows question count on the Questions tab', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     expect(within(nav).getByText('10')).toBeInTheDocument();
   });
@@ -439,7 +460,7 @@ describe('BidDetailPage', () => {
     const mockSetActiveTab = vi.fn();
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ setActiveTab: mockSetActiveTab }));
     const user = userEvent.setup();
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const nav = screen.getByRole('tablist', { name: 'Bid sections' });
     await user.click(within(nav).getByText(/Questions/));
     expect(mockSetActiveTab).toHaveBeenCalledWith('questions');
@@ -448,23 +469,23 @@ describe('BidDetailPage', () => {
   // ---- Overview tab content ----
 
   it('shows progress heading in overview tab', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Progress')).toBeInTheDocument();
   });
 
   it('shows progress bar with completion text', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('5 of 10 questions drafted (50%)')).toBeInTheDocument();
   });
 
   it('shows upload prompt when zero questions', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ totalQuestions: 0 }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText(/No questions extracted yet/)).toBeInTheDocument();
   });
 
   it('shows bid details section', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('Details')).toBeInTheDocument();
     expect(screen.getByText('£50,000')).toBeInTheDocument();
   });
@@ -478,7 +499,7 @@ describe('BidDetailPage', () => {
       stats: makeStats({ unmatched_count: 3 }),
       bidStatus: 'drafting',
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText(/Find answers for 3 questions/)).toBeInTheDocument();
   });
 
@@ -488,7 +509,7 @@ describe('BidDetailPage', () => {
       totalQuestions: 10,
       bidStatus: 'drafting',
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByRole('button', { name: /Draft All/ })).toBeInTheDocument();
   });
 
@@ -499,7 +520,7 @@ describe('BidDetailPage', () => {
       activeTab: 'documents',
       bid: makeBid({ tender_documents: [] }),
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('No tender documents uploaded yet.')).toBeInTheDocument();
   });
 
@@ -512,7 +533,7 @@ describe('BidDetailPage', () => {
         ],
       }),
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText('tender.pdf')).toBeInTheDocument();
     expect(screen.getByText('Uploaded Documents (1)')).toBeInTheDocument();
   });
@@ -521,7 +542,7 @@ describe('BidDetailPage', () => {
 
   it('renders delete confirmation dialog when open', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({ deleteConfirmOpen: true }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
   });
 
@@ -532,7 +553,7 @@ describe('BidDetailPage', () => {
       handleDeleteConfirmed: mockHandleDeleteConfirmed,
     }));
     const user = userEvent.setup();
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(mockHandleDeleteConfirmed).toHaveBeenCalled();
   });
@@ -544,7 +565,7 @@ describe('BidDetailPage', () => {
       isSubmitted: true,
       bidStatus: 'submitted',
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     // Header actions + NextActionCard both show Record Outcome
     const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
     expect(outcomeButtons.length).toBeGreaterThanOrEqual(1);
@@ -556,21 +577,21 @@ describe('BidDetailPage', () => {
     mockUseBidActions.mockReturnValue(makeDefaultHookReturn({
       extractedMetadata: { buyer_name: 'Test Buyer', deadline: null, reference_number: null },
     }));
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByTestId('tender-metadata-prompt')).toBeInTheDocument();
   });
 
   // ---- State stepper ----
 
   it('renders the BidStateStepper', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     expect(screen.getByTestId('bid-state-stepper')).toBeInTheDocument();
   });
 
   // ---- Open Session link ----
 
   it('shows Open Session button linking to session page', () => {
-    render(<BidDetailPage params={mockParams} />);
+    renderWithQuery(<BidDetailPage params={mockParams} />);
     const sessionLinks = screen.getAllByText('Open Session');
     const sessionLink = sessionLinks[0].closest('a');
     expect(sessionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
@@ -584,7 +605,7 @@ describe('BidDetailPage', () => {
         bidStatus: 'draft',
         activeTab: 'overview',
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Start answering questions')).toBeInTheDocument();
       // Action link should point to session page (multiple Open Session links exist — header + card)
       const actionLinks = screen.getAllByRole('link', { name: /Open Session/ });
@@ -596,7 +617,7 @@ describe('BidDetailPage', () => {
         bidStatus: 'drafting',
         activeTab: 'overview',
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Start answering questions')).toBeInTheDocument();
     });
 
@@ -605,7 +626,7 @@ describe('BidDetailPage', () => {
         bidStatus: 'in_review',
         activeTab: 'overview',
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Review responses before submission')).toBeInTheDocument();
       const actionLink = screen.getByRole('link', { name: /Review Responses/ });
       expect(actionLink).toHaveAttribute('href', '/bid/test-bid-1/session');
@@ -619,7 +640,7 @@ describe('BidDetailPage', () => {
         isSubmitted: true,
         setShowOutcomeDialog: mockSetShowOutcome,
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Record the outcome when you hear back')).toBeInTheDocument();
       // Multiple Record Outcome buttons exist (header + card)
       const outcomeButtons = screen.getAllByRole('button', { name: /Record Outcome/ });
@@ -632,7 +653,7 @@ describe('BidDetailPage', () => {
         activeTab: 'overview',
         regularTransitions: [],
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.getByText('Review responses for your knowledge base')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Review for KB/ })).toBeInTheDocument();
     });
@@ -644,7 +665,7 @@ describe('BidDetailPage', () => {
         bidStatus: 'drafting',
         activeTab: 'overview',
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
     });
 
@@ -654,7 +675,7 @@ describe('BidDetailPage', () => {
         activeTab: 'overview',
         regularTransitions: [],
       }));
-      render(<BidDetailPage params={mockParams} />);
+      renderWithQuery(<BidDetailPage params={mockParams} />);
       expect(screen.queryByText('Start answering questions')).not.toBeInTheDocument();
       expect(screen.queryByText('Review responses')).not.toBeInTheDocument();
     });

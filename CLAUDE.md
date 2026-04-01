@@ -266,11 +266,9 @@ findings before merge, worktrees for parallel work, sequential merges only.
 
 ### Data & Architecture
 
-- **TanStack Query migration in progress:** ~6 hooks migrated (`lib/query/`,
-  `use-entity-detail`, `use-digest-data`, `use-tags-data`, `use-library-data`,
-  `use-diff-review`, `use-library-bulk-actions`). ~24 hooks still use
-  useState+fetch. New data-fetching hooks should use TanStack Query with
-  `lib/query/query-keys.ts` and `lib/query/fetchers.ts`.
+- **TanStack Query migration complete (40/40).** New data-fetching hooks
+  should use TanStack Query with `lib/query/query-keys.ts` and
+  `lib/query/fetchers.ts`.
 - **`getAuthorisedClient()` discriminated union:** Returns
   `{ success: boolean }` — check `auth.success` not `auth.authorised`.
 - **No barrel re-exports:** Always use direct file imports

@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+import { createQueryWrapper } from '../helpers/query-wrapper';
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -169,6 +170,11 @@ import type { ItemData } from '@/app/item/[id]/item-detail-client';
 // Helpers
 // ---------------------------------------------------------------------------
 
+function renderItemDetailHook(opts: UseItemDetailDataOptions = defaultOptions()) {
+  const { Wrapper } = createQueryWrapper();
+  return renderHook(() => useItemDetailData(opts), { wrapper: Wrapper });
+}
+
 function createMockItem(overrides: Partial<ItemData> = {}): ItemData {
   return {
     id: 'item-1',
@@ -263,7 +269,7 @@ afterEach(() => {
 describe('useItemDetailData', () => {
   describe('return type completeness', () => {
     it('returns all expected fields', () => {
-      const { result } = renderHook(() => useItemDetailData(defaultOptions()));
+      const { result } = renderItemDetailHook(defaultOptions());
 
       // Core item state
       expect(result.current.item).toBeDefined();
@@ -344,57 +350,47 @@ describe('useItemDetailData', () => {
 
   describe('derived values', () => {
     it('computes title from suggested_title', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ suggested_title: 'My Title', title: null }),
-        })),
-      );
+        }));
 
       expect(result.current.title).toBe('My Title');
     });
 
     it('computes isQAPair correctly for q_a_pair content type', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ content_type: 'q_a_pair' }),
-        })),
-      );
+        }));
 
       expect(result.current.isQAPair).toBe(true);
     });
 
     it('computes isQAPair as false for non-Q&A content types', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ content_type: 'article' }),
-        })),
-      );
+        }));
 
       expect(result.current.isQAPair).toBe(false);
     });
 
     it('computes hasReaderContent when reader_html exists and not Q&A', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             content_type: 'article',
             metadata: { reader_html: '<p>Content</p>' },
           }),
-        })),
-      );
+        }));
 
       expect(result.current.hasReaderContent).toBe(true);
     });
 
     it('hasReaderContent is false for Q&A even with reader_html', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             content_type: 'q_a_pair',
             metadata: { reader_html: '<p>Content</p>' },
           }),
-        })),
-      );
+        }));
 
       expect(result.current.hasReaderContent).toBe(false);
     });
@@ -403,23 +399,19 @@ describe('useItemDetailData', () => {
       const chapters = [
         { title: 'Ch 1', word_count: 100, start_seconds: 0, end_seconds: 60 },
       ];
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             metadata: { chapters },
           }),
-        })),
-      );
+        }));
 
       expect(result.current.transcriptChapters).toEqual(chapters);
     });
 
     it('transcriptChapters is undefined when no chapters in metadata', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ metadata: {} }),
-        })),
-      );
+        }));
 
       expect(result.current.transcriptChapters).toBeUndefined();
     });
@@ -427,18 +419,15 @@ describe('useItemDetailData', () => {
 
   describe('getActiveTabContent', () => {
     it('returns brief when available', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ brief: 'Brief content' }),
-        })),
-      );
+        }));
 
       expect(result.current.getActiveTabContent()).toBe('Brief content');
     });
 
     it('returns executive summary when no brief', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             brief: undefined,
             summary_data: {
@@ -449,52 +438,45 @@ describe('useItemDetailData', () => {
               model: '',
             },
           }),
-        })),
-      );
+        }));
 
       expect(result.current.getActiveTabContent()).toBe('Executive summary');
     });
 
     it('returns ai_summary when no brief or executive', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
             ai_summary: 'AI summary',
           }),
-        })),
-      );
+        }));
 
       expect(result.current.getActiveTabContent()).toBe('AI summary');
     });
 
     it('returns content as last resort', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
             ai_summary: null,
             content: 'Raw content',
           }),
-        })),
-      );
+        }));
 
       expect(result.current.getActiveTabContent()).toBe('Raw content');
     });
 
     it('returns empty string when nothing available', () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             brief: undefined,
             summary_data: null,
             ai_summary: null,
             content: null,
           }),
-        })),
-      );
+        }));
 
       expect(result.current.getActiveTabContent()).toBe('');
     });
@@ -504,7 +486,7 @@ describe('useItemDetailData', () => {
     it('copies current URL to clipboard', async () => {
       vi.stubGlobal('location', { href: 'https://example.com/item/1' });
 
-      const { result } = renderHook(() => useItemDetailData(defaultOptions()));
+      const { result } = renderItemDetailHook(defaultOptions());
 
       await act(async () => {
         await result.current.handleCopyLink();
@@ -516,15 +498,13 @@ describe('useItemDetailData', () => {
 
   describe('handleCopyAnswer', () => {
     it('copies standard answer', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             answer_standard: 'Standard text',
             answer_advanced: 'Advanced text',
             content: 'Fallback',
           }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handleCopyAnswer('standard');
@@ -534,15 +514,13 @@ describe('useItemDetailData', () => {
     });
 
     it('copies advanced answer', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             answer_standard: 'Standard text',
             answer_advanced: 'Advanced text',
             content: 'Fallback',
           }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handleCopyAnswer('advanced');
@@ -552,14 +530,12 @@ describe('useItemDetailData', () => {
     });
 
     it('shows success toast for verified items', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             content: 'Some content',
             verified_at: '2026-01-20T10:00:00Z',
           }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handleCopyAnswer();
@@ -569,14 +545,12 @@ describe('useItemDetailData', () => {
     });
 
     it('shows warning toast for unverified items', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             content: 'Some content',
             verified_at: null,
           }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handleCopyAnswer();
@@ -591,13 +565,11 @@ describe('useItemDetailData', () => {
     });
 
     it('falls back to content when no variant specified', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({
             content: 'Fallback content',
           }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handleCopyAnswer();
@@ -609,11 +581,9 @@ describe('useItemDetailData', () => {
 
   describe('handlePriorityCycle', () => {
     it('cycles from null to high', async () => {
-      const { result } = renderHook(() =>
-        useItemDetailData(defaultOptions({
+      const { result } = renderItemDetailHook(defaultOptions({
           initialItem: createMockItem({ priority: null }),
-        })),
-      );
+        }));
 
       await act(async () => {
         await result.current.handlePriorityCycle();
@@ -632,13 +602,13 @@ describe('useItemDetailData', () => {
 
   describe('read marks integration', () => {
     it('triggers loadReadMarks on mount', () => {
-      renderHook(() => useItemDetailData(defaultOptions()));
+      renderItemDetailHook(defaultOptions());
 
       expect(mockLoadReadMarks).toHaveBeenCalled();
     });
 
     it('triggers checkReadStatus for the item on mount', async () => {
-      renderHook(() => useItemDetailData(defaultOptions()));
+      renderItemDetailHook(defaultOptions());
 
       await waitFor(() => {
         expect(mockCheckReadStatus).toHaveBeenCalledWith(['item-1']);
@@ -648,7 +618,7 @@ describe('useItemDetailData', () => {
 
   describe('showSplitReader', () => {
     it('is false when reader is closed', () => {
-      const { result } = renderHook(() => useItemDetailData(defaultOptions()));
+      const { result } = renderItemDetailHook(defaultOptions());
 
       expect(result.current.showSplitReader).toBe(false);
     });
@@ -656,7 +626,7 @@ describe('useItemDetailData', () => {
 
   describe('tabEditConfig', () => {
     it('is defined when canEdit is true', () => {
-      const { result } = renderHook(() => useItemDetailData(defaultOptions()));
+      const { result } = renderItemDetailHook(defaultOptions());
 
       expect(result.current.tabEditConfig).toBeDefined();
       expect(result.current.tabEditConfig?.editingField).toBeNull();

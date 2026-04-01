@@ -1,3 +1,4 @@
+// Not a TanStack Query candidate — placeholder hook (no API calls yet)
 'use client';
 
 import { useState, useCallback } from 'react';

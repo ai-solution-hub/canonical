@@ -13,6 +13,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import '@testing-library/jest-dom/vitest';
 import { render, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React from 'react';
 
 // ---------------------------------------------------------------------------
 // vi.hoisted() — mocks referenced in vi.mock() factories
@@ -213,6 +215,21 @@ vi.mock('@/components/bid/tender-metadata-prompt', () => ({
 import BidDetailPage from '@/app/bid/[id]/page';
 
 // ---------------------------------------------------------------------------
+// QueryClient wrapper for tests
+// ---------------------------------------------------------------------------
+
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>,
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Data factories (matching the desktop test file)
 // ---------------------------------------------------------------------------
 
@@ -394,7 +411,7 @@ describe('BidDetailPage — Mobile Actions', () => {
 
   describe('responsive class visibility', () => {
     it('desktop actions div has hidden + sm:flex classes', () => {
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { desktopDiv } = findActionDivs(container);
@@ -404,7 +421,7 @@ describe('BidDetailPage — Mobile Actions', () => {
     });
 
     it('mobile actions div has flex + sm:hidden classes', () => {
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -418,7 +435,7 @@ describe('BidDetailPage — Mobile Actions', () => {
 
   describe('mobile Open Session button', () => {
     it('is always present in the mobile div when canEdit is true', () => {
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -433,7 +450,7 @@ describe('BidDetailPage — Mobile Actions', () => {
     it('is not rendered when canEdit is false (no mobile actions div)', () => {
       mockUseUserRole.canEdit = false;
       mockUseUserRole.role = 'viewer';
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -455,7 +472,7 @@ describe('BidDetailPage — Mobile Actions', () => {
         }),
       );
       mockUseUserRole.role = 'editor';
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -476,7 +493,7 @@ describe('BidDetailPage — Mobile Actions', () => {
         }),
       );
       mockUseUserRole.role = 'editor';
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -496,7 +513,7 @@ describe('BidDetailPage — Mobile Actions', () => {
         }),
       );
       mockUseUserRole.role = 'editor';
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -519,7 +536,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -539,7 +556,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['ready_for_export', 'drafting'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -562,7 +579,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           handleStatusTransition: mockHandleStatusTransition,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -583,7 +600,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['ready_for_export', 'withdrawn'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -609,7 +626,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -632,7 +649,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           setShowOutcomeDialog: mockSetShowOutcome,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -654,7 +671,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -679,7 +696,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -699,7 +716,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -720,7 +737,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           regularTransitions: ['in_review'],
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -747,7 +764,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           handleDelete: mockHandleDelete,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -771,7 +788,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           totalQuestions: 0,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -795,7 +812,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           transitioning: true,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -828,7 +845,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           transitioning: false,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -858,7 +875,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           totalQuestions: 10,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);
@@ -879,7 +896,7 @@ describe('BidDetailPage — Mobile Actions', () => {
           totalQuestions: 0,
         }),
       );
-      const { container } = render(
+      const { container } = renderWithQuery(
         <BidDetailPage params={mockParams} />,
       );
       const { mobileDiv } = findActionDivs(container);

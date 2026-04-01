@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export type ExportFormat = 'docx' | 'xlsx';
@@ -33,52 +34,64 @@ export function useBidExport({
 }: UseBidExportOptions): UseBidExportReturn {
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
 
+  const exportMutation = useMutation({
+    mutationFn: async (format: ExportFormat) => {
+      const response = await fetch(`/api/bids/${bidId}/export/${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(
+          errorData?.error || `Export failed (${response.status})`,
+        );
+      }
+
+      return { blob: await response.blob(), format };
+    },
+    onMutate: (format) => {
+      setExporting(format);
+    },
+    onSuccess: ({ blob, format }) => {
+      // Create blob and trigger download
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+
+      const safeName = bidName
+        .replace(/[^a-zA-Z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .toLowerCase()
+        .slice(0, 50);
+
+      link.href = url;
+      link.download = `${safeName}-responses.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      const formatLabel = format === 'docx' ? 'Word' : 'Excel';
+      toast.success(`${formatLabel} export downloaded`);
+    },
+    onError: (err) => {
+      const message =
+        err instanceof Error ? err.message : 'Export failed';
+      toast.error(message);
+    },
+    onSettled: () => {
+      setExporting(null);
+    },
+  });
+
+  const { mutate: doExport } = exportMutation;
+
   const handleExport = useCallback(
     async (format: ExportFormat) => {
-      setExporting(format);
-      try {
-        const response = await fetch(`/api/bids/${bidId}/export/${format}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({}),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          throw new Error(
-            errorData?.error || `Export failed (${response.status})`,
-          );
-        }
-
-        // Create blob and trigger download
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-
-        const safeName = bidName
-          .replace(/[^a-zA-Z0-9\s-]/g, '')
-          .replace(/\s+/g, '-')
-          .toLowerCase()
-          .slice(0, 50);
-
-        link.href = url;
-        link.download = `${safeName}-responses.${format}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        const formatLabel = format === 'docx' ? 'Word' : 'Excel';
-        toast.success(`${formatLabel} export downloaded`);
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Export failed';
-        toast.error(message);
-      } finally {
-        setExporting(null);
-      }
+      doExport(format);
     },
-    [bidId, bidName],
+    [doExport],
   );
 
   const handlePrint = useCallback(() => {

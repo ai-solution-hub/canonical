@@ -200,6 +200,11 @@ export const queryKeys = {
       ['topic-layers', 'content', [...siblingIds].sort().join(',')] as const,
   },
 
+  // File uploads
+  fileUploads: {
+    all: ['file-uploads'] as const,
+  },
+
   // Display names (user UUID -> name resolution)
   displayNames: {
     all: ['display-names'] as const,

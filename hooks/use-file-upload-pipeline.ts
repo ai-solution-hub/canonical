@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 import type { UploadFile } from '@/components/create-content/file-upload';
 import type { DedupMatch } from '@/components/shared/dedup-warning';
 import type { IngestionStep } from '@/components/create-content/ingestion-progress';
@@ -132,6 +134,7 @@ export function useFileUploadPipeline(
   options: UseFileUploadPipelineOptions = {},
 ): UseFileUploadPipelineReturn {
   const { draftMode } = options;
+  const queryClient = useQueryClient();
 
   const [phase, setPhase] = useState<UploadPhase>('select');
   const [files, setFiles] = useState<UploadFile[]>([]);
@@ -222,7 +225,35 @@ export function useFileUploadPipeline(
     }
   }, []);
 
+  // Core upload mutation — wraps the fetch('/api/upload') call
+  const uploadFileMutation = useMutation({
+    mutationFn: async ({ file, useDraft }: { file: File; useDraft: boolean }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (useDraft) {
+        formData.append('draft', 'true');
+      }
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      // Invalidate content queries so browse/library views refresh
+      queryClient.invalidateQueries({ queryKey: queryKeys.contentItems.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.fileUploads.all });
+    },
+  });
+
   // Upload a single file
+  const { mutateAsync: doUploadFile } = uploadFileMutation;
   const uploadSingleFile = useCallback(async (uploadFile: UploadFile, useDraft: boolean) => {
     const fileId = uploadFile.id;
 
@@ -256,27 +287,15 @@ export function useFileUploadPipeline(
     );
 
     try {
-      const formData = new FormData();
-      formData.append('file', uploadFile.file);
-      if (useDraft) {
-        formData.append('draft', 'true');
-      }
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      const data = await doUploadFile({
+        file: uploadFile.file,
+        useDraft,
       });
 
       // Stop cosmetic timer
       if (stepTimersRef.current[fileId]) {
         clearInterval(stepTimersRef.current[fileId]);
         delete stepTimersRef.current[fileId];
-      }
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
       }
 
       // Mark all steps as done
@@ -388,7 +407,7 @@ export function useFileUploadPipeline(
 
       return null;
     }
-  }, [advanceStepsForFile]);
+  }, [advanceStepsForFile, doUploadFile]);
 
   // Upload all pending files
   const handleUpload = useCallback(async () => {

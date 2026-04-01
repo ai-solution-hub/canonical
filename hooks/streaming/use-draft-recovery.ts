@@ -1,3 +1,4 @@
+// Not a TanStack Query candidate — localStorage-backed draft recovery (no API calls)
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
