@@ -37,6 +37,164 @@ export function isExcludedEntity(name: string): boolean {
 }
 
 // ──────────────────────────────────────────
+// Entity quality filters (post-extraction)
+// ──────────────────────────────────────────
+
+/** Suffix patterns matching internal company documents (policies, procedures, plans, etc.) */
+const INTERNAL_DOCUMENT_SUFFIXES = [
+  /policy$/i, /procedure$/i, /plan$/i, /register$/i,
+  /schedule$/i, /agreement$/i, /statement$/i, /process$/i,
+];
+
+/** Abstract concepts and generic terms that should not be extracted as entities */
+const GENERIC_CONCEPTS = new Set([
+  'information security', 'information governance', 'business continuity',
+  'data protection', 'regulatory compliance', 'security best practice',
+  'disaster recovery', 'penetration testing', 'encryption', 'firewalls',
+  'access control', 'two-factor authentication', 'multi-factor authentication',
+  'social value', 'data retention', 'incident response', 'risk management',
+  'vulnerability management', 'patch management', 'change management',
+  'physical security', 'network security', 'endpoint security',
+  'security governance', 'security awareness', 'data wiping',
+  'physical destruction', 'staff vetting', 'data handling',
+  'continuous improvement', 'service delivery', 'information management',
+  'security monitoring', 'threat detection', 'security best practices',
+]);
+
+/** Patterns matching job titles and role descriptions (not person names) */
+const ROLE_TITLES = [
+  /^(managing|account|project|customer|technical|operations|quality|it|security|senior|chief|lead)\s+(director|manager|officer|lead|executive|administrator|coordinator|consultant|engineer|developer|analyst|architect)/i,
+  /^chief\s+\w+(\s+\w+)?\s+(officer|director)/i,
+  /^(ceo|cto|cfo|cio|ciso|dpo|md)$/i,
+  /^director$/i, /^manager$/i, /^officer$/i,
+  /^data protection officer$/i,
+  /^client project lead$/i,
+  /^information security officer$/i,
+];
+
+/** Protocols, file formats, and cryptographic algorithms that should not be entities */
+const PROTOCOL_FORMATS = new Set([
+  'https', 'http', 'ssh', 'ssl', 'tls', 'ftp', 'sftp', 'smtp', 'dns',
+  'tcp', 'udp', 'ldap', 'saml', 'oauth',
+  'pdf', 'csv', 'html', 'xml', 'json', 'javascript', 'sql', 'css',
+  'aes-256', 'aes', 'sha-256', 'rsa', 'pbkdf2', 'hmac', 'sha256',
+  'pbkdf2-hmac-sha256', 'hmac-sha256', 'aes-128', 'sha-512',
+]);
+
+/** Insurance products and contract types that should not be entities */
+const INSURANCE_AND_CONTRACTS = new Set([
+  'professional indemnity insurance', 'public liability insurance',
+  'cyber liability insurance', 'employer liability insurance',
+  'employers liability insurance', 'product liability insurance',
+  'non-disclosure agreement', 'service level agreement',
+  'data processing agreement', 'master services agreement',
+]);
+
+/** Management system acronyms — prefer the certification instead */
+const MANAGEMENT_SYSTEM_ACRONYMS = new Set([
+  'isms', 'qms', 'ems', 'ims',
+  'information security management system',
+  'quality management system',
+  'environmental management system',
+  'integrated management system',
+]);
+
+/** GDPR artefacts that are legal concepts, not standalone entities */
+const GDPR_ARTEFACTS = new Set([
+  'records of processing activity', 'record of processing activities',
+  'data processing agreement', 'data protection impact assessment',
+  'data protection by design and default',
+  'technical and organisational measures',
+  'consent', 'contractual necessity', 'legal obligation',
+  'legitimate interest', 'vital interest', 'public interest',
+  'lawful basis', 'lawful bases',
+  'data subject access request', 'right to erasure',
+  'right to rectification', 'right to portability',
+  'data subject right', 'data subject rights',
+]);
+
+/** Statutory documents that match suffix patterns but should be retained as regulation entities */
+const STATUTORY_ALLOWLIST = new Set([
+  'wales safeguarding procedure',
+  'working together to safeguard children',
+  'keeping children safe in education',
+  'government security classification policy',
+  'modern slavery statement',
+]);
+
+/** Check whether an entity name matches an internal document suffix pattern */
+export function isInternalDocument(name: string): boolean {
+  const trimmed = name.trim();
+  if (STATUTORY_ALLOWLIST.has(trimmed.toLowerCase())) return false;
+  return INTERNAL_DOCUMENT_SUFFIXES.some((p) => p.test(trimmed));
+}
+
+/** Check whether an entity name is a generic concept */
+export function isGenericConcept(name: string): boolean {
+  return GENERIC_CONCEPTS.has(name.toLowerCase().trim());
+}
+
+/** Check whether an entity name is a role title rather than a person name */
+export function isRoleTitle(name: string): boolean {
+  return ROLE_TITLES.some((p) => p.test(name.trim()));
+}
+
+/** Check whether an entity name is a protocol, file format, or algorithm */
+export function isProtocolOrFormat(name: string): boolean {
+  return PROTOCOL_FORMATS.has(name.toLowerCase().trim());
+}
+
+/** Check whether an entity name is an insurance product or contract type */
+export function isInsuranceOrContract(name: string): boolean {
+  return INSURANCE_AND_CONTRACTS.has(name.toLowerCase().trim());
+}
+
+/** Check whether an entity name is a management system acronym */
+export function isManagementSystemAcronym(name: string): boolean {
+  return MANAGEMENT_SYSTEM_ACRONYMS.has(name.toLowerCase().trim());
+}
+
+/** Check whether an entity name is a GDPR artefact */
+export function isGdprArtefact(name: string): boolean {
+  return GDPR_ARTEFACTS.has(name.toLowerCase().trim());
+}
+
+/**
+ * Apply all post-extraction entity quality filters.
+ * Returns true if the entity should be EXCLUDED (i.e. it is not a real entity).
+ */
+export function shouldExcludeEntity(entity: ExtractedEntity): boolean {
+  const name = entity.name;
+  const canonical = entity.canonical_name;
+
+  // Identifier patterns (SIC codes, VAT numbers, etc.)
+  if (isExcludedEntity(name) || isExcludedEntity(canonical)) return true;
+
+  // Internal documents (policies, procedures, plans, etc.)
+  if (isInternalDocument(canonical)) return true;
+
+  // Generic concepts (abstract terms that are not named entities)
+  if (isGenericConcept(canonical)) return true;
+
+  // Role titles extracted as person entities
+  if (entity.type === 'person' && isRoleTitle(name)) return true;
+
+  // Protocols, file formats, and cryptographic algorithms
+  if (isProtocolOrFormat(canonical)) return true;
+
+  // Insurance products and contract types
+  if (isInsuranceOrContract(canonical)) return true;
+
+  // Management system acronyms (prefer the certification)
+  if (isManagementSystemAcronym(canonical)) return true;
+
+  // GDPR artefacts (legal concepts within GDPR, not standalone entities)
+  if (isGdprArtefact(canonical)) return true;
+
+  return false;
+}
+
+// ──────────────────────────────────────────
 // Domain validation
 // ──────────────────────────────────────────
 
@@ -248,7 +406,7 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                   type: {
                     type: 'string',
                     description:
-                      'Entity type. organisation: named companies/bodies. certification: accreditations held (ISO 27001, Cyber Essentials). regulation: laws with legal force (GDPR, DPA 2018, Equality Act 2010). framework: external standards, methodologies, or best-practice frameworks an organisation adopts (ITIL, PRINCE2, COBIT) — do NOT use for internal policies or procedures. capability: something the organisation does, provides, or maintains — includes internal policies (Information Security Policy, Acceptable Use Policy), service offerings, and operational competencies. person: named individuals. technology: general technology categories (cloud computing, AI, blockchain). project: named projects or programmes. sector: industry sectors. product: commercial products, platforms, or named software systems (WordPress, SharePoint). standard: published technical standards (BS 5839, WCAG 2.1, HL7). methodology: delivery approaches and principles (Agile, Lean, Six Sigma).',
+                      'Entity type — see ENTITY TYPES section in the prompt for definitions and examples.',
                     enum: [
                       'organisation',
                       'certification',
@@ -384,16 +542,48 @@ Classify this content. Return a JSON object with:
 - classification_confidence: 0.0-1.0
 - classification_reasoning: brief explanation of the classification
 
-Also extract named entities and relationships from the content:
-- entities: organisations, certifications (e.g. ISO 27001, Cyber Essentials), regulations, frameworks, capabilities, people, technologies, projects, sectors, products, standards, and methodologies mentioned in the text. For each entity provide its name as found in the text, its type, and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001"). Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numeric identifiers as entities.
-  Entity type guidance:
-  - framework: EXTERNAL standards, methodologies, or best-practice frameworks that an organisation chooses to adopt (e.g. ITIL, PRINCE2, COBIT, TOGAF). Do NOT classify internal policies or procedures as framework — those are capabilities.
-  - capability: something the organisation does, provides, or maintains. This includes internal policies (Information Security Policy, Acceptable Use Policy, Data Protection Policy, Business Continuity Policy), service offerings, and operational competencies. If a document title ends in "Policy" or "Procedure", it is almost certainly a capability, not a framework.
-  - regulation: laws and regulations with legal force (GDPR, DPA 2018, Equality Act 2010, PECR). Must be externally imposed by a government or regulatory body.
-  - certification: accreditations or certifications held by the organisation (ISO 27001 certification, Cyber Essentials Plus, ISO 9001). The credential itself, not the standard behind it.
-  - product: commercial products, platforms, or named software systems. Not technologies (those are general tech categories). Examples: WordPress, example-client LMS, SharePoint.
-  - standard: published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
-  - methodology: approaches, principles, and delivery methods. Not frameworks (those have formal structure). Examples: Agile, Lean, Six Sigma, Principle of Least Privilege.
+ENTITY EXTRACTION RULES — READ BEFORE EXTRACTING:
+
+Before extracting ANY entity, apply these tests in order:
+
+1. THE NAMED ENTITY TEST: Is this a specific, named thing that exists independently of the document discussing it? "ISO 27001" exists independently → entity. "information security" is an abstract concept → NOT an entity.
+
+2. THE EXTERNAL REFERENCE TEST: Could someone outside this organisation look this up and find an independent definition? "GDPR" has an independent definition → entity. "Information Security Policy" is this company's internal document → NOT an entity.
+
+3. THE POLICY/PROCEDURE/PLAN RULE: Any term ending in "Policy", "Procedure", "Plan", "Register", "Schedule", "Agreement", "Statement", or "Process" is almost certainly an internal document → DO NOT EXTRACT. Exception: named statutory guidance with legal force (e.g., "Working Together to Safeguard Children" → regulation).
+
+4. THE ROLE TITLE RULE: Job titles and role descriptions are NOT person entities. Only extract actual personal names. "Managing Director" → NOT an entity. "Jane Smith" → person entity.
+
+5. THE GENERIC CONCEPT RULE: Abstract concepts, security principles, and general practices are NOT entities. Examples of what NOT to extract: information security, business continuity, data protection, regulatory compliance, encryption, firewalls, penetration testing, access control, disaster recovery, two-factor authentication.
+
+DO NOT EXTRACT:
+- Internal company policies (Information Security Policy, Acceptable Use Policy, Data Protection Policy, etc.)
+- Internal company plans (Business Continuity Plan, Disaster Recovery Plan, Incident Response Plan, etc.)
+- Generic security concepts (information governance, security best practice, security monitoring, etc.)
+- GDPR artefacts (records of processing activity, data processing agreement, consent as lawful basis, data subject access request, etc.)
+- Protocols and file formats (HTTPS, SSH, SSL, TLS, PDF, CSV, HTML, JavaScript)
+- Cryptographic algorithms (AES-256, SHA-256, RSA, PBKDF2)
+- Job titles and role descriptions (Managing Director, Data Protection Officer, Account Manager)
+- Insurance products (professional indemnity insurance, cyber liability insurance)
+- Contract types (non-disclosure agreement, service level agreement)
+- Management system acronyms (ISMS, QMS, EMS, IMS) — extract the certification instead (e.g., ISO 27001)
+
+ENTITY TYPES (only use after passing the exclusion tests above):
+- organisation: Named companies, government bodies, industry bodies (e.g., NHS, NCSC, ICO, Companies House)
+- certification: Accreditations or certifications held (e.g., ISO 27001, Cyber Essentials Plus, ISO 9001, PCI DSS)
+- regulation: Laws with legal force imposed by government (e.g., GDPR, DPA 2018, Equality Act 2010, RIDDOR)
+- framework: External best-practice frameworks an organisation adopts (e.g., ITIL, COBIT, NIST CSF, OWASP) — NEVER internal policies
+- capability: Named service offerings the organisation provides to clients (e.g., cloud migration, managed detection and response) — NOT internal policies, NOT generic concepts
+- person: Named individuals only — never job titles (e.g., Jane Smith, John Doe)
+- technology: Named commercial platforms and cloud services (e.g., AWS, Azure, Microsoft 365) — NOT protocols, file formats, or algorithms
+- project: Named projects or programmes (e.g., NHS Digital Transformation Programme)
+- sector: Industry sectors (e.g., healthcare, education, financial services)
+- product: Named commercial software products (e.g., WordPress, SharePoint, ServiceNow) — NOT insurance products or contract types
+- standard: Published technical standards by standards bodies (e.g., BS 5839, WCAG 2.1, ISO 22301) — NOT contracts or internal policies
+- methodology: Named delivery approaches (e.g., Agile, Lean, Six Sigma, PRINCE2) — NOT internal processes
+
+Extract entities and relationships from the content:
+- entities: For each entity provide its name as found in the text, its type (from the list above), and a canonical_name (normalised form for deduplication, e.g. "ISO 27001" not "ISO27001"). Do not extract SIC codes, VAT registration numbers, DUNS numbers, or other numeric identifiers.
 - relationships: how entities relate to each other. Use relationship types: holds, complies_with, delivers_to, uses, demonstrated_by, requires, part_of, supersedes, references, evidences. Each relationship has a source (canonical name), relationship type, and target (canonical name).
 When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
 Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.
@@ -481,7 +671,7 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
   if (result.entities?.length) {
     try {
       const entityRows = result.entities
-        .filter((e) => !isExcludedEntity(e.name) && !isExcludedEntity(e.canonical_name))
+        .filter((e) => !shouldExcludeEntity(e))
         .map((e) => ({
           content_item_id: itemId,
           entity_type: e.type,

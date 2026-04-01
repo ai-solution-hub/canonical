@@ -27,13 +27,30 @@ Do **not** assign a secondary domain when:
 - The connection is tangential or incidental
 - The content merely mentions a topic without substantive coverage
 
+## Entity Extraction Quality
+
+The most common extraction error is **false positives** — extracting things that should not be entities at all. Before extracting any entity, it must pass ALL of these tests:
+
+1. **Named Entity Test:** Is this a specific, named thing that exists independently of this document?
+2. **External Reference Test:** Could someone outside this organisation look it up and find an independent definition?
+3. **Policy/Procedure/Plan Rule:** Any term ending in "Policy", "Procedure", "Plan", etc. is almost certainly an internal document — do NOT extract.
+4. **Role Title Rule:** Job titles are NOT person entities. Only extract actual personal names.
+5. **Generic Concept Rule:** Abstract concepts (information security, business continuity, encryption, etc.) are NOT entities.
+
+**Do NOT extract:** internal policies, internal plans, generic security concepts, GDPR artefacts (records of processing activity, lawful bases), protocols/file formats (HTTPS, SSH, PDF), cryptographic algorithms (AES-256, SHA-256), job titles, insurance products, contract types, management system acronyms (ISMS, QMS — extract the certification instead, e.g. ISO 27001).
+
 ## Entity Type Guidance
 
 When extracting entities, use these 12 types: `organisation`, `certification`, `regulation`, `framework`, `capability`, `person`, `technology`, `project`, `sector`, `product`, `standard`, `methodology`.
 
 Key distinctions:
+- **framework:** EXTERNAL best-practice frameworks (ITIL, OWASP, NIST CSF). NEVER internal policies.
+- **capability:** Named service offerings the organisation provides to clients. NOT internal policies, NOT generic concepts.
+- **technology:** Named commercial platforms and cloud services (AWS, Azure). NOT protocols, file formats, or algorithms.
+- **person:** Named individuals only — never job titles.
+- **product:** Named commercial software products. NOT insurance products or contract types.
 - **standard** — published technical standards (ISO, BS, WCAG, HL7, IEEE). Not regulations (those have legal force) or frameworks (those are management systems). Examples: BS 5839, WCAG 2.1, HL7.
-- **methodology** — approaches, principles, and delivery methods. Not frameworks (those have formal structure). Examples: Agile, Lean, Six Sigma, Principle of Least Privilege.
+- **methodology** — named delivery approaches (Agile, Lean, Six Sigma, PRINCE2). Not internal processes.
 - **standard vs certification:** A standard is the document itself; a certification is proof of compliance.
 - **methodology vs framework:** Methodologies are ways of working; frameworks provide structured management systems.
 

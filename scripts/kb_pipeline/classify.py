@@ -45,20 +45,167 @@ def is_excluded_entity(name: str) -> bool:
 
 
 def _filter_entities(entities: List[dict]) -> List[dict]:
-    """Filter out non-entity identifiers from extracted entities.
+    """Filter out non-entity identifiers and false positives from extracted entities.
 
-    Removes SIC codes, VAT registration numbers, DUNS numbers, and other
-    numeric identifiers that should not be stored as entities.
+    Removes SIC codes, VAT registration numbers, DUNS numbers, internal policies,
+    generic concepts, role titles, protocols/formats, and other non-entities.
     """
     filtered = []
     for ent in entities:
         name = ent.get("entity_name", "")
         canonical = ent.get("canonical_name", "")
+        entity_type = ent.get("entity_type", "")
         if is_excluded_entity(name) or is_excluded_entity(canonical):
             logger.debug("Excluding identifier entity: %s", name or canonical)
             continue
+        if _is_internal_document(canonical):
+            logger.debug("Excluding internal document entity: %s", canonical)
+            continue
+        if _is_generic_concept(canonical):
+            logger.debug("Excluding generic concept entity: %s", canonical)
+            continue
+        if entity_type == "person" and _is_role_title(name):
+            logger.debug("Excluding role title entity: %s", name)
+            continue
+        if _is_protocol_or_format(canonical):
+            logger.debug("Excluding protocol/format entity: %s", canonical)
+            continue
+        if _is_insurance_or_contract(canonical):
+            logger.debug("Excluding insurance/contract entity: %s", canonical)
+            continue
+        if _is_management_system_acronym(canonical):
+            logger.debug("Excluding management system acronym: %s", canonical)
+            continue
+        if _is_gdpr_artefact(canonical):
+            logger.debug("Excluding GDPR artefact entity: %s", canonical)
+            continue
         filtered.append(ent)
     return filtered
+
+
+# ──────────────────────────────────────────
+# Entity quality filters (post-extraction)
+# ──────────────────────────────────────────
+
+# Suffix patterns matching internal company documents
+_INTERNAL_DOCUMENT_SUFFIXES = [
+    re.compile(r"policy$", re.IGNORECASE),
+    re.compile(r"procedure$", re.IGNORECASE),
+    re.compile(r"plan$", re.IGNORECASE),
+    re.compile(r"register$", re.IGNORECASE),
+    re.compile(r"schedule$", re.IGNORECASE),
+    re.compile(r"agreement$", re.IGNORECASE),
+    re.compile(r"statement$", re.IGNORECASE),
+    re.compile(r"process$", re.IGNORECASE),
+]
+
+# Abstract concepts and generic terms that should not be extracted as entities
+_GENERIC_CONCEPTS = frozenset([
+    "information security", "information governance", "business continuity",
+    "data protection", "regulatory compliance", "security best practice",
+    "disaster recovery", "penetration testing", "encryption", "firewalls",
+    "access control", "two-factor authentication", "multi-factor authentication",
+    "social value", "data retention", "incident response", "risk management",
+    "vulnerability management", "patch management", "change management",
+    "physical security", "network security", "endpoint security",
+    "security governance", "security awareness", "data wiping",
+    "physical destruction", "staff vetting", "data handling",
+    "continuous improvement", "service delivery", "information management",
+    "security monitoring", "threat detection", "security best practices",
+])
+
+# Patterns matching job titles and role descriptions (not person names)
+_ROLE_TITLE_PATTERNS = [
+    re.compile(
+        r"^(managing|account|project|customer|technical|operations|quality|it|security|senior|chief|lead)\s+"
+        r"(director|manager|officer|lead|executive|administrator|coordinator|consultant|engineer|developer|analyst|architect)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"^chief\s+\w+(\s+\w+)?\s+(officer|director)", re.IGNORECASE),
+    re.compile(r"^(ceo|cto|cfo|cio|ciso|dpo|md)$", re.IGNORECASE),
+    re.compile(r"^director$", re.IGNORECASE),
+    re.compile(r"^manager$", re.IGNORECASE),
+    re.compile(r"^officer$", re.IGNORECASE),
+    re.compile(r"^data protection officer$", re.IGNORECASE),
+    re.compile(r"^client project lead$", re.IGNORECASE),
+    re.compile(r"^information security officer$", re.IGNORECASE),
+]
+
+# Protocols, file formats, and cryptographic algorithms
+_PROTOCOL_FORMATS = frozenset([
+    "https", "http", "ssh", "ssl", "tls", "ftp", "sftp", "smtp", "dns",
+    "tcp", "udp", "ldap", "saml", "oauth",
+    "pdf", "csv", "html", "xml", "json", "javascript", "sql", "css",
+    "aes-256", "aes", "sha-256", "rsa", "pbkdf2", "hmac", "sha256",
+    "pbkdf2-hmac-sha256", "hmac-sha256", "aes-128", "sha-512",
+])
+
+# Insurance products and contract types
+_INSURANCE_AND_CONTRACTS = frozenset([
+    "professional indemnity insurance", "public liability insurance",
+    "cyber liability insurance", "employer liability insurance",
+    "employers liability insurance", "product liability insurance",
+    "non-disclosure agreement", "service level agreement",
+    "data processing agreement", "master services agreement",
+])
+
+# Management system acronyms — prefer the certification instead
+_MANAGEMENT_SYSTEM_ACRONYMS = frozenset([
+    "isms", "qms", "ems", "ims",
+    "information security management system",
+    "quality management system",
+    "environmental management system",
+    "integrated management system",
+])
+
+# GDPR artefacts that are legal concepts, not standalone entities
+_GDPR_ARTEFACTS = frozenset([
+    "records of processing activity", "record of processing activities",
+    "data processing agreement", "data protection impact assessment",
+    "data protection by design and default",
+    "technical and organisational measures",
+    "consent", "contractual necessity", "legal obligation",
+    "legitimate interest", "vital interest", "public interest",
+    "lawful basis", "lawful bases",
+    "data subject access request", "right to erasure",
+    "right to rectification", "right to portability",
+    "data subject right", "data subject rights",
+])
+
+
+def _is_internal_document(name: str) -> bool:
+    """Check whether an entity name matches an internal document suffix pattern."""
+    return any(p.search(name.strip()) for p in _INTERNAL_DOCUMENT_SUFFIXES)
+
+
+def _is_generic_concept(name: str) -> bool:
+    """Check whether an entity name is a generic concept."""
+    return name.lower().strip() in _GENERIC_CONCEPTS
+
+
+def _is_role_title(name: str) -> bool:
+    """Check whether an entity name is a role title rather than a person name."""
+    return any(p.search(name.strip()) for p in _ROLE_TITLE_PATTERNS)
+
+
+def _is_protocol_or_format(name: str) -> bool:
+    """Check whether an entity name is a protocol, file format, or algorithm."""
+    return name.lower().strip() in _PROTOCOL_FORMATS
+
+
+def _is_insurance_or_contract(name: str) -> bool:
+    """Check whether an entity name is an insurance product or contract type."""
+    return name.lower().strip() in _INSURANCE_AND_CONTRACTS
+
+
+def _is_management_system_acronym(name: str) -> bool:
+    """Check whether an entity name is a management system acronym."""
+    return name.lower().strip() in _MANAGEMENT_SYSTEM_ACRONYMS
+
+
+def _is_gdpr_artefact(name: str) -> bool:
+    """Check whether an entity name is a GDPR artefact."""
+    return name.lower().strip() in _GDPR_ARTEFACTS
 
 
 # ──────────────────────────────────────────
