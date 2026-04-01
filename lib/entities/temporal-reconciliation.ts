@@ -20,6 +20,8 @@ export interface MergedTemporalReference {
   context_type: 'expiry' | 'effective' | 'historical' | 'unknown';
   /** Which extraction source produced this reference */
   source: 'ai' | 'regex' | 'both';
+  /** Canonical name of the entity this temporal reference relates to, if any */
+  related_entity?: string;
 }
 
 /**
@@ -51,12 +53,16 @@ export function reconcileTemporalReferences(
   if (aiRefs?.length) {
     for (const ref of aiRefs) {
       const key = `${ref.date}|${ref.context_type}`;
-      merged.set(key, {
+      const entry: MergedTemporalReference = {
         date: ref.date,
         context: ref.context,
         context_type: ref.context_type,
         source: 'ai',
-      });
+      };
+      if (ref.related_entity) {
+        entry.related_entity = ref.related_entity;
+      }
+      merged.set(key, entry);
     }
   }
 

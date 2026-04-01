@@ -457,11 +457,16 @@ def classify(
         if date_str and context:
             if context_type not in valid_context_types:
                 context_type = "unknown"
-            temporal_references.append({
+            temporal_ref = {
                 "date": date_str,
                 "context": context,
                 "context_type": context_type,
-            })
+            }
+            # Carry through related_entity if provided by the AI
+            related_entity = ref.get("related_entity")
+            if related_entity:
+                temporal_ref["related_entity"] = related_entity
+            temporal_references.append(temporal_ref)
 
     cls_result = ClassificationResult(
         primary_domain=parsed["primary_domain"],

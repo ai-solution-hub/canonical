@@ -98,9 +98,25 @@ export async function bridgeTemporalReferencesToEntities(
     const newMetadata = { ...existingMetadata };
 
     for (const ref of sortedRefs) {
-      // Use token-level matching instead of substring includes
-      const result = tokenMatch(ref.context, mention.canonical_name);
-      if (!result.match) continue;
+      let matched = false;
+
+      // Direct match via related_entity (co-extraction path)
+      if (ref.related_entity) {
+        const relatedNormalised = ref.related_entity.toLowerCase();
+        if (relatedNormalised === mention.canonical_name.toLowerCase()) {
+          matched = true;
+        }
+      }
+
+      // Fallback: token-level matching (legacy path)
+      if (!matched) {
+        const result = tokenMatch(ref.context, mention.canonical_name);
+        if (result.match) {
+          matched = true;
+        }
+      }
+
+      if (!matched) continue;
 
       if (ref.context_type === 'expiry') {
         // Check if the date is a duration (e.g. "P3Y") that needs computation

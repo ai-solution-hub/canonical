@@ -103,6 +103,8 @@ export interface ClassificationTemporalReference {
   context: string;
   /** Classification of the date's purpose */
   context_type: 'expiry' | 'effective' | 'historical' | 'unknown';
+  /** Canonical name of the entity this temporal reference relates to, if any */
+  related_entity?: string;
 }
 
 export interface ClassificationResult {
@@ -308,13 +310,13 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
             temporal_references: {
               type: 'array',
               description:
-                'Dates and temporal references found in the content (expiry dates, renewal dates, effective dates, etc.)',
+                'Dates and temporal references found in the content (expiry dates, renewal dates, effective dates, etc.). For each date, identify which entity it relates to if possible.',
               items: {
                 type: 'object',
                 properties: {
                   date: {
                     type: 'string',
-                    description: 'ISO 8601 date string (YYYY-MM-DD)',
+                    description: 'ISO 8601 date string (YYYY-MM-DD) or ISO 8601 duration (e.g. P1Y, P3M)',
                   },
                   context: {
                     type: 'string',
@@ -326,6 +328,11 @@ export async function classifyContent(params: ClassifyParams): Promise<Classific
                     enum: ['expiry', 'effective', 'historical', 'unknown'],
                     description:
                       'Classification: expiry (when something becomes invalid), effective (when something started), historical (background context), unknown',
+                  },
+                  related_entity: {
+                    type: ['string', 'null'],
+                    description:
+                      'The canonical name of the entity this date relates to (e.g. "ISO 27001" for an ISO 27001 certification expiry date, "GDPR" for a GDPR effective date). Use the same canonical_name form as in the entities array. Null if the date is not related to a specific extracted entity.',
                   },
                 },
                 required: ['date', 'context', 'context_type'],
@@ -391,7 +398,7 @@ Also extract named entities and relationships from the content:
 When extracting entities, prefer the full formal name of organisations (e.g. "${CLIENT_CONFIG.entity_examples.organisation_name}" not "${CLIENT_CONFIG.entity_examples.organisation_short}"), the standard short form of certifications (e.g. "ISO 27001" not "ISO/IEC 27001:2022"), and established product names (e.g. "${CLIENT_CONFIG.entity_examples.product_name}" not "${CLIENT_CONFIG.entity_examples.product_short}").
 Only include entities and relationships that are clearly stated or strongly implied in the content. If none are found, omit the arrays.
 
-Also extract any temporal references (dates, deadlines, expiry dates, renewal dates) from the content. Classify each as expiry (when something becomes invalid or needs renewal), effective (when something started or was issued), historical (background context such as founding dates), or unknown. For each temporal reference, provide the ISO date string (YYYY-MM-DD), the surrounding context snippet, and the context_type. If no temporal references are found, omit the array.`,
+Also extract any temporal references (dates, deadlines, expiry dates, renewal dates) from the content. Classify each as expiry (when something becomes invalid or needs renewal), effective (when something started or was issued), historical (background context such as founding dates), or unknown. For each temporal reference, provide the ISO date string (YYYY-MM-DD), the surrounding context snippet, and the context_type. Additionally, if the temporal reference relates to a specific entity you extracted above, include the related_entity field with the canonical_name of that entity (e.g. if "ISO 27001 certification expires March 2027", set related_entity to "ISO 27001"). This linking is critical for expiry and effective dates on certifications, frameworks, and regulations — always provide related_entity when the date clearly belongs to an extracted entity. If no temporal references are found, omit the array.`,
       },
     ],
   });
