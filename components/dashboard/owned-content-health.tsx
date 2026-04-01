@@ -83,7 +83,7 @@ export function OwnedContentHealth() {
   // Don't render while loading
   if (loading) {
     return (
-      <div className="flex items-center justify-center rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center justify-center rounded-lg border border-border bg-card p-4 shadow-sm">
         <Loader2 className="size-4 animate-spin text-muted-foreground" aria-label="Loading owned content health" />
       </div>
     );
@@ -97,7 +97,7 @@ export function OwnedContentHealth() {
   // All owned content is healthy
   if (needsAttention === 0) {
     return (
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
         <CheckCircle2
           className="mt-0.5 size-5 shrink-0 text-quality-good"
           aria-hidden="true"

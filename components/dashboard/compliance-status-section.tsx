@@ -157,7 +157,7 @@ export function ComplianceStatusSection() {
   // -------------------------------------------------------------------------
 
   return (
-    <section aria-label="Compliance status" id="compliance-status" className="rounded-lg border border-border bg-card p-4">
+    <section aria-label="Compliance status" id="compliance-status" className="rounded-lg border border-border bg-card p-4 shadow-sm">
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         <ShieldCheck className="size-4" aria-hidden="true" />
         Compliance Status

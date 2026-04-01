@@ -366,7 +366,7 @@ export function ReorientSection({ data }: ReorientSectionProps) {
 
   return (
     <section
-      className="rounded-lg border border-border bg-card p-5"
+      className="rounded-lg border border-border bg-card p-5 shadow-sm"
       aria-label="Personal briefing"
     >
       <div className="flex items-start justify-between gap-4">

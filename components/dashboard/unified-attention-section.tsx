@@ -233,7 +233,7 @@ export function UnifiedAttentionSection({
   return (
     <section
       aria-label="Items needing attention"
-      className="rounded-lg border border-border bg-card p-4"
+      className="rounded-lg border border-border bg-card p-4 shadow-sm"
     >
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Needs Attention

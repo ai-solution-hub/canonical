@@ -187,7 +187,7 @@ export function ContentPerformanceSection() {
 
   return (
     <section
-      className="rounded-lg border border-border bg-card p-4"
+      className="rounded-lg border border-border bg-card p-4 shadow-sm"
       aria-label="Content performance"
     >
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">

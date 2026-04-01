@@ -460,7 +460,7 @@ export function EntityList() {
               placeholder="Search entities..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-white pl-9 shadow-sm"
+              className="border border-border bg-white pl-9 shadow-sm"
               aria-label="Search entities"
             />
           </div>

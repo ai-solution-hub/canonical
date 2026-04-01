@@ -304,7 +304,7 @@ export function SearchBar({
             aria-controls={listboxId}
             aria-autocomplete="list"
             aria-activedescendant={activeDescendantId}
-            className="h-9 bg-white pl-9 pr-16 shadow-sm"
+            className="h-9 border border-border bg-white pl-9 pr-16 shadow-sm"
           />
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             <span className="text-xs">{mod}</span>K
