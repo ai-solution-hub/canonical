@@ -13,7 +13,7 @@ export function GuideProgressBar({ populated, total, className }: GuideProgressB
   const isComplete = populated >= total;
 
   return (
-    <div className={cn('rounded-lg border border-border bg-card p-3', className)}>
+    <div className={cn('rounded-lg border bg-card p-3', className)}>
       <div className="flex items-center justify-between text-xs">
         <span className="font-medium text-foreground">
           Coverage: {populated}/{total} required sections populated

@@ -72,7 +72,7 @@ function NewsletterHeader({
   const displayName = newsletterName || emailFrom;
 
   return (
-    <div className="mb-4 rounded-lg border border-border bg-muted/30 p-3">
+    <div className="mb-4 rounded-lg border bg-muted/30 p-3">
       {displayName && (
         <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Mail className="size-3.5 shrink-0 text-muted-foreground" />

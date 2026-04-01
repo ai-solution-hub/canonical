@@ -66,7 +66,7 @@ function TemplateError({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-card px-6 py-12 text-center">
       <FileText className="size-8 text-muted-foreground/50" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">{message}</p>
       <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">
@@ -93,7 +93,7 @@ function StatCard({
   colourClass: string;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
+    <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
       <div className={cn('flex size-10 items-center justify-center rounded-lg', colourClass)}>
         <Icon className="size-5 text-inherit" aria-hidden="true" />
       </div>
@@ -280,7 +280,7 @@ export function TemplateCoverageContent() {
       ) : coverage ? (
         <>
           {/* Template info + score */}
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div className="rounded-xl border bg-card p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="font-medium text-foreground">{coverage.template_name}</h3>

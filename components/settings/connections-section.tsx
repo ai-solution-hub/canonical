@@ -256,7 +256,7 @@ export function ConnectionsSection() {
           {QUICK_START_PROMPTS.map((prompt) => (
             <li
               key={prompt}
-              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/50 px-4 py-3"
+              className="flex items-center justify-between gap-3 rounded-lg border bg-muted/50 px-4 py-3"
             >
               <p className="text-sm italic text-foreground">
                 &ldquo;{prompt}&rdquo;

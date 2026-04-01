@@ -128,7 +128,7 @@ function UrgentItems({ items }: { items: UrgentItem[] }) {
           return (
             <div
               key={`${item.type}-${item.entity_id}`}
-              className="group flex items-start gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/50"
+              className="group flex items-start gap-3 rounded-lg border bg-card p-3 transition-colors hover:bg-accent/50"
             >
               <Icon
                 className={`mt-0.5 size-4 shrink-0 ${iconColour}`}
@@ -301,7 +301,7 @@ function DisplayNameNudge() {
   if (nudgeDismissed) return null;
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3">
+    <div className="flex items-start gap-3 rounded-lg border bg-muted/50 p-3">
       <UserCircle className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
       <div className="min-w-0 flex-1">
         <p className="text-sm text-foreground">
@@ -366,7 +366,7 @@ export function ReorientSection({ data }: ReorientSectionProps) {
 
   return (
     <section
-      className="rounded-lg border border-border bg-card p-5 shadow-sm"
+      className="rounded-lg border bg-card p-5 shadow-sm"
       aria-label="Personal briefing"
     >
       <div className="flex items-start justify-between gap-4">

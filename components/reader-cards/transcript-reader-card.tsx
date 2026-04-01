@@ -39,7 +39,7 @@ export function TranscriptReaderCard({
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-card overflow-hidden',
+        'rounded-lg border bg-card overflow-hidden',
         className,
       )}
     >

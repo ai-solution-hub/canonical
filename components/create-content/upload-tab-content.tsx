@@ -286,7 +286,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   if (qaBatchProgress && !qaBatchProgress.isCreating) {
     return (
       <div className="mx-auto max-w-2xl space-y-4" data-testid="qa-batch-complete">
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="rounded-lg border bg-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <CheckCircle className="size-5 text-quality-good" aria-hidden="true" />
             <h3 className="text-lg font-semibold text-foreground">
@@ -338,7 +338,7 @@ export function UploadTabContent({ onSwitchTab, detectedQAPairs, sourceDocumentI
   if (qaBatchProgress?.isCreating) {
     return (
       <div className="mx-auto max-w-2xl space-y-4" data-testid="qa-batch-progress">
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
+        <div className="rounded-lg border bg-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Loader2 className="size-5 animate-spin text-primary" aria-hidden="true" />
             <h3 className="text-lg font-semibold text-foreground">

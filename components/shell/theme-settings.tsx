@@ -129,7 +129,7 @@ export function ThemeSettings() {
                 <Label
                   key={value}
                   htmlFor={`theme-${value}`}
-                  className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border border-border p-3 transition-colors hover:bg-accent has-[:checked]:border-primary has-[:checked]:bg-accent"
+                  className="flex flex-1 cursor-pointer items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-accent has-[:checked]:border-primary has-[:checked]:bg-accent"
                 >
                   <RadioGroupItem
                     value={value}

@@ -202,7 +202,7 @@ export const ReviewCard = forwardRef<HTMLDivElement, ReviewCardProps>(
 
         {/* Context summary — at-a-glance info */}
         {(item.ai_summary || sourceFile || item.captured_date) && (
-          <div className="mx-6 mb-2 rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <div className="mx-6 mb-2 rounded-lg border bg-muted/30 px-4 py-3">
             {item.governance_review_status === 'pending' && (
               <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-governance-pending">
                 <AlertTriangle className="size-3.5" aria-hidden="true" />

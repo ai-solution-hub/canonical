@@ -12,7 +12,7 @@ export default function BatchCreateLoading() {
       <div className="mt-1.5 h-4 w-80 animate-pulse rounded bg-accent" />
 
       {/* Textarea placeholder */}
-      <div className="mt-6 h-48 w-full animate-pulse rounded-md border border-border bg-accent" />
+      <div className="mt-6 h-48 w-full animate-pulse rounded-md border bg-accent" />
 
       {/* Help text */}
       <div className="mt-2 h-3 w-64 animate-pulse rounded bg-accent" />

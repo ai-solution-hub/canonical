@@ -18,7 +18,7 @@ export default function TemplateCompletionLoading() {
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+            className="flex flex-col gap-3 rounded-lg border bg-card p-4"
           >
             <div className="flex items-center gap-2">
               <div className="h-8 w-8 animate-pulse rounded bg-accent" />

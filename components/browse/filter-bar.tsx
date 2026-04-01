@@ -93,7 +93,7 @@ export function FilterBar({
       {/* Left group: view controls */}
       <div className="flex items-center gap-2">
         {/* View toggle */}
-        <div className="flex rounded-md border border-border" role="group" aria-label="View mode">
+        <div className="flex rounded-md border" role="group" aria-label="View mode">
           <Button
             variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
             size="icon-sm"

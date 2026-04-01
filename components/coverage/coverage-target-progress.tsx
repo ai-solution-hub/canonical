@@ -158,7 +158,7 @@ export function CoverageTargetProgress({
         {domainSummaries.map((domain) => (
           <div
             key={domain.domain_name}
-            className="rounded-lg border border-border bg-card p-4 space-y-3"
+            className="rounded-lg border bg-card p-4 space-y-3"
           >
             {/* Domain header */}
             <div className="flex items-center justify-between">

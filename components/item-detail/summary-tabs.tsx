@@ -189,7 +189,7 @@ export function SummaryTabs({
   if (isGenerating) {
     return (
       <div
-        className={cn('rounded-xl border border-border bg-card p-6', className)}
+        className={cn('rounded-xl border bg-card p-6', className)}
       >
         <div className="mb-4 flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
@@ -210,7 +210,7 @@ export function SummaryTabs({
   if (!summaryData && content) {
     const hasQuickFallback = !!aiSummary;
     return (
-      <div className={cn('rounded-xl border border-border bg-card', className)}>
+      <div className={cn('rounded-xl border bg-card', className)}>
         <Tabs defaultValue={hasQuickFallback ? 'quick' : 'fulltext'} className="gap-0">
           <TabsList className="w-full justify-start rounded-b-none border-b border-border bg-muted/50 px-1">
             <TabsTrigger
@@ -302,7 +302,7 @@ export function SummaryTabs({
 
   // Summary tabs with all data
   return (
-    <div className={cn('rounded-xl border border-border bg-card', className)}>
+    <div className={cn('rounded-xl border bg-card', className)}>
       <Tabs defaultValue="quick" className="gap-0">
         <TabsList className="w-full justify-start rounded-b-none border-b border-border bg-muted/50 px-1">
           <TabsTrigger value="quick" className="min-h-[44px] px-4 text-sm">

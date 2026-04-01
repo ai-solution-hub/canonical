@@ -73,7 +73,7 @@ export function TemplateFillProgress({
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-lg border border-border p-6 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-lg border p-6 text-center">
         <AlertTriangle className="size-8 text-muted-foreground/50" aria-hidden="true" />
         <div>
           <p className="text-sm font-medium text-foreground">Template fill didn&apos;t complete</p>

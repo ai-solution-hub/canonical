@@ -63,7 +63,7 @@ function CoverageError({
   onRetry: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card px-6 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-card px-6 py-12 text-center">
       <LayoutGrid className="size-8 text-muted-foreground/50" aria-hidden="true" />
       <p className="text-sm text-muted-foreground">{message}</p>
       <Button variant="outline" size="sm" onClick={onRetry} className="gap-1.5">

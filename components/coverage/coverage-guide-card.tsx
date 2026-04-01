@@ -139,7 +139,7 @@ export function CoverageGuideCard({ guide }: { guide: GuideCoverageData }) {
       : 0;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-xl border bg-card p-5 shadow-sm">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">

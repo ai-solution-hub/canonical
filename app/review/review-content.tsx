@@ -181,7 +181,7 @@ export function ReviewContent() {
           </div>
           <div className="mb-6 h-2 w-full animate-pulse rounded-full bg-accent" />
           {/* Card skeleton */}
-          <div className="rounded-xl border border-border bg-card p-6">
+          <div className="rounded-xl border bg-card p-6">
             <div className="flex gap-2">
               <div className="h-5 w-24 animate-pulse rounded-full bg-accent" />
               <div className="h-5 w-16 animate-pulse rounded-full bg-accent" />
@@ -242,7 +242,7 @@ export function ReviewContent() {
           />
         )}
 
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-6 py-16 text-center">
           <div className="mb-4 text-muted-foreground" aria-hidden="true">
             {allVerified ? <CheckCircle2 className="size-10" /> : <BookOpen className="size-10" />}
           </div>
@@ -296,7 +296,7 @@ export function ReviewContent() {
           />
         </div>
         <ReviewProgressBar progress={progress} className="mb-6" />
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-xl border bg-card px-6 py-16 text-center">
           <h2 className="text-lg font-semibold">Batch complete</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             You have reviewed all items in this batch.
@@ -397,7 +397,7 @@ export function ReviewContent() {
         {activeAssignment && (
           <div
             role="status"
-            className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-muted px-4 py-3"
+            className="mb-6 flex items-center gap-3 rounded-lg border bg-muted px-4 py-3"
           >
             <ClipboardCheck className="size-5 shrink-0 text-primary" aria-hidden="true" />
             <p className="flex-1 text-sm text-foreground">
@@ -439,7 +439,7 @@ export function ReviewContent() {
 
         {/* Verify note input (inline below card, above action bar) */}
         {showVerifyNote && (
-          <div className="mt-3 rounded-lg border border-border bg-card p-3">
+          <div className="mt-3 rounded-lg border bg-card p-3">
             <div className="flex items-start gap-2">
               <label htmlFor="verify-note" className="shrink-0 pt-1.5 text-sm text-muted-foreground">
                 Add a note (optional):
@@ -506,7 +506,7 @@ export function ReviewContent() {
 
         {/* Flag input (inline below card, above action bar) */}
         {showFlagInput && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-card p-3">
+          <div className="mt-3 flex items-center gap-2 rounded-lg border bg-card p-3">
             <label htmlFor="flag-reason" className="shrink-0 text-sm text-muted-foreground">
               Reason (optional):
             </label>

@@ -157,7 +157,7 @@ export function ContentEffectivenessPanel({
   if (loading) {
     return (
       <section
-        className={`rounded-lg border border-border bg-card p-4 ${className}`}
+        className={`rounded-lg border bg-card p-4 ${className}`}
         aria-label="Content effectiveness"
         aria-busy="true"
       >
@@ -178,7 +178,7 @@ export function ContentEffectivenessPanel({
   if (error) {
     return (
       <section
-        className={`rounded-lg border border-border bg-card p-4 ${className}`}
+        className={`rounded-lg border bg-card p-4 ${className}`}
         aria-label="Content effectiveness"
       >
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -193,7 +193,7 @@ export function ContentEffectivenessPanel({
   if (!data || data.total_citations === 0) {
     return (
       <section
-        className={`rounded-lg border border-border bg-card p-4 ${className}`}
+        className={`rounded-lg border bg-card p-4 ${className}`}
         aria-label="Content effectiveness"
       >
         <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -219,7 +219,7 @@ export function ContentEffectivenessPanel({
 
   return (
     <section
-      className={`rounded-lg border border-border bg-card p-4 ${className}`}
+      className={`rounded-lg border bg-card p-4 ${className}`}
       aria-label="Content effectiveness"
     >
       <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">

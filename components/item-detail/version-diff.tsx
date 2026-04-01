@@ -29,7 +29,7 @@ export function VersionDiff({ oldText, newText, className }: VersionDiffProps) {
   return (
     <div
       className={cn(
-        'rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap',
+        'rounded-lg border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap',
         className,
       )}
       role="region"

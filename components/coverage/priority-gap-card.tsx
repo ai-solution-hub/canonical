@@ -115,7 +115,7 @@ interface PriorityGapCardProps {
 export function PriorityGapCard({ gap }: PriorityGapCardProps) {
   return (
     <li
-      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      className="rounded-lg border bg-card p-4 shadow-sm"
       data-testid={`gap-card-${gap.gap_key}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

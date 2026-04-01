@@ -189,7 +189,7 @@ export function SourceDocumentInfo({
       )}
 
       {/* ── Expandable version history ── */}
-      <div className="rounded-md border border-border">
+      <div className="rounded-md border">
         <button
           type="button"
           onClick={() => setHistoryOpen(!historyOpen)}

@@ -44,7 +44,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
 
       {/* Narrative summary */}
       {digest.narrative_summary && (
-        <section className="rounded-xl border border-border bg-card p-6">
+        <section className="rounded-xl border bg-card p-6">
           <div className="mb-3 flex items-center gap-2">
             <FileText className="size-4 text-primary" />
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -79,7 +79,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
       )}
 
       {/* Theme clusters */}
-      <section className="rounded-xl border border-border bg-card p-6">
+      <section className="rounded-xl border bg-card p-6">
         <div className="mb-4 flex items-center gap-2">
           <Layers className="size-4 text-primary" />
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -91,7 +91,7 @@ export function DigestView({ digest, className }: DigestViewProps) {
             {digest.theme_clusters.map((cluster) => (
               <div
                 key={cluster.theme}
-                className="rounded-lg border border-border bg-muted/30 p-4"
+                className="rounded-lg border bg-muted/30 p-4"
               >
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="text-sm font-semibold text-foreground">
@@ -122,7 +122,7 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
     summary;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-6">
+    <section className="rounded-xl border bg-card p-6">
       <div className="mb-4 flex items-center gap-2">
         <Shield className="size-4 text-primary" />
         <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -130,7 +130,7 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
         </h2>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border border-border bg-background p-4 text-center">
+        <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-foreground">
             {items_modified}
           </p>
@@ -138,7 +138,7 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
             Items Modified
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-background p-4 text-center">
+        <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-quality-good">
             {items_verified}
           </p>
@@ -146,7 +146,7 @@ function GovernanceSection({ summary }: { summary: DigestGovernanceSummary }) {
             Items Verified
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-background p-4 text-center">
+        <div className="rounded-lg border bg-background p-4 text-center">
           <p className="text-2xl font-bold text-status-warning">
             {items_flagged}
           </p>

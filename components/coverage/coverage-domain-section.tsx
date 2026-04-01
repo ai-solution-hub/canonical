@@ -77,7 +77,7 @@ export function CoverageDomainSection({
 
   return (
     <section
-      className="rounded-lg border border-border bg-card"
+      className="rounded-lg border bg-card"
       aria-label={`${displayName} coverage`}
     >
       {/* Header — clickable to expand/collapse */}

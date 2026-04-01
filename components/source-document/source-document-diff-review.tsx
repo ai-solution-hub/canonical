@@ -165,7 +165,7 @@ function ContentBlock({
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
+      <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
         {content}
       </div>
     </div>
@@ -205,7 +205,7 @@ function ReviewerNoteInput({
         <p className="mb-1 text-xs font-medium text-muted-foreground">
           Reviewer note
         </p>
-        <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+        <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-foreground">
           {existingNote}
         </p>
         <button
@@ -353,7 +353,7 @@ function BulkActionToolbar({
 
   return (
     <div
-      className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3"
+      className="flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3"
       role="toolbar"
       aria-label="Bulk review actions"
     >
@@ -422,7 +422,7 @@ function DiffContentBlock({
   return (
     <div>
       <p className="mb-1 text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="rounded-md border border-border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
+      <div className="rounded-md border bg-muted/30 p-3 text-sm whitespace-pre-wrap break-words">
         <DiffHighlightedText oldText={oldText} newText={newText} side={side} />
       </div>
     </div>
@@ -637,7 +637,7 @@ function DiffEntryCard({
 
   return (
     <div
-      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      className="rounded-lg border bg-card p-4 shadow-sm"
       aria-label={`${entry.diff_type} entry: ${question ?? 'No question'}`}
     >
       {/* Header row: badge + similarity + actions + status */}
@@ -826,7 +826,7 @@ function FullTextDiffEntryCard({
 
   return (
     <div
-      className={cn('rounded-lg border border-border bg-card p-4 shadow-sm', cardBg)}
+      className={cn('rounded-lg border bg-card p-4 shadow-sm', cardBg)}
       aria-label={ariaLabel}
     >
       {/* Header row: badge + actions + status */}
@@ -1060,7 +1060,7 @@ export function SourceDocumentDiffReview({
 
       {/* Summary bar */}
       <div
-        className="flex flex-wrap gap-4 rounded-lg border border-border bg-card p-4"
+        className="flex flex-wrap gap-4 rounded-lg border bg-card p-4"
         aria-label="Diff summary"
       >
         <SummaryItem label="Modified" count={summary.modified} type="modified" />
@@ -1199,7 +1199,7 @@ export function SourceDocumentDiffReview({
         aria-live="polite"
       >
         {filteredEntries.length === 0 ? (
-          <div className="rounded-lg border border-border bg-card p-8 text-center">
+          <div className="rounded-lg border bg-card p-8 text-center">
             <p className="text-muted-foreground">
               {totalVisible === 0 && localEntries.length === 0
                 ? 'No diff entries found.'

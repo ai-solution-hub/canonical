@@ -128,7 +128,7 @@ export function TableOfContents({
   return (
     <nav
       aria-label="Table of contents"
-      className={cn('rounded-md border border-border bg-muted/20 p-3', className)}
+      className={cn('rounded-md border bg-muted/20 p-3', className)}
     >
       <button
         type="button"

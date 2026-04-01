@@ -52,7 +52,7 @@ export function TemplateCoverageSection({
 
   return (
     <section
-      className="rounded-lg border border-border bg-card"
+      className="rounded-lg border bg-card"
       aria-label={`${sectionRef} — ${sectionName}`}
     >
       {/* Header */}

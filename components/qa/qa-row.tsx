@@ -56,7 +56,7 @@ export function QARow({ item, selected, onToggleSelect }: QARowProps) {
       data-qa-row
       tabIndex={0}
       className={cn(
-        'rounded-lg border border-border bg-card transition-colors hover:border-border/80 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'rounded-lg border bg-card transition-colors hover:border-border/80 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         selected && 'ring-2 ring-primary/30 border-primary/40',
       )}
     >

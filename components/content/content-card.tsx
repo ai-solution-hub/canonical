@@ -318,7 +318,7 @@ export const ContentCard = memo(function ContentCard({ item, isRead, hasQualityF
     : null;
 
   const cardClassName = cn(
-    'group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+    'group flex flex-col overflow-hidden rounded-lg border bg-card transition-[border-color,box-shadow,transform,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
     isRead && 'opacity-75',
   );
 

@@ -93,7 +93,7 @@ export function AiProcessingIndicators({
   return (
     <div className="mb-6 flex flex-col gap-2">
       {needsClassification && (
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-2.5">
+        <div className="flex items-center justify-between rounded-md border bg-muted/40 px-4 py-2.5">
           <span className="text-xs text-muted-foreground">
             Classification pending
           </span>
@@ -112,7 +112,7 @@ export function AiProcessingIndicators({
         </div>
       )}
       {needsSummary && (
-        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-4 py-2.5">
+        <div className="flex items-center justify-between rounded-md border bg-muted/40 px-4 py-2.5">
           <span className="text-xs text-muted-foreground">
             Summary not yet generated
           </span>

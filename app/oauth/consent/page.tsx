@@ -88,7 +88,7 @@ export default async function ConsentPage({ searchParams }: ConsentPageProps) {
             </p>
           </div>
 
-          <div className="mt-6 space-y-3 rounded-lg border border-border bg-accent/30 p-4">
+          <div className="mt-6 space-y-3 rounded-lg border bg-accent/30 p-4">
             <DetailRow label="Application" value={authDetails.client.name} />
             {authDetails.client.uri && (
               <DetailRow label="Website" value={authDetails.client.uri} truncate />

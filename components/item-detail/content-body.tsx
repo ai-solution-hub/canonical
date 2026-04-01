@@ -123,7 +123,7 @@ export function ContentBody({
       {visionAnalysis && (
         <section className="mb-6">
           <h2 className="mb-2 text-sm font-semibold">Visual Analysis</h2>
-          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
+          <div className="rounded-lg border bg-muted/30 p-4 text-sm leading-relaxed whitespace-pre-wrap">
             {visionAnalysis.analysis}
           </div>
           <p className="mt-1 text-xs text-muted-foreground">

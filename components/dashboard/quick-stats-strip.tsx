@@ -60,7 +60,7 @@ export function QuickStatsStrip({
   return (
     <section
       aria-label="Content health"
-      className="rounded-lg border border-border bg-card px-4 py-3 shadow-sm"
+      className="rounded-lg border bg-card px-4 py-3 shadow-sm"
     >
       <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Content Health

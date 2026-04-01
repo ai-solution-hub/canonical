@@ -87,7 +87,7 @@ const GUIDE_TYPE_LABELS: Record<string, string> = {
 function RelatedGuidesList({ relatedGuides }: { relatedGuides: RelatedGuide[] }) {
   if (relatedGuides.length === 0) return null;
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border bg-card p-4">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         Related Guides
       </h3>
@@ -123,7 +123,7 @@ function GuideSidebarContent({
     <>
       <RelatedGuidesList relatedGuides={relatedGuides} />
       {canEdit && (
-        <div className={cn(relatedGuides.length > 0 && 'mt-4', 'rounded-lg border border-border bg-card p-4')}>
+        <div className={cn(relatedGuides.length > 0 && 'mt-4', 'rounded-lg border bg-card p-4')}>
           <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Guide Info
           </h3>
@@ -319,7 +319,7 @@ export function GuideContent({ slug }: { slug: string }) {
       {/* Mobile sidebar accordion — visible below lg, editors only (Guide Info metadata) */}
       {canEdit && (
         <div className="mt-4 lg:hidden">
-          <details className="rounded-lg border border-border bg-card">
+          <details className="rounded-lg border bg-card">
             <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground">
               Guide details
             </summary>

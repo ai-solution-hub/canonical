@@ -9,7 +9,7 @@ import type { ViewMode } from '@/components/browse/filter-bar';
 export function LoadingSkeleton({ viewMode }: { viewMode: ViewMode }) {
   if (viewMode === 'list') {
     return (
-      <div className="rounded-lg border border-border">
+      <div className="rounded-lg border">
         {Array.from({ length: 10 }).map((_, i) => (
           <div
             key={i}

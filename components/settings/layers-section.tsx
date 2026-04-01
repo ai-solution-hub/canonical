@@ -203,7 +203,7 @@ function LayerRow({
   onMove: (direction: 'up' | 'down') => void;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5">
+    <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5">
       <span className="w-8 text-center text-xs tabular-nums text-muted-foreground">
         {layer.display_order}
       </span>
@@ -387,7 +387,7 @@ export function LayersSection() {
         onSubmit={admin.handleSubmit}
       />
 
-      <p className="mt-6 rounded-md border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+      <p className="mt-6 rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
         New layers added here will appear in the UI immediately. However, API
         validation for metadata updates uses a static fallback list. After adding
         a new layer, update the <code>FALLBACK_LAYERS</code> array in{' '}

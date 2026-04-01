@@ -59,7 +59,7 @@ export function TopicLayerComparison({
   return (
     <section
       aria-label="Topic layer comparison"
-      className="mb-4 rounded-lg border border-border bg-card"
+      className="mb-4 rounded-lg border bg-card"
     >
       {/* Layer tabs */}
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-2">

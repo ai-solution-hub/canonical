@@ -14,7 +14,7 @@ export default function BidLoading() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+            className="flex flex-col gap-3 rounded-lg border bg-card p-4"
           >
             <div className="flex items-center justify-between">
               <div className="h-5 w-2/3 animate-pulse rounded bg-accent" />

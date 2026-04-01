@@ -334,7 +334,7 @@ export function EditorView({
             defaultOpen={false}
             lazy
             className="mt-6"
-            contentClassName="mt-2 rounded-xl border border-border bg-card p-6"
+            contentClassName="mt-2 rounded-xl border bg-card p-6"
           >
             {/* Entity mentions — shows badges grouped by entity type */}
             <EntityBadges contentItemId={item.id} className="mb-6" />
@@ -366,7 +366,7 @@ export function EditorView({
           title="Metadata"
           defaultOpen={!isMobile}
           className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72"
-          contentClassName="mt-2 rounded-xl border border-border bg-card p-4"
+          contentClassName="mt-2 rounded-xl border bg-card p-4"
         >
           <MetadataSidebar
             item={item}

@@ -27,7 +27,7 @@ export default function GuideDetailLoading() {
           {Array.from({ length: 4 }).map((_, i) => (
             <div
               key={i}
-              className="rounded-lg border border-border bg-card p-5"
+              className="rounded-lg border bg-card p-5"
             >
               <div className="h-5 w-40 animate-pulse rounded bg-accent" />
               <div className="mt-3 space-y-2">
@@ -41,7 +41,7 @@ export default function GuideDetailLoading() {
 
         {/* Sidebar */}
         <div className="hidden w-64 shrink-0 space-y-4 lg:block">
-          <div className="rounded-lg border border-border bg-card p-4">
+          <div className="rounded-lg border bg-card p-4">
             <div className="h-4 w-28 animate-pulse rounded bg-accent" />
             <div className="mt-3 space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -49,7 +49,7 @@ export default function GuideDetailLoading() {
               ))}
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-card p-4">
+          <div className="rounded-lg border bg-card p-4">
             <div className="h-4 w-20 animate-pulse rounded bg-accent" />
             <div className="mt-3 space-y-2">
               <div className="h-3 w-full animate-pulse rounded bg-accent" />

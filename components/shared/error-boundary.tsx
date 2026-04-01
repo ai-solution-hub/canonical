@@ -44,7 +44,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       return (
         <div
           role="alert"
-          className="flex flex-col items-center justify-center gap-4 rounded-lg border border-border bg-card px-6 py-12 text-center"
+          className="flex flex-col items-center justify-center gap-4 rounded-lg border bg-card px-6 py-12 text-center"
         >
           <AlertTriangle className="size-8 text-muted-foreground" aria-hidden="true" />
           <div>

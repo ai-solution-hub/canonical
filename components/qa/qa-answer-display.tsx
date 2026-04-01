@@ -126,12 +126,12 @@ export function QAAnswerDisplay({
         </div>
       )}
       {!item.answer_standard && !item.answer_advanced && !isEditing && item.content && (
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border bg-card p-4">
           <p className="text-sm leading-relaxed whitespace-pre-line">{item.content}</p>
         </div>
       )}
       {!item.answer_standard && !item.answer_advanced && !isEditing && !item.content && (
-        <div className="rounded-xl border border-border bg-card p-8 text-center">
+        <div className="rounded-xl border bg-card p-8 text-center">
           <p className="text-sm text-muted-foreground">No answer recorded yet.</p>
         </div>
       )}

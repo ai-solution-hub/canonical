@@ -67,7 +67,7 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
   // --- Q&A PAIR RESULT ---
   if (isQAPair && qaParts) {
     return (
-      <div className="rounded-lg border border-border bg-card p-3">
+      <div className="rounded-lg border bg-card p-3">
         {/* Header: badges + similarity */}
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary" className="text-[10px]">
@@ -95,7 +95,7 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
 
         {/* Question */}
         {qaParts.question && (
-          <div className="mt-2 rounded border border-border bg-muted/30 px-2.5 py-1.5">
+          <div className="mt-2 rounded border bg-muted/30 px-2.5 py-1.5">
             <p className="text-xs font-medium text-muted-foreground">Question</p>
             <p className="mt-0.5 text-xs leading-relaxed text-foreground line-clamp-3">
               {qaParts.question}
@@ -104,7 +104,7 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
         )}
 
         {/* Answer */}
-        <div className="mt-2 rounded border border-border bg-muted/30 px-2.5 py-1.5">
+        <div className="mt-2 rounded border bg-muted/30 px-2.5 py-1.5">
           <p className="text-xs font-medium text-muted-foreground">Answer</p>
           <p className="mt-0.5 text-xs leading-relaxed text-foreground line-clamp-4">
             {qaParts.answer}
@@ -161,7 +161,7 @@ export function ContentLibraryResult({ result, onCopy, onInsert }: ContentLibrar
   const summary = result.ai_summary || result.brief || result.snippet || '';
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className="rounded-lg border bg-card p-3">
       {/* Header: badges + similarity */}
       <div className="flex flex-wrap items-center gap-1.5">
         {result.content_type && (

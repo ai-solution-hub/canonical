@@ -55,7 +55,7 @@ function ResearchCard({ item }: { item: ContentItem | SearchResult }) {
   return (
     <Link
       href={`/item/${id}`}
-      className="group flex items-start gap-3 rounded-md border border-border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
+      className="group flex items-start gap-3 rounded-md border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30"
     >
       <Newspaper
         className="mt-0.5 size-4 shrink-0 text-muted-foreground"
@@ -143,7 +143,7 @@ export function GuideResearchFeed({
     : '/browse?layer=research';
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div className="rounded-lg border bg-card p-4">
       {/* Section header */}
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="text-base font-semibold text-foreground">

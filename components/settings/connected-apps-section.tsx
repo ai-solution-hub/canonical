@@ -137,7 +137,7 @@ export function ConnectedAppsSection() {
             {grants.map((grant) => (
               <li
                 key={grant.client.id}
-                className="flex items-start justify-between gap-4 rounded-lg border border-border p-4"
+                className="flex items-start justify-between gap-4 rounded-lg border p-4"
               >
                 <div className="flex items-start gap-3">
                   <ShieldCheck

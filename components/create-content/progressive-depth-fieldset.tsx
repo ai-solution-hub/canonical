@@ -34,7 +34,7 @@ export function ProgressiveDepthFieldset({
   referenceError,
 }: ProgressiveDepthFieldsetProps) {
   return (
-    <fieldset className="space-y-4 rounded-lg border border-border p-4">
+    <fieldset className="space-y-4 rounded-lg border p-4">
       <legend className="px-2 text-sm font-semibold text-muted-foreground">
         Content depth (optional)
       </legend>

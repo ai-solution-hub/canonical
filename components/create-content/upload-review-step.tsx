@@ -165,7 +165,7 @@ function ReviewCard({
       tabIndex={-1}
       role="article"
       aria-label={`Review: ${item.title}`}
-      className="rounded-lg border border-border bg-card p-4 space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      className="rounded-lg border bg-card p-4 space-y-3 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
       data-testid={`review-card-${item.id}`}
     >
       {/* Title and content type */}

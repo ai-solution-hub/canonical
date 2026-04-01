@@ -97,7 +97,7 @@ export function ReviewActionBar({
 
   return (
     <div
-      className={cn('sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border border-border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3', className)}
+      className={cn('sticky bottom-0 z-30 flex flex-wrap items-center justify-center gap-2 rounded-t-lg border bg-card/95 p-3 shadow-[var(--shadow-review-bar)] backdrop-blur-sm sm:gap-3', className)}
       role="toolbar"
       aria-label="Review actions"
     >

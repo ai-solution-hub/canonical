@@ -121,7 +121,7 @@ export function GuideRow({
   };
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-lg border bg-card">
       {/* Guide header */}
       <div className="flex items-center gap-3 p-3">
         <button

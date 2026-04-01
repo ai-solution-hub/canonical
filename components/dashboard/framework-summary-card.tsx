@@ -203,7 +203,7 @@ function FrameworkRow({
     return (
       <Link
         href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
         role="listitem"
       >
         {cardContent}
@@ -213,7 +213,7 @@ function FrameworkRow({
 
   return (
     <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"
+      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
       role="listitem"
     >
       {cardContent}
@@ -234,7 +234,7 @@ export function FrameworkSummaryCard({
   return (
     <section
       aria-label="Framework memberships"
-      className="rounded-lg border border-border bg-card p-4"
+      className="rounded-lg border bg-card p-4"
     >
       <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         <Layers className="size-4" aria-hidden="true" />

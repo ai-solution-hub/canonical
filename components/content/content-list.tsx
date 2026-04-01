@@ -77,7 +77,7 @@ export function ContentList({
       ref={parentRef}
       role="feed"
       aria-label="Content items"
-      className="rounded-lg border border-border"
+      className="rounded-lg border"
       style={{
         contentVisibility: 'auto',
         containIntrinsicSize: '0 600px',

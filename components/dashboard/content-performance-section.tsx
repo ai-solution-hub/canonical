@@ -115,7 +115,7 @@ export function ContentPerformanceSection() {
   if (loading) {
     return (
       <section
-        className="rounded-lg border border-border bg-card p-4"
+        className="rounded-lg border bg-card p-4"
         aria-label="Content performance"
         aria-busy="true"
       >
@@ -141,7 +141,7 @@ export function ContentPerformanceSection() {
   if (error) {
     return (
       <section
-        className="rounded-lg border border-border bg-card p-4"
+        className="rounded-lg border bg-card p-4"
         aria-label="Content performance"
       >
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -156,7 +156,7 @@ export function ContentPerformanceSection() {
   if (!data || data.overall.total_citations === 0) {
     return (
       <section
-        className="rounded-lg border border-border bg-card p-4"
+        className="rounded-lg border bg-card p-4"
         aria-label="Content performance"
       >
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -187,7 +187,7 @@ export function ContentPerformanceSection() {
 
   return (
     <section
-      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      className="rounded-lg border bg-card p-4 shadow-sm"
       aria-label="Content performance"
     >
       <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -200,7 +200,7 @@ export function ContentPerformanceSection() {
           Overall
         </h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg border p-3">
             <p
               className={`text-2xl font-bold ${getWinRateTextClass(overall.win_rate, hasDecidedOutcomes)}`}
             >
@@ -208,19 +208,19 @@ export function ContentPerformanceSection() {
             </p>
             <p className="text-xs text-muted-foreground">Win Rate</p>
           </div>
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
               {overall.total_citations}
             </p>
             <p className="text-xs text-muted-foreground">Citations</p>
           </div>
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
               {overall.unique_bids}
             </p>
             <p className="text-xs text-muted-foreground">Bids</p>
           </div>
-          <div className="rounded-lg border border-border p-3">
+          <div className="rounded-lg border p-3">
             <p className="text-2xl font-bold text-foreground">
               {overall.unique_items_cited}
             </p>

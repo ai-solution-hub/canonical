@@ -31,7 +31,7 @@ export default function SettingsLoading() {
 
         {/* Content skeleton */}
         <div className="min-w-0 flex-1 space-y-6">
-          <div className="rounded-lg border border-border bg-card p-6">
+          <div className="rounded-lg border bg-card p-6">
             <div className="h-5 w-40 animate-pulse rounded bg-accent" />
             <div className="mt-4 space-y-3">
               <div className="h-9 w-full animate-pulse rounded-md bg-accent" />
@@ -39,7 +39,7 @@ export default function SettingsLoading() {
               <div className="h-9 w-2/3 animate-pulse rounded-md bg-accent" />
             </div>
           </div>
-          <div className="rounded-lg border border-border bg-card p-6">
+          <div className="rounded-lg border bg-card p-6">
             <div className="h-5 w-48 animate-pulse rounded bg-accent" />
             <div className="mt-4 space-y-3">
               <div className="h-9 w-full animate-pulse rounded-md bg-accent" />

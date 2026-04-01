@@ -13,7 +13,7 @@ export default function LoginLoading() {
         </div>
 
         {/* Card skeleton matching login form */}
-        <div className="w-full max-w-md rounded-lg border border-border bg-card p-8">
+        <div className="w-full max-w-md rounded-lg border bg-card p-8">
           {/* Email input skeleton */}
           <div className="space-y-4">
             <div>

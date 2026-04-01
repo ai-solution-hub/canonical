@@ -32,7 +32,7 @@ function CoveragePageSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4"
+            className="flex flex-col gap-3 rounded-xl border bg-card p-4"
           >
             <div className="h-10 w-10 animate-pulse rounded-lg bg-accent" />
             <div className="h-3 w-20 animate-pulse rounded bg-accent" />
@@ -46,7 +46,7 @@ function CoveragePageSkeleton() {
         {Array.from({ length: 4 }).map((_, i) => (
           <div
             key={i}
-            className="h-14 animate-pulse rounded-lg border border-border bg-accent"
+            className="h-14 animate-pulse rounded-lg border bg-accent"
           />
         ))}
       </div>

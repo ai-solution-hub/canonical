@@ -51,7 +51,7 @@ export function ProvenanceFieldset({
   };
 
   return (
-    <fieldset className="space-y-4 rounded-lg border border-border bg-accent/30 p-4">
+    <fieldset className="space-y-4 rounded-lg border bg-accent/30 p-4">
       <legend className="px-2 text-sm font-semibold text-muted-foreground">
         Provenance
       </legend>

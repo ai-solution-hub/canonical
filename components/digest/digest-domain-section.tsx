@@ -24,7 +24,7 @@ export function DigestDomainSection({
 
   return (
     <article
-      className={cn('digest-domain-card rounded-xl border border-border p-5', className)}
+      className={cn('digest-domain-card rounded-xl border p-5', className)}
       style={{
         backgroundColor: `var(--domain-${colourKey}-surface)`,
       }}

@@ -345,7 +345,7 @@ export function ReaderView({
           />
 
           {/* Relationships group (collapsed by default) */}
-          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border border-border bg-card p-6">
+          <CollapsibleSection title="Relationships" defaultOpen={false} lazy className="mt-6" contentClassName="mt-2 rounded-xl border bg-card p-6">
             {/* Entity mentions — shows badges grouped by entity type */}
             <EntityBadges
               contentItemId={item.id}
@@ -375,7 +375,7 @@ export function ReaderView({
         </article>
 
         {/* Metadata sidebar — read-only (no pencil icons, no edit affordances) */}
-        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border border-border bg-card p-4">
+        <CollapsibleSection title="Metadata" defaultOpen={!isMobile} className="w-full max-w-md shrink-0 lg:max-w-none lg:w-72" contentClassName="mt-2 rounded-xl border bg-card p-4">
           <MetadataSidebar
             item={item}
             editingField={null}

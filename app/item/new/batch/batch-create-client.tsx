@@ -212,7 +212,7 @@ export function BatchCreateClient() {
 
         <div className="space-y-6">
           {/* Informational note about pipeline */}
-          <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-4">
+          <div className="flex items-start gap-3 rounded-md border bg-muted/30 p-4">
             <Info
               className="mt-0.5 size-4 shrink-0 text-muted-foreground"
               aria-hidden="true"

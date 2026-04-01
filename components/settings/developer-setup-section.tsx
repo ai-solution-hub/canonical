@@ -151,7 +151,7 @@ export function DeveloperSetupSection() {
             <div className="flex items-start gap-2">
               <pre
                 aria-labelledby="mcp-config-label"
-                className="flex-1 overflow-x-auto rounded-md border border-border bg-muted px-4 py-3 font-mono text-sm"
+                className="flex-1 overflow-x-auto rounded-md border bg-muted px-4 py-3 font-mono text-sm"
               >{`{
   "mcpServers": {
     "knowledge-hub": {

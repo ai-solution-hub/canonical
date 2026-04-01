@@ -21,7 +21,7 @@ export default function BidSessionLoading() {
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="h-12 animate-pulse rounded-lg border border-border bg-card"
+              className="h-12 animate-pulse rounded-lg border bg-card"
             />
           ))}
         </div>
@@ -29,13 +29,13 @@ export default function BidSessionLoading() {
         {/* Main: editor area */}
         <div className="min-w-0 flex-1 space-y-4">
           {/* Question header */}
-          <div className="rounded-lg border border-border bg-card p-4">
+          <div className="rounded-lg border bg-card p-4">
             <div className="h-5 w-3/4 animate-pulse rounded bg-accent" />
             <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-accent" />
           </div>
 
           {/* Editor area */}
-          <div className="h-64 animate-pulse rounded-lg border border-border bg-accent" />
+          <div className="h-64 animate-pulse rounded-lg border bg-accent" />
 
           {/* Action bar */}
           <div className="flex items-center justify-between">

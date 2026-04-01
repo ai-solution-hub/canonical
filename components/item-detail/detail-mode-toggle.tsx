@@ -47,7 +47,7 @@ export function DetailModeToggle({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'inline-flex items-center rounded-lg border border-border bg-muted p-0.5',
+              'inline-flex items-center rounded-lg border bg-muted p-0.5',
               className,
             )}
             role="group"

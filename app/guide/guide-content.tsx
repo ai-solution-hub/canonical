@@ -91,7 +91,7 @@ function GuideCard({ guide }: { guide: Guide }) {
   return (
     <Link
       href={`/guide/${guide.slug}`}
-      className="group rounded-lg border border-border bg-card p-4 shadow-sm transition-colors hover:border-foreground/20 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      className="group rounded-lg border bg-card p-4 shadow-sm transition-colors hover:border-foreground/20 hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
     >
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">

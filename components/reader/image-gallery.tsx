@@ -180,7 +180,7 @@ export function ImageGallery({
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" />
           Loading images...
         </div>
@@ -189,7 +189,7 @@ export function ImageGallery({
       {/* Extracting state */}
       {isExtracting && (
         <div
-          className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground"
+          className="flex items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground"
           role="status"
           aria-live="polite"
         >
@@ -221,7 +221,7 @@ export function ImageGallery({
               <button
                 key={`${img.page}-${img.index}`}
                 onClick={() => openLightbox(idx)}
-                className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/30 transition-all hover:border-primary/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="group relative aspect-square overflow-hidden rounded-lg border bg-muted/30 transition-all hover:border-primary/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 role="listitem"
                 aria-label={`Image from page ${img.page}, ${img.width} by ${img.height} pixels. Click to enlarge.`}
               >

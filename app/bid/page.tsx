@@ -170,7 +170,7 @@ export default function BidsPage() {
             ))}
           </div>
           <div className="ml-auto flex items-center gap-2">
-            <div className="inline-flex rounded-md border border-border" role="group" aria-label="View mode">
+            <div className="inline-flex rounded-md border" role="group" aria-label="View mode">
               <Button
                 variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
                 size="icon-sm"

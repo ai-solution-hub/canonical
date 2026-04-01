@@ -30,7 +30,7 @@ function BrowsePageSkeleton() {
         {Array.from({ length: 12 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3"
+            className="flex flex-col gap-3 rounded-lg border bg-card p-3"
           >
             <div className="aspect-video w-full animate-pulse rounded-md bg-accent" />
             <div className="h-4 w-3/4 animate-pulse rounded bg-accent" />

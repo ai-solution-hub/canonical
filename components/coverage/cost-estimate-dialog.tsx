@@ -128,7 +128,7 @@ export function CostEstimateDialog({
 
         {/* Error state */}
         {error && (
-          <div className="flex flex-col items-center justify-center rounded-md border border-border bg-card px-4 py-6 text-center">
+          <div className="flex flex-col items-center justify-center rounded-md border bg-card px-4 py-6 text-center">
             <AlertTriangle className="size-6 text-muted-foreground/50" aria-hidden="true" />
             <p className="mt-2 text-sm text-muted-foreground">{error}</p>
             <Button variant="outline" size="sm" className="mt-3" onClick={fetchEstimate}>

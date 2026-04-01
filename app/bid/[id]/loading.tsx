@@ -28,7 +28,7 @@ export default function BidDetailLoading() {
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="flex items-center gap-3 rounded-lg border border-border bg-card p-4"
+            className="flex items-center gap-3 rounded-lg border bg-card p-4"
           >
             <div className="h-5 w-5 animate-pulse rounded bg-accent" />
             <div className="flex-1 space-y-2">

@@ -23,7 +23,7 @@ export function QAUsedInBids({ workspaces }: QAUsedInBidsProps) {
   if (workspaces.length === 0) return null;
 
   return (
-    <div className="mb-6 rounded-xl border border-border bg-card p-4">
+    <div className="mb-6 rounded-xl border bg-card p-4">
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Used in {workspaces.length} bid{workspaces.length !== 1 ? 's' : ''}
       </h3>
@@ -53,7 +53,7 @@ export function QARelatedPairs({ relatedQA }: QARelatedPairsProps) {
   if (relatedQA.length === 0) return null;
 
   return (
-    <div className="mb-6 rounded-xl border border-border bg-card p-4">
+    <div className="mb-6 rounded-xl border bg-card p-4">
       <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         Related Q&A pairs (same source)
       </h3>

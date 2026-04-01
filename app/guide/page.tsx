@@ -36,7 +36,7 @@ function GuidesPageSkeleton() {
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4"
+            className="flex flex-col gap-3 rounded-lg border bg-card p-4"
           >
             <div className="h-4 w-3/4 animate-pulse rounded bg-accent" />
             <div className="h-3 w-full animate-pulse rounded bg-accent" />

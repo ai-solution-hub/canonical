@@ -16,7 +16,7 @@ export default function ReviewLoading() {
       <div className="mb-6 h-2 w-full animate-pulse rounded-full bg-accent" />
 
       {/* Single card skeleton */}
-      <div className="rounded-xl border border-border bg-card p-6">
+      <div className="rounded-xl border bg-card p-6">
         <div className="flex gap-2">
           <div className="h-5 w-24 animate-pulse rounded-full bg-accent" />
           <div className="h-5 w-16 animate-pulse rounded-full bg-accent" />

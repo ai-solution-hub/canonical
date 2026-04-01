@@ -50,7 +50,7 @@ function ContentItemCard({ item }: { item: ContentItem }) {
   return (
     <Link
       href={`/item/${item.content_id}`}
-      className="group block rounded-md border border-border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      className="group block rounded-md border bg-card p-3 transition-colors hover:border-foreground/20 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
     >
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-sm font-medium text-foreground group-hover:underline line-clamp-2">
@@ -98,7 +98,7 @@ export function GuideSection({ section, sectionNumber, domainFilter, guideName }
   const hasContent = section.content_items.length > 0;
 
   return (
-    <div id={section.section_id} className="rounded-lg border border-border bg-card p-4">
+    <div id={section.section_id} className="rounded-lg border bg-card p-4">
       {/* Section header */}
       <div className="flex flex-wrap items-baseline gap-2">
         <h2 className="text-base font-semibold text-foreground">

@@ -256,7 +256,7 @@ export function ContentLibraryDrawer({
           {isLoading && (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="rounded-lg border border-border p-3">
+                <div key={i} className="rounded-lg border p-3">
                   <div className="flex items-center gap-1.5">
                     <Skeleton className="h-5 w-14 rounded-full" />
                     <Skeleton className="h-5 w-20 rounded-full" />

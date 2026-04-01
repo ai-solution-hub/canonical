@@ -82,7 +82,7 @@ interface ModeSelectorProps {
 
 function ModeSelector({ mode, onModeChange }: ModeSelectorProps) {
   return (
-    <div role="tablist" aria-label="Report mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border border-border bg-muted/50 p-1">
+    <div role="tablist" aria-label="Report mode" onKeyDown={handleTablistKeyDown} className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
       <button
         role="tab"
         id="tab-preset"
@@ -243,7 +243,7 @@ function GenerateControls({
 
       {/* Custom filter panel */}
       {mode === 'custom' && (
-        <div className="mt-4 rounded-xl border border-border bg-card p-5">
+        <div className="mt-4 rounded-xl border bg-card p-5">
           <div className="mb-4 flex items-center gap-2">
             <Filter className="size-4 text-primary" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
@@ -599,7 +599,7 @@ export default function DigestPage() {
                   <li key={digest.id}>
                     <button
                       onClick={() => loadDigest(digest.id)}
-                      className="flex w-full flex-col gap-1 rounded-lg border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                      className="flex w-full flex-col gap-1 rounded-lg border bg-card px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
                       <div>
                         <span className="text-sm font-medium text-foreground">

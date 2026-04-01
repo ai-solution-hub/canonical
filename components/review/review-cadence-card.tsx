@@ -278,7 +278,7 @@ function MetricCell({ label, value, total, suffix, highlight = 'default' }: Metr
   );
 
   return (
-    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2" role="listitem">
+    <div className="rounded-lg border bg-muted/30 px-3 py-2" role="listitem">
       <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </div>

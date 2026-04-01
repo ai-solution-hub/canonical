@@ -172,7 +172,7 @@ export function VersionHistory({
   };
 
   return (
-    <div className={cn('rounded-lg border border-border', className)}>
+    <div className={cn('rounded-lg border', className)}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-muted/50 transition-colors"

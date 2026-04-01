@@ -23,7 +23,7 @@ export function CollapsibleGroup({ label, count, children }: CollapsibleGroupPro
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
+    <div className="rounded-lg border overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}

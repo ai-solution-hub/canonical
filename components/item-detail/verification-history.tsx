@@ -189,7 +189,7 @@ export function VerificationHistory({
             return (
               <li
                 key={entry.id}
-                className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2"
+                className="flex items-start gap-2 rounded-md border bg-card px-3 py-2"
               >
                 <Icon
                   className={cn('size-4 shrink-0 mt-0.5', config.colourClass)}

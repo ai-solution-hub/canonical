@@ -233,7 +233,7 @@ export function UnifiedAttentionSection({
   return (
     <section
       aria-label="Items needing attention"
-      className="rounded-lg border border-border bg-card p-4 shadow-sm"
+      className="rounded-lg border bg-card p-4 shadow-sm"
     >
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
         Needs Attention
@@ -241,7 +241,7 @@ export function UnifiedAttentionSection({
       </h2>
 
       {roleItems.length === 0 ? (
-        <div className="rounded-lg border border-border bg-card p-6 text-center">
+        <div className="rounded-lg border bg-card p-6 text-center">
           <CheckCircle2
             className="mx-auto mb-2 size-8 text-quality-good"
             aria-hidden="true"

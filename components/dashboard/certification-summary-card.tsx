@@ -281,7 +281,7 @@ function CertificationRow({
     return (
       <Link
         href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
         role="listitem"
       >
         {cardContent}
@@ -291,7 +291,7 @@ function CertificationRow({
 
   return (
     <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"
+      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
       role="listitem"
     >
       {cardContent}
@@ -381,7 +381,7 @@ function RegistrationRow({
     return (
       <Link
         href={itemLink}
-        className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
+        className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-accent/50"
         role="listitem"
       >
         {cardContent}
@@ -391,7 +391,7 @@ function RegistrationRow({
 
   return (
     <div
-      className="flex items-start justify-between gap-3 rounded-lg border border-border bg-muted/30 p-3"
+      className="flex items-start justify-between gap-3 rounded-lg border bg-muted/30 p-3"
       role="listitem"
     >
       {cardContent}
@@ -499,7 +499,7 @@ export function CertificationSummaryCard({
   return (
     <section
       aria-label="Certifications we hold"
-      className="rounded-lg border border-border bg-card p-4"
+      className="rounded-lg border bg-card p-4"
     >
       {/* Header */}
       <div className="flex items-center justify-between">
