@@ -707,6 +707,12 @@ export const IntelligenceWorkspaceCreateSchema = z.object({
   company_profile_id: z.string().uuid('Must select a company profile'),
 });
 
+/** PATCH /api/intelligence/workspaces/:id */
+export const IntelligenceWorkspaceUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200).optional(),
+  description: z.string().max(2000).optional(),
+});
+
 // ──────────────────────────────────────────
 // Tag Management Schemas (Session 53)
 // ──────────────────────────────────────────
