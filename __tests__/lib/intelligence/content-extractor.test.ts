@@ -1,13 +1,13 @@
 // __tests__/lib/intelligence/content-extractor.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { extractContent } from '@/lib/intelligence/content-extractor';
+import { extractContent, normaliseUrl } from '@/lib/intelligence/content-extractor';
 import type { ParsedFeedItem } from '@/lib/intelligence/types';
 
-// Mock Firecrawl
+// Mock Firecrawl — use function keyword for vi.fn() with new (CLAUDE.md gotcha)
 vi.mock('@mendable/firecrawl-js', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    scrape: vi.fn(),
-  })),
+  default: vi.fn().mockImplementation(function () {
+    return { scrape: vi.fn() };
+  }),
 }));
 
 // Mock fetch for direct extraction
@@ -64,5 +64,27 @@ describe('extractContent', () => {
 
     const result = await extractContent(item);
     expect(result.method).toBe('summary_fallback');
+  });
+});
+
+describe('normaliseUrl', () => {
+  it('lowercases hostname', () => {
+    expect(normaliseUrl('https://WWW.GOV.UK/page')).toBe('https://www.gov.uk/page');
+  });
+
+  it('strips tracking params', () => {
+    expect(normaliseUrl('https://example.com/page?utm_source=twitter&key=val')).toBe('https://example.com/page?key=val');
+  });
+
+  it('removes trailing slash', () => {
+    expect(normaliseUrl('https://example.com/page/')).toBe('https://example.com/page');
+  });
+
+  it('preserves root slash', () => {
+    expect(normaliseUrl('https://example.com/')).toBe('https://example.com/');
+  });
+
+  it('returns invalid URLs unchanged', () => {
+    expect(normaliseUrl('not-a-url')).toBe('not-a-url');
   });
 });

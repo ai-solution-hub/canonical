@@ -45,10 +45,8 @@ describe('buildScoringPrompt', () => {
 describe('embeddingPreFilter', () => {
   it('passes articles above threshold', async () => {
     const { generateEmbedding } = await import('@/lib/ai/embed');
-    // Mock embeddings with high cosine similarity
-    vi.mocked(generateEmbedding)
-      .mockResolvedValueOnce([1, 0, 0]) // article
-      .mockResolvedValueOnce([0.9, 0.1, 0]); // company profile
+    // Only the article embedding is generated — company embedding is passed as parameter
+    vi.mocked(generateEmbedding).mockResolvedValueOnce([1, 0, 0]);
 
     const result = await embeddingPreFilter('education policy article', [0.9, 0.1, 0]);
     expect(result.passed).toBe(true);
@@ -56,10 +54,8 @@ describe('embeddingPreFilter', () => {
 
   it('filters articles below threshold', async () => {
     const { generateEmbedding } = await import('@/lib/ai/embed');
-    // Mock embeddings with low cosine similarity
-    vi.mocked(generateEmbedding)
-      .mockResolvedValueOnce([1, 0, 0]) // article
-      .mockResolvedValueOnce([0, 0, 1]); // company profile (orthogonal)
+    // Only the article embedding is generated — company embedding is passed as parameter
+    vi.mocked(generateEmbedding).mockResolvedValueOnce([1, 0, 0]);
 
     const result = await embeddingPreFilter('unrelated cooking article', [0, 0, 1]);
     expect(result.passed).toBe(false);
