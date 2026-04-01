@@ -33,7 +33,7 @@ export default function WorkspaceLayout({
       <div className="mb-6">
         <div className="flex items-center gap-2">
           <Newspaper
-            className="size-5 text-emerald-600 dark:text-emerald-400"
+            className="size-5 text-success"
             aria-hidden="true"
           />
           {isLoading ? (

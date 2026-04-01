@@ -49,7 +49,7 @@ export function FeedSourceTestDialog({
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <CheckCircle
-                  className="size-5 text-emerald-600 dark:text-emerald-400"
+                  className="size-5 text-success"
                   aria-hidden="true"
                 />
                 <p className="text-sm font-medium text-foreground">

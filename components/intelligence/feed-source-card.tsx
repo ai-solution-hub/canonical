@@ -64,7 +64,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
 function StatusDot({ status }: { status: string | null }) {
   const colour =
     status === 'success'
-      ? 'bg-emerald-500'
+      ? 'bg-success'
       : status === 'error' || status === 'timeout'
         ? 'bg-destructive'
         : 'bg-muted-foreground';

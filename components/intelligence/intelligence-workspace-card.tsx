@@ -43,7 +43,7 @@ export function IntelligenceWorkspaceCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <Newspaper
-              className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+              className="size-4 shrink-0 text-success"
               aria-hidden="true"
             />
             <h3 className="truncate text-base font-semibold text-foreground">
