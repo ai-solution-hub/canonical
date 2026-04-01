@@ -2641,6 +2641,34 @@ export type Database = {
           primary_subtopic: string
         }[]
       }
+      get_due_feed_sources: {
+        Args: { max_sources?: number }
+        Returns: {
+          article_count: number
+          consecutive_failures: number
+          created_at: string
+          created_by: string | null
+          etag: string | null
+          id: string
+          is_active: boolean
+          last_modified: string | null
+          last_polled_at: string | null
+          last_polled_error: string | null
+          last_polled_status: string | null
+          name: string
+          polling_interval_minutes: number
+          source_type: string
+          updated_at: string
+          url: string
+          workspace_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "feed_sources"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_entity_co_occurrence: {
         Args: { p_entity_type?: string; p_limit?: number; p_min_count?: number }
         Returns: {
