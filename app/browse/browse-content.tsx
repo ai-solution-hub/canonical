@@ -424,7 +424,7 @@ export function BrowseContent() {
               placeholder="Search your knowledge..."
               value={localSearchQuery}
               onChange={(e) => setLocalSearchQuery(e.target.value)}
-              className="h-10 bg-card pl-10 pr-4"
+              className="h-10 bg-white pl-10 pr-4 shadow-sm"
               aria-label="Search the knowledge base"
             />
           </div>
