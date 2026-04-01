@@ -3,13 +3,12 @@
 import {
   createContext,
   useContext,
-  useState,
-  useEffect,
   useCallback,
-  useRef,
   useMemo,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { queryKeys } from '@/lib/query/query-keys';
 import {
   formatSubtopic as formatSubtopicUtil,
   formatDomainName as formatDomainNameUtil,
@@ -48,82 +47,71 @@ interface TaxonomyContextValue {
 }
 
 // ---------------------------------------------------------------------------
+// Fetchers
+// ---------------------------------------------------------------------------
+
+async function fetchTaxonomyDomains(): Promise<TaxonomyDomain[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('taxonomy_domains')
+    .select('id, name, display_name, display_order, colour, is_active, provenance')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch domains: ${error.message}`);
+  return (data ?? []) as TaxonomyDomain[];
+}
+
+async function fetchTaxonomySubtopics(): Promise<TaxonomySubtopic[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('taxonomy_subtopics')
+    .select('id, domain_id, name, display_name, display_order, is_active, provenance, description')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+
+  if (error) throw new Error(`Failed to fetch subtopics: ${error.message}`);
+  return (data ?? []) as TaxonomySubtopic[];
+}
+
+// ---------------------------------------------------------------------------
 // Context + Provider
 // ---------------------------------------------------------------------------
 
 const TaxonomyContext = createContext<TaxonomyContextValue | null>(null);
 
 export function TaxonomyProvider({ children }: { children: React.ReactNode }) {
-  const supabase = createClient();
-  const [domains, setDomains] = useState<TaxonomyDomain[]>([]);
-  const [subtopics, setSubtopics] = useState<TaxonomySubtopic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const hasFetchedRef = useRef(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const {
+    data: domains = [],
+    isLoading: domainsLoading,
+    error: domainsError,
+  } = useQuery({
+    queryKey: queryKeys.taxonomy.domains,
+    queryFn: fetchTaxonomyDomains,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const fetchTaxonomy = useCallback(async () => {
-    try {
-      const [domainsResult, subtopicsResult] = await Promise.all([
-        supabase
-          .from('taxonomy_domains')
-          .select('id, name, display_name, display_order, colour, is_active, provenance')
-          .eq('is_active', true)
-          .order('display_order', { ascending: true }),
-        supabase
-          .from('taxonomy_subtopics')
-          .select('id, domain_id, name, display_name, display_order, is_active, provenance, description')
-          .eq('is_active', true)
-          .order('display_order', { ascending: true }),
-      ]);
+  const {
+    data: subtopics = [],
+    isLoading: subtopicsLoading,
+    error: subtopicsError,
+  } = useQuery({
+    queryKey: queryKeys.taxonomy.subtopics,
+    queryFn: fetchTaxonomySubtopics,
+    staleTime: 5 * 60 * 1000,
+  });
 
-      if (!isMountedRef.current) return;
+  const loading = domainsLoading || subtopicsLoading;
+  const rawError = domainsError ?? subtopicsError;
+  const error = rawError
+    ? (rawError instanceof Error ? rawError.message : 'Failed to load taxonomy')
+    : null;
 
-      if (domainsResult.error) {
-        setError(`Failed to fetch domains: ${domainsResult.error.message}`);
-        setLoading(false);
-        return;
-      }
-
-      if (subtopicsResult.error) {
-        setError(`Failed to fetch subtopics: ${subtopicsResult.error.message}`);
-        setLoading(false);
-        return;
-      }
-
-      setDomains((domainsResult.data ?? []) as TaxonomyDomain[]);
-      setSubtopics((subtopicsResult.data ?? []) as TaxonomySubtopic[]);
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      setError(err instanceof Error ? err.message : 'Failed to load taxonomy');
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase is a stable singleton from createClient()
-  }, []);
-
-  useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetchTaxonomy();
-  }, [fetchTaxonomy]);
-
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = useCallback(() => {
-    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-    refreshTimeoutRef.current = setTimeout(() => {
-      hasFetchedRef.current = false;
-      fetchTaxonomy();
-    }, 300);
-  }, [fetchTaxonomy]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.taxonomy.all });
+  }, [queryClient]);
 
   // Build lookup maps for efficient access
   const domainByName = useMemo(() => {

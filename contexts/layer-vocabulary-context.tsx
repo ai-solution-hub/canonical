@@ -3,13 +3,12 @@
 import {
   createContext,
   useContext,
-  useState,
-  useEffect,
   useCallback,
-  useRef,
   useMemo,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
+import { queryKeys } from '@/lib/query/query-keys';
 import { FALLBACK_LAYERS } from '@/lib/client-config';
 
 // ---------------------------------------------------------------------------
@@ -43,6 +42,44 @@ interface LayerVocabularyContextValue {
 }
 
 // ---------------------------------------------------------------------------
+// Fallback layers (used when DB fetch fails)
+// ---------------------------------------------------------------------------
+
+const FALLBACK_LAYER_DEFINITIONS: LayerDefinition[] = FALLBACK_LAYERS.map(
+  (l, i) => ({
+    id: `fallback-${i}`,
+    key: l.key,
+    label: l.label,
+    description: l.description,
+    display_order: l.order,
+    is_active: true,
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Fetcher
+// ---------------------------------------------------------------------------
+
+async function fetchLayerVocabulary(): Promise<LayerDefinition[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('layer_vocabulary')
+    .select('id, key, label, description, display_order, is_active')
+    .eq('is_active', true)
+    .order('display_order', { ascending: true });
+
+  if (error) {
+    console.warn(
+      'Failed to fetch layer vocabulary, using fallback:',
+      error.message,
+    );
+    return FALLBACK_LAYER_DEFINITIONS;
+  }
+
+  return (data ?? []) as LayerDefinition[];
+}
+
+// ---------------------------------------------------------------------------
 // Context + Provider
 // ---------------------------------------------------------------------------
 
@@ -54,88 +91,27 @@ export function LayerVocabularyProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createClient();
-  const [layers, setLayers] = useState<LayerDefinition[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const isMountedRef = useRef(true);
-  const hasFetchedRef = useRef(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const {
+    data: layers = FALLBACK_LAYER_DEFINITIONS,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: queryKeys.layers.list,
+    queryFn: fetchLayerVocabulary,
+    // On error, the queryFn itself returns fallback data, so this shouldn't
+    // normally fire. But if an unexpected exception occurs, staleTime ensures
+    // we don't hammer the DB.
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const fetchLayers = useCallback(async () => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('layer_vocabulary')
-        .select('id, key, label, description, display_order, is_active')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true });
+  // Map TanStack Query error to string (matching original context API)
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load layers') : null;
 
-      if (!isMountedRef.current) return;
-
-      if (fetchError) {
-        console.warn(
-          'Failed to fetch layer vocabulary, using fallback:',
-          fetchError.message,
-        );
-        // Fall back to static config
-        setLayers(
-          FALLBACK_LAYERS.map((l, i) => ({
-            id: `fallback-${i}`,
-            key: l.key,
-            label: l.label,
-            description: l.description,
-            display_order: l.order,
-            is_active: true,
-          })),
-        );
-        setError(null); // Don't surface fallback as an error
-        setLoading(false);
-        return;
-      }
-
-      setLayers((data ?? []) as LayerDefinition[]);
-      setError(null);
-      setLoading(false);
-    } catch (err) {
-      if (!isMountedRef.current) return;
-      console.warn('Layer vocabulary fetch exception, using fallback:', err);
-      // Fall back to static config
-      setLayers(
-        FALLBACK_LAYERS.map((l, i) => ({
-          id: `fallback-${i}`,
-          key: l.key,
-          label: l.label,
-          description: l.description,
-          display_order: l.order,
-          is_active: true,
-        })),
-      );
-      setError(null);
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (hasFetchedRef.current) return;
-    hasFetchedRef.current = true;
-    fetchLayers();
-  }, [fetchLayers]);
-
-  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refresh = useCallback(() => {
-    if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
-    refreshTimeoutRef.current = setTimeout(() => {
-      hasFetchedRef.current = false;
-      fetchLayers();
-    }, 300);
-  }, [fetchLayers]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.layers.all });
+  }, [queryClient]);
 
   // Build lookup map for efficient label/description access
   const layerByKey = useMemo(() => {

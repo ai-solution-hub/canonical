@@ -9,8 +9,15 @@ import {
   useRef,
   useMemo,
 } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/query/query-keys';
 
 type ReadSource = 'manual' | 'review' | 'digest' | 'bulk';
+
+interface ReadMarkCounts {
+  read_count: number;
+  total_count: number;
+}
 
 interface ReadMarksContextValue {
   /** Set of content_item IDs that have been checked and are read */
@@ -39,20 +46,45 @@ interface ReadMarksContextValue {
   checkReadStatus: (itemIds: string[]) => Promise<void>;
 }
 
+// ---------------------------------------------------------------------------
+// Fetcher for counts (used by useQuery)
+// ---------------------------------------------------------------------------
+
+async function fetchReadMarkCounts(): Promise<ReadMarkCounts> {
+  const res = await fetch('/api/read-marks');
+  if (!res.ok) {
+    // During initial load, auth may not be established yet.
+    // Return zeroes to avoid breaking the UI.
+    return { read_count: 0, total_count: 0 };
+  }
+  const data = await res.json();
+  return {
+    read_count: data.read_count ?? 0,
+    total_count: data.total_count ?? 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Context + Provider
+// ---------------------------------------------------------------------------
+
 const ReadMarksContext = createContext<ReadMarksContextValue | null>(null);
 
 export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+
+  // Lazy-load trigger: counts are only fetched when loadReadMarks() is called
+  const [countsEnabled, setCountsEnabled] = useState(false);
+
   const [readItemIds, setReadItemIds] = useState<Set<string>>(new Set());
   const readItemIdsRef = useRef<Set<string>>(readItemIds);
-  const [readCount, setReadCount] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const isMountedRef = useRef(true);
-  const isLoadingRef = useRef(false);
+  // Local count overrides — used for optimistic updates between query refreshes
+  const [countAdjustment, setCountAdjustment] = useState<{ read: number; total: number } | null>(null);
   /** Track which item IDs have already been checked to avoid redundant requests */
   const checkedIdsRef = useRef<Set<string>>(new Set());
   /** Track loaded state via ref so checkReadStatus can read it without dependency */
   const isLoadedRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   // Cleanup mounted ref
   useEffect(() => {
@@ -67,44 +99,43 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
     readItemIdsRef.current = readItemIds;
   }, [readItemIds]);
 
-  // Lazy-load counts (read count + total count). No longer fetches all read mark IDs.
-  const loadReadMarks = useCallback(() => {
-    if (isLoaded || isLoadingRef.current) return;
-    isLoadingRef.current = true;
+  // ─── Counts query (lazy, enabled by loadReadMarks) ───
 
-    async function fetchCounts() {
-      try {
-        const res = await fetch('/api/read-marks');
-        if (!res.ok) {
-          // During initial load, suppress ALL non-ok responses — auth may
-          // not yet be established (401, 307 redirect, 500 during handshake, etc.)
-          isLoadingRef.current = false;
-          return;
-        }
-        const data = await res.json();
+  const {
+    data: countsData,
+    isSuccess: countsLoaded,
+  } = useQuery({
+    queryKey: queryKeys.readMarks.counts,
+    queryFn: fetchReadMarkCounts,
+    enabled: countsEnabled,
+    staleTime: 60 * 1000, // 1 minute
+    retry: false, // Auth errors are expected during establishment
+  });
 
-        if (!isMountedRef.current) {
-          isLoadingRef.current = false;
-          return;
-        }
+  // Derive counts: use adjustment if set (optimistic), otherwise use query data
+  const serverReadCount = countsData?.read_count ?? 0;
+  const serverTotalCount = countsData?.total_count ?? 0;
+  const readCount = countAdjustment != null ? countAdjustment.read : serverReadCount;
+  const totalCount = countAdjustment != null ? countAdjustment.total : serverTotalCount;
 
-        setReadCount(data.read_count ?? 0);
-        setTotalCount(data.total_count ?? 0);
-        isLoadedRef.current = true;
-        setIsLoaded(true);
-      } catch {
-        // Network errors during initial load are expected (auth establishment).
-        // Silently fail — the caller can retry via loadReadMarks once auth settles.
-        if (isMountedRef.current) {
-          isLoadedRef.current = true;
-          setIsLoaded(true);
-        }
-      }
-      isLoadingRef.current = false;
+  // Clear adjustment when query data updates (server caught up)
+  useEffect(() => {
+    if (countsData) {
+      setCountAdjustment(null);
     }
+  }, [countsData]);
 
-    fetchCounts();
+  const isLoaded = countsLoaded;
+
+  // Keep ref in sync
+  useEffect(() => {
+    isLoadedRef.current = isLoaded;
   }, [isLoaded]);
+
+  // Lazy-load trigger
+  const loadReadMarks = useCallback(() => {
+    setCountsEnabled(true);
+  }, []);
 
   /**
    * Check read status for a batch of item IDs.
@@ -151,9 +182,13 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Update counts if returned
-      if (data.read_count != null) setReadCount(data.read_count);
-      if (data.total_count != null) setTotalCount(data.total_count);
+      // Update counts if returned — apply as adjustment so they take effect immediately
+      if (data.read_count != null || data.total_count != null) {
+        setCountAdjustment((prev) => ({
+          read: data.read_count ?? prev?.read ?? serverReadCount,
+          total: data.total_count ?? prev?.total ?? serverTotalCount,
+        }));
+      }
     } catch (error) {
       // Only log network errors if auth has been established (isLoaded).
       // During auth establishment, network errors are expected and silent.
@@ -165,7 +200,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         checkedIdsRef.current.delete(id);
       }
     }
-  }, []);
+  }, [serverReadCount, serverTotalCount]);
 
   const unreadCount = totalCount - readCount;
 
@@ -185,7 +220,12 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         next.add(itemId);
         return next;
       });
-      if (wasNew) setReadCount((prev) => prev + 1);
+      if (wasNew) {
+        setCountAdjustment((prev) => ({
+          read: (prev?.read ?? serverReadCount) + 1,
+          total: prev?.total ?? serverTotalCount,
+        }));
+      }
       checkedIdsRef.current.add(itemId);
 
       try {
@@ -199,6 +239,8 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
           }),
         });
         if (!res.ok) throw new Error('Failed to mark as read');
+        // Invalidate counts to pick up server-authoritative values
+        queryClient.invalidateQueries({ queryKey: queryKeys.readMarks.counts });
       } catch (error) {
         console.error('Failed to mark as read:', error);
         // Rollback only if we actually added it
@@ -208,11 +250,14 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
             next.delete(itemId);
             return next;
           });
-          setReadCount((prev) => Math.max(0, prev - 1));
+          setCountAdjustment((prev) => ({
+            read: Math.max(0, (prev?.read ?? serverReadCount) - 1),
+            total: prev?.total ?? serverTotalCount,
+          }));
         }
       }
     },
-    [],
+    [serverReadCount, serverTotalCount, queryClient],
   );
 
   const markUnread = useCallback(async (itemId: string) => {
@@ -225,8 +270,12 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       next.delete(itemId);
       return next;
     });
-    // Defer count update to next microtask so wasRead is set by the updater
-    if (wasRead) setReadCount((prev) => Math.max(0, prev - 1));
+    if (wasRead) {
+      setCountAdjustment((prev) => ({
+        read: Math.max(0, (prev?.read ?? serverReadCount) - 1),
+        total: prev?.total ?? serverTotalCount,
+      }));
+    }
 
     try {
       const res = await fetch('/api/read-marks', {
@@ -235,6 +284,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ action: 'mark_unread', item_id: itemId }),
       });
       if (!res.ok) throw new Error('Failed to mark as unread');
+      queryClient.invalidateQueries({ queryKey: queryKeys.readMarks.counts });
     } catch (error) {
       console.error('Failed to mark as unread:', error);
       // Rollback
@@ -244,10 +294,13 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
           next.add(itemId);
           return next;
         });
-        setReadCount((prev) => prev + 1);
+        setCountAdjustment((prev) => ({
+          read: (prev?.read ?? serverReadCount) + 1,
+          total: prev?.total ?? serverTotalCount,
+        }));
       }
     }
-  }, []);
+  }, [serverReadCount, serverTotalCount, queryClient]);
 
   const toggleRead = useCallback(
     async (itemId: string, source: ReadSource = 'manual') => {
@@ -275,7 +328,10 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
       });
       if (unreadIds.length === 0) return;
 
-      setReadCount((prev) => prev + unreadIds.length);
+      setCountAdjustment((prev) => ({
+        read: (prev?.read ?? serverReadCount) + unreadIds.length,
+        total: prev?.total ?? serverTotalCount,
+      }));
       for (const id of unreadIds) {
         checkedIdsRef.current.add(id);
       }
@@ -291,6 +347,7 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
           }),
         });
         if (!res.ok) throw new Error('Failed to bulk mark as read');
+        queryClient.invalidateQueries({ queryKey: queryKeys.readMarks.counts });
       } catch (error) {
         console.error('Failed to bulk mark as read:', error);
         // Rollback
@@ -301,10 +358,13 @@ export function ReadMarksProvider({ children }: { children: React.ReactNode }) {
           }
           return next;
         });
-        setReadCount((prev) => Math.max(0, prev - unreadIds.length));
+        setCountAdjustment((prev) => ({
+          read: Math.max(0, (prev?.read ?? serverReadCount) - unreadIds.length),
+          total: prev?.total ?? serverTotalCount,
+        }));
       }
     },
-    [],
+    [serverReadCount, serverTotalCount, queryClient],
   );
 
   const contextValue: ReadMarksContextValue = useMemo(() => ({
