@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         type: 'intelligence',
-        colour: '#059669',
+        color: '#059669',
         icon: 'globe',
         created_by: user.id,
         domain_metadata: {
