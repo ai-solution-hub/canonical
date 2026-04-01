@@ -137,7 +137,7 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground dark:text-neutral-400 transition-colors hover:bg-accent"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
             aria-label={badgeLabel}
           >
             <Bell className="size-4" />

@@ -50,12 +50,12 @@ export function SiteHeader() {
           onClick={() => setMobileMenuOpen(true)}
           aria-label="Open navigation menu"
         >
-          <Menu className="size-5 dark:text-neutral-200" />
+          <Menu className="size-5" />
         </Button>
 
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-1.5 text-lg font-semibold tracking-tight text-foreground dark:text-white transition-opacity hover:opacity-80"
+          className="flex shrink-0 items-center gap-1.5 text-lg font-semibold tracking-tight text-foreground transition-opacity hover:opacity-80"
         >
           Knowledge Hub
         </Link>
@@ -72,8 +72,8 @@ export function SiteHeader() {
                 className={cn(
                   'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors',
                   isActive
-                    ? 'font-semibold text-foreground dark:text-white'
-                    : 'text-muted-foreground dark:text-neutral-400 hover:text-foreground dark:hover:text-white',
+                    ? 'font-semibold text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
                   requiresEdit && roleLoading && 'pointer-events-none opacity-50',
                 )}
                 tabIndex={requiresEdit && roleLoading ? -1 : undefined}
@@ -97,13 +97,13 @@ export function SiteHeader() {
             onClick={() => router.push('/browse')}
             aria-label="Search"
           >
-            <Search className="size-4 dark:text-neutral-200" />
+            <Search className="size-4" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             asChild
-            className="hidden gap-1.5 text-xs text-muted-foreground dark:text-neutral-400 hover:text-foreground dark:hover:text-white sm:inline-flex"
+            className="hidden gap-1.5 text-xs text-muted-foreground hover:text-foreground sm:inline-flex"
           >
             <a
               href="https://claude.ai/new"
@@ -123,8 +123,8 @@ export function SiteHeader() {
             aria-label="Settings"
             className={cn(
               pathname === '/settings' || pathname?.startsWith('/settings/')
-                ? 'text-foreground dark:text-white'
-                : 'text-muted-foreground dark:text-neutral-400',
+                ? 'text-foreground'
+                : 'text-muted-foreground',
             )}
           >
             <Settings className="size-4" />
@@ -149,7 +149,7 @@ export function SiteHeader() {
               aria-current={pathname === '/' ? 'page' : undefined}
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
-                pathname === '/' ? 'bg-accent text-foreground dark:text-white' : 'text-muted-foreground dark:text-neutral-400',
+                pathname === '/' ? 'bg-accent text-foreground' : 'text-muted-foreground',
               )}
             >
               Home
@@ -166,8 +166,8 @@ export function SiteHeader() {
                   className={cn(
                     'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
                     isActive
-                      ? 'bg-accent text-foreground dark:text-white'
-                      : 'text-muted-foreground dark:text-neutral-400',
+                      ? 'bg-accent text-foreground'
+                      : 'text-muted-foreground',
                     requiresEdit && roleLoading && 'pointer-events-none opacity-50',
                   )}
                   tabIndex={requiresEdit && roleLoading ? -1 : undefined}
@@ -182,7 +182,7 @@ export function SiteHeader() {
               href="https://claude.ai/new"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground dark:text-neutral-400 transition-colors hover:bg-accent"
+              className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent"
             >
               <ExternalLink className="size-4" />
               Open Claude
@@ -195,8 +195,8 @@ export function SiteHeader() {
               className={cn(
                 'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-accent',
                 pathname === SETTINGS_LINK.href
-                  ? 'bg-accent text-foreground dark:text-white'
-                  : 'text-muted-foreground dark:text-neutral-400',
+                  ? 'bg-accent text-foreground'
+                  : 'text-muted-foreground',
               )}
             >
               <SETTINGS_LINK.icon className="size-4" />
