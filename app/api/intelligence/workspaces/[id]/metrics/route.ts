@@ -104,6 +104,17 @@ export async function GET(
       .eq('workspace_id', id)
       .gt('consecutive_failures', 0);
 
+    // Recent unresolved flags (last 5) with article title
+    const { data: recentFlags } = await supabase
+      .from('feed_flags')
+      .select(
+        'id, flag_type, notes, created_at, feed_articles!inner(title, workspace_id)',
+      )
+      .eq('feed_articles.workspace_id', id)
+      .eq('resolved', false)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
     return NextResponse.json({
       total_articles: total,
       passed_articles: passed,
@@ -116,6 +127,13 @@ export async function GET(
       last_poll_time: lastArticle?.ingested_at ?? null,
       active_sources: activeSources ?? 0,
       sources_with_errors: sourcesWithErrors ?? 0,
+      recent_flags: (recentFlags ?? []).map((f: Record<string, unknown>) => ({
+        id: f.id,
+        flag_type: f.flag_type,
+        notes: f.notes,
+        created_at: f.created_at,
+        article_title: (f.feed_articles as Record<string, unknown>)?.title ?? 'Unknown',
+      })),
       period,
     });
   } catch (err) {

@@ -124,14 +124,44 @@ export default function WorkspaceOverviewPage() {
               Review articles
             </Link>
           </div>
-          {metrics && metrics.unresolved_flags > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              <span className="font-medium text-destructive">
-                {metrics.unresolved_flags}
-              </span>{' '}
-              unresolved flag{metrics.unresolved_flags !== 1 ? 's' : ''} need
-              attention.
-            </p>
+          {metrics && metrics.recent_flags.length > 0 ? (
+            <div className="space-y-2">
+              {metrics.recent_flags.map((flag) => (
+                <div
+                  key={flag.id}
+                  className="rounded-md border p-3"
+                >
+                  <p className="text-sm font-medium text-foreground line-clamp-1">
+                    {flag.article_title}
+                  </p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={
+                        flag.flag_type === 'false_positive'
+                          ? 'text-destructive'
+                          : 'text-warning'
+                      }
+                    >
+                      {flag.flag_type === 'false_positive'
+                        ? 'False positive'
+                        : 'False negative'}
+                    </Badge>
+                    {flag.notes && (
+                      <span className="text-xs text-muted-foreground line-clamp-1">
+                        {flag.notes}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {metrics.unresolved_flags > 5 && (
+                <p className="text-xs text-muted-foreground">
+                  +{metrics.unresolved_flags - 5} more unresolved flag
+                  {metrics.unresolved_flags - 5 !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
           ) : (
             <p className="text-xs text-muted-foreground">
               No unresolved flags. The scoring prompt is performing well.

@@ -147,7 +147,8 @@ export const queryKeys = {
       list: (workspaceId: string) => ['intelligence', 'prompts', workspaceId, 'list'] as const,
     },
     metrics: {
-      summary: (workspaceId: string) => ['intelligence', 'metrics', workspaceId] as const,
+      summary: (workspaceId: string, period?: string) =>
+        ['intelligence', 'metrics', workspaceId, period ?? '30d'] as const,
     },
   },
 
