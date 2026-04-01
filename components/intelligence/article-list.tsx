@@ -93,17 +93,17 @@ export function ArticleList({ workspaceId }: ArticleListProps) {
           <TabsList>
             <TabsTrigger value="passed" className="gap-1.5">
               Passed
-              {data && (
+              {data && tab === 'passed' && (
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {tab === 'passed' ? data.total : ''}
+                  {data.total}
                 </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="filtered" className="gap-1.5">
               Filtered
-              {data && (
+              {data && tab === 'filtered' && (
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {tab === 'filtered' ? data.total : ''}
+                  {data.total}
                 </Badge>
               )}
             </TabsTrigger>
