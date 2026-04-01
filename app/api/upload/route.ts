@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { createServiceClient } from '@/lib/supabase/server';
 import { safeErrorMessage } from '@/lib/error';
+import type { Json } from '@/supabase/types/database.types';
 import { extractPdfText as sharedExtractPdf } from '@/lib/extraction/pdf';
 import path from 'path';
 import crypto from 'crypto';
@@ -493,7 +494,7 @@ export async function POST(request: NextRequest) {
     }
     // Store temporal references from date extraction
     if (temporalReferences.length > 0) {
-      metadataUpdate.temporal_references = temporalReferences;
+      metadataUpdate.temporal_references = temporalReferences as unknown as Json;
     }
     updateData.metadata = metadataUpdate;
 
