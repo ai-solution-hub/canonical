@@ -650,6 +650,70 @@ export const XlsxExportBodySchema = z.object({
 });
 
 // ──────────────────────────────────────────
+// Intelligence Schemas (Sector Intelligence)
+// ──────────────────────────────────────────
+
+/** POST /api/intelligence/profiles */
+export const CompanyProfileCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  slug: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase with hyphens only'),
+  description: z.string().max(2000).optional(),
+  website_url: z.string().url().optional().or(z.literal('')),
+  sectors: z.array(z.string()).min(1, 'At least one sector is required'),
+  services: z.array(z.string()).default([]),
+  certifications: z.array(z.string()).default([]),
+  geographic_scope: z.array(z.string()).default([]),
+  competitors: z.array(z.object({
+    name: z.string(),
+    website: z.string().optional(),
+    notes: z.string().optional(),
+  })).default([]),
+  target_customers: z.string().max(1000).optional(),
+  value_proposition: z.string().max(2000).optional(),
+  key_topics: z.array(z.string()).min(1, 'At least one key topic is required'),
+});
+
+/** PATCH /api/intelligence/profiles/:id */
+export const CompanyProfileUpdateSchema = CompanyProfileCreateSchema.partial();
+
+/** POST /api/intelligence/workspaces/:id/sources */
+export const FeedSourceCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  url: z.string().url('Must be a valid URL'),
+  source_type: z.enum(['rss', 'web', 'api']).default('rss'),
+  polling_interval_minutes: z.number().int().min(5).max(1440).default(30),
+  is_active: z.boolean().default(true),
+});
+
+/** PATCH /api/intelligence/workspaces/:id/sources/:sourceId */
+export const FeedSourceUpdateSchema = FeedSourceCreateSchema.partial();
+
+/** POST /api/intelligence/workspaces/:id/articles/:articleId/flag */
+export const FeedFlagCreateSchema = z.object({
+  flag_type: z.enum(['false_positive', 'false_negative']),
+  notes: z.string().max(1000).optional(),
+});
+
+/** POST /api/intelligence/workspaces/:id/prompts */
+export const FeedPromptCreateSchema = z.object({
+  prompt_text: z.string().min(10, 'Prompt must be at least 10 characters').max(10000),
+  change_notes: z.string().max(1000).optional(),
+});
+
+/** POST /api/intelligence/workspaces */
+export const IntelligenceWorkspaceCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  description: z.string().max(2000).optional(),
+  company_profile_id: z.string().uuid('Must select a company profile'),
+});
+
+/** PATCH /api/intelligence/workspaces/:id */
+export const IntelligenceWorkspaceUpdateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200).optional(),
+  description: z.string().max(2000).optional(),
+});
+
+// ──────────────────────────────────────────
 // Tag Management Schemas (Session 53)
 // ──────────────────────────────────────────
 

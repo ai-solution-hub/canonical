@@ -118,6 +118,39 @@ export const queryKeys = {
     detail: (id: string) => ['workspaces', 'detail', id] as const,
   },
 
+  // Intelligence
+  intelligence: {
+    all: ['intelligence'] as const,
+    profiles: {
+      all: ['intelligence', 'profiles'] as const,
+      list: ['intelligence', 'profiles', 'list'] as const,
+      detail: (id: string) => ['intelligence', 'profiles', 'detail', id] as const,
+    },
+    workspaces: {
+      all: ['intelligence', 'workspaces'] as const,
+      list: ['intelligence', 'workspaces', 'list'] as const,
+      detail: (id: string) => ['intelligence', 'workspaces', 'detail', id] as const,
+    },
+    sources: {
+      all: (workspaceId: string) => ['intelligence', 'sources', workspaceId] as const,
+      list: (workspaceId: string) => ['intelligence', 'sources', workspaceId, 'list'] as const,
+      detail: (workspaceId: string, sourceId: string) =>
+        ['intelligence', 'sources', workspaceId, 'detail', sourceId] as const,
+    },
+    articles: {
+      all: (workspaceId: string) => ['intelligence', 'articles', workspaceId] as const,
+      list: (workspaceId: string, filters: Record<string, unknown>) =>
+        ['intelligence', 'articles', workspaceId, 'list', filters] as const,
+    },
+    prompts: {
+      all: (workspaceId: string) => ['intelligence', 'prompts', workspaceId] as const,
+      list: (workspaceId: string) => ['intelligence', 'prompts', workspaceId, 'list'] as const,
+    },
+    metrics: {
+      summary: (workspaceId: string) => ['intelligence', 'metrics', workspaceId] as const,
+    },
+  },
+
   // Notifications
   notifications: {
     all: ['notifications'] as const,

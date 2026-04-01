@@ -40,6 +40,30 @@ describe('buildScoringPrompt', () => {
     expect(prompt).toContain('KCSIE');
     expect(prompt).toContain('education');
   });
+
+  it('includes custom prompt text when provided', () => {
+    const customText = 'Score DfE announcements as high relevance regardless of topic.';
+    const prompt = buildScoringPrompt(mockCompany, customText);
+    expect(prompt).toContain('Additional scoring guidance from the team:');
+    expect(prompt).toContain(customText);
+    expect(prompt).toContain('prefer the team\'s guidance');
+  });
+
+  it('works without custom prompt text (backwards compatible)', () => {
+    const prompt = buildScoringPrompt(mockCompany);
+    expect(prompt).not.toContain('Additional scoring guidance from the team:');
+    expect(prompt).toContain('Respond with JSON only');
+  });
+
+  it('omits custom section for empty string', () => {
+    const prompt = buildScoringPrompt(mockCompany, '');
+    expect(prompt).not.toContain('Additional scoring guidance from the team:');
+  });
+
+  it('omits custom section for undefined', () => {
+    const prompt = buildScoringPrompt(mockCompany, undefined);
+    expect(prompt).not.toContain('Additional scoring guidance from the team:');
+  });
 });
 
 describe('embeddingPreFilter', () => {
@@ -69,5 +93,34 @@ describe('scoreRelevance', () => {
     expect(result.category).toBe('high');
     expect(result.passed).toBe(true);
     expect(result.matchedCategories).toContain('education');
+  });
+
+  it('passes custom prompt text through to the API call', async () => {
+    const { getAnthropicClient } = await import('@/lib/anthropic');
+    const mockCreate = vi.mocked(getAnthropicClient)().messages.create;
+
+    const customText = 'Prioritise articles mentioning DfE safeguarding guidance.';
+    await scoreRelevance('KCSIE Update', 'Content...', mockCompany, undefined, customText);
+
+    // Verify the system prompt included the custom text
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.stringContaining(customText),
+      }),
+    );
+  });
+
+  it('works without custom prompt text', async () => {
+    const { getAnthropicClient } = await import('@/lib/anthropic');
+    const mockCreate = vi.mocked(getAnthropicClient)().messages.create;
+
+    await scoreRelevance('KCSIE Update', 'Content...', mockCompany);
+
+    // Verify the system prompt did NOT include custom guidance section
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: expect.not.stringContaining('Additional scoring guidance'),
+      }),
+    );
   });
 });

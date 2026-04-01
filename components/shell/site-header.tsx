@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, BookOpen, ExternalLink } from 'lucide-react';
+import { Search, Briefcase, LayoutGrid, Library, Menu, Settings, ShieldCheck, BarChart3, BookOpen, Newspaper, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/browse/search-bar';
 import {
@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: '/coverage', label: 'Coverage', icon: BarChart3, requiresEdit: false },
   { href: '/guide', label: 'Guides', icon: BookOpen, requiresEdit: false },
   { href: '/workspaces', label: 'Workspaces', icon: Briefcase, requiresEdit: false },
+  { href: '/intelligence', label: 'Intelligence', icon: Newspaper, requiresEdit: true },
   { href: '/review', label: 'Review', icon: ShieldCheck, requiresEdit: true },
 ] as const;
 

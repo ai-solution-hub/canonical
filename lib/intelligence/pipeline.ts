@@ -114,19 +114,20 @@ async function isDuplicate(
   return false;
 }
 
-/** Get the active feed prompt for a workspace (for prompt_version_id tracking) */
-async function getActivePromptId(
+/** Get the active feed prompt for a workspace (id + prompt_text for scoring) */
+async function getActivePrompt(
   supabase: Supabase,
   workspaceId: string,
-): Promise<string | null> {
+): Promise<{ id: string; promptText: string } | null> {
   const { data } = await supabase
     .from('feed_prompts')
-    .select('id')
+    .select('id, prompt_text')
     .eq('workspace_id', workspaceId)
     .eq('is_active', true)
     .limit(1);
 
-  return data?.[0]?.id ?? null;
+  if (!data?.[0]) return null;
+  return { id: data[0].id, promptText: data[0].prompt_text };
 }
 
 /** Process a single feed source: poll → extract → dedup → score → store */
@@ -135,6 +136,7 @@ export async function processFeedSource(
   source: FeedSource,
   companyContext: CompanyContext | null,
   companyEmbedding: number[] | null,
+  activePrompt?: { id: string; promptText: string } | null,
 ): Promise<FeedProcessingResult> {
   const startTime = Date.now();
   const result: FeedProcessingResult = {
@@ -170,8 +172,8 @@ export async function processFeedSource(
 
   result.articlesFound = pollResult.items.length;
 
-  // Get active prompt ID for this workspace (for prompt_version_id tracking)
-  const promptVersionId = await getActivePromptId(supabase, source.workspace_id);
+  // Use active prompt passed from runPipeline (fetched once per workspace)
+  const promptVersionId = activePrompt?.id ?? null;
 
   // 2. Process each item
   for (const item of pollResult.items) {
@@ -212,11 +214,13 @@ export async function processFeedSource(
           relevanceCategory = 'irrelevant';
           relevanceReasoning = `Failed embedding pre-filter (similarity: ${preFilter.similarity.toFixed(3)})`;
         } else {
-          // Stage 2: LLM relevance scoring
+          // Stage 2: LLM relevance scoring (with custom prompt text if available)
           const scoring = await scoreRelevance(
             item.title,
             extraction.content,
             companyContext,
+            undefined, // use default threshold
+            activePrompt?.promptText,
           );
           passed = scoring.passed;
           relevanceScore = scoring.score;
@@ -403,6 +407,9 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
     // Load company context for this workspace
     const companyContext = await loadCompanyContext(supabase, source.workspace_id);
 
+    // Load active prompt for this workspace (fetched once, passed to all articles)
+    const activePrompt = await getActivePrompt(supabase, source.workspace_id);
+
     // Generate company embedding for pre-filter (cached per workspace)
     let companyEmbedding: number[] | null = null;
     if (companyContext) {
@@ -420,7 +427,7 @@ export async function runPipeline(supabase: Supabase): Promise<PipelineRunResult
     }
 
     // Process the feed
-    const feedResult = await processFeedSource(supabase, source, companyContext, companyEmbedding);
+    const feedResult = await processFeedSource(supabase, source, companyContext, companyEmbedding, activePrompt);
     feedResults.push(feedResult);
     errors.push(...feedResult.errors);
 
