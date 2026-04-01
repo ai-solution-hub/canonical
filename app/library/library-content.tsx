@@ -184,7 +184,7 @@ export function LibraryContent() {
             placeholder="Search questions and answers..."
             value={filters.search ?? ''}
             onChange={(e) => setFilters({ search: e.target.value || undefined })}
-            className="h-9 pl-9"
+            className="h-9 bg-white pl-9 shadow-sm"
             aria-label="Search Q&A pairs"
           />
         </div>

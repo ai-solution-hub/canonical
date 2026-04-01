@@ -440,7 +440,7 @@ export function TagsSection() {
                   placeholder="Search tags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
+                  className="bg-white pl-9 shadow-sm"
                   aria-label="Search tags"
                 />
               </div>

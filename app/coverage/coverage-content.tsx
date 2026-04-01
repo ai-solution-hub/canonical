@@ -272,15 +272,15 @@ export function CoverageContent() {
     <div>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <div className="inline-flex items-center rounded-lg border border-border">
+        <div className="inline-flex items-center gap-0.5 rounded-lg bg-muted/50 p-0.5">
           <button
             type="button"
             onClick={() => setViewMode('cards')}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-l-lg px-3 py-1.5 text-xs font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
               viewMode === 'cards'
-                ? 'bg-accent text-foreground'
-                : 'border border-border text-muted-foreground hover:text-foreground',
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-card/50 hover:text-foreground',
             )}
             aria-pressed={viewMode === 'cards'}
           >
@@ -291,10 +291,10 @@ export function CoverageContent() {
             type="button"
             onClick={() => setViewMode('heatmap')}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-r-lg px-3 py-1.5 text-xs font-medium transition-colors',
+              'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
               viewMode === 'heatmap'
-                ? 'bg-accent text-foreground'
-                : 'border border-border text-muted-foreground hover:text-foreground',
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:bg-card/50 hover:text-foreground',
             )}
             aria-pressed={viewMode === 'heatmap'}
           >

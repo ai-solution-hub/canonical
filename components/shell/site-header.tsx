@@ -37,7 +37,7 @@ export function SiteHeader() {
   const { canEdit, loading: roleLoading } = useUserRole();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 shadow-[0_1px_3px_oklch(0.18_0.014_48/0.06)] backdrop-blur-sm supports-[backdrop-filter]:bg-background/80">
+    <header className="sticky top-0 z-40 border-b border-border bg-white shadow-[0_1px_3px_oklch(0.18_0.014_48/0.06)] backdrop-blur-sm supports-[backdrop-filter]:bg-white/95">
       <nav
         className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6"
         aria-label="Main navigation"
@@ -70,7 +70,10 @@ export function SiteHeader() {
                 href={href}
                 aria-current={isActive ? 'page' : undefined}
                 className={cn(
-                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground',
+                  'flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors',
+                  isActive
+                    ? 'font-semibold text-foreground'
+                    : 'text-muted-foreground hover:text-foreground',
                   requiresEdit && roleLoading && 'pointer-events-none opacity-50',
                 )}
                 tabIndex={requiresEdit && roleLoading ? -1 : undefined}
