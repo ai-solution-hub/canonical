@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse, rateLimitResponse } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { safeErrorMessage } from '@/lib/error';
+import type { Json } from '@/supabase/types/database.types';
 import { parseBody } from '@/lib/validation';
 import { IngestUrlBodySchema } from '@/lib/validation/ingest-schemas';
 import { validateUrl } from '@/lib/extraction/url-validation';
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
         if (temporalReferences.length > 0) {
           await dateServiceClient.rpc('merge_item_metadata', {
             p_item_id: newItem.id,
-            p_new_data: { temporal_references: temporalReferences },
+            p_new_data: { temporal_references: temporalReferences as unknown as Json },
           });
         }
         if (expiryDate) {

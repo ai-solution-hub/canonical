@@ -4,7 +4,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 import { getAnthropicClient, getAIModel } from '@/lib/anthropic';
 import { extractToolResult } from '@/lib/ai-parse';
 import { generateEmbedding } from '@/lib/ai/embed';
@@ -447,7 +447,7 @@ Also extract any temporal references (dates, deadlines, expiry dates, renewal da
       const existingMetadata = (item.metadata as Record<string, unknown>) ?? {};
       updateData.metadata = {
         ...existingMetadata,
-        ai_temporal_references: result.temporal_references,
+        ai_temporal_references: result.temporal_references as unknown as Json,
       };
     } catch (temporalErr) {
       console.error('Failed to merge temporal references into metadata:', temporalErr);
