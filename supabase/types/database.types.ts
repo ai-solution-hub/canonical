@@ -1619,6 +1619,63 @@ export type Database = {
         }
         Relationships: []
       }
+      si_processing_queue: {
+        Row: {
+          articles_found: number
+          articles_new: number
+          articles_passed: number
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          feed_source_id: string
+          id: string
+          started_at: string | null
+          status: string
+          workspace_id: string
+        }
+        Insert: {
+          articles_found?: number
+          articles_new?: number
+          articles_passed?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          feed_source_id: string
+          id?: string
+          started_at?: string | null
+          status?: string
+          workspace_id: string
+        }
+        Update: {
+          articles_found?: number
+          articles_new?: number
+          articles_passed?: number
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          feed_source_id?: string
+          id?: string
+          started_at?: string | null
+          status?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "si_processing_queue_feed_source_id_fkey"
+            columns: ["feed_source_id"]
+            isOneToOne: false
+            referencedRelation: "feed_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "si_processing_queue_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       source_document_diffs: {
         Row: {
           affected_content_item_id: string | null
