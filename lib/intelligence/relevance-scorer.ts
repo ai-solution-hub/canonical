@@ -32,8 +32,11 @@ export async function embeddingPreFilter(
 }
 
 /** Build the system prompt for relevance scoring */
-export function buildScoringPrompt(company: CompanyContext): string {
-  return `You are an intelligence analyst for ${company.name}.
+export function buildScoringPrompt(
+  company: CompanyContext,
+  customPromptText?: string,
+): string {
+  let prompt = `You are an intelligence analyst for ${company.name}.
 
 Company context:
 - Sectors: ${company.sectors.join(', ')}
@@ -48,7 +51,18 @@ Score using these categories:
 - high (0.8-1.0): Directly relevant to the company's sectors, services, or key topics. Would inform a sales conversation, bid, or product decision.
 - medium (0.5-0.79): Tangentially relevant. Related sector or topic but not directly actionable.
 - low (0.2-0.49): Loosely connected. Same broad industry but unlikely to be useful.
-- irrelevant (0.0-0.19): No connection to the company's business.
+- irrelevant (0.0-0.19): No connection to the company's business.`;
+
+  if (customPromptText) {
+    prompt += `
+
+Additional scoring guidance from the team:
+${customPromptText}
+
+Use the above guidance to refine your scoring. If the guidance conflicts with the base criteria, prefer the team's guidance.`;
+  }
+
+  prompt += `
 
 Respond with JSON only:
 {
@@ -57,6 +71,8 @@ Respond with JSON only:
   "reasoning": "<1-2 sentences explaining the score>",
   "matched_categories": ["<list of company topics/sectors this matches>"]
 }`;
+
+  return prompt;
 }
 
 /** Stage 2: LLM categorical relevance scoring via Claude Haiku */
@@ -65,6 +81,7 @@ export async function scoreRelevance(
   articleContent: string,
   company: CompanyContext,
   threshold: number = DEFAULT_RELEVANCE_THRESHOLD,
+  customPromptText?: string,
 ): Promise<RelevanceResult> {
   const anthropic = getAnthropicClient();
   const model = getModelForTier('quality');
@@ -72,7 +89,7 @@ export async function scoreRelevance(
   const response = await anthropic.messages.create({
     model,
     max_tokens: 300,
-    system: buildScoringPrompt(company),
+    system: buildScoringPrompt(company, customPromptText),
     messages: [
       {
         role: 'user',

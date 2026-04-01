@@ -127,7 +127,7 @@ registerType({
     'AI-filtered sector and competitor news feeds with configurable prompts',
   icon: Newspaper,
   route: '/intelligence',
-  available: false, // Set to true when Phase 1b UI is ready
+  available: true,
   hasCustomCreation: true,
   defaultColour: '#059669',
   defaultIcon: 'globe',
