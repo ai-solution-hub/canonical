@@ -86,7 +86,7 @@ export function ThemeSettings() {
         aria-label="Appearance settings"
         disabled
       >
-        <Settings2 className="size-4" />
+        <Settings2 className="size-4 dark:text-neutral-200" />
       </Button>
     );
   }
@@ -100,7 +100,7 @@ export function ThemeSettings() {
           aria-label="Appearance settings"
           className="relative"
         >
-          <Settings2 className="size-4" />
+          <Settings2 className="size-4 dark:text-neutral-200" />
           {showIndicator && (
             <span className="absolute right-1 top-1 size-2 rounded-full bg-primary" />
           )}
