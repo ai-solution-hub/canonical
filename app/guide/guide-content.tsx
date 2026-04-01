@@ -244,7 +244,7 @@ function FilterBar({
           onChange={(e) => setFilters({ search: e.target.value || undefined })}
           placeholder="Search guides..."
           aria-label="Search guides"
-          className="h-9 border border-border bg-white pl-8 text-xs shadow-sm"
+          className="h-9 border bg-white pl-8 text-xs shadow-sm dark:bg-input/30"
         />
       </div>
 
