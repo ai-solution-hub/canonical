@@ -65,7 +65,7 @@ export function useFeedArticles(workspaceId: string, filters: ArticleFilters) {
   }
 
   return useQuery({
-    queryKey: queryKeys.intelligence.articles.list(workspaceId, filters),
+    queryKey: queryKeys.intelligence.articles.list(workspaceId, filters as unknown as Record<string, unknown>),
     queryFn: () =>
       fetchJson<ArticlesResponse>(
         `/api/intelligence/workspaces/${workspaceId}/articles?${params.toString()}`,

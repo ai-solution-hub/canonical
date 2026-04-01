@@ -6,7 +6,7 @@ import { parseBody } from '@/lib/validation';
 import { FeedPromptCreateSchema } from '@/lib/validation/schemas';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/supabase/types/database.types';
+import type { Database, Json } from '@/supabase/types/database.types';
 
 type DbClient = SupabaseClient<Database>;
 
@@ -206,7 +206,7 @@ async function handleRollback(
 async function capturePerformanceSnapshot(
   supabase: DbClient,
   workspaceId: string,
-): Promise<Record<string, unknown>> {
+): Promise<{ [key: string]: Json | undefined }> {
   // Get article stats for the last 30 days
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

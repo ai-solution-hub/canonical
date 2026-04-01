@@ -2,22 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthorisedClient, authFailureResponse } from '@/lib/auth';
 import { safeErrorMessage } from '@/lib/error';
+import { parseSearchParams } from '@/lib/validation';
+import { z } from 'zod';
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-const VALID_PERIODS = ['7d', '30d', 'all'] as const;
-type Period = (typeof VALID_PERIODS)[number];
+const MetricsParamsSchema = z.object({
+  period: z.enum(['7d', '30d', 'all']).default('30d'),
+});
 
-function getPeriodInterval(period: Period): string | null {
-  switch (period) {
-    case '7d':
-      return '7 days';
-    case '30d':
-      return '30 days';
-    case 'all':
-      return null;
-  }
-}
+type Period = '7d' | '30d' | 'all';
 
 /** GET /api/intelligence/workspaces/:id/metrics — aggregate workspace metrics */
 export async function GET(
@@ -30,18 +24,18 @@ export async function GET(
     if (!auth.success) return authFailureResponse(auth);
     const { supabase } = auth;
 
-    const periodParam = request.nextUrl.searchParams.get('period') ?? '30d';
-    const period = VALID_PERIODS.includes(periodParam as Period)
-      ? (periodParam as Period)
-      : '30d';
-
-    const intervalDays = getPeriodInterval(period);
+    const parsed = parseSearchParams(
+      MetricsParamsSchema,
+      request.nextUrl.searchParams,
+    );
+    if (!parsed.success) return parsed.response;
+    const { period } = parsed.data;
 
     // Build date filter
     let dateFilter: string | null = null;
-    if (intervalDays) {
+    if (period !== 'all') {
+      const days = period === '7d' ? 7 : 30;
       const d = new Date();
-      const days = parseInt(intervalDays);
       d.setDate(d.getDate() - days);
       dateFilter = d.toISOString();
     }

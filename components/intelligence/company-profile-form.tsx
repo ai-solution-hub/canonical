@@ -143,7 +143,7 @@ export function CompanyProfileForm({
       onSubmit({
         name,
         slug,
-        description: description || undefined,
+        description: description || null,
         website_url: websiteUrl || null,
         sectors,
         services,
