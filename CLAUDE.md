@@ -184,6 +184,8 @@ Consult these references when adding or modifying UI elements.
 | State of the Product | `docs/reference/state-of-the-product.md` |
 | Codebase mapping (7 docs) | `.planning/codebase/` |
 | Schema quick reference | `docs/reference/SCHEMA-QUICK-REFERENCE.md` |
+| Field-consumer dependency map | `docs/reference/field-consumer-dependency-map.md` |
+| SI gap analysis | `docs/reference/si-gap-analysis.md` |
 | Quality checks (10 files) | `.claude/checks/` |
 | Auto-generated stats | `docs/generated/codebase-stats.md`, `docs/generated/mcp-inventory.md` |
 | Documentation inventory | `docs/reference/documentation-inventory.md` |
