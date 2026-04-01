@@ -37,7 +37,7 @@ export function SiteHeader() {
   const { canEdit, loading: roleLoading } = useUserRole();
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-white shadow-[0_1px_3px_oklch(0.18_0.014_48/0.06)] backdrop-blur-sm supports-[backdrop-filter]:bg-white/95">
+    <header className="sticky top-0 z-40 border-b border-border bg-white shadow-[0_1px_3px_oklch(0.18_0.014_48/0.06)] backdrop-blur-sm supports-[backdrop-filter]:bg-white/95 dark:bg-background dark:shadow-[0_1px_3px_oklch(0.18_0.014_48/0.2)] dark:supports-[backdrop-filter]:bg-background/95">
       <nav
         className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6"
         aria-label="Main navigation"

@@ -268,7 +268,7 @@ export function SearchBar({
               aria-controls={listboxId}
               aria-autocomplete="list"
               aria-activedescendant={activeDescendantId}
-              className="h-12 rounded-xl border-2 bg-white pl-12 pr-4 text-base shadow-md transition-[border-color,box-shadow] duration-150 focus:border-primary focus:shadow-lg"
+              className="h-12 rounded-xl border-2 bg-white pl-12 pr-4 text-base shadow-md transition-[border-color,box-shadow] duration-150 focus:border-primary focus:shadow-lg dark:bg-input/30"
             />
           </div>
         </form>
@@ -304,7 +304,7 @@ export function SearchBar({
             aria-controls={listboxId}
             aria-autocomplete="list"
             aria-activedescendant={activeDescendantId}
-            className="h-9 border border-border bg-white pl-9 pr-16 shadow-sm"
+            className="h-9 border border-border bg-white pl-9 pr-16 shadow-sm dark:bg-input/30"
           />
           <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 select-none rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             <span className="text-xs">{mod}</span>K
