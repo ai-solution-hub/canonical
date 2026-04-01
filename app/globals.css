@@ -287,6 +287,16 @@
   --color-entity-product-bg: oklch(0.93 0.04 170);
   --color-entity-product-text: oklch(0.35 0.12 170);
 
+  /* Relevance score (article review) */
+  --color-relevance-high: oklch(0.93 0.04 160);
+  --color-relevance-high-text: oklch(0.35 0.12 160);
+  --color-relevance-medium: oklch(0.93 0.04 70);
+  --color-relevance-medium-text: oklch(0.40 0.12 70);
+  --color-relevance-low: oklch(0.93 0.04 55);
+  --color-relevance-low-text: oklch(0.40 0.14 55);
+  --color-relevance-irrelevant: oklch(0.95 0.03 20);
+  --color-relevance-irrelevant-text: oklch(0.35 0.15 20);
+
   /* Draft / publish action colours */
   --color-draft-badge-bg: oklch(0.93 0.04 70);
   --color-draft-badge-text: oklch(0.50 0.14 70);
@@ -578,6 +588,16 @@
   --color-entity-product-bg: oklch(0.25 0.06 170);
   --color-entity-product-text: oklch(0.80 0.10 170);
 
+  /* Relevance score (dark) */
+  --color-relevance-high: oklch(0.25 0.06 160);
+  --color-relevance-high-text: oklch(0.80 0.10 160);
+  --color-relevance-medium: oklch(0.25 0.04 70);
+  --color-relevance-medium-text: oklch(0.82 0.10 70);
+  --color-relevance-low: oklch(0.25 0.04 55);
+  --color-relevance-low-text: oklch(0.82 0.10 55);
+  --color-relevance-irrelevant: oklch(0.25 0.05 20);
+  --color-relevance-irrelevant-text: oklch(0.80 0.12 20);
+
   /* Draft / publish action colours (dark) */
   --color-draft-badge-bg: oklch(0.25 0.04 70);
   --color-draft-badge-text: oklch(0.75 0.12 70);
@@ -786,6 +806,15 @@
   --color-entity-sector-text: var(--color-entity-sector-text);
   --color-entity-product-bg: var(--color-entity-product-bg);
   --color-entity-product-text: var(--color-entity-product-text);
+
+  --color-relevance-high: var(--color-relevance-high);
+  --color-relevance-high-text: var(--color-relevance-high-text);
+  --color-relevance-medium: var(--color-relevance-medium);
+  --color-relevance-medium-text: var(--color-relevance-medium-text);
+  --color-relevance-low: var(--color-relevance-low);
+  --color-relevance-low-text: var(--color-relevance-low-text);
+  --color-relevance-irrelevant: var(--color-relevance-irrelevant);
+  --color-relevance-irrelevant-text: var(--color-relevance-irrelevant-text);
 
   --color-draft-badge-bg: var(--color-draft-badge-bg);
   --color-draft-badge-text: var(--color-draft-badge-text);
