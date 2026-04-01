@@ -688,6 +688,14 @@ export const FeedSourceCreateSchema = z.object({
 /** PATCH /api/intelligence/workspaces/:id/sources/:sourceId */
 export const FeedSourceUpdateSchema = FeedSourceCreateSchema.partial();
 
+/** GET /api/intelligence/workspaces/:id/articles (query params) */
+export const FeedArticleListParamsSchema = z.object({
+  tab: z.enum(['passed', 'filtered']).default('passed'),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+  source_id: z.string().uuid().optional(),
+});
+
 /** POST /api/intelligence/workspaces/:id/articles/:articleId/flag */
 export const FeedFlagCreateSchema = z.object({
   flag_type: z.enum(['false_positive', 'false_negative']),
